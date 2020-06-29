@@ -18,6 +18,7 @@ import com.wepay.kafka.connect.bigquery.convert.KafkaDataBuilder;
 import com.wepay.kafka.connect.bigquery.convert.SchemaConverter;
 
 import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
+import com.wepay.kafka.connect.bigquery.utils.TableNameUtils;
 import org.apache.kafka.connect.data.Schema;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -300,6 +301,12 @@ public class SchemaManager {
         .build();
     result.add(kafkaKeyField);
 
+    Field iterationField = Field
+        .newBuilder(MergeQueries.INTERMEDIATE_TABLE_ITERATION_FIELD_NAME, LegacySQLTypeName.INTEGER)
+        .setMode(Field.Mode.REQUIRED)
+        .build();
+    result.add(iterationField);
+
     Field partitionTimeField = Field
         .newBuilder(MergeQueries.INTERMEDIATE_TABLE_PARTITION_TIME_FIELD_NAME, LegacySQLTypeName.TIMESTAMP)
         .setMode(Field.Mode.NULLABLE)
@@ -334,9 +341,9 @@ public class SchemaManager {
   }
 
   private String table(TableId table) {
-    return (intermediateTables ? "intermediate " : "")
-        + "table "
-        + table;
+    return intermediateTables
+        ? TableNameUtils.intTable(table)
+        : TableNameUtils.table(table);
   }
 
   private com.google.cloud.bigquery.Schema readTableSchema(TableId table) {

@@ -64,12 +64,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static com.wepay.kafka.connect.bigquery.utils.TableNameUtils.intTable;
 
 /**
  * A {@link SinkTask} used to translate Kafka Connect {@link SinkRecord SinkRecords} into BigQuery
@@ -133,6 +136,11 @@ public class BigQuerySinkTask extends SinkTask {
 
   @Override
   public void flush(Map<TopicPartition, OffsetAndMetadata> offsets) {
+    if (upsertDelete) {
+      throw new ConnectException("This connector cannot perform upsert/delete on older versions of "
+          + "the Connect framework; please upgrade to version 0.10.2.0 or later");
+    }
+
     try {
       executor.awaitCurrentTasks();
     } catch (InterruptedException err) {
@@ -164,6 +172,11 @@ public class BigQuerySinkTask extends SinkTask {
 
     TableId baseTableId = topicsToBaseTableIds.get(record.topic());
     if (upsertDelete) {
+
+      // Notify the schema retriever of the schema for the destination table (it will be notified
+      // for the intermediate table in the put() loop)
+      recordLastSeenSchemas(baseTableId, record);
+
       TableId intermediateTableId = mergeBatches.intermediateTableFor(baseTableId);
       // If upsert/delete is enabled, we want to stream into a non-partitioned intermediate table
       return new PartitionedTableId.Builder(intermediateTableId).build();
@@ -225,6 +238,7 @@ public class BigQuerySinkTask extends SinkTask {
 
     result.put(MergeQueries.INTERMEDIATE_TABLE_KEY_FIELD_NAME, convertedKey);
     result.put(MergeQueries.INTERMEDIATE_TABLE_VALUE_FIELD_NAME, convertedValue);
+    result.put(MergeQueries.INTERMEDIATE_TABLE_ITERATION_FIELD_NAME, totalBatchSize);
     if (usePartitionDecorator && useMessageTimeDatePartitioning) {
       if (record.timestampType() == TimestampType.NO_TIMESTAMP_TYPE) {
         throw new ConnectException(
@@ -262,6 +276,15 @@ public class BigQuerySinkTask extends SinkTask {
         record.kafkaOffset());
   }
 
+  private void recordLastSeenSchemas(TableId table, SinkRecord record) {
+    if (schemaRetriever != null) {
+      schemaRetriever.setLastSeenSchema(
+          table, record.topic(), record.keySchema(), KafkaSchemaRecordType.KEY);
+      schemaRetriever.setLastSeenSchema(
+          table, record.topic(), record.valueSchema(), KafkaSchemaRecordType.VALUE);
+    }
+  }
+
   @Override
   public void put(Collection<SinkRecord> records) {
     if (upsertDelete) {
@@ -277,11 +300,7 @@ public class BigQuerySinkTask extends SinkTask {
     for (SinkRecord record : records) {
       if (record.value() != null || config.getBoolean(config.DELETE_ENABLED_CONFIG)) {
         PartitionedTableId table = getRecordTable(record);
-        if (schemaRetriever != null) {
-          schemaRetriever.setLastSeenSchema(table.getBaseTableId(),
-                                            record.topic(),
-                                            record.valueSchema());
-        }
+        recordLastSeenSchemas(table.getBaseTableId(), record);
 
         if (!tableWriterBuilders.containsKey(table)) {
           TableWriterBuilder tableWriterBuilder;
@@ -515,33 +534,36 @@ public class BigQuerySinkTask extends SinkTask {
 
   @Override
   public void stop() {
+    maybeStopExecutor(loadExecutor, "load executor");
+    maybeStopExecutor(executor, "table write executor");
+    if (upsertDelete) {
+      mergeBatches.intermediateTables().forEach(table -> {
+        logger.debug("Deleting {}", intTable(table));
+        getBigQuery().delete(table);
+      });
+    }
+
+    logger.trace("task.stop()");
+  }
+
+  private void maybeStopExecutor(ExecutorService executor, String executorName) {
+    if (executor == null) {
+      return;
+    }
+
     try {
       if (upsertDelete) {
-        mergeBatches.intermediateTables().forEach(table -> {
-          logger.debug("Deleting intermediate table {}", table);
-          getBigQuery().delete(table);
-        });
-      }
-    } finally {
-      try {
+        logger.trace("Forcibly shutting down {}", executorName);
+        executor.shutdownNow();
+      } else {
+        logger.trace("Requesting shutdown for {}", executorName);
         executor.shutdown();
-        executor.awaitTermination(EXECUTOR_SHUTDOWN_TIMEOUT_SEC, TimeUnit.SECONDS);
-        if (loadExecutor != null) {
-          try {
-            logger.info("Attempting to shut down load executor.");
-            loadExecutor.shutdown();
-            loadExecutor.awaitTermination(EXECUTOR_SHUTDOWN_TIMEOUT_SEC, TimeUnit.SECONDS);
-          } catch (InterruptedException ex) {
-            logger.warn("Could not shut down load executor within {}s.",
-                EXECUTOR_SHUTDOWN_TIMEOUT_SEC);
-          }
-        }
-      } catch (InterruptedException ex) {
-        logger.warn("{} active threads are still executing tasks {}s after shutdown is signaled.",
-            executor.getActiveCount(), EXECUTOR_SHUTDOWN_TIMEOUT_SEC);
-      } finally {
-        logger.trace("task.stop()");
       }
+      logger.trace("Awaiting termination of {}", executorName);
+      executor.awaitTermination(EXECUTOR_SHUTDOWN_TIMEOUT_SEC, TimeUnit.SECONDS);
+      logger.trace("Shut down {} successfully", executorName);
+    } catch (Exception e) {
+      logger.warn("Failed to shut down {}", executorName, e);
     }
   }
 
