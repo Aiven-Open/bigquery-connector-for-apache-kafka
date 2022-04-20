@@ -19,6 +19,8 @@
 
 package com.wepay.kafka.connect.bigquery;
 
+import com.google.api.gax.rpc.FixedHeaderProvider;
+import com.google.api.gax.rpc.HeaderProvider;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.BigQueryOptions;
@@ -26,6 +28,7 @@ import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageOptions;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
+import com.wepay.kafka.connect.bigquery.utils.Version;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -45,7 +48,9 @@ public abstract class GcpClientBuilder<Client> {
   }
 
   private static final Logger logger = LoggerFactory.getLogger(GcpClientBuilder.class);
-
+  private static final String USER_AGENT_HEADER_KEY = "user-agent";
+  private static final String USER_AGENT_HEADER_FORMAT = "%s (GPN: Confluent;) Google BigQuery Sink/%s";
+  private static String userAgent;
   private String project = null;
   private KeySource keySource = null;
   private String key = null;
@@ -53,7 +58,8 @@ public abstract class GcpClientBuilder<Client> {
   public GcpClientBuilder<Client> withConfig(BigQuerySinkConfig config) {
     return withProject(config.getString(PROJECT_CONFIG))
         .withKeySource(config.getKeySource())
-        .withKey(config.getKey());
+        .withKey(config.getKey())
+        .withUserAgent(config.getString(BigQuerySinkConfig.GCP_CONNECTOR_USER_AGENT_CONFIG));
   }
 
   public GcpClientBuilder<Client> withProject(String project) {
@@ -70,6 +76,11 @@ public abstract class GcpClientBuilder<Client> {
 
   public GcpClientBuilder<Client> withKey(String key) {
     this.key = key;
+    return this;
+  }
+
+  public GcpClientBuilder<Client> withUserAgent(String userAgent) {
+    GcpClientBuilder.userAgent = userAgent;
     return this;
   }
 
@@ -121,8 +132,12 @@ public abstract class GcpClientBuilder<Client> {
   public static class BigQueryBuilder extends GcpClientBuilder<BigQuery> {
     @Override
     protected BigQuery doBuild(String project, GoogleCredentials credentials) {
+      HeaderProvider headerProvider = FixedHeaderProvider.create(USER_AGENT_HEADER_KEY,
+            String.format(USER_AGENT_HEADER_FORMAT, userAgent, Version.version()));
+
       BigQueryOptions.Builder builder = BigQueryOptions.newBuilder()
-          .setProjectId(project);
+          .setProjectId(project)
+          .setHeaderProvider(headerProvider);
 
       if (credentials != null) {
         builder.setCredentials(credentials);
@@ -137,8 +152,12 @@ public abstract class GcpClientBuilder<Client> {
   public static class GcsBuilder extends GcpClientBuilder<Storage> {
     @Override
     protected Storage doBuild(String project, GoogleCredentials credentials) {
+      HeaderProvider headerProvider = FixedHeaderProvider.create(USER_AGENT_HEADER_KEY,
+              String.format(USER_AGENT_HEADER_FORMAT, userAgent, Version.version()));
+
       StorageOptions.Builder builder = StorageOptions.newBuilder()
-          .setProjectId(project);
+          .setProjectId(project)
+          .setHeaderProvider(headerProvider);
 
       if (credentials != null) {
         builder.setCredentials(credentials);

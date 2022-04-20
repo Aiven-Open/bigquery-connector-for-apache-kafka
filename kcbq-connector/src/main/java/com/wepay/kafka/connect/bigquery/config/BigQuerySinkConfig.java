@@ -458,6 +458,13 @@ public class BigQuerySinkConfig extends AbstractConfig {
           + "older than the specified partition expiration time will be permanently deleted. "
           + "Existing tables will not be altered to use this partition expiration time.";
 
+  public static final String GCP_CONNECTOR_USER_AGENT_CONFIG = "bigQueryUserAgent";
+  private static final ConfigDef.Type GCP_CONNECTOR_USER_AGENT_TYPE = ConfigDef.Type.STRING;
+  private static final String GCP_CONNECTOR_USER_AGENT_DEFAULT = "Confluent Platform";
+  private static final ConfigDef.Importance GCP_CONNECTOR_USER_AGENT_IMPORTANCE = ConfigDef.Importance.LOW;
+  private static final String GCP_CONNECTOR_USER_AGENT_DOC =
+          "User Agent header value for GCP. This is for GCP to track usage for this connector.";
+
   /**
    * Return the ConfigDef object used to define this config's fields.
    *
@@ -738,7 +745,12 @@ public class BigQuerySinkConfig extends AbstractConfig {
             BIGQUERY_PARTITION_EXPIRATION_VALIDATOR,
             BIGQUERY_PARTITION_EXPIRATION_IMPORTANCE,
             BIGQUERY_PARTITION_EXPIRATION_DOC
-        );
+        ).define(
+            GCP_CONNECTOR_USER_AGENT_CONFIG,
+            GCP_CONNECTOR_USER_AGENT_TYPE,
+            GCP_CONNECTOR_USER_AGENT_DEFAULT,
+            GCP_CONNECTOR_USER_AGENT_IMPORTANCE,
+            GCP_CONNECTOR_USER_AGENT_DOC);
   }
 
   private static final List<MultiPropertyValidator<BigQuerySinkConfig>> MULTI_PROPERTY_VALIDATIONS = new ArrayList<>();
