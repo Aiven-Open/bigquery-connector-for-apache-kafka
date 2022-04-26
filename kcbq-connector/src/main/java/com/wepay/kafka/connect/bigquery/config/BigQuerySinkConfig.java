@@ -458,11 +458,13 @@ public class BigQuerySinkConfig extends AbstractConfig {
           + "older than the specified partition expiration time will be permanently deleted. "
           + "Existing tables will not be altered to use this partition expiration time.";
 
-  public static final String GCP_CONNECTOR_PROVIDER_CONFIG = "provider";
-  private static final ConfigDef.Type GCP_CONNECTOR_PROVIDER_TYPE = ConfigDef.Type.STRING;
-  public static final String GCP_CONNECTOR_PROVIDER_DEFAULT = "Confluent Platform";
-  private static final ConfigDef.Importance GCP_CONNECTOR_PROVIDER_IMPORTANCE = ConfigDef.Importance.LOW;
-  public static final List<String> GCP_CONNECTOR_PROVIDER_TYPES = Stream.of("Confluent Platform", "Confluent Cloud")
+  //This config determines where the connector is hosted (Confluent Cloud or Confluent Platform).
+  //This is not enforced and defaulted to "Confluent Platform". Currently, it is only used for user-agent tracking in GCP.
+  public static final String CONNECTOR_RUNTIME_PROVIDER_CONFIG = "runtimeProvider";
+  private static final ConfigDef.Type CONNECTOR_RUNTIME_PROVIDER_TYPE = ConfigDef.Type.STRING;
+  public static final String CONNECTOR_RUNTIME_PROVIDER_DEFAULT = "Confluent Platform";
+  private static final ConfigDef.Importance CONNECTOR_RUNTIME_PROVIDER_IMPORTANCE = ConfigDef.Importance.LOW;
+  public static final List<String> CONNECTOR_RUNTIME_PROVIDER_TYPES = Stream.of("Confluent Platform", "Confluent Cloud")
           .collect(Collectors.toList());
 
   /**
@@ -746,10 +748,10 @@ public class BigQuerySinkConfig extends AbstractConfig {
             BIGQUERY_PARTITION_EXPIRATION_IMPORTANCE,
             BIGQUERY_PARTITION_EXPIRATION_DOC
         ).defineInternal(
-            GCP_CONNECTOR_PROVIDER_CONFIG,
-            GCP_CONNECTOR_PROVIDER_TYPE,
-            GCP_CONNECTOR_PROVIDER_DEFAULT,
-            GCP_CONNECTOR_PROVIDER_IMPORTANCE
+                    CONNECTOR_RUNTIME_PROVIDER_CONFIG,
+                    CONNECTOR_RUNTIME_PROVIDER_TYPE,
+                    CONNECTOR_RUNTIME_PROVIDER_DEFAULT,
+                    CONNECTOR_RUNTIME_PROVIDER_IMPORTANCE
         );
   }
 
