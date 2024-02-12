@@ -77,6 +77,7 @@ import static org.junit.Assert.assertTrue;
 public abstract class BaseConnectorIT {
   private static final Logger logger = LoggerFactory.getLogger(BaseConnectorIT.class);
 
+  private static final String KEY_SOURCE_ENV_VAR = "KCBQ_TEST_KEY_SOURCE";
   private static final String KEYFILE_ENV_VAR = "KCBQ_TEST_KEYFILE";
   private static final String PROJECT_ENV_VAR = "KCBQ_TEST_PROJECT";
   private static final String DATASET_ENV_VAR = "KCBQ_TEST_DATASET";
@@ -358,6 +359,10 @@ public abstract class BaseConnectorIT {
   }
 
   protected String keyFile() {
+    if (GcpClientBuilder.KeySource.APPLICATION_DEFAULT.name().equalsIgnoreCase(keySource())) {
+      // No key file necessary
+      return "";
+    }
     return readEnvVar(KEYFILE_ENV_VAR);
   }
 
@@ -370,7 +375,7 @@ public abstract class BaseConnectorIT {
   }
 
   protected String keySource() {
-    return BigQuerySinkConfig.KEY_SOURCE_DEFAULT;
+    return readEnvVar(KEY_SOURCE_ENV_VAR, BigQuerySinkConfig.KEY_SOURCE_DEFAULT);
   }
 
   protected String gcsBucket() {
