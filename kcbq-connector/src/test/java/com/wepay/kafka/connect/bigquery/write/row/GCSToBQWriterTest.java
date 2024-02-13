@@ -71,7 +71,7 @@ public class GCSToBQWriterTest {
   }
 
   @Test
-  public void testGCSNoFailure(){
+  public void testGCSNoFailure() {
     // test succeeding on first attempt
     final String topic = "test_topic";
     final String dataset = "scratch";
@@ -106,7 +106,7 @@ public class GCSToBQWriterTest {
   }
 
   @Test
-  public void testGCSSomeFailures(){
+  public void testGCSSomeFailures() {
     // test failure through all configured retry attempts.
     final String topic = "test_topic";
     final String dataset = "scratch";
@@ -145,7 +145,7 @@ public class GCSToBQWriterTest {
   }
 
   @Test
-  public void testGCSAllFailures(){
+  public void testGCSAllFailures() {
     // test failure through all configured retry attempts.
     final String topic = "test_topic";
     final String dataset = "scratch";
@@ -180,7 +180,7 @@ public class GCSToBQWriterTest {
     try {
       testTask.flush(Collections.emptyMap());
       Assert.fail("expected testTask.flush to fail.");
-    } catch (ConnectException ex){
+    } catch (ConnectException ex) {
       verify(storage, times(4)).create((BlobInfo)anyObject(), (byte[])anyObject());
     }
   }
