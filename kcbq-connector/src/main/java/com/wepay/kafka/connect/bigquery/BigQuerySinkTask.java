@@ -303,6 +303,7 @@ public class BigQuerySinkTask extends SinkTask {
 
     return builder.build();
   }
+
   public void writeSinkRecords(Collection<SinkRecord> records) {
     // Periodically poll for errors here instead of doing a stop-the-world check in flush()
     mayBeThrowErrors();
@@ -541,7 +542,8 @@ public class BigQuerySinkTask extends SinkTask {
                          schemaManager,
                          retry,
                          retryWait,
-                         autoCreateTables);
+                         autoCreateTables,
+                         time);
   }
 
   private SinkRecordConverter getConverter(BigQuerySinkTaskConfig config) {

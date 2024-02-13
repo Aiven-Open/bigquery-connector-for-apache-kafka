@@ -34,6 +34,7 @@ import com.wepay.kafka.connect.bigquery.SchemaManager;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
 import com.wepay.kafka.connect.bigquery.exception.GCSConnectException;
 
+import com.wepay.kafka.connect.bigquery.utils.Time;
 import org.apache.kafka.connect.errors.ConnectException;
 
 import org.apache.kafka.connect.sink.SinkRecord;
@@ -62,6 +63,7 @@ public class GCSToBQWriter {
   private final BigQuery bigQuery;
 
   private final SchemaManager schemaManager;
+  private final Time time;
 
   private static final int WAIT_MAX_JITTER = 1000;
 
@@ -80,16 +82,19 @@ public class GCSToBQWriter {
    * @param bigQuery {@link BigQuery} Object used to perform upload
    * @param retries Maximum number of retries
    * @param retryWaitMs Minimum number of milliseconds to wait before retrying
+   * @param time used to wait during backoff periods
    */
   public GCSToBQWriter(Storage storage,
                        BigQuery bigQuery,
                        SchemaManager schemaManager,
                        int retries,
                        long retryWaitMs,
-                       boolean autoCreateTables) {
+                       boolean autoCreateTables,
+                       Time time) {
     this.storage = storage;
     this.bigQuery = bigQuery;
     this.schemaManager = schemaManager;
+    this.time = time;
 
     this.retries = retries;
     this.retryWaitMs = retryWaitMs;
@@ -197,7 +202,7 @@ public class GCSToBQWriter {
    * @throws InterruptedException if interrupted.
    */
   private void waitRandomTime() throws InterruptedException {
-    Thread.sleep(retryWaitMs + random.nextInt(WAIT_MAX_JITTER));
+    time.sleep(retryWaitMs + random.nextInt(WAIT_MAX_JITTER));
   }
 
   private void attemptTableCreate(TableId tableId, List<SinkRecord> records) {
