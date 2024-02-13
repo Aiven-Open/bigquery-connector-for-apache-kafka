@@ -56,17 +56,20 @@ import org.apache.kafka.connect.runtime.rest.entities.ConnectorStateInfo;
 import org.apache.kafka.connect.util.clusters.EmbeddedConnectCluster;
 import org.apache.kafka.test.IntegrationTest;
 import org.apache.kafka.test.NoRetryException;
-import org.apache.kafka.test.TestUtils;
 import org.junit.experimental.categories.Category;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static com.google.cloud.bigquery.LegacySQLTypeName.BIGNUMERIC;
 import static com.google.cloud.bigquery.LegacySQLTypeName.BOOLEAN;
 import static com.google.cloud.bigquery.LegacySQLTypeName.BYTES;
 import static com.google.cloud.bigquery.LegacySQLTypeName.DATE;
+import static com.google.cloud.bigquery.LegacySQLTypeName.DATETIME;
 import static com.google.cloud.bigquery.LegacySQLTypeName.FLOAT;
 import static com.google.cloud.bigquery.LegacySQLTypeName.INTEGER;
+import static com.google.cloud.bigquery.LegacySQLTypeName.NUMERIC;
 import static com.google.cloud.bigquery.LegacySQLTypeName.STRING;
+import static com.google.cloud.bigquery.LegacySQLTypeName.TIME;
 import static com.google.cloud.bigquery.LegacySQLTypeName.TIMESTAMP;
 import static org.apache.kafka.connect.runtime.ConnectorConfig.CONNECTOR_CLASS_CONFIG;
 import static org.apache.kafka.connect.runtime.ConnectorConfig.TASKS_MAX_CONFIG;
@@ -256,6 +259,10 @@ public abstract class BaseConnectorIT {
               .atStartOfDay(ZoneOffset.UTC)
               .toInstant()
               .toEpochMilli();
+        } else if (fieldSchema.getType().equals(TIME)) {
+          return field.getStringValue();
+        } else if (fieldSchema.getType().equals(DATETIME)) {
+          return field.getTimestampValue();
         } else if (fieldSchema.getType().equals(FLOAT)) {
           return field.getDoubleValue();
         } else if (fieldSchema.getType().equals(INTEGER)) {
@@ -264,6 +271,8 @@ public abstract class BaseConnectorIT {
           return field.getStringValue();
         } else if (fieldSchema.getType().equals(TIMESTAMP)) {
           return field.getTimestampValue();
+        } else if (fieldSchema.getType().equals(BIGNUMERIC) || fieldSchema.getType().equals(NUMERIC)) {
+          return field.getNumericValue();
         } else {
           throw new RuntimeException("Cannot convert primitive field type "
               + fieldSchema.getType());

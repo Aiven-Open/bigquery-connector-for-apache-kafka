@@ -11,6 +11,9 @@ import com.wepay.kafka.connect.bigquery.integration.utils.SchemaRegistryTestUtil
 import com.wepay.kafka.connect.bigquery.integration.utils.TableClearer;
 import com.wepay.kafka.connect.bigquery.retrieve.IdentitySchemaRetriever;
 import io.confluent.connect.avro.AvroConverter;
+import io.debezium.time.Date;
+import io.debezium.time.Time;
+import io.debezium.time.Timestamp;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaAndValue;
 import org.apache.kafka.connect.data.SchemaBuilder;
@@ -31,6 +34,7 @@ import org.junit.experimental.categories.Category;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -99,6 +103,18 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
             .field("int64_field", Schema.INT64_SCHEMA)
             .field("string_field", Schema.STRING_SCHEMA);
 
+        Schema logicalsSchema = SchemaBuilder.struct()
+            // dlf = "Debezium logical field"
+            .field("dlf1", Timestamp.builder().optional().build())
+            .field("dlf2", Time.builder().optional().build())
+            .field("dlf3", Date.builder().optional().build())
+            // klf = "Kafka logical field"
+            .field("klf1", org.apache.kafka.connect.data.Timestamp.builder().optional().build())
+            .field("klf2", org.apache.kafka.connect.data.Time.builder().optional().build())
+            .field("klf3", org.apache.kafka.connect.data.Date.builder().optional().build())
+            .field("klf4", org.apache.kafka.connect.data.Decimal.builder(5).optional().build())
+            .build();
+
         Schema arraySchema = SchemaBuilder.array(Schema.STRING_SCHEMA);
 
         valueSchema = SchemaBuilder.struct()
@@ -109,6 +125,7 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
             .field("bytes_field", Schema.OPTIONAL_BYTES_SCHEMA)
             .field("nested_field", nestedStructSchema)
             .field("primitives_field", primitivesSchema)
+            .field("logicals_field", logicalsSchema)
             .field("array_field", arraySchema)
             .build();
 
@@ -449,6 +466,19 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
                 Field.of("string_field", StandardSQLTypeName.STRING)
             );
 
+            FieldList logicalsField = FieldList.of(
+                Field.of("dlf1", StandardSQLTypeName.TIMESTAMP),
+                Field.of("dlf2", StandardSQLTypeName.TIME),
+                Field.of("dlf3", StandardSQLTypeName.DATE),
+                Field.of("klf1", StandardSQLTypeName.TIMESTAMP),
+                Field.of("klf2", StandardSQLTypeName.TIME),
+                Field.of("klf3", StandardSQLTypeName.DATE),
+                Field.newBuilder("klf4", StandardSQLTypeName.BIGNUMERIC)
+                    .setScale(5L)
+                    .setPrecision(15L)
+                    .build()
+            );
+
             tableSchema = com.google.cloud.bigquery.Schema.of(
                 Field.of("f1", StandardSQLTypeName.STRING),
                 Field.of("f2", StandardSQLTypeName.BOOL),
@@ -456,6 +486,7 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
                 Field.of("bytes_field", StandardSQLTypeName.BYTES),
                 Field.of("nested_field", StandardSQLTypeName.STRUCT, nestedStructFields),
                 Field.of("primitives_field", StandardSQLTypeName.STRUCT, primitivesFields),
+                Field.of("logicals_field", StandardSQLTypeName.STRUCT, logicalsField),
                 Field.newBuilder("array_field", StandardSQLTypeName.STRING).setMode(Field.Mode.REPEATED).build()
             );
         }
@@ -520,6 +551,18 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
             primitivesValue.put("int64_field", iteration * 10);
             primitivesValue.put("string_field", Long.toString(iteration * 123));
 
+            Map<String, Object> logicalsValue = new HashMap<>();
+            long timestampMicros = 1707835187396371L;
+            long microsPerDay = 86400000000L;
+            // BigQuery doesn't handle integer values for time columns very well; omit
+            // these fields (i.e., dlf2 and klf2) from JSON testing
+            logicalsValue.put("dlf1", timestampMicros); // timestamp
+            logicalsValue.put("dlf2", 999999); // time
+            logicalsValue.put("dlf3", timestampMicros / microsPerDay); // date
+            logicalsValue.put("klf1", timestampMicros); // timestamp
+            logicalsValue.put("klf3", timestampMicros / microsPerDay); // date
+            logicalsValue.put("klf4", 5432); // decimal
+
             Map<String, Object> subValue = new HashMap<>();
             subValue.put("ssf1", iteration  / 2);
             subValue.put("ssf2", false);
@@ -543,6 +586,7 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
             kafkaValue.put("f3", iteration * 0.01);
             kafkaValue.put("nested_field", nestedValue);
             kafkaValue.put("primitives_field", primitivesValue);
+            kafkaValue.put("logicals_field", logicalsValue);
             kafkaValue.put("array_field", arrayValue);
 
             connect.kafka().produce(
@@ -600,6 +644,26 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
         primitivesStruct.put("int64_field", iteration * 10);
         primitivesStruct.put("string_field", Long.toString(iteration * 123));
 
+        Struct logicalsStruct = new Struct(valueSchema.field("logicals_field").schema());
+        long timestampMs = 1707835187396L;
+        int msPerDay = 86400000;
+        int time = (int) (timestampMs % msPerDay);
+        int date = (int) (timestampMs / msPerDay);
+        Schema klf1Schema = logicalsStruct.schema().field("klf1").schema();
+        java.util.Date klf1Value = org.apache.kafka.connect.data.Timestamp.toLogical(klf1Schema, timestampMs);
+        Schema klf2Schema = logicalsStruct.schema().field("klf2").schema();
+        java.util.Date klf2Value = org.apache.kafka.connect.data.Time.toLogical(klf2Schema, time);
+        Schema klf3Schema = logicalsStruct.schema().field("klf3").schema();
+        java.util.Date klf3Value = org.apache.kafka.connect.data.Date.toLogical(klf3Schema, date);
+        logicalsStruct
+            .put("dlf1", timestampMs)
+            .put("dlf2", time)
+            .put("dlf3", date)
+            .put("klf1", klf1Value)
+            .put("klf2", klf2Value)
+            .put("klf3", klf3Value)
+            .put("klf4", BigDecimal.valueOf(6543).setScale(5));
+
         Struct subStruct = new Struct(valueSchema
             .field("nested_field").schema()
             .field("sf2").schema()
@@ -627,6 +691,7 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
             .put("bytes_field", bytesValue)
             .put("nested_field", nestedStruct)
             .put("primitives_field", primitivesStruct)
+            .put("logicals_field", logicalsStruct)
             .put("array_field", arrayValue);
     }
 
