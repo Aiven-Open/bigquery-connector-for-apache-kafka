@@ -9,6 +9,7 @@ import com.wepay.kafka.connect.bigquery.ErrantRecordHandler;
 import com.wepay.kafka.connect.bigquery.SchemaManager;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiConnectException;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiErrorResponses;
+import com.wepay.kafka.connect.bigquery.utils.Time;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.json.JSONArray;
@@ -37,6 +38,9 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiApplic
 
     private static final Logger logger = LoggerFactory.getLogger(StorageWriteApiBatchApplicationStream.class);
 
+    @VisibleForTesting
+    Time time;
+
     /**
      * Map of {tableName , {StreamName, {@link ApplicationStream}}}
      * Streams should be accessed in the order of entry, so we need LinkedHashMap here
@@ -61,7 +65,30 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiApplic
             ErrantRecordHandler errantRecordHandler,
             SchemaManager schemaManager,
             boolean attemptSchemaUpdate) {
+        this(
+            retry,
+            retryWait,
+            writeSettings,
+            autoCreateTables,
+            errantRecordHandler,
+            schemaManager,
+            attemptSchemaUpdate,
+            Time.SYSTEM
+        );
+    }
+
+    @VisibleForTesting
+    StorageWriteApiBatchApplicationStream(
+        int retry,
+        long retryWait,
+        BigQueryWriteSettings writeSettings,
+        boolean autoCreateTables,
+        ErrantRecordHandler errantRecordHandler,
+        SchemaManager schemaManager,
+        boolean attemptSchemaUpdate,
+        Time time) {
         super(retry, retryWait, writeSettings, autoCreateTables, errantRecordHandler, schemaManager, attemptSchemaUpdate);
+        this.time = time;
         streams = new ConcurrentHashMap<>();
         currentStreams = new ConcurrentHashMap<>();
         tableLocks = new ConcurrentHashMap<>();
@@ -90,7 +117,7 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiApplic
      */
     @Override
     public void appendRows(TableName tableName, List<Object[]> rows, String streamName) {
-        StorageWriteApiRetryHandler retryHandler = new StorageWriteApiRetryHandler(tableName, getSinkRecords(rows), retry, retryWait);
+        StorageWriteApiRetryHandler retryHandler = new StorageWriteApiRetryHandler(tableName, getSinkRecords(rows), retry, retryWait, time);
         logger.debug("Sending {} records to write Api Application stream {} ...", rows.size(), streamName);
         ApplicationStream applicationStream = this.streams.get(tableName.toString()).get(streamName);
 
@@ -243,7 +270,7 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiApplic
     @VisibleForTesting
     ApplicationStream createApplicationStream(String tableName, List<Object[]> rows) {
         StorageWriteApiRetryHandler retryHandler = new StorageWriteApiRetryHandler(
-                TableName.parse(tableName), rows != null ? getSinkRecords(rows) : null, retry, retryWait);
+                TableName.parse(tableName), rows != null ? getSinkRecords(rows) : null, retry, retryWait, time);
         do {
             try {
                 return new ApplicationStream(tableName, getWriteClient());

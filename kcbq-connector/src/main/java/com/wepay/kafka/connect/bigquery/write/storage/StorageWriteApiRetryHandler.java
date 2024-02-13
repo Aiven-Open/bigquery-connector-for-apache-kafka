@@ -5,6 +5,7 @@ import com.google.cloud.bigquery.TableId;
 import com.google.cloud.bigquery.storage.v1.TableName;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiConnectException;
 import com.wepay.kafka.connect.bigquery.utils.TableNameUtils;
+import com.wepay.kafka.connect.bigquery.utils.Time;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,8 +30,15 @@ public class StorageWriteApiRetryHandler {
     private final Random random;
     private int userConfiguredRetry;
     private long userConfiguredRetryWait;
+    private final Time time;
 
-    public StorageWriteApiRetryHandler(TableName table, List<SinkRecord> records, int retry, long retryWait) {
+    public StorageWriteApiRetryHandler(
+        TableName table,
+        List<SinkRecord> records,
+        int retry,
+        long retryWait,
+        Time time
+    ) {
         tableCreationOrUpdateAttempted = false;
         additionalRetries = 0;
         additionalWait = 0;
@@ -40,6 +48,7 @@ public class StorageWriteApiRetryHandler {
         this.records = records;
         this.userConfiguredRetry = retry;
         this.userConfiguredRetryWait = retryWait;
+        this.time = time;
         this.random = new Random();
     }
 
@@ -85,7 +94,7 @@ public class StorageWriteApiRetryHandler {
     }
 
     private void waitRandomTime() throws InterruptedException {
-        Thread.sleep(userConfiguredRetryWait + additionalWait + random.nextInt(1000));
+        time.sleep(userConfiguredRetryWait + additionalWait + random.nextInt(1000));
     }
 
     public boolean mayBeRetry() {

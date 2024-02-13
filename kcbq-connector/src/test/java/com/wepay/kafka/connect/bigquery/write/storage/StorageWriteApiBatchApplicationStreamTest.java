@@ -11,6 +11,7 @@ import com.google.protobuf.Descriptors;
 import com.wepay.kafka.connect.bigquery.ErrantRecordHandler;
 import com.wepay.kafka.connect.bigquery.SchemaManager;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiConnectException;
+import com.wepay.kafka.connect.bigquery.utils.MockTime;
 import io.grpc.StatusRuntimeException;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
@@ -98,6 +99,7 @@ public class StorageWriteApiBatchApplicationStreamTest {
             io.grpc.Status.fromThrowable(new Throwable())
                     .withDescription("STREAM_FINALISED")
     ));
+    MockTime time = new MockTime();
 
     @Before
     public void setup() throws InterruptedException, Descriptors.DescriptorValidationException, IOException {
@@ -106,6 +108,7 @@ public class StorageWriteApiBatchApplicationStreamTest {
         mockedStream.streams = new ConcurrentHashMap<>();
         mockedStream.currentStreams = new ConcurrentHashMap<>();
         mockedStream.schemaManager = mockedSchemaManager;
+        mockedStream.time = time;
         errorMapping.put(0, "f0 field is unknown");
         mockedOffsets.put(new TopicPartition("t2", 0), new OffsetAndMetadata(100));
         mockedRows.add(new Object[]{mockedSinkRecord, new JSONObject()});

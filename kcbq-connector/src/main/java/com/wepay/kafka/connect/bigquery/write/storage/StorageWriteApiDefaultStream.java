@@ -12,6 +12,7 @@ import com.wepay.kafka.connect.bigquery.SchemaManager;
 
 import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiConnectException;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiErrorResponses;
+import com.wepay.kafka.connect.bigquery.utils.Time;
 import org.json.JSONArray;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,6 +29,9 @@ public class StorageWriteApiDefaultStream extends StorageWriteApiBase {
     private static final Logger logger = LoggerFactory.getLogger(StorageWriteApiDefaultStream.class);
     ConcurrentMap<String, JsonStreamWriter> tableToStream = new ConcurrentHashMap<>();
 
+    @VisibleForTesting
+    Time time;
+
     public StorageWriteApiDefaultStream(int retry,
                                         long retryWait,
                                         BigQueryWriteSettings writeSettings,
@@ -35,7 +39,28 @@ public class StorageWriteApiDefaultStream extends StorageWriteApiBase {
                                         ErrantRecordHandler errantRecordHandler,
                                         SchemaManager schemaManager,
                                         boolean attemptSchemaUpdate) {
+        this(
+            retry,
+            retryWait,
+            writeSettings,
+            autoCreateTables,
+            errantRecordHandler,
+            schemaManager,
+            attemptSchemaUpdate,
+            Time.SYSTEM
+        );
+    }
+
+    public StorageWriteApiDefaultStream(int retry,
+                                        long retryWait,
+                                        BigQueryWriteSettings writeSettings,
+                                        boolean autoCreateTables,
+                                        ErrantRecordHandler errantRecordHandler,
+                                        SchemaManager schemaManager,
+                                        boolean attemptSchemaUpdate,
+                                        Time time) {
         super(retry, retryWait, writeSettings, autoCreateTables, errantRecordHandler, schemaManager, attemptSchemaUpdate);
+        this.time = time;
     }
 
     @Override
@@ -72,7 +97,7 @@ public class StorageWriteApiDefaultStream extends StorageWriteApiBase {
     JsonStreamWriter getDefaultStream(TableName table, List<Object[]> rows) {
         String tableName = table.toString();
         return tableToStream.computeIfAbsent(tableName, t -> {
-            StorageWriteApiRetryHandler retryHandler = new StorageWriteApiRetryHandler(table, getSinkRecords(rows), retry, retryWait);
+            StorageWriteApiRetryHandler retryHandler = new StorageWriteApiRetryHandler(table, getSinkRecords(rows), retry, retryWait, time);
             do {
                 try {
                     return JsonStreamWriter.newBuilder(t, getWriteClient()).build();
@@ -109,7 +134,7 @@ public class StorageWriteApiDefaultStream extends StorageWriteApiBase {
     @Override
     public void appendRows(TableName tableName, List<Object[]> rows, String streamName) {
         JSONArray jsonArr;
-        StorageWriteApiRetryHandler retryHandler = new StorageWriteApiRetryHandler(tableName, getSinkRecords(rows), retry, retryWait);
+        StorageWriteApiRetryHandler retryHandler = new StorageWriteApiRetryHandler(tableName, getSinkRecords(rows), retry, retryWait, time);
         logger.debug("Sending {} records to write Api default stream on {} ...", rows.size(), tableName);
 
         do {

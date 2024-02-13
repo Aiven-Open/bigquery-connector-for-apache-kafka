@@ -12,6 +12,7 @@ import com.google.rpc.Status;
 import com.wepay.kafka.connect.bigquery.ErrantRecordHandler;
 import com.wepay.kafka.connect.bigquery.SchemaManager;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiConnectException;
+import com.wepay.kafka.connect.bigquery.utils.MockTime;
 import io.grpc.StatusRuntimeException;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.sink.ErrantRecordReporter;
@@ -96,6 +97,7 @@ public class StorageWriteApiDefaultStreamTest {
                     .withDescription("Not found: table. Table is deleted")
     ));
     SchemaManager mockedSchemaManager = mock(SchemaManager.class);
+    MockTime time = new MockTime();
 
     @Before
     public void setUp() throws Exception {
@@ -103,6 +105,7 @@ public class StorageWriteApiDefaultStreamTest {
         defaultStream.tableToStream = new ConcurrentHashMap<>();
         defaultStream.tableToStream.put("testTable", mockedStreamWriter);
         defaultStream.schemaManager = mockedSchemaManager;
+        defaultStream.time = time;
         doReturn(mockedStreamWriter).when(defaultStream).getDefaultStream(any(), any());
         when(mockedStreamWriter.append(ArgumentMatchers.any())).thenReturn(mockedResponse);
         doReturn(true).when(mockedSchemaManager).createTable(any(), any());
