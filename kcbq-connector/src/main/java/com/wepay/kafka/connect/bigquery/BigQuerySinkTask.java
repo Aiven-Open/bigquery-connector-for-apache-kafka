@@ -121,7 +121,8 @@ public class BigQuerySinkTask extends SinkTask {
   private final SchemaManager testSchemaManager;
 
   private final UUID uuid = UUID.randomUUID();
-  private ScheduledExecutorService loadExecutor;
+  @VisibleForTesting
+  ScheduledExecutorService loadExecutor;
 
   private Map<TableId, Table> cache;
   private Map<String, String> topic2TableMap;
@@ -628,8 +629,11 @@ public class BigQuerySinkTask extends SinkTask {
       logger.info("Starting task with Test Storage Write API Stream...");
       storageApiWriter = testStorageWriteApi;
       batchHandler = testStorageApiBatchHandler;
-      loadExecutor = Executors.newScheduledThreadPool(1);
-      loadExecutor.scheduleAtFixedRate(this::batchLoadExecutorRunnable, 10, 10, TimeUnit.SECONDS);
+      if (loadExecutor == null) {
+        loadExecutor = Executors.newScheduledThreadPool(1);
+      }
+      int commitInterval = config.getInt(BigQuerySinkConfig.COMMIT_INTERVAL_SEC_CONFIG);
+      loadExecutor.scheduleAtFixedRate(this::batchLoadExecutorRunnable, commitInterval, commitInterval, TimeUnit.SECONDS);
     } else {
       boolean attemptSchemaUpdate = allowNewBigQueryFields || allowRequiredFieldRelaxation;
       BigQueryWriteSettings writeSettings = new GcpClientBuilder.BigQueryWriteSettingsBuilder().withConfig(config).build();
