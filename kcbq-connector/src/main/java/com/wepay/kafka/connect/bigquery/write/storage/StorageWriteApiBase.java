@@ -33,7 +33,6 @@ public abstract class StorageWriteApiBase {
     protected final int retry;
     protected final long retryWait;
     private final boolean autoCreateTables;
-    private final Random random;
     private final BigQueryWriteSettings writeSettings;
     private final boolean attemptSchemaUpdate;
 
@@ -54,7 +53,6 @@ public abstract class StorageWriteApiBase {
         this.retry = retry;
         this.retryWait = retryWait;
         this.autoCreateTables = autoCreateTables;
-        this.random = new Random();
         this.writeSettings = writeSettings;
         this.errantRecordHandler = errantRecordHandler;
         this.schemaManager = schemaManager;

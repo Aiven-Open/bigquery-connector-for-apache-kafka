@@ -36,7 +36,6 @@ public class StorageWriteApiDefaultStream extends StorageWriteApiBase {
                                         SchemaManager schemaManager,
                                         boolean attemptSchemaUpdate) {
         super(retry, retryWait, writeSettings, autoCreateTables, errantRecordHandler, schemaManager, attemptSchemaUpdate);
-
     }
 
     @Override

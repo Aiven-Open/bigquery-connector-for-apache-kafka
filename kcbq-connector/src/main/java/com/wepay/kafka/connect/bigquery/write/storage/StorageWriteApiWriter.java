@@ -32,14 +32,12 @@ public class StorageWriteApiWriter implements Runnable {
     public static final String DEFAULT= "default";
 
     /**
-     *
      * @param tableName The table to write the records to
      * @param streamWriter The stream writer to use - Default, Batch etc
      * @param records The records to write
      * @param streamName The stream to use while writing data
      */
     public StorageWriteApiWriter(TableName tableName, StorageWriteApiBase streamWriter, List<Object[]> records, String streamName) {
-
         this.streamWriter = streamWriter;
         this.records = records;
         this.tableName = tableName;
@@ -75,7 +73,6 @@ public class StorageWriteApiWriter implements Runnable {
             this.recordConverter = storageApiRecordConverter;
             this.config = config;
             this.batchModeHandler = batchModeHandler;
-
         }
 
         /**
@@ -109,7 +106,6 @@ public class StorageWriteApiWriter implements Runnable {
                     : convertedRecord;
 
             return getJsonFromMap(result);
-
         }
 
         /**
