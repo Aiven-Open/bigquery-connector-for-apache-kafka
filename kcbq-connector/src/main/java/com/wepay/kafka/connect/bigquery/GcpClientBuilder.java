@@ -19,17 +19,20 @@
 
 package com.wepay.kafka.connect.bigquery;
 
+import com.google.api.gax.core.FixedCredentialsProvider;
 import com.google.api.gax.rpc.FixedHeaderProvider;
 import com.google.api.gax.rpc.HeaderProvider;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.BigQueryOptions;
+import com.google.cloud.bigquery.storage.v1.BigQueryWriteSettings;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageOptions;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
+import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiConnectException;
 import com.wepay.kafka.connect.bigquery.utils.Version;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -195,6 +198,32 @@ public abstract class GcpClientBuilder<Client> {
 
       return builder.build().getService();
     }
+  }
+
+  /**
+   * Prepares BigQuery Write settings object which includes project info, header info, credentials etc.
+   */
+  public static class BigQueryWriteSettingsBuilder extends GcpClientBuilder<BigQueryWriteSettings> {
+
+      @Override
+      protected BigQueryWriteSettings doBuild(String project, GoogleCredentials credentials, HeaderProvider userAgent) {
+          BigQueryWriteSettings.Builder builder = BigQueryWriteSettings.newBuilder()
+                  .setQuotaProjectId(project)
+                  .setHeaderProvider(userAgent);
+
+          if (credentials != null) {
+              builder.setCredentialsProvider(FixedCredentialsProvider.create(credentials));
+          } else {
+              logger.warn("Attempting to access GCS without authentication");
+          }
+
+          try {
+              return builder.build();
+          } catch (IOException e) {
+              logger.error("Failed to create Storage API write settings due to {}", e.getMessage());
+              throw new BigQueryStorageWriteApiConnectException("Failed to create Storage API write settings", e);
+          }
+      }
   }
 
   @VisibleForTesting

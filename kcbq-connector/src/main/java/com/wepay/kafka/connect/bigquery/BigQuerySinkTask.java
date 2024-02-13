@@ -57,7 +57,6 @@ import com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiBatchApplic
 import com.wepay.kafka.connect.bigquery.write.storage.StorageApiBatchModeHandler;
 
 import com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiBase;
-import com.wepay.kafka.connect.bigquery.write.storage.BigQueryWriteSettingsBuilder;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiDefaultStream;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
@@ -628,7 +627,7 @@ public class BigQuerySinkTask extends SinkTask {
       loadExecutor.scheduleAtFixedRate(this::batchLoadExecutorRunnable, 10, 10, TimeUnit.SECONDS);
     } else {
       boolean attemptSchemaUpdate = allowNewBigQueryFields || allowRequiredFieldRelaxation;
-      BigQueryWriteSettings writeSettings = new BigQueryWriteSettingsBuilder().withConfig(config).build();
+      BigQueryWriteSettings writeSettings = new GcpClientBuilder.BigQueryWriteSettingsBuilder().withConfig(config).build();
       if (useStorageApiBatchMode) {
         int commitInterval = config.getInt(BigQuerySinkConfig.COMMIT_INTERVAL_SEC_CONFIG);
         storageApiWriter = new StorageWriteApiBatchApplicationStream(

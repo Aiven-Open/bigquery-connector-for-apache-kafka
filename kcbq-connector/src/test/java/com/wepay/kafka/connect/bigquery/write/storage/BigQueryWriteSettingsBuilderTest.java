@@ -20,7 +20,7 @@ public class BigQueryWriteSettingsBuilderTest {
         HeaderProvider expectedHeader = FixedHeaderProvider.create(
                 "user-agent", "Confluent Platform (GPN: Confluent;) Google BigQuery Sink/unknown");
 
-        BigQueryWriteSettings actualSettings = new BigQueryWriteSettingsBuilder().withConfig(getConfig()).build();
+        BigQueryWriteSettings actualSettings = new GcpClientBuilder.BigQueryWriteSettingsBuilder().withConfig(getConfig()).build();
 
         assertEquals(actualSettings.getQuotaProjectId(), "abcd");
         assertEquals(actualSettings.getHeaderProvider(), expectedHeader);

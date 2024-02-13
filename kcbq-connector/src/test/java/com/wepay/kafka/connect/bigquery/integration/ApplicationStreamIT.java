@@ -10,7 +10,6 @@ import com.wepay.kafka.connect.bigquery.GcpClientBuilder;
 import com.wepay.kafka.connect.bigquery.integration.utils.BigQueryTestUtils;
 import com.wepay.kafka.connect.bigquery.utils.TableNameUtils;
 import com.wepay.kafka.connect.bigquery.write.storage.ApplicationStream;
-import com.wepay.kafka.connect.bigquery.write.storage.BigQueryWriteSettingsBuilder;
 import com.wepay.kafka.connect.bigquery.write.storage.StreamState;
 import org.apache.kafka.connect.errors.ConnectException;
 
@@ -42,7 +41,7 @@ public class ApplicationStreamIT extends BaseConnectorIT {
     public void setup() throws IOException, InterruptedException {
         bigQuery = newBigQuery();
         createTable();
-        writeSettings = new BigQueryWriteSettingsBuilder()
+        writeSettings = new GcpClientBuilder.BigQueryWriteSettingsBuilder()
                 .withProject(project())
                 .withKeySource(GcpClientBuilder.KeySource.valueOf(keySource()))
                 .withKey(keyFile())

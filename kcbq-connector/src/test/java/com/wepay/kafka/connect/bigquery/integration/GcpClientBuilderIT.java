@@ -13,7 +13,6 @@ import com.google.protobuf.Descriptors;
 import com.wepay.kafka.connect.bigquery.GcpClientBuilder;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.utils.TableNameUtils;
-import com.wepay.kafka.connect.bigquery.write.storage.BigQueryWriteSettingsBuilder;
 import org.apache.kafka.test.IntegrationTest;
 import static org.junit.Assert.assertTrue;
 import org.junit.Before;
@@ -88,7 +87,7 @@ public class GcpClientBuilderIT extends BaseConnectorIT {
         BigQuery bigQuery = new GcpClientBuilder.BigQueryBuilder().withConfig(config).build();
         Storage storage = new GcpClientBuilder.GcsBuilder().withConfig(config).build();
 
-        BigQueryWriteSettings settings = new BigQueryWriteSettingsBuilder().withConfig(config).build();
+        BigQueryWriteSettings settings = new GcpClientBuilder.BigQueryWriteSettingsBuilder().withConfig(config).build();
         BigQueryWriteClient client = BigQueryWriteClient.create(settings);
 
         bigQuery.listTables(DatasetId.of(dataset()));
@@ -105,7 +104,7 @@ public class GcpClientBuilderIT extends BaseConnectorIT {
         BigQuery bigQuery = new GcpClientBuilder.BigQueryBuilder().withConfig(config).build();
         Storage storage = new GcpClientBuilder.GcsBuilder().withConfig(config).build();
 
-        BigQueryWriteSettings settings = new BigQueryWriteSettingsBuilder().withConfig(config).build();
+        BigQueryWriteSettings settings = new GcpClientBuilder.BigQueryWriteSettingsBuilder().withConfig(config).build();
         BigQueryWriteClient client = BigQueryWriteClient.create(settings);
 
         bigQuery.listTables(DatasetId.of(dataset()));
