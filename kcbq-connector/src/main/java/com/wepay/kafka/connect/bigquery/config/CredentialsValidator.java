@@ -23,7 +23,7 @@ import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.storage.v1.BigQueryWriteSettings;
 import com.google.cloud.storage.Storage;
 import com.wepay.kafka.connect.bigquery.GcpClientBuilder;
-import com.wepay.kafka.connect.bigquery.write.storageApi.BigQueryWriteSettingsBuilder;
+import com.wepay.kafka.connect.bigquery.write.storage.BigQueryWriteSettingsBuilder;
 
 import java.util.ArrayList;
 import java.util.Arrays;

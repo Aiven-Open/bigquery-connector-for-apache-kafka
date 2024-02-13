@@ -53,8 +53,8 @@ import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
 import com.wepay.kafka.connect.bigquery.write.batch.MergeBatches;
 import java.net.SocketTimeoutException;
 
-import com.wepay.kafka.connect.bigquery.write.storageApi.StorageApiBatchModeHandler;
-import com.wepay.kafka.connect.bigquery.write.storageApi.StorageWriteApiDefaultStream;
+import com.wepay.kafka.connect.bigquery.write.storage.StorageApiBatchModeHandler;
+import com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiDefaultStream;
 
 import org.apache.kafka.common.record.TimestampType;
 import org.apache.kafka.connect.data.Schema;

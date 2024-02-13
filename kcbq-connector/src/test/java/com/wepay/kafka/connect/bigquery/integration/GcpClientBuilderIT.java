@@ -13,7 +13,7 @@ import com.google.protobuf.Descriptors;
 import com.wepay.kafka.connect.bigquery.GcpClientBuilder;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.utils.TableNameUtils;
-import com.wepay.kafka.connect.bigquery.write.storageApi.BigQueryWriteSettingsBuilder;
+import com.wepay.kafka.connect.bigquery.write.storage.BigQueryWriteSettingsBuilder;
 import org.apache.kafka.test.IntegrationTest;
 import static org.junit.Assert.assertTrue;
 import org.junit.Before;

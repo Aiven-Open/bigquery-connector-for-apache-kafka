@@ -9,9 +9,9 @@ import com.google.cloud.bigquery.storage.v1.TableName;
 import com.wepay.kafka.connect.bigquery.GcpClientBuilder;
 import com.wepay.kafka.connect.bigquery.integration.utils.BigQueryTestUtils;
 import com.wepay.kafka.connect.bigquery.utils.TableNameUtils;
-import com.wepay.kafka.connect.bigquery.write.storageApi.ApplicationStream;
-import com.wepay.kafka.connect.bigquery.write.storageApi.BigQueryWriteSettingsBuilder;
-import com.wepay.kafka.connect.bigquery.write.storageApi.StreamState;
+import com.wepay.kafka.connect.bigquery.write.storage.ApplicationStream;
+import com.wepay.kafka.connect.bigquery.write.storage.BigQueryWriteSettingsBuilder;
+import com.wepay.kafka.connect.bigquery.write.storage.StreamState;
 import org.apache.kafka.connect.errors.ConnectException;
 
 import org.junit.Before;

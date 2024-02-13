@@ -10,8 +10,8 @@ import com.wepay.kafka.connect.bigquery.api.SchemaRetriever;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiConnectException;
-import com.wepay.kafka.connect.bigquery.write.storageApi.StorageApiBatchModeHandler;
-import com.wepay.kafka.connect.bigquery.write.storageApi.StorageWriteApiDefaultStream;
+import com.wepay.kafka.connect.bigquery.write.storage.StorageApiBatchModeHandler;
+import com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiDefaultStream;
 
 import org.apache.kafka.common.record.TimestampType;
 import org.apache.kafka.connect.data.Schema;
@@ -38,7 +38,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.times;
-import static com.wepay.kafka.connect.bigquery.write.storageApi.StorageWriteApiWriter.DEFAULT;
+import static com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiWriter.DEFAULT;
 
 public class BigQueryStorageApiSinkTaskTest {
     private static final SinkTaskPropertiesFactory propertiesFactory = new SinkTaskPropertiesFactory();

@@ -1,4 +1,4 @@
-package com.wepay.kafka.connect.bigquery.write.storageApi;
+package com.wepay.kafka.connect.bigquery.write.storage;
 
 import com.google.api.gax.rpc.FixedHeaderProvider;
 import com.google.api.gax.rpc.HeaderProvider;

@@ -1,4 +1,4 @@
-package com.wepay.kafka.connect.bigquery.write.storageApi;
+package com.wepay.kafka.connect.bigquery.write.storage;
 
 import com.google.api.core.ApiFuture;
 import com.google.cloud.bigquery.storage.v1.TableName;
@@ -31,7 +31,6 @@ import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Collections;
 import java.util.ArrayList;
-import java.util.Set;
 
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
@@ -49,7 +48,6 @@ import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.anyInt;
 
 public class StorageWriteApiBatchApplicationStreamTest {
     StorageWriteApiBatchApplicationStream mockedStream = mock(StorageWriteApiBatchApplicationStream.class,

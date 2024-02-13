@@ -1,4 +1,4 @@
-package com.wepay.kafka.connect.bigquery.write.storageApi;
+package com.wepay.kafka.connect.bigquery.write.storage;
 
 import static org.junit.Assert.assertEquals;
 

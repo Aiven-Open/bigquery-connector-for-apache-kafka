@@ -46,9 +46,9 @@ import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkTaskConfig;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
 
-import com.wepay.kafka.connect.bigquery.write.storageApi.StorageApiBatchModeHandler;
+import com.wepay.kafka.connect.bigquery.write.storage.StorageApiBatchModeHandler;
 
-import com.wepay.kafka.connect.bigquery.write.storageApi.StorageWriteApiDefaultStream;
+import com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiDefaultStream;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
@@ -63,10 +63,8 @@ import org.mockito.ArgumentCaptor;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 @SuppressWarnings("unchecked")
 public class BigQueryWriterTest {

@@ -1,7 +1,5 @@
-package com.wepay.kafka.connect.bigquery.write.storageApi;
+package com.wepay.kafka.connect.bigquery.write.storage;
 
-import com.google.cloud.bigquery.storage.v1.TableName;
-import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkTaskConfig;
 import com.wepay.kafka.connect.bigquery.utils.TableNameUtils;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
@@ -11,7 +9,6 @@ import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * Handles all operations related to Batch Storage Write API

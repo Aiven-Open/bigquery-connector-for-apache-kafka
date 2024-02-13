@@ -1,4 +1,4 @@
-package com.wepay.kafka.connect.bigquery.write.storageApi;
+package com.wepay.kafka.connect.bigquery.write.storage;
 
 import com.google.cloud.bigquery.BigQueryException;
 import com.google.cloud.bigquery.TableId;
