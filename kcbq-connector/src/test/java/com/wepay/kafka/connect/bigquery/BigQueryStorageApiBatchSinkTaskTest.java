@@ -27,6 +27,8 @@ import com.wepay.kafka.connect.bigquery.api.SchemaRetriever;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiConnectException;
+import com.wepay.kafka.connect.bigquery.utils.MockTime;
+import com.wepay.kafka.connect.bigquery.utils.Time;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageApiBatchModeHandler;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiBatchApplicationStream;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
@@ -72,8 +74,9 @@ public class BigQueryStorageApiBatchSinkTaskTest {
     SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
     SchemaManager schemaManager = mock(SchemaManager.class);
     Map<TableId, Table> cache = new HashMap<>();
+    Time time = new MockTime();
     BigQuerySinkTask testTask = new BigQuerySinkTask(
-            bigQuery, schemaRetriever, storage, schemaManager, cache, mockedStorageWriteApiBatchStream, mockedBatchHandler);
+            bigQuery, schemaRetriever, storage, schemaManager, cache, mockedStorageWriteApiBatchStream, mockedBatchHandler, time);
     BigQueryStorageWriteApiConnectException exception = new BigQueryStorageWriteApiConnectException("error 12345");
     final String topic = "test-topic";
 

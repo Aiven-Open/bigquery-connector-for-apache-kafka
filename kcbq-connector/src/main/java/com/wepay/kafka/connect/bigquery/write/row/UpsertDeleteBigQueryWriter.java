@@ -26,6 +26,7 @@ import com.wepay.kafka.connect.bigquery.ErrantRecordHandler;
 import com.wepay.kafka.connect.bigquery.SchemaManager;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
 import com.wepay.kafka.connect.bigquery.utils.PartitionedTableId;
+import com.wepay.kafka.connect.bigquery.utils.Time;
 import org.apache.kafka.connect.sink.SinkRecord;
 
 import java.util.List;
@@ -48,6 +49,7 @@ public class UpsertDeleteBigQueryWriter extends AdaptiveBigQueryWriter {
    *                                        operations in order to propagate them to the destination
    *                                        table
    * @param errantRecordHandler Used to handle errant records
+   * @param time used to wait during backoff periods
    */
   public UpsertDeleteBigQueryWriter(BigQuery bigQuery,
                                     SchemaManager schemaManager,
@@ -55,12 +57,13 @@ public class UpsertDeleteBigQueryWriter extends AdaptiveBigQueryWriter {
                                     long retryWait,
                                     boolean autoCreateTables,
                                     Map<TableId, TableId> intermediateToDestinationTables,
-                                    ErrantRecordHandler errantRecordHandler) {
+                                    ErrantRecordHandler errantRecordHandler,
+                                    Time time) {
     // Hardcode autoCreateTables to true in the superclass so that intermediate tables will be
     // automatically created
     // The super class will handle all of the logic for writing to, creating, and updating
     // intermediate tables; this class will handle logic for creating/updating the destination table
-    super(bigQuery, schemaManager.forIntermediateTables(), retry, retryWait, true, errantRecordHandler);
+    super(bigQuery, schemaManager.forIntermediateTables(), retry, retryWait, true, errantRecordHandler, time);
     this.schemaManager = schemaManager;
     this.autoCreateTables = autoCreateTables;
     this.intermediateToDestinationTables = intermediateToDestinationTables;

@@ -32,6 +32,7 @@ import com.wepay.kafka.connect.bigquery.config.BigQuerySinkTaskConfig;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
 import com.wepay.kafka.connect.bigquery.exception.ExpectedInterruptException;
 import com.wepay.kafka.connect.bigquery.utils.SleepUtils;
+import com.wepay.kafka.connect.bigquery.utils.Time;
 import com.wepay.kafka.connect.bigquery.write.batch.KCBQThreadPoolExecutor;
 import com.wepay.kafka.connect.bigquery.write.batch.MergeBatches;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryErrorResponses;
@@ -70,6 +71,7 @@ public class MergeQueries {
   private final BigQuery bigQuery;
   private final SchemaManager schemaManager;
   private final SinkTaskContext context;
+  private final Time time;
 
   public MergeQueries(BigQuerySinkTaskConfig config,
                       MergeBatches mergeBatches,
@@ -90,7 +92,8 @@ public class MergeQueries {
       executor,
       bigQuery,
       schemaManager,
-      context
+      context,
+      Time.SYSTEM
     );
   }
 
@@ -105,7 +108,8 @@ public class MergeQueries {
                KCBQThreadPoolExecutor executor,
                BigQuery bigQuery,
                SchemaManager schemaManager,
-               SinkTaskContext context) {
+               SinkTaskContext context,
+               Time time) {
     this.keyFieldName = keyFieldName;
     this.insertPartitionTime = insertPartitionTime;
     this.upsertEnabled = upsertEnabled;
@@ -117,6 +121,7 @@ public class MergeQueries {
     this.bigQuery = bigQuery;
     this.schemaManager = schemaManager;
     this.context = context;
+    this.time = time;
   }
 
   public void mergeFlushAll() {
@@ -160,7 +165,7 @@ public class MergeQueries {
       while (!success) {
         try {
           if (attempt > 0) {
-            SleepUtils.waitRandomTime(this.bigQueryRetryWait, WAIT_MAX_JITTER);
+            SleepUtils.waitRandomTime(time, this.bigQueryRetryWait, WAIT_MAX_JITTER);
           }
           bigQuery.query(QueryJobConfiguration.of(mergeFlushQuery));
           success = true;

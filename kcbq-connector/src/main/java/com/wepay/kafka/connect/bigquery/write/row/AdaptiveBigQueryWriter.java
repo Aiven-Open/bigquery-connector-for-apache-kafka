@@ -34,6 +34,7 @@ import com.wepay.kafka.connect.bigquery.exception.BigQueryErrorResponses;
 import com.wepay.kafka.connect.bigquery.exception.ExpectedInterruptException;
 import com.wepay.kafka.connect.bigquery.utils.PartitionedTableId;
 
+import com.wepay.kafka.connect.bigquery.utils.Time;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -66,14 +67,16 @@ public class AdaptiveBigQueryWriter extends BigQueryWriter {
    * @param retryWait How long to wait in between retries.
    * @param autoCreateTables Whether tables should be automatically created
    * @param errantRecordHandler Used to handle errant records
+   * @param time used to wait during backoff periods
    */
   public AdaptiveBigQueryWriter(BigQuery bigQuery,
                                 SchemaManager schemaManager,
                                 int retry,
                                 long retryWait,
                                 boolean autoCreateTables,
-                                ErrantRecordHandler errantRecordHandler) {
-    super(retry, retryWait, errantRecordHandler);
+                                ErrantRecordHandler errantRecordHandler,
+                                Time time) {
+    super(retry, retryWait, errantRecordHandler, time);
     this.bigQuery = bigQuery;
     this.schemaManager = schemaManager;
     this.autoCreateTables = autoCreateTables;
@@ -142,7 +145,7 @@ public class AdaptiveBigQueryWriter extends BigQueryWriter {
                 + RETRY_LIMIT + " attempts for: " + tableId.getBaseTableId());
       }
       try {
-        Thread.sleep(RETRY_WAIT_TIME);
+        time.sleep(RETRY_WAIT_TIME);
       } catch (InterruptedException e) {
         throw new ExpectedInterruptException("Interrupted while waiting to retry write");
       }

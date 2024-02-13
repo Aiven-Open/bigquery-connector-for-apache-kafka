@@ -26,6 +26,7 @@ import com.wepay.kafka.connect.bigquery.ErrantRecordHandler;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryErrorResponses;
 import com.wepay.kafka.connect.bigquery.utils.PartitionedTableId;
+import com.wepay.kafka.connect.bigquery.utils.Time;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -53,20 +54,23 @@ public abstract class BigQueryWriter {
   private final Random random;
 
   private final ErrantRecordHandler errantRecordHandler;
+  protected final Time time;
 
   /**
    * @param retries the number of times to retry a request if BQ returns an internal service error
    *                or a service unavailable error.
    * @param retryWaitMs the amount of time to wait in between reattempting a request if BQ returns
    *                    an internal service error or a service unavailable error.
-   * @param errantRecordHandler Used to handle errant records
+   * @param errantRecordHandler used to handle errant records
+   * @param time used to wait during backoff periods
    */
-  public BigQueryWriter(int retries, long retryWaitMs, ErrantRecordHandler errantRecordHandler) {
+  public BigQueryWriter(int retries, long retryWaitMs, ErrantRecordHandler errantRecordHandler, Time time) {
     this.retries = retries;
     this.retryWaitMs = retryWaitMs;
 
     this.random = new Random();
     this.errantRecordHandler = errantRecordHandler;
+    this.time = time;
   }
 
   /**
@@ -211,7 +215,7 @@ public abstract class BigQueryWriter {
    */
   private void waitRandomTime() throws InterruptedException {
     // wait
-    Thread.sleep(retryWaitMs + random.nextInt(WAIT_MAX_JITTER));
+    time.sleep(retryWaitMs + random.nextInt(WAIT_MAX_JITTER));
   }
 
   /**

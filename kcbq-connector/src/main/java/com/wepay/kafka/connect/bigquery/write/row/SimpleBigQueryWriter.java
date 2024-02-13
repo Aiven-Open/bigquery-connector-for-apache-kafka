@@ -28,6 +28,7 @@ import com.wepay.kafka.connect.bigquery.ErrantRecordHandler;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.utils.PartitionedTableId;
 
+import com.wepay.kafka.connect.bigquery.utils.Time;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -51,9 +52,10 @@ public class SimpleBigQueryWriter extends BigQueryWriter {
    * @param retry How many retries to make in the event of a 500/503 error.
    * @param retryWait How long to wait in between retries.
    * @param errantRecordHandler Used to handle errant records
+   * @param time used to wait during backoff periods
    */
-  public SimpleBigQueryWriter(BigQuery bigQuery, int retry, long retryWait, ErrantRecordHandler errantRecordHandler) {
-    super(retry, retryWait,errantRecordHandler);
+  public SimpleBigQueryWriter(BigQuery bigQuery, int retry, long retryWait, ErrantRecordHandler errantRecordHandler, Time time) {
+    super(retry, retryWait,errantRecordHandler, time);
     this.bigQuery = bigQuery;
   }
 

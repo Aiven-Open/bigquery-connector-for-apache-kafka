@@ -139,6 +139,7 @@ public class BigQuerySinkTask extends SinkTask {
   private final StorageWriteApiBase testStorageWriteApi;
 
   private final StorageApiBatchModeHandler testStorageApiBatchHandler;
+  private final Time time;
   private Map<String, PartitionedTableId> topicToPartitionTableId;
 
   private boolean allowNewBigQueryFields;
@@ -153,7 +154,7 @@ public class BigQuerySinkTask extends SinkTask {
     testSchemaManager = null;
     testStorageWriteApi = null;
     testStorageApiBatchHandler = null;
-
+    time = Time.SYSTEM;
   }
 
   /**
@@ -163,12 +164,13 @@ public class BigQuerySinkTask extends SinkTask {
    * @param schemaRetriever {@link SchemaRetriever} to use for testing (likely a mock)
    * @param testGcs {@link Storage} to use for testing (likely a mock)
    * @param testSchemaManager {@link SchemaManager} to use for testing (likely a mock)
+   * @param time {@link Time} used to wait during backoff periods; should be mocked for testing
    * @see BigQuerySinkTask#BigQuerySinkTask()
    */
   public BigQuerySinkTask(BigQuery testBigQuery, SchemaRetriever schemaRetriever, Storage testGcs,
                           SchemaManager testSchemaManager, Map<TableId, Table> testCache,
-                          StorageWriteApiBase testStorageWriteApi, StorageApiBatchModeHandler testStorageApiBatchHandler) {
-
+                          StorageWriteApiBase testStorageWriteApi, StorageApiBatchModeHandler testStorageApiBatchHandler,
+                          Time time) {
     this.testBigQuery = testBigQuery;
     this.schemaRetriever = schemaRetriever;
     this.testGcs = testGcs;
@@ -176,6 +178,7 @@ public class BigQuerySinkTask extends SinkTask {
     this.cache = testCache;
     this.testStorageWriteApi = testStorageWriteApi;
     this.testStorageApiBatchHandler = testStorageApiBatchHandler;
+    this.time = time;
   }
 
   @Override
@@ -503,16 +506,18 @@ public class BigQuerySinkTask extends SinkTask {
                                             retryWait,
                                             autoCreateTables,
                                             mergeBatches.intermediateToDestinationTables(),
-                                            errantRecordHandler);
+                                            errantRecordHandler,
+                                            time);
     } else if (autoCreateTables || allowNewBigQueryFields || allowRequiredFieldRelaxation) {
       return new AdaptiveBigQueryWriter(bigQuery,
                                         getSchemaManager(),
                                         retry,
                                         retryWait,
                                         autoCreateTables,
-                                        errantRecordHandler);
+                                        errantRecordHandler,
+                                        time);
     } else {
-      return new SimpleBigQueryWriter(bigQuery, retry, retryWait, errantRecordHandler);
+      return new SimpleBigQueryWriter(bigQuery, retry, retryWait, errantRecordHandler, time);
     }
   }
 

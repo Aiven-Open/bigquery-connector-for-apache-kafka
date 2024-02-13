@@ -28,6 +28,8 @@ import com.google.cloud.bigquery.Schema;
 import com.google.cloud.bigquery.TableId;
 import com.google.cloud.bigquery.TableResult;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
+import com.wepay.kafka.connect.bigquery.utils.MockTime;
+import com.wepay.kafka.connect.bigquery.utils.Time;
 import com.wepay.kafka.connect.bigquery.write.batch.KCBQThreadPoolExecutor;
 import com.wepay.kafka.connect.bigquery.write.batch.MergeBatches;
 import org.apache.kafka.connect.sink.SinkRecord;
@@ -67,6 +69,7 @@ public class MergeQueriesTest {
   private static final Schema INTERMEDIATE_TABLE_SCHEMA = constructIntermediateTable();
 
   private static final SinkRecord TEST_SINK_RECORD = new SinkRecord("test", 0, null, null, null, null, 0);
+  private final Time time = new MockTime();
   @Mock private MergeBatches mergeBatches;
   @Mock private KCBQThreadPoolExecutor executor;
   @Mock private BigQuery bigQuery;
@@ -80,7 +83,18 @@ public class MergeQueriesTest {
 
   private MergeQueries mergeQueries(boolean insertPartitionTime, boolean upsert, boolean delete) {
     return new MergeQueries(
-      KEY, insertPartitionTime, upsert, delete, BIGQUERY_RETRY, BIGQUERY_RETRY_WAIT, mergeBatches, executor, bigQuery, schemaManager, context
+      KEY,
+        insertPartitionTime,
+        upsert,
+        delete,
+        BIGQUERY_RETRY,
+        BIGQUERY_RETRY_WAIT,
+        mergeBatches,
+        executor,
+        bigQuery,
+        schemaManager,
+        context,
+        time
     );
   }
 
