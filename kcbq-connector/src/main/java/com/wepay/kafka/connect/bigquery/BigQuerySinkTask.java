@@ -275,7 +275,7 @@ public class BigQuerySinkTask extends SinkTask {
     return builder.build();
   }
 
-  public void writeSinkRecords(Collection<SinkRecord> records) {
+  private void writeSinkRecords(Collection<SinkRecord> records) {
     // Periodically poll for errors here instead of doing a stop-the-world check in flush()
     maybeThrowErrors();
 
