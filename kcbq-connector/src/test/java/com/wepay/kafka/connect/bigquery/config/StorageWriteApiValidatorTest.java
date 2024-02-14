@@ -1,5 +1,6 @@
 package com.wepay.kafka.connect.bigquery.config;
 
+import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG;
 import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.DELETE_ENABLED_CONFIG;
 import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.ENABLE_BATCH_CONFIG;
 import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.ENABLE_BATCH_MODE_CONFIG;
@@ -9,6 +10,7 @@ import static org.junit.Assert.assertEquals;
 
 import org.junit.Test;
 
+import static org.junit.Assert.assertNotEquals;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static com.wepay.kafka.connect.bigquery.config.StorageWriteApiValidator.legacyBatchNotSupportedError;
@@ -77,6 +79,30 @@ public class StorageWriteApiValidatorTest {
         when(config.getList(ENABLE_BATCH_CONFIG)).thenReturn(Collections.singletonList("abc"));
 
         assertEquals(Optional.of(legacyBatchNotSupportedError), new StorageWriteApiValidator().doValidate(config));
+    }
+
+    @Test
+    public void testPartitionDecoratorExplicitlyEnabled() {
+        BigQuerySinkConfig config = mock(BigQuerySinkConfig.class);
+
+        when(config.getBoolean(USE_STORAGE_WRITE_API_CONFIG)).thenReturn(true);
+        when(config.getBoolean(BIGQUERY_PARTITION_DECORATOR_CONFIG)).thenReturn(true);
+        // User explicitly requested partition decorator syntax
+        when(config.originals()).thenReturn(Collections.singletonMap(BIGQUERY_PARTITION_DECORATOR_CONFIG, "true"));
+
+        assertNotEquals(Optional.empty(), new StorageWriteApiValidator().doValidate(config));
+    }
+
+    @Test
+    public void testPartitionDecoratorImplicitlyEnabled() {
+        BigQuerySinkConfig config = mock(BigQuerySinkConfig.class);
+
+        when(config.getBoolean(USE_STORAGE_WRITE_API_CONFIG)).thenReturn(true);
+        when(config.getBoolean(BIGQUERY_PARTITION_DECORATOR_CONFIG)).thenReturn(true);
+        // User didn't explicitly ask for partition decorator syntax
+        when(config.originals()).thenReturn(Collections.emptyMap());
+
+        assertEquals(Optional.empty(), new StorageWriteApiValidator().doValidate(config));
     }
 
     @Test

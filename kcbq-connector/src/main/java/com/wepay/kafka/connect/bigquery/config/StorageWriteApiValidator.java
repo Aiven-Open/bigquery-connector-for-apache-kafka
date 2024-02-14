@@ -5,6 +5,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Optional;
 
+import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG;
 import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.DELETE_ENABLED_CONFIG;
 import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.ENABLE_BATCH_CONFIG;
 import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.ENABLE_BATCH_MODE_CONFIG;
@@ -53,7 +54,15 @@ public class StorageWriteApiValidator extends MultiPropertyValidator<BigQuerySin
             return Optional.of(deleteNotSupportedError);
         } else if (!config.getList(ENABLE_BATCH_CONFIG).isEmpty()) {
             return Optional.of(legacyBatchNotSupportedError);
+        } else if (config.originals().containsKey(BIGQUERY_PARTITION_DECORATOR_CONFIG)
+            && config.getBoolean(BIGQUERY_PARTITION_DECORATOR_CONFIG)
+        ) {
+            // Only report an error if the user explicitly requested partition decorator syntax;
+            // if they didn't, then we can silently disable it when using the Storage Write API
+            // TODO: Recommend alternatives to users
+            return Optional.of("Partition decorator syntax cannot be used with the Storage Write API");
         }
+
         return Optional.empty();
     }
 

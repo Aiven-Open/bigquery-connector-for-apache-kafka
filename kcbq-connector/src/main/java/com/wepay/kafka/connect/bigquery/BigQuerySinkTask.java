@@ -363,6 +363,7 @@ public class BigQuerySinkTask extends SinkTask {
         }
       }
   }
+
   // Important: this method is only safe to call during put(), flush(), or preCommit(); otherwise,
   // a ConcurrentModificationException may be triggered if the Connect framework is in the middle of
   // a method invocation on the consumer for this task. This becomes especially likely if all topics
