@@ -21,7 +21,6 @@ import org.apache.kafka.connect.runtime.ConnectorConfig;
 import org.apache.kafka.connect.runtime.SinkConnectorConfig;
 import org.apache.kafka.connect.storage.Converter;
 import org.apache.kafka.test.IntegrationTest;
-import org.apache.kafka.test.NoRetryException;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -104,7 +103,7 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
         // clean table
         TableClearer.clearTables(bigQuery, dataset(), table);
 
-        // createTable with correct schema
+        // create the table with the correct schema
         createTable(table, false);
 
         // setup props for the sink connector
@@ -182,7 +181,7 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
     }
 
     @Test
-    public void testBaseAvroWithSchema() throws InterruptedException {
+    public void testBaseAvroWithSchemaUpdate() throws InterruptedException {
         // create topic in Kafka
         final String topic = suffixedTableOrTopic("storage-api-schema-update-append" + System.nanoTime());
         final String table = sanitizedTable(topic);
@@ -193,7 +192,7 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
         // clean table
         TableClearer.clearTables(bigQuery, dataset(), table);
 
-        // createTable with incorrect schema
+        // create the table with an incomplete schema
         createTable(table, true);
 
         // setup props + schema update props for the sink connector
@@ -266,8 +265,8 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
         );
     }
 
-    private void createTable(String table, boolean incorrectSchema) {
-        com.google.cloud.bigquery.Schema schema = incorrectSchema ? com.google.cloud.bigquery.Schema.of(
+    private void createTable(String table, boolean incompleteSchema) {
+        com.google.cloud.bigquery.Schema schema = incompleteSchema ? com.google.cloud.bigquery.Schema.of(
                 Field.of("f1", StandardSQLTypeName.STRING),
                 Field.of("f2", StandardSQLTypeName.BOOL)
         ) : com.google.cloud.bigquery.Schema.of(
