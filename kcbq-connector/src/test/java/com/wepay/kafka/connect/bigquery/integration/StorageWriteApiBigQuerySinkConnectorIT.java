@@ -57,8 +57,8 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
     private Converter keyConverter;
     private Converter valueConverter;
     private static final String KAFKA_FIELD_NAME = "kafkaKey";
-    private static final long NUM_RECORDS_PRODUCED = 5;
-    private static final int TASKS_MAX = 1;
+    private static final int TASKS_MAX = 3;
+    private static final long NUM_RECORDS_PRODUCED = 5 * TASKS_MAX;
     protected static final long COMMIT_MAX_DURATION_MS = TimeUnit.MINUTES.toMillis(7);
 
 
@@ -99,7 +99,7 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
         final String table = sanitizedTable(topic);
 
         // create topic
-        connect.kafka().createTopic(topic, 1);
+        connect.kafka().createTopic(topic, TASKS_MAX);
 
         // clean table
         TableClearer.clearTables(bigQuery, dataset(), table);
@@ -117,7 +117,7 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
         connect.configureConnector(CONNECTOR_NAME, props);
 
         // wait for tasks to spin up
-        waitForConnectorToStart(CONNECTOR_NAME, 1);
+        waitForConnectorToStart(CONNECTOR_NAME, TASKS_MAX);
 
         // Instantiate the converters we'll use to send records to the connector
         initialiseJsonConverters();
@@ -146,7 +146,7 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
         final String table = sanitizedTable(topic);
 
         // create topic
-        connect.kafka().createTopic(topic, 1);
+        connect.kafka().createTopic(topic, TASKS_MAX);
 
         // clean table
         TableClearer.clearTables(bigQuery, dataset(), table);
@@ -158,7 +158,7 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
         connect.configureConnector(CONNECTOR_NAME, props);
 
         // wait for tasks to spin up
-        waitForConnectorToStart(CONNECTOR_NAME, 1);
+        waitForConnectorToStart(CONNECTOR_NAME, TASKS_MAX);
 
         // Instantiate the converters we'll use to send records to the connector
         initialiseAvroConverters();
@@ -188,7 +188,7 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
         final String table = sanitizedTable(topic);
 
         // create topic
-        connect.kafka().createTopic(topic, 1);
+        connect.kafka().createTopic(topic, TASKS_MAX);
 
         // clean table
         TableClearer.clearTables(bigQuery, dataset(), table);
@@ -208,7 +208,7 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
         connect.configureConnector(CONNECTOR_NAME, props);
 
         // wait for tasks to spin up
-        waitForConnectorToStart(CONNECTOR_NAME, 1);
+        waitForConnectorToStart(CONNECTOR_NAME, TASKS_MAX);
 
         // Instantiate the converters we'll use to send records to the connector
         initialiseAvroConverters();
@@ -237,7 +237,7 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
         final String table = sanitizedTable(topic);
 
         // create topic
-        connect.kafka().createTopic(topic, 1);
+        connect.kafka().createTopic(topic, TASKS_MAX);
 
         // clean table
         TableClearer.clearTables(bigQuery, dataset(), table);
@@ -250,7 +250,7 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
         connect.configureConnector(CONNECTOR_NAME, props);
 
         // wait for tasks to spin up
-        waitForConnectorToStart(CONNECTOR_NAME, 1);
+        waitForConnectorToStart(CONNECTOR_NAME, TASKS_MAX);
 
         // Instantiate the converters we'll use to send records to the connector
         initialiseAvroConverters();
@@ -346,6 +346,7 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
 
     protected Map<String, String> configs(String topic) {
         Map<String, String> result = baseConnectorProps(1);
+        result.put(ConnectorConfig.TASKS_MAX_CONFIG, Integer.toString(TASKS_MAX));
         result.put(SinkConnectorConfig.TOPICS_CONFIG, topic);
         result.put(BigQuerySinkConfig.SANITIZE_TOPICS_CONFIG, "true");
         result.put(BigQuerySinkConfig.SCHEMA_RETRIEVER_CONFIG, IdentitySchemaRetriever.class.getName());
