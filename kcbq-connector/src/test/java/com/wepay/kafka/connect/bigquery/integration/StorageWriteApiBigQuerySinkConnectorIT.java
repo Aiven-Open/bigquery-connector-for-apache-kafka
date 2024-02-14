@@ -29,13 +29,13 @@ import org.junit.experimental.categories.Category;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Set;
-import java.util.Map;
-import java.util.List;
-import java.util.HashSet;
-import java.util.HashMap;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -45,9 +45,9 @@ import static org.apache.kafka.connect.runtime.ConnectorConfig.VALUE_CONVERTER_C
 import static org.junit.Assert.assertEquals;
 
 @Category(IntegrationTest.class)
-public class BigQueryStorageWriteApiBatchSinkConnectorIT extends BaseConnectorIT {
+public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
 
-    private static final Logger logger = LoggerFactory.getLogger(BigQueryStorageWriteApiBatchSinkConnectorIT.class);
+    private static final Logger logger = LoggerFactory.getLogger(StorageWriteApiBigQuerySinkConnectorIT.class);
     private static SchemaRegistryTestUtils schemaRegistry;
     private static String schemaRegistryUrl;
     private Schema valueSchema;
@@ -60,6 +60,7 @@ public class BigQueryStorageWriteApiBatchSinkConnectorIT extends BaseConnectorIT
     private static final long NUM_RECORDS_PRODUCED = 5;
     private static final int TASKS_MAX = 1;
     protected static final long COMMIT_MAX_DURATION_MS = TimeUnit.MINUTES.toMillis(7);
+
 
     @Before
     public void setup() throws Exception {
@@ -78,8 +79,6 @@ public class BigQueryStorageWriteApiBatchSinkConnectorIT extends BaseConnectorIT
         keySchema = SchemaBuilder.struct()
                 .field("k1", Schema.INT64_SCHEMA)
                 .build();
-
-
     }
 
     @After
@@ -262,7 +261,6 @@ public class BigQueryStorageWriteApiBatchSinkConnectorIT extends BaseConnectorIT
         // wait for tasks to write to BigQuery and commit offsets for their records
         waitForCommittedRecords(
                 CONNECTOR_NAME, Collections.singleton(topic), NUM_RECORDS_PRODUCED, TASKS_MAX, COMMIT_MAX_DURATION_MS);
-
     }
 
     private void createTable(String table, boolean incorrectSchema) {
@@ -343,7 +341,7 @@ public class BigQueryStorageWriteApiBatchSinkConnectorIT extends BaseConnectorIT
         return result;
     }
 
-    private Map<String, String> configs(String topic) {
+    protected Map<String, String> configs(String topic) {
         Map<String, String> result = baseConnectorProps(1);
         result.put(SinkConnectorConfig.TOPICS_CONFIG, topic);
         result.put(BigQuerySinkConfig.SANITIZE_TOPICS_CONFIG, "true");
@@ -362,7 +360,6 @@ public class BigQueryStorageWriteApiBatchSinkConnectorIT extends BaseConnectorIT
         result.put(BigQuerySinkConfig.KAFKA_KEY_FIELD_NAME_CONFIG, KAFKA_FIELD_NAME);
 
         result.put(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, "true");
-        result.put(BigQuerySinkConfig.ENABLE_BATCH_MODE_CONFIG, "true");
 
         return result;
     }
