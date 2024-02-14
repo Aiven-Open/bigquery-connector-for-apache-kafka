@@ -222,35 +222,6 @@ public class BigQuerySinkTask extends SinkTask {
     return offsets;
   }
 
-  private String[] getDataSetAndTableName(String topic) {
-    String tableName;
-    String dataset = config.getString(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG);
-    if (topic2TableMap != null) {
-      tableName = topic2TableMap.getOrDefault(topic, topic);
-    } else {
-      String[] smtReplacement = topic.split(":");
-
-      if (smtReplacement.length == 2) {
-        dataset = smtReplacement[0];
-        tableName = smtReplacement[1];
-      } else if (smtReplacement.length == 1) {
-        tableName = smtReplacement[0];
-      } else {
-        throw new ConnectException(String.format(
-                "Incorrect regex replacement format in topic name '%s'. "
-                        + "SMT replacement should either produce the <dataset>:<tableName> format "
-                        + "or just the <tableName> format.",
-                topic
-        ));
-      }
-      if (sanitize) {
-        tableName = FieldNameSanitizer.sanitizeName(tableName);
-      }
-    }
-
-    return new String[]{dataset, tableName};
-  }
-
   private PartitionedTableId getStorageApiRecordTable(String topic) {
     return topicToPartitionTableId.computeIfAbsent(topic, topicName -> {
       String project = config.getString(BigQuerySinkConfig.PROJECT_CONFIG);
