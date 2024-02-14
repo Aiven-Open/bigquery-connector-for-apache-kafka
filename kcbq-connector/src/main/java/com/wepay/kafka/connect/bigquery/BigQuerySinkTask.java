@@ -124,7 +124,6 @@ public class BigQuerySinkTask extends SinkTask {
   ScheduledExecutorService loadExecutor;
 
   private Map<TableId, Table> cache;
-  private Map<String, String> topic2TableMap;
   private int remainingRetries;
   private boolean enableRetries;
 
@@ -592,7 +591,6 @@ public class BigQuerySinkTask extends SinkTask {
     }
 
     recordConverter = getConverter(config);
-    topic2TableMap = config.getTopic2TableMap().orElse(null);
     remainingRetries = config.getInt(BigQuerySinkConfig.MAX_RETRIES_CONFIG);
     enableRetries = config.getBoolean(BigQuerySinkConfig.ENABLE_RETRIES_CONFIG);
   }
