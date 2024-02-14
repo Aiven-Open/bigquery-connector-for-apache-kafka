@@ -94,7 +94,7 @@ public class StorageWriteApiDefaultStream extends StorageWriteApiBase {
      * @return JSONStreamWriter which would be used to write data to bigquery table
      */
     @VisibleForTesting
-    JsonStreamWriter getDefaultStream(TableName table, List<Object[]> rows) {
+    JsonStreamWriter getDefaultStream(TableName table, List<ConvertedRecord> rows) {
         String tableName = table.toString();
         return tableToStream.computeIfAbsent(tableName, t -> {
             StorageWriteApiRetryHandler retryHandler = new StorageWriteApiRetryHandler(table, getSinkRecords(rows), retry, retryWait, time);
@@ -127,12 +127,13 @@ public class StorageWriteApiDefaultStream extends StorageWriteApiBase {
      * Calls AppendRows and handles exception if the ingestion fails
      *
      * @param tableName  The table to write data to
-     * @param rows       List of records in {@link org.apache.kafka.connect.sink.SinkRecord}, {@link org.json.JSONObject}
-     *                   format. JSONObjects would be sent to api. SinkRecords are requireed for DLQ routing
+     * @param rows       List of pre- and post-conversion records.
+     *                   Converted JSONObjects would be sent to api.
+     *                   Pre-conversion sink records are required for DLQ routing
      * @param streamName The stream to use to write table to table. This will be DEFAULT always.
      */
     @Override
-    public void appendRows(TableName tableName, List<Object[]> rows, String streamName) {
+    public void appendRows(TableName tableName, List<ConvertedRecord> rows, String streamName) {
         JSONArray jsonArr;
         StorageWriteApiRetryHandler retryHandler = new StorageWriteApiRetryHandler(tableName, getSinkRecords(rows), retry, retryWait, time);
         logger.debug("Sending {} records to write Api default stream on {} ...", rows.size(), tableName);
@@ -140,8 +141,8 @@ public class StorageWriteApiDefaultStream extends StorageWriteApiBase {
         do {
             try {
                 jsonArr = new JSONArray();
-                for (Object[] item : rows) {
-                    jsonArr.put(item[1]);
+                for (ConvertedRecord item : rows) {
+                    jsonArr.put(item.converted());
                 }
                 logger.trace("Sending records to Storage API writer...");
                 JsonStreamWriter writer = getDefaultStream(tableName, rows);

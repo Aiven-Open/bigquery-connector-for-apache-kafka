@@ -60,7 +60,7 @@ public class StorageWriteApiBatchApplicationStreamTest {
     String mockedStreamName1 = "dummyApplicationStream1";
     String mockedStreamName2 = "dummyApplicationStream2";
     Map<TopicPartition, OffsetAndMetadata> mockedOffsets = new HashMap<>();
-    List<Object[]> mockedRows = new ArrayList<>();
+    List<ConvertedRecord> mockedRows = new ArrayList<>();
     SinkRecord mockedSinkRecord = new SinkRecord(
             "t1", 0, null, null, Schema.BOOLEAN_SCHEMA, true, 100);
     ApiFuture<AppendRowsResponse> mockedResponse = mock(ApiFuture.class);
@@ -91,7 +91,7 @@ public class StorageWriteApiBatchApplicationStreamTest {
     ExecutionException noTable = new ExecutionException(
             new Throwable("Destination Table is deleted"));
     InterruptedException nonRetriableException = new InterruptedException("I am a non-retriable error");
-    List<Object[]> rows = new ArrayList<>();
+    List<ConvertedRecord> rows = new ArrayList<>();
     ExecutionException exception = new ExecutionException(new StatusRuntimeException(
             io.grpc.Status.fromCode(io.grpc.Status.Code.INTERNAL).withDescription("I am an INTERNAL error")
     ));
@@ -111,9 +111,9 @@ public class StorageWriteApiBatchApplicationStreamTest {
         mockedStream.time = time;
         errorMapping.put(0, "f0 field is unknown");
         mockedOffsets.put(new TopicPartition("t2", 0), new OffsetAndMetadata(100));
-        mockedRows.add(new Object[]{mockedSinkRecord, new JSONObject()});
-        rows.add(new Object[]{mockedSinkRecord, new JSONObject()});
-        rows.add(new Object[]{mockedSinkRecord, new JSONObject()});
+        mockedRows.add(new ConvertedRecord(mockedSinkRecord, new JSONObject()));
+        rows.add(new ConvertedRecord(mockedSinkRecord, new JSONObject()));
+        rows.add(new ConvertedRecord(mockedSinkRecord, new JSONObject()));
 
         doNothing().when(mockedApplicationStream1).closeStream();
         doNothing().when(mockedApplicationStream2).closeStream();
@@ -347,7 +347,8 @@ public class StorageWriteApiBatchApplicationStreamTest {
         verifyException(malformedExceptionMessage);
     }
 
-    private void verifyDLQ(List<Object[]> rows) {
+    private void verifyDLQ(List<ConvertedRecord> rows) {
+        @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<SinkRecord, Throwable>> captorRecord = ArgumentCaptor.forClass(Map.class);
 
         mockedStream.appendRows(mockedTable1, rows, mockedStreamName1);
@@ -355,7 +356,7 @@ public class StorageWriteApiBatchApplicationStreamTest {
         verify(mockedErrantRecordHandler, times(1))
                 .sendRecordsToDLQ(captorRecord.capture());
         Assert.assertTrue(captorRecord.getValue().containsKey(mockedSinkRecord));
-        Assert.assertTrue(captorRecord.getValue().get(mockedSinkRecord).getMessage().equals("f0 field is unknown"));
+        assertEquals("f0 field is unknown", captorRecord.getValue().get(mockedSinkRecord).getMessage());
         Assert.assertEquals(1, captorRecord.getValue().size());
         verify(mockedApplicationStream1, times(1)).increaseCompletedCalls();
     }

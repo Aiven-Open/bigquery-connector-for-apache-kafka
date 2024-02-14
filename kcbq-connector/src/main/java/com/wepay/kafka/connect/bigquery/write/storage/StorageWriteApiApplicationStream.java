@@ -32,19 +32,19 @@ public abstract class StorageWriteApiApplicationStream extends StorageWriteApiBa
 
     public abstract Map<TopicPartition, OffsetAndMetadata> getCommitableOffsets();
 
-    public abstract String updateOffsetsOnStream(String tableName, List<Object[]> rows);
+    public abstract String updateOffsetsOnStream(String tableName, List<ConvertedRecord> rows);
 
-    public abstract boolean maybeCreateStream(String tableName, List<Object[]> rows);
+    public abstract boolean maybeCreateStream(String tableName, List<ConvertedRecord> rows);
 
     /**
      * This returns offset information of records
-     * @param records List of {SinkRecord, JSONObject} items
+     * @param records List of pre- and post-conversion records
      * @return Offsets of the SinkRecords in records list
      */
-    protected Map<TopicPartition, OffsetAndMetadata> getOffsetFromRecords(List<Object[]> records) {
+    protected Map<TopicPartition, OffsetAndMetadata> getOffsetFromRecords(List<ConvertedRecord> records) {
         Map<TopicPartition, OffsetAndMetadata> offsets = new HashMap<>();
         records.forEach(record -> {
-            SinkRecord sr = (SinkRecord) record[0];
+            SinkRecord sr = record.original();
             offsets.put(new TopicPartition(sr.topic(), sr.kafkaPartition()), new OffsetAndMetadata(sr.kafkaOffset() + 1));
         });
 

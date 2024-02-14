@@ -28,7 +28,7 @@ public class StorageApiBatchModeHandlerTest {
             mockedStreamApi,
             mockedConfig
     );
-    List<Object[]> rows = new ArrayList<>();
+    List<ConvertedRecord> rows = new ArrayList<>();
 
     @Before
     public void setup() {

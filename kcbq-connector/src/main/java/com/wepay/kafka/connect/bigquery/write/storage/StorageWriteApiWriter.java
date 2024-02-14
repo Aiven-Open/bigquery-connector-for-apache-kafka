@@ -27,7 +27,7 @@ public class StorageWriteApiWriter implements Runnable {
     Logger logger = LoggerFactory.getLogger(StorageWriteApiWriter.class);
     private final StorageWriteApiBase streamWriter;
     private final TableName tableName;
-    private final List<Object[]> records;
+    private final List<ConvertedRecord> records;
     private final String streamName;
     public static final String DEFAULT= "default";
 
@@ -37,7 +37,7 @@ public class StorageWriteApiWriter implements Runnable {
      * @param records The records to write
      * @param streamName The stream to use while writing data
      */
-    public StorageWriteApiWriter(TableName tableName, StorageWriteApiBase streamWriter, List<Object[]> records, String streamName) {
+    public StorageWriteApiWriter(TableName tableName, StorageWriteApiBase streamWriter, List<ConvertedRecord> records, String streamName) {
         this.streamWriter = streamWriter;
         this.records = records;
         this.tableName = tableName;
@@ -56,7 +56,7 @@ public class StorageWriteApiWriter implements Runnable {
 
     public static class Builder implements TableWriterBuilder {
         private final
-        List<Object[]> records = new ArrayList<>();
+        List<ConvertedRecord> records = new ArrayList<>();
         private final RecordConverter<Map<String, Object>> recordConverter;
         private final BigQuerySinkTaskConfig config;
         private final TableName tableName;
@@ -81,7 +81,7 @@ public class StorageWriteApiWriter implements Runnable {
          */
         @Override
         public void addRow(SinkRecord sinkRecord, TableId tableId) {
-            records.add(new Object[]{sinkRecord, convertRecord(sinkRecord)});
+            records.add(new ConvertedRecord(sinkRecord, convertRecord(sinkRecord)));
         }
 
         /**

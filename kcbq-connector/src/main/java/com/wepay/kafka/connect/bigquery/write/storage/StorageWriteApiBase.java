@@ -67,12 +67,12 @@ public abstract class StorageWriteApiBase {
     /**
      * Handles required initialization steps and goes to append records to table
      * @param tableName  The table to write data to
-     * @param rows       List of records in {@link org.apache.kafka.connect.sink.SinkRecord}, {@link org.json.JSONObject}
-     *                   format. JSONObjects would be sent to api. SinkRecords are requireed for DLQ routing
+     * @param rows       List of pre- and post-conversion records.
+     *                   Converted JSONObjects would be sent to api.
+     *                   Pre-conversion sink records are required for DLQ routing
      * @param streamName The stream to use to write table to table.
      */
-    public void initializeAndWriteRecords(TableName tableName, List<Object[]> rows, String streamName) {
-        verifyRows(rows);
+    public void initializeAndWriteRecords(TableName tableName, List<ConvertedRecord> rows, String streamName) {
         appendRows(tableName, rows, streamName);
     }
 
@@ -91,7 +91,7 @@ public abstract class StorageWriteApiBase {
      * @param rows       The records to write
      * @param streamName The stream to use to write table to table.
      */
-    abstract public void appendRows(TableName tableName, List<Object[]> rows, String streamName);
+    abstract public void appendRows(TableName tableName, List<ConvertedRecord> rows, String streamName);
 
     /**
      * Creates Storage Api write client which carries all write settings information
@@ -103,15 +103,6 @@ public abstract class StorageWriteApiBase {
             this.writeClient = BigQueryWriteClient.create(writeSettings);
         }
         return this.writeClient;
-    }
-
-    private void verifyRows(List<Object[]> rows) {
-        rows.forEach(row -> {
-            if (row == null || (row.length != 2)) {
-                throw new BigQueryStorageWriteApiConnectException(String.format(
-                        "Row verification failed for {}. Expected row with exactly 2 items", row.toString()));
-            }
-        });
     }
 
     /**
@@ -140,12 +131,12 @@ public abstract class StorageWriteApiBase {
     }
 
     /**
-     * @param rows Rows of {SinkRecord, JSONObject} format
-     * @return Returns list of all SinkRecords
+     * @param rows List of pre- and post-conversion records
+     * @return Returns list of all pre-conversion records
      */
-    protected List<SinkRecord> getSinkRecords(List<Object[]> rows) {
+    protected List<SinkRecord> getSinkRecords(List<ConvertedRecord> rows) {
         return rows.stream()
-                .map(row -> (SinkRecord) row[0])
+                .map(ConvertedRecord::original)
                 .collect(Collectors.toList());
     }
 
@@ -155,20 +146,20 @@ public abstract class StorageWriteApiBase {
 
     /**
      * Sends errant records to configured DLQ and returns remaining
-     * @param input List of SinkRecord, JSONObject input data
+     * @param input List of pre- and post-conversion records
      * @param indexToErrorMap Map of record index to error received from api call
-     * @return Returns list of good Sink, JSONObject filtered from input which needs to be retried. Append row does
+     * @return Returns list of good records filtered from input which needs to be retried. Append row does
      * not write partially even if there is a single failure, good data has to be retried
      */
-    protected List<Object[]> sendErrantRecordsToDlqAndFilterValidRecords(
-            List<Object[]> input,
+    protected List<ConvertedRecord> sendErrantRecordsToDlqAndFilterValidRecords(
+            List<ConvertedRecord> input,
             Map<Integer, String> indexToErrorMap) {
-        List<Object[]> filteredRecords = new ArrayList<>();
+        List<ConvertedRecord> filteredRecords = new ArrayList<>();
         Map<SinkRecord, Throwable> recordsToDlq = new LinkedHashMap<>();
 
         for (int i = 0; i < input.size(); i++) {
             if (indexToErrorMap.containsKey(i)) {
-                SinkRecord inputRecord = (SinkRecord) input.get(i)[0];
+                SinkRecord inputRecord = input.get(i).original();
                 Throwable error = new Throwable(indexToErrorMap.get(i));
                 recordsToDlq.put(inputRecord, error);
             } else {
@@ -196,8 +187,8 @@ public abstract class StorageWriteApiBase {
         return errorMap;
     }
 
-    protected List<Object[]> maybeHandleDlqRoutingAndFilterRecords(
-            List<Object[]> rows,
+    protected List<ConvertedRecord> maybeHandleDlqRoutingAndFilterRecords(
+            List<ConvertedRecord> rows,
             Map<Integer, String> errorMap,
             String tableName
     ) {

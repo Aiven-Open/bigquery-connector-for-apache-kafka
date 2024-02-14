@@ -116,7 +116,7 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiApplic
      * @param streamName The stream to use to write table to table.
      */
     @Override
-    public void appendRows(TableName tableName, List<Object[]> rows, String streamName) {
+    public void appendRows(TableName tableName, List<ConvertedRecord> rows, String streamName) {
         StorageWriteApiRetryHandler retryHandler = new StorageWriteApiRetryHandler(tableName, getSinkRecords(rows), retry, retryWait, time);
         logger.debug("Sending {} records to write Api Application stream {} ...", rows.size(), streamName);
         ApplicationStream applicationStream = this.streams.get(tableName.toString()).get(streamName);
@@ -224,10 +224,9 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiApplic
      * (it has been assigned some records)
      *
      * @param tableName Name of the table in project/dataset/table format
-     * @return
      */
     @Override
-    public boolean maybeCreateStream(String tableName, List<Object[]> rows) {
+    public boolean maybeCreateStream(String tableName, List<ConvertedRecord> rows) {
         String streamName = this.currentStreams.get(tableName);
         boolean shouldCreateNewStream = (streamName == null) ||
                 (this.streams.get(tableName).get(streamName) != null
@@ -249,7 +248,7 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiApplic
     @Override
     public String updateOffsetsOnStream(
             String tableName,
-            List<Object[]> rows
+            List<ConvertedRecord> rows
     ) {
         String streamName;
         Map<TopicPartition, OffsetAndMetadata> offsetInfo = getOffsetFromRecords(rows);
@@ -263,12 +262,9 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiApplic
 
     /**
      * Takes care of creating a new application stream
-     *
-     * @param tableName
-     * @return
      */
     @VisibleForTesting
-    ApplicationStream createApplicationStream(String tableName, List<Object[]> rows) {
+    ApplicationStream createApplicationStream(String tableName, List<ConvertedRecord> rows) {
         StorageWriteApiRetryHandler retryHandler = new StorageWriteApiRetryHandler(
                 TableName.parse(tableName), rows != null ? getSinkRecords(rows) : null, retry, retryWait, time);
         do {
@@ -324,10 +320,10 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiApplic
         throw exception;
     }
 
-    private JSONArray getJsonRecords(List<Object[]> rows) {
+    private JSONArray getJsonRecords(List<ConvertedRecord> rows) {
         JSONArray jsonRecords = new JSONArray();
-        for (Object[] item : rows) {
-            jsonRecords.put(item[1]);
+        for (ConvertedRecord item : rows) {
+            jsonRecords.put(item.converted());
         }
         return jsonRecords;
     }
@@ -339,7 +335,7 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiApplic
      * @param oldStream Last active stream on the table when this method was invoked.
      * @return Returns false if the oldstream is not equal to active stream , creates stream otherwise and returns true
      */
-    private boolean createStream(String tableName, String oldStream, List<Object[]> rows) {
+    private boolean createStream(String tableName, String oldStream, List<ConvertedRecord> rows) {
         synchronized (lock(tableName)) {
             // This check verifies if the current active stream is same as seen by the calling method. If different, that
             // would mean a new stream got created by some other thread and this attempt can be dropped.
@@ -387,7 +383,7 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiApplic
      * @param tableName The table name
      * @return Current active stream on table
      */
-    private String getCurrentStreamForTable(String tableName, List<Object[]> rows) {
+    private String getCurrentStreamForTable(String tableName, List<ConvertedRecord> rows) {
         if (!currentStreams.containsKey(tableName)) {
             this.createStream(tableName, null, rows);
         }
