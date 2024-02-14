@@ -52,7 +52,6 @@ import com.wepay.kafka.connect.bigquery.write.row.GCSToBQWriter;
 import com.wepay.kafka.connect.bigquery.write.row.SimpleBigQueryWriter;
 import com.wepay.kafka.connect.bigquery.write.row.UpsertDeleteBigQueryWriter;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiWriter;
-import com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiApplicationStream;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiBatchApplicationStream;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageApiBatchModeHandler;
 
@@ -613,7 +612,7 @@ public class BigQuerySinkTask extends SinkTask {
       BigQueryWriteSettings writeSettings = new GcpClientBuilder.BigQueryWriteSettingsBuilder().withConfig(config).build();
       if (useStorageApiBatchMode) {
         int commitInterval = config.getInt(BigQuerySinkConfig.COMMIT_INTERVAL_SEC_CONFIG);
-        storageApiWriter = new StorageWriteApiBatchApplicationStream(
+        StorageWriteApiBatchApplicationStream writer = new StorageWriteApiBatchApplicationStream(
                 retry,
                 retryWait,
                 writeSettings,
@@ -622,9 +621,10 @@ public class BigQuerySinkTask extends SinkTask {
                 getSchemaManager(),
                 attemptSchemaUpdate
         );
+        storageApiWriter = writer;
 
         logger.info("Starting task with Storage Write API Batch Mode...");
-        batchHandler = new StorageApiBatchModeHandler((StorageWriteApiApplicationStream) storageApiWriter, config);
+        batchHandler = new StorageApiBatchModeHandler(writer, config);
 
         logger.info("Starting Load Executor for Storage Write API Batch Mode with {} seconds interval ...", commitInterval);
         loadExecutor = Executors.newScheduledThreadPool(1);

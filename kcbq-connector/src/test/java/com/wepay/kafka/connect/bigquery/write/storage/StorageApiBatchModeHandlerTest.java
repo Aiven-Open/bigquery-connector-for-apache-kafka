@@ -21,7 +21,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.any;
 
 public class StorageApiBatchModeHandlerTest {
-    StorageWriteApiApplicationStream mockedStreamApi = mock(StorageWriteApiApplicationStream.class);
+    StorageWriteApiBatchApplicationStream mockedStreamApi = mock(StorageWriteApiBatchApplicationStream.class);
     BigQuerySinkTaskConfig mockedConfig = mock(BigQuerySinkTaskConfig.class);
     Map<TopicPartition, OffsetAndMetadata> offsetInfo = new HashMap<>();
     StorageApiBatchModeHandler batchModeHandler = new StorageApiBatchModeHandler(

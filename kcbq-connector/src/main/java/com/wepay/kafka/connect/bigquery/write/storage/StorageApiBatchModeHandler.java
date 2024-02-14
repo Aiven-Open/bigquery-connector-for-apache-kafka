@@ -16,10 +16,10 @@ import java.util.Map;
 public class StorageApiBatchModeHandler {
 
     private static final Logger logger = LoggerFactory.getLogger(StorageApiBatchModeHandler.class);
-    private final StorageWriteApiApplicationStream streamApi;
+    private final StorageWriteApiBatchApplicationStream streamApi;
     private List<String> tableNames;
 
-    public StorageApiBatchModeHandler(StorageWriteApiApplicationStream streamApi, BigQuerySinkTaskConfig config) {
+    public StorageApiBatchModeHandler(StorageWriteApiBatchApplicationStream streamApi, BigQuerySinkTaskConfig config) {
         this.streamApi = streamApi;
         this.tableNames = TableNameUtils.getAllTableNames(config);
     }

@@ -12,11 +12,13 @@ import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiErrorRe
 import com.wepay.kafka.connect.bigquery.utils.Time;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.connect.sink.SinkRecord;
 import org.json.JSONArray;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,13 +30,13 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
 
 /**
- * An extension of {@link StorageWriteApiApplicationStream} which uses application streams for batch loading data
+ * An extension of {@link StorageWriteApiBase} which uses application streams for batch loading data
  * following at least once semantic
  * Current/Active stream means - Stream which is not yet finalised and would be used for any new data append
  * Other streams (non-current/ non-active streams) - These streams may/may not be finalised yet but would not be used
  * for any new data. These will only write data for offsets assigned so far.
  */
-public class StorageWriteApiBatchApplicationStream extends StorageWriteApiApplicationStream {
+public class StorageWriteApiBatchApplicationStream extends StorageWriteApiBase {
 
     private static final Logger logger = LoggerFactory.getLogger(StorageWriteApiBatchApplicationStream.class);
 
@@ -184,7 +186,6 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiApplic
      *
      * @return Returns Map of TopicPartition to OffsetMetadata. Will be empty if there is nothing new to commit.
      */
-    @Override
     public Map<TopicPartition, OffsetAndMetadata> getCommitableOffsets() {
         Map<TopicPartition, OffsetAndMetadata> offsetsReadyForCommits = new ConcurrentHashMap<>();
         this.streams.forEach((tableName, streamDetails) -> {
@@ -225,7 +226,6 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiApplic
      *
      * @param tableName Name of the table in project/dataset/table format
      */
-    @Override
     public boolean maybeCreateStream(String tableName, List<ConvertedRecord> rows) {
         String streamName = this.currentStreams.get(tableName);
         boolean shouldCreateNewStream = (streamName == null) ||
@@ -245,7 +245,6 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiApplic
      * @param rows      Offsets which are to be written by current stream to bigquery table
      * @return Stream name using which offsets would be written
      */
-    @Override
     public String updateOffsetsOnStream(
             String tableName,
             List<ConvertedRecord> rows
@@ -431,4 +430,20 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiApplic
     private Object lock(ApplicationStream stream) {
         return streamLocks.computeIfAbsent(stream, s -> new Object());
     }
+
+    /**
+     * This returns offset information of records
+     * @param records List of pre- and post-conversion records
+     * @return Offsets of the SinkRecords in records list
+     */
+    private Map<TopicPartition, OffsetAndMetadata> getOffsetFromRecords(List<ConvertedRecord> records) {
+        Map<TopicPartition, OffsetAndMetadata> offsets = new HashMap<>();
+        records.forEach(record -> {
+            SinkRecord sr = record.original();
+            offsets.put(new TopicPartition(sr.topic(), sr.kafkaPartition()), new OffsetAndMetadata(sr.kafkaOffset() + 1));
+        });
+
+        return offsets;
+    }
+
 }
