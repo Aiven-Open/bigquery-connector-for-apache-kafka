@@ -106,11 +106,11 @@ public class StorageWriteApiDefaultStreamTest {
         defaultStream.tableToStream.put("testTable", mockedStreamWriter);
         defaultStream.schemaManager = mockedSchemaManager;
         defaultStream.time = time;
+        defaultStream.errantRecordHandler = mockedErrantRecordHandler;
         doReturn(mockedStreamWriter).when(defaultStream).getDefaultStream(any(), any());
         when(mockedStreamWriter.append(ArgumentMatchers.any())).thenReturn(mockedResponse);
         doReturn(true).when(mockedSchemaManager).createTable(any(), any());
         doNothing().when(mockedSchemaManager).updateSchema(any(), any());
-        when(defaultStream.getErrantRecordHandler()).thenReturn(mockedErrantRecordHandler);
         when(mockedErrantRecordHandler.getErrantRecordReporter()).thenReturn(mockedErrantReporter);
         when(defaultStream.getAutoCreateTables()).thenReturn(true);
         when(defaultStream.canAttemptSchemaUpdate()).thenReturn(true);

@@ -108,6 +108,7 @@ public class StorageWriteApiBatchApplicationStreamTest {
         mockedStream.streams = new ConcurrentHashMap<>();
         mockedStream.currentStreams = new ConcurrentHashMap<>();
         mockedStream.schemaManager = mockedSchemaManager;
+        mockedStream.errantRecordHandler = mockedErrantRecordHandler;
         mockedStream.time = time;
         errorMapping.put(0, "f0 field is unknown");
         mockedOffsets.put(new TopicPartition("t2", 0), new OffsetAndMetadata(100));
@@ -133,7 +134,6 @@ public class StorageWriteApiBatchApplicationStreamTest {
         when(mockedApplicationStream2.isReadyForOffsetCommit()).thenReturn(true);
         when(mockedApplicationStream2.getOffsetInformation()).thenReturn(mockedOffsets);
         when(mockedApplicationStream1.writer()).thenReturn(mockedJsonWriter);
-        when(mockedStream.getErrantRecordHandler()).thenReturn(mockedErrantRecordHandler);
         when(mockedErrantRecordHandler.getErrantRecordReporter()).thenReturn(mockedErrantReporter);
         when(mockedApplicationStream1.areAllExpectedCallsCompleted()).thenReturn(true);
         when(mockedStream.canAttemptSchemaUpdate()).thenReturn(true);

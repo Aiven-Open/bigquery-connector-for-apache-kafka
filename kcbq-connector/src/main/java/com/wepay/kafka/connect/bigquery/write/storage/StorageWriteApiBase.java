@@ -26,7 +26,7 @@ import java.util.HashMap;
 public abstract class StorageWriteApiBase {
 
     private static final Logger logger = LoggerFactory.getLogger(StorageWriteApiBase.class);
-    private final ErrantRecordHandler errantRecordHandler;
+    ErrantRecordHandler errantRecordHandler;
     protected SchemaManager schemaManager;
     private BigQueryWriteClient writeClient;
     protected final int retry;
@@ -89,7 +89,7 @@ public abstract class StorageWriteApiBase {
      * @return Returns BigQueryWriteClient object
      * @throws IOException
      */
-    public BigQueryWriteClient getWriteClient() throws IOException {
+    protected BigQueryWriteClient getWriteClient() throws IOException {
         if (this.writeClient == null) {
             this.writeClient = BigQueryWriteClient.create(writeSettings);
         }
@@ -131,10 +131,6 @@ public abstract class StorageWriteApiBase {
                 .collect(Collectors.toList());
     }
 
-    protected ErrantRecordHandler getErrantRecordHandler() {
-        return this.errantRecordHandler;
-    }
-
     /**
      * Sends errant records to configured DLQ and returns remaining
      * @param input List of pre- and post-conversion records
@@ -158,8 +154,8 @@ public abstract class StorageWriteApiBase {
             }
         }
 
-        if (getErrantRecordHandler().getErrantRecordReporter() != null) {
-            getErrantRecordHandler().sendRecordsToDLQ(recordsToDlq);
+        if (errantRecordHandler.getErrantRecordReporter() != null) {
+            errantRecordHandler.sendRecordsToDLQ(recordsToDlq);
         }
 
         return filteredRecords;
@@ -183,7 +179,7 @@ public abstract class StorageWriteApiBase {
             Map<Integer, String> errorMap,
             String tableName
     ) {
-        if (getErrantRecordHandler().getErrantRecordReporter() != null) {
+        if (errantRecordHandler.getErrantRecordReporter() != null) {
             //Routes to DLQ
             return sendErrantRecordsToDlqAndFilterValidRecords(rows, errorMap);
         } else {
