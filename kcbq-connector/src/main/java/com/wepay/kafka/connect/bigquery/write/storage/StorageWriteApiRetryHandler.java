@@ -97,7 +97,7 @@ public class StorageWriteApiRetryHandler {
         time.sleep(userConfiguredRetryWait + additionalWait + random.nextInt(1000));
     }
 
-    public boolean mayBeRetry() {
+    public boolean maybeRetry() {
         if (currentAttempt < (userConfiguredRetry + additionalRetries)) {
             currentAttempt++;
             try {

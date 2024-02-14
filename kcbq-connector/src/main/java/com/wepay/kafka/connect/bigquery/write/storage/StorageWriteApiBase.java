@@ -14,7 +14,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
-import java.util.Random;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
@@ -197,7 +196,7 @@ public abstract class StorageWriteApiBase {
         return errorMap;
     }
 
-    protected List<Object[]> mayBeHandleDlqRoutingAndFilterRecords(
+    protected List<Object[]> maybeHandleDlqRoutingAndFilterRecords(
             List<Object[]> rows,
             Map<Integer, String> errorMap,
             String tableName

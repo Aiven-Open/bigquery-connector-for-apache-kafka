@@ -306,7 +306,7 @@ public class BigQuerySinkTask extends SinkTask {
 
   public void writeSinkRecords(Collection<SinkRecord> records) {
     // Periodically poll for errors here instead of doing a stop-the-world check in flush()
-    mayBeThrowErrors();
+    maybeThrowErrors();
 
     logger.debug("Putting {} records in the sink.", records.size());
 
@@ -682,7 +682,7 @@ public class BigQuerySinkTask extends SinkTask {
     }
   }
 
-  private void mayBeThrowErrors() {
+  private void maybeThrowErrors() {
     executor.maybeThrowEncounteredError();
     if(useStorageApiBatchMode && loadExecutor.isTerminated()) {
       throw new BigQueryStorageWriteApiConnectException(

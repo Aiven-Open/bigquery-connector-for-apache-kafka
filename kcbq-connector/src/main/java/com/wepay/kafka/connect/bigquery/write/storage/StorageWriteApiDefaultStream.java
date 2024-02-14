@@ -114,7 +114,7 @@ public class StorageWriteApiDefaultStream extends StorageWriteApiBase {
                     }
                     logger.warn(baseErrorMessage + " Retry attempt {}...", retryHandler.getAttempt());
                 }
-            } while (retryHandler.mayBeRetry());
+            } while (retryHandler.maybeRetry());
             throw new BigQueryStorageWriteApiConnectException(
                     String.format(
                             "Exceeded %s attempts to create Default stream writer on table %s ",
@@ -160,7 +160,7 @@ public class StorageWriteApiDefaultStream extends StorageWriteApiBase {
                     String errorMessage = String.format("Failed to write rows on table %s due to %s", tableName, errorStatus.getMessage());
                     retryHandler.setMostRecentException(new BigQueryStorageWriteApiConnectException(errorMessage));
                     if (BigQueryStorageWriteApiErrorResponses.isMalformedRequest(errorMessage)) {
-                        rows = mayBeHandleDlqRoutingAndFilterRecords(rows, convertToMap(writeResult.getRowErrorsList()), tableName.getTable());
+                        rows = maybeHandleDlqRoutingAndFilterRecords(rows, convertToMap(writeResult.getRowErrorsList()), tableName.getTable());
                         if (rows.isEmpty()) {
                             return;
                         }
@@ -187,7 +187,7 @@ public class StorageWriteApiDefaultStream extends StorageWriteApiBase {
                     logger.warn("Sent records schema does not match with table schema, will attempt to update schema");
                     retryHandler.attemptTableOperation(schemaManager::updateSchema);
                 } else if (BigQueryStorageWriteApiErrorResponses.isMalformedRequest(message)) {
-                    rows = mayBeHandleDlqRoutingAndFilterRecords(rows, getRowErrorMapping(e), tableName.getTable());
+                    rows = maybeHandleDlqRoutingAndFilterRecords(rows, getRowErrorMapping(e), tableName.getTable());
                     if (rows.isEmpty()) {
                         return;
                     }
@@ -203,7 +203,7 @@ public class StorageWriteApiDefaultStream extends StorageWriteApiBase {
                 }
                 logger.warn(errorMessage + " Retry attempt " + retryHandler.getAttempt());
             }
-        } while (retryHandler.mayBeRetry());
+        } while (retryHandler.maybeRetry());
         throw new BigQueryStorageWriteApiConnectException(
                 String.format("Exceeded %s attempts to write to table %s ", retryHandler.getAttempt(), tableName),
                 retryHandler.getMostRecentException());

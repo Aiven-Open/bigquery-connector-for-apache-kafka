@@ -198,7 +198,7 @@ public class StorageWriteApiBatchApplicationStreamTest {
         doReturn(mockedApplicationStream).when(mockedStream).createApplicationStream(mockedTable1.toString(), null);
         when(mockedApplicationStream.getStreamName()).thenReturn("mockedApplicationStream");
 
-        boolean expected = mockedStream.mayBeCreateStream(mockedTable1.toString(), null);
+        boolean expected = mockedStream.maybeCreateStream(mockedTable1.toString(), null);
 
         assertTrue(expected);
         assertEquals("mockedApplicationStream", mockedStream.currentStreams.get(mockedTable1.toString()));
@@ -213,7 +213,7 @@ public class StorageWriteApiBatchApplicationStreamTest {
 
         doReturn(null).when(mockedStream).createApplicationStream(mockedTable1.toString(), null);
 
-        boolean expected = mockedStream.mayBeCreateStream(mockedTable1.toString(), null);
+        boolean expected = mockedStream.maybeCreateStream(mockedTable1.toString(), null);
 
         assertFalse(expected);
         assertEquals(mockedStreamName1, mockedStream.currentStreams.get(mockedTable1.toString()));
@@ -227,7 +227,7 @@ public class StorageWriteApiBatchApplicationStreamTest {
         doReturn(mockedApplicationStream).when(mockedStream).createApplicationStream(mockedTable1.toString(), null);
         when(mockedApplicationStream.getStreamName()).thenReturn("mockedApplicationStream");
 
-        boolean expected = mockedStream.mayBeCreateStream(mockedTable1.toString(), null);
+        boolean expected = mockedStream.maybeCreateStream(mockedTable1.toString(), null);
 
         assertTrue(expected);
         assertEquals("mockedApplicationStream", mockedStream.currentStreams.get(mockedTable1.toString()));

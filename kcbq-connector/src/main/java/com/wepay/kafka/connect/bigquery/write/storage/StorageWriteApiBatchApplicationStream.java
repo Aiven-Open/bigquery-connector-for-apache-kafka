@@ -141,7 +141,7 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiApplic
                     String errorMessage = String.format("Failed to write rows on table %s due to %s", tableName, writeResult.getError().getMessage());
                     retryHandler.setMostRecentException(new BigQueryStorageWriteApiConnectException(errorMessage));
                     if (BigQueryStorageWriteApiErrorResponses.isMalformedRequest(errorMessage)) {
-                        rows = mayBeHandleDlqRoutingAndFilterRecords(rows, convertToMap(writeResult.getRowErrorsList()), tableName.getTable());
+                        rows = maybeHandleDlqRoutingAndFilterRecords(rows, convertToMap(writeResult.getRowErrorsList()), tableName.getTable());
                         if (rows.isEmpty()) {
                             updateSuccessAndTryCommit(applicationStream, tableName, streamName);
                             return;
@@ -160,7 +160,7 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiApplic
                     logger.warn("Sent records schema does not match with table schema, will attempt to update schema");
                     retryHandler.attemptTableOperation(schemaManager::updateSchema);
                 } else if (BigQueryStorageWriteApiErrorResponses.isMalformedRequest(errorMessage)) {
-                    rows = mayBeHandleDlqRoutingAndFilterRecords(rows, getRowErrorMapping(e), tableName.getTable());
+                    rows = maybeHandleDlqRoutingAndFilterRecords(rows, getRowErrorMapping(e), tableName.getTable());
                     if (rows.isEmpty()) {
                         updateSuccessAndTryCommit(applicationStream, tableName, streamName);
                         return;
@@ -172,7 +172,7 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiApplic
                 }
                 logger.warn(errorMessage + " Retry attempt " + retryHandler.getAttempt());
             }
-        } while (retryHandler.mayBeRetry());
+        } while (retryHandler.maybeRetry());
             throw new BigQueryStorageWriteApiConnectException(
                     String.format("Exceeded %s attempts to write to table %s ", retryHandler.getAttempt(), tableName),
                     retryHandler.getMostRecentException());
@@ -227,7 +227,7 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiApplic
      * @return
      */
     @Override
-    public boolean mayBeCreateStream(String tableName, List<Object[]> rows) {
+    public boolean maybeCreateStream(String tableName, List<Object[]> rows) {
         String streamName = this.currentStreams.get(tableName);
         boolean shouldCreateNewStream = (streamName == null) ||
                 (this.streams.get(tableName).get(streamName) != null
@@ -294,7 +294,7 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiApplic
                 }
                 logger.warn(baseErrorMessage + " Retry attempt {}...", retryHandler.getAttempt());
             }
-        } while (retryHandler.mayBeRetry());
+        } while (retryHandler.maybeRetry());
         throw new BigQueryStorageWriteApiConnectException(
                 String.format(
                         "Exceeded %s attempts to create Application stream on table %s ",

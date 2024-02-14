@@ -38,7 +38,7 @@ public class StorageApiBatchModeHandler {
      * @param tableName Name of tha table in project/dataset/tablename format
      */
     private void createNewStreamForTable(String tableName) {
-        if (streamApi.mayBeCreateStream(tableName, null)) {
+        if (streamApi.maybeCreateStream(tableName, null)) {
             logger.debug("Created new stream for table " + tableName);
         } else {
             logger.debug("Not creating new stream for table " + tableName);

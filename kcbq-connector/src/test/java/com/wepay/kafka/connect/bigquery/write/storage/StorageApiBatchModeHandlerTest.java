@@ -38,7 +38,7 @@ public class StorageApiBatchModeHandlerTest {
         when(mockedConfig.getList(BigQuerySinkTaskConfig.TOPICS_CONFIG)).thenReturn(
                 Arrays.asList("topic1", "topic2")
         );
-        when(mockedStreamApi.mayBeCreateStream(any(), any())).thenReturn(true);
+        when(mockedStreamApi.maybeCreateStream(any(), any())).thenReturn(true);
         when(mockedStreamApi.updateOffsetsOnStream(any(), any())).thenReturn("s1_app_stream");
         when(mockedStreamApi.getCommitableOffsets()).thenReturn(offsetInfo);
     }

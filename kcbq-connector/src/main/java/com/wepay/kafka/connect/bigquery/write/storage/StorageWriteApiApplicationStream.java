@@ -34,7 +34,7 @@ public abstract class StorageWriteApiApplicationStream extends StorageWriteApiBa
 
     public abstract String updateOffsetsOnStream(String tableName, List<Object[]> rows);
 
-    public abstract boolean mayBeCreateStream(String tableName, List<Object[]> rows);
+    public abstract boolean maybeCreateStream(String tableName, List<Object[]> rows);
 
     /**
      * This returns offset information of records
