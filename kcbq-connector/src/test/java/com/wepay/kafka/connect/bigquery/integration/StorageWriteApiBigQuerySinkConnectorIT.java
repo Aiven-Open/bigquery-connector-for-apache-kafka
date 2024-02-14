@@ -230,7 +230,7 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
         assertEquals(expectedRows(), testRows.stream().map(row -> row.get(0)).collect(Collectors.toSet()));
     }
 
-    @Test(expected = NoRetryException.class)
+    @Test
     public void testBaseAvroFailure() throws InterruptedException {
         // create topic in Kafka
         final String topic = suffixedTableOrTopic("storage-api-append-fail" + System.nanoTime());
@@ -258,9 +258,12 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
         //produce records
         produceAvroRecords(topic);
 
-        // wait for tasks to write to BigQuery and commit offsets for their records
-        waitForCommittedRecords(
-                CONNECTOR_NAME, Collections.singleton(topic), NUM_RECORDS_PRODUCED, TASKS_MAX, COMMIT_MAX_DURATION_MS);
+        connect.assertions().assertConnectorIsRunningAndTasksHaveFailed(
+            CONNECTOR_NAME,
+            TASKS_MAX,
+            "Tasks should have failed when writing to nonexistent table "
+                + "with automatic table creation disabled"
+        );
     }
 
     private void createTable(String table, boolean incorrectSchema) {
