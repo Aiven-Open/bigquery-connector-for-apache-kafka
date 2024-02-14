@@ -161,6 +161,7 @@ public class ApplicationStream {
     public boolean canBeCommitted() {
         return currentState == StreamState.APPEND;
     }
+
     /**
      * Finalises the stream
      */
