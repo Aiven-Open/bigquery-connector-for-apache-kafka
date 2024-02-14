@@ -72,7 +72,7 @@ public class BigQueryStorageApiSinkTaskTest {
         properties.put(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG, "scratch");
         spoofedRecordOffset.set(0);
 
-        doNothing().when(mockedStorageWriteApiDefaultStream).appendRows(any(), any(), eq(DEFAULT));
+        doNothing().when(mockedStorageWriteApiDefaultStream).initializeAndWriteRecords(any(), any(), eq(DEFAULT));
         doNothing().when(mockedStorageWriteApiDefaultStream).shutdown();
 
         testTask.initialize(sinkTaskContext);
@@ -84,14 +84,14 @@ public class BigQueryStorageApiSinkTaskTest {
         testTask.put(Collections.singletonList(spoofSinkRecord()));
         testTask.flush(Collections.emptyMap());
 
-        verify(mockedStorageWriteApiDefaultStream, times(1)).appendRows(any(), any(), eq(DEFAULT));
+        verify(mockedStorageWriteApiDefaultStream, times(1)).initializeAndWriteRecords(any(), any(), eq(DEFAULT));
     }
 
     @Test(expected = BigQueryConnectException.class)
     public void testSimplePutException() throws Exception {
         BigQueryStorageWriteApiConnectException exception = new BigQueryStorageWriteApiConnectException("error 12345");
 
-        doThrow(exception).when(mockedStorageWriteApiDefaultStream).appendRows(any(), any(),eq(DEFAULT));
+        doThrow(exception).when(mockedStorageWriteApiDefaultStream).initializeAndWriteRecords(any(), any(),eq(DEFAULT));
 
         testTask.put(Collections.singletonList(spoofSinkRecord()));
         try {

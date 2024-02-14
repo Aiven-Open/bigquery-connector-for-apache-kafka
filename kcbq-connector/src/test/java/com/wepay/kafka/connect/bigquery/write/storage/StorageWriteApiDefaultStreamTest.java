@@ -120,7 +120,7 @@ public class StorageWriteApiDefaultStreamTest {
     public void testDefaultStreamNoExceptions() throws Exception {
         when(mockedResponse.get()).thenReturn(successResponse);
 
-        defaultStream.appendRows(mockedTableName, testRows, null);
+        defaultStream.initializeAndWriteRecords(mockedTableName, testRows, null);
     }
 
     @Test(expected = BigQueryStorageWriteApiConnectException.class)
@@ -169,7 +169,7 @@ public class StorageWriteApiDefaultStreamTest {
     public void testHasSchemaUpdates() throws Exception {
         when(mockedResponse.get()).thenReturn(schemaError).thenReturn(successResponse);
 
-        defaultStream.appendRows(mockedTableName, testRows, null);
+        defaultStream.initializeAndWriteRecords(mockedTableName, testRows, null);
 
         verify(mockedSchemaManager, times(1)).updateSchema(any(), any());
 
@@ -180,7 +180,7 @@ public class StorageWriteApiDefaultStreamTest {
         when(mockedResponse.get()).thenReturn(schemaError).thenReturn(successResponse);
         when(defaultStream.canAttemptSchemaUpdate()).thenReturn(false);
 
-        defaultStream.appendRows(mockedTableName, testRows, null);
+        defaultStream.initializeAndWriteRecords(mockedTableName, testRows, null);
 
         verify(mockedSchemaManager, times(1)).updateSchema(any(), any());
     }
@@ -221,7 +221,7 @@ public class StorageWriteApiDefaultStreamTest {
     public void testDefaultStreamTableMissingException() throws Exception {
         when(mockedResponse.get()).thenThrow(tableMissingException).thenReturn(successResponse);
         when(defaultStream.getAutoCreateTables()).thenReturn(true);
-        defaultStream.appendRows(mockedTableName, testRows, null);
+        defaultStream.initializeAndWriteRecords(mockedTableName, testRows, null);
         verify(mockedSchemaManager, times(1)).createTable(any(), any());
     }
 
@@ -230,7 +230,7 @@ public class StorageWriteApiDefaultStreamTest {
         errorMapping.put(0, "JSONObject does not have the required field f1");
         when(mockedResponse.get()).thenThrow(appendSerializationException).thenReturn(successResponse);
 
-        defaultStream.appendRows(mockedTableName, testRows, null);
+        defaultStream.initializeAndWriteRecords(mockedTableName, testRows, null);
         verify(mockedSchemaManager, times(1)).updateSchema(any(), any());
 
     }
@@ -241,7 +241,7 @@ public class StorageWriteApiDefaultStreamTest {
                 new Throwable("Exceptions$StreamWriterClosedException due to FAILED_PRECONDITION"));
         when(mockedResponse.get()).thenThrow(exception);
 
-        defaultStream.appendRows(mockedTableName, testRows, null);
+        defaultStream.initializeAndWriteRecords(mockedTableName, testRows, null);
 
         verify(mockedStreamWriter, times(1)).close();
     }
@@ -256,7 +256,7 @@ public class StorageWriteApiDefaultStreamTest {
 
     private void verifyException(String expectedException) {
         try {
-            defaultStream.appendRows(mockedTableName, testRows, null);
+            defaultStream.initializeAndWriteRecords(mockedTableName, testRows, null);
         } catch (Exception e) {
             Assert.assertEquals(expectedException, e.getMessage());
             throw e;
@@ -266,7 +266,7 @@ public class StorageWriteApiDefaultStreamTest {
     private void verifyDLQ(List<ConvertedRecord> rows) {
         ArgumentCaptor<Map<SinkRecord,Throwable>> captorRecord = ArgumentCaptor.forClass(Map.class);
 
-        defaultStream.appendRows(mockedTableName, rows, null);
+        defaultStream.initializeAndWriteRecords(mockedTableName, rows, null);
 
         verify(mockedErrantRecordHandler, times(1))
                 .sendRecordsToDLQ(captorRecord.capture());

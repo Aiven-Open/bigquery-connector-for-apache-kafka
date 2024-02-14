@@ -64,18 +64,6 @@ public abstract class StorageWriteApiBase {
         }
     }
 
-    /**
-     * Handles required initialization steps and goes to append records to table
-     * @param tableName  The table to write data to
-     * @param rows       List of pre- and post-conversion records.
-     *                   Converted JSONObjects would be sent to api.
-     *                   Pre-conversion sink records are required for DLQ routing
-     * @param streamName The stream to use to write table to table.
-     */
-    public void initializeAndWriteRecords(TableName tableName, List<ConvertedRecord> rows, String streamName) {
-        appendRows(tableName, rows, streamName);
-    }
-
     abstract public void preShutdown();
 
     /**
@@ -87,11 +75,14 @@ public abstract class StorageWriteApiBase {
     }
 
     /**
+     * Handles required initialization steps and goes to append records to table
      * @param tableName  The table to write data to
-     * @param rows       The records to write
+     * @param rows       List of pre- and post-conversion records.
+     *                   Converted JSONObjects would be sent to api.
+     *                   Pre-conversion sink records are required for DLQ routing
      * @param streamName The stream to use to write table to table.
      */
-    abstract public void appendRows(TableName tableName, List<ConvertedRecord> rows, String streamName);
+    abstract public void initializeAndWriteRecords(TableName tableName, List<ConvertedRecord> rows, String streamName);
 
     /**
      * Creates Storage Api write client which carries all write settings information

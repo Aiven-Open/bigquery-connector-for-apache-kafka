@@ -133,7 +133,7 @@ public class StorageWriteApiDefaultStream extends StorageWriteApiBase {
      * @param streamName The stream to use to write table to table. This will be DEFAULT always.
      */
     @Override
-    public void appendRows(TableName tableName, List<ConvertedRecord> rows, String streamName) {
+    public void initializeAndWriteRecords(TableName tableName, List<ConvertedRecord> rows, String streamName) {
         JSONArray jsonArr;
         StorageWriteApiRetryHandler retryHandler = new StorageWriteApiRetryHandler(tableName, getSinkRecords(rows), retry, retryWait, time);
         logger.debug("Sending {} records to write Api default stream on {} ...", rows.size(), tableName);

@@ -98,7 +98,7 @@ public class BigQueryStorageApiBatchSinkTaskTest {
         spoofedRecordOffset.set(0);
         mockedOffset.put(new TopicPartition(topic, 0), new OffsetAndMetadata(0));
 
-        doNothing().when(mockedStorageWriteApiBatchStream).appendRows(any(), any(), eq("dummyStream"));
+        doNothing().when(mockedStorageWriteApiBatchStream).initializeAndWriteRecords(any(), any(), eq("dummyStream"));
         doNothing().when(mockedStorageWriteApiBatchStream).shutdown();
         doNothing().when(mockedBatchHandler).createNewStream();
         when(mockedBatchHandler.updateOffsetsOnStream(any(), any())).thenReturn("dummyStream");
@@ -117,7 +117,7 @@ public class BigQueryStorageApiBatchSinkTaskTest {
         testTask.put(Collections.singletonList(spoofSinkRecord()));
         testTask.flush(Collections.emptyMap());
 
-        verify(mockedStorageWriteApiBatchStream, times(1)).appendRows(any(), any(), any());
+        verify(mockedStorageWriteApiBatchStream, times(1)).initializeAndWriteRecords(any(), any(), any());
     }
 
     @Test
@@ -162,7 +162,7 @@ public class BigQueryStorageApiBatchSinkTaskTest {
     @Test(expected = BigQueryConnectException.class)
     public void testSimplePutException() throws Exception {
         testTask.start(properties);
-        doThrow(exception).when(mockedStorageWriteApiBatchStream).appendRows(any(), any(), eq("dummyStream"));
+        doThrow(exception).when(mockedStorageWriteApiBatchStream).initializeAndWriteRecords(any(), any(), eq("dummyStream"));
 
         testTask.put(Collections.singletonList(spoofSinkRecord()));
         try {

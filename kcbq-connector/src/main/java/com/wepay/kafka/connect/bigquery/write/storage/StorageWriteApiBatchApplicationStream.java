@@ -118,7 +118,7 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiBase {
      * @param streamName The stream to use to write table to table.
      */
     @Override
-    public void appendRows(TableName tableName, List<ConvertedRecord> rows, String streamName) {
+    public void initializeAndWriteRecords(TableName tableName, List<ConvertedRecord> rows, String streamName) {
         StorageWriteApiRetryHandler retryHandler = new StorageWriteApiRetryHandler(tableName, getSinkRecords(rows), retry, retryWait, time);
         logger.debug("Sending {} records to write Api Application stream {} ...", rows.size(), streamName);
         ApplicationStream applicationStream = this.streams.get(tableName.toString()).get(streamName);
