@@ -185,6 +185,9 @@ public class BigQuerySinkTask extends SinkTask {
     if (upsertDelete) {
       throw new ConnectException("This connector cannot perform upsert/delete on older versions of "
           + "the Connect framework; please upgrade to version 0.10.2.0 or later");
+    } else if (useStorageApi && useStorageApiBatchMode) {
+      throw new ConnectException("This connector cannot use batch mode for the Storage Write API "
+          + "on older versions of the Connect framework; please upgrade to version 0.10.2.0 or later");
     }
 
     // Return immediately here since the executor will already be shutdown

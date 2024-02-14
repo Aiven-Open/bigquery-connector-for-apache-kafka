@@ -47,12 +47,15 @@ import org.mockito.ArgumentCaptor;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.doNothing;
@@ -66,10 +69,10 @@ import static org.mockito.Mockito.reset;
 public class BigQueryStorageApiBatchSinkTaskTest {
     private static final SinkTaskPropertiesFactory propertiesFactory = new SinkTaskPropertiesFactory();
     Map<String, String> properties;
-    private static final AtomicLong spoofedRecordOffset = new AtomicLong();
-    private static final StorageWriteApiBatchApplicationStream mockedStorageWriteApiBatchStream = mock(
+    private final AtomicLong spoofedRecordOffset = new AtomicLong();
+    private final StorageWriteApiBatchApplicationStream mockedStorageWriteApiBatchStream = mock(
             StorageWriteApiBatchApplicationStream.class, CALLS_REAL_METHODS);
-    private static final StorageApiBatchModeHandler mockedBatchHandler = mock(StorageApiBatchModeHandler.class);
+    private final StorageApiBatchModeHandler mockedBatchHandler = mock(StorageApiBatchModeHandler.class);
 
     BigQuery bigQuery = mock(BigQuery.class);
 
@@ -112,12 +115,20 @@ public class BigQueryStorageApiBatchSinkTaskTest {
     }
 
     @Test
-    public void testPut() {
+    public void testPut() throws Exception {
+        CountDownLatch writeThreadStarted = new CountDownLatch(1);
+        doAnswer(invocationOnMock -> {
+            writeThreadStarted.countDown();
+            return null;
+        }).when(mockedStorageWriteApiBatchStream).initializeAndWriteRecords(any(), any(), any());
+
         testTask.start(properties);
         testTask.put(Collections.singletonList(spoofSinkRecord()));
-        testTask.flush(Collections.emptyMap());
 
-        verify(mockedStorageWriteApiBatchStream, times(1)).initializeAndWriteRecords(any(), any(), any());
+        assertTrue(
+            "Task did not initialize expected write thread for record in time",
+            writeThreadStarted.await(1, TimeUnit.SECONDS)
+        );
     }
 
     @Test
@@ -195,14 +206,12 @@ public class BigQueryStorageApiBatchSinkTaskTest {
     }
 
     private SinkRecord spoofSinkRecord() {
-
         Schema basicValueSchema = SchemaBuilder
                 .struct()
                 .field("sink_task_test_field", Schema.STRING_SCHEMA)
                 .build();
         Struct basicValue = new Struct(basicValueSchema);
         basicValue.put("sink_task_test_field", "sink task test row");
-
 
         return new SinkRecord(topic, 0, null, null,
                 basicValueSchema, basicValue, spoofedRecordOffset.getAndIncrement(), null, TimestampType.NO_TIMESTAMP_TYPE);

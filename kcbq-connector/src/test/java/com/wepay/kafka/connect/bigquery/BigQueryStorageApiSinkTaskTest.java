@@ -45,8 +45,8 @@ import static com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiWrit
 public class BigQueryStorageApiSinkTaskTest {
     private static final SinkTaskPropertiesFactory propertiesFactory = new SinkTaskPropertiesFactory();
     Map<String, String> properties;
-    private static AtomicLong spoofedRecordOffset = new AtomicLong();
-    private static StorageWriteApiDefaultStream mockedStorageWriteApiDefaultStream = mock(
+    private final AtomicLong spoofedRecordOffset = new AtomicLong();
+    private final StorageWriteApiDefaultStream mockedStorageWriteApiDefaultStream = mock(
             StorageWriteApiDefaultStream.class, CALLS_REAL_METHODS);
     ;
     final String topic = "test_topic";
