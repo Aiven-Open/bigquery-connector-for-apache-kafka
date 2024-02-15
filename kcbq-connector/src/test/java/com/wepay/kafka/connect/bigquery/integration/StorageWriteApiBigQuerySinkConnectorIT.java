@@ -3,6 +3,7 @@ package com.wepay.kafka.connect.bigquery.integration;
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.BigQueryException;
 import com.google.cloud.bigquery.Field;
+import com.google.cloud.bigquery.FieldList;
 import com.google.cloud.bigquery.StandardSQLTypeName;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.integration.utils.BigQueryTestUtils;
@@ -38,6 +39,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import java.util.stream.LongStream;
 
 import static io.confluent.kafka.serializers.AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG;
 import static org.apache.kafka.connect.runtime.ConnectorConfig.KEY_CONVERTER_CLASS_CONFIG;
@@ -70,15 +72,43 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
         schemaRegistry.start();
         schemaRegistryUrl = schemaRegistry.schemaRegistryUrl();
 
+        Schema subStructSchema = SchemaBuilder.struct()
+            .field("ssf1", Schema.INT64_SCHEMA)
+            .field("ssf2", Schema.BOOLEAN_SCHEMA)
+            .build();
+
+        Schema nestedStructSchema = SchemaBuilder.struct()
+            .field("sf1", Schema.STRING_SCHEMA)
+            .field("sf2", subStructSchema)
+            .field("sf3", Schema.FLOAT64_SCHEMA)
+            .build();
+
+        Schema primitivesSchema = SchemaBuilder.struct()
+            .field("boolean_field", Schema.BOOLEAN_SCHEMA)
+            .field("float32_field", Schema.FLOAT32_SCHEMA)
+            .field("float64_field", Schema.FLOAT64_SCHEMA)
+            .field("int8_field", Schema.INT8_SCHEMA)
+            .field("int16_field", Schema.INT16_SCHEMA)
+            .field("int32_field", Schema.INT32_SCHEMA)
+            .field("int64_field", Schema.INT64_SCHEMA)
+            .field("string_field", Schema.STRING_SCHEMA);
+
+        Schema arraySchema = SchemaBuilder.array(Schema.STRING_SCHEMA);
+
         valueSchema = SchemaBuilder.struct()
-                .optional()
-                .field("f1", Schema.STRING_SCHEMA)
-                .field("f2", Schema.BOOLEAN_SCHEMA)
-                .field("f3", Schema.FLOAT64_SCHEMA)
-                .build();
+            .optional()
+            .field("f1", Schema.STRING_SCHEMA)
+            .field("f2", Schema.BOOLEAN_SCHEMA)
+            .field("f3", Schema.FLOAT64_SCHEMA)
+            .field("bytes_field", Schema.OPTIONAL_BYTES_SCHEMA)
+            .field("nested_field", nestedStructSchema)
+            .field("primitives_field", primitivesSchema)
+            .field("array_field", arraySchema)
+            .build();
+
         keySchema = SchemaBuilder.struct()
-                .field("k1", Schema.INT64_SCHEMA)
-                .build();
+            .field("k1", Schema.INT64_SCHEMA)
+            .build();
     }
 
     @After
@@ -111,7 +141,9 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
         Map<String, String> props = configs(topic);
         // use the JSON converter with schemas enabled
         props.put(KEY_CONVERTER_CLASS_CONFIG, JsonConverter.class.getName());
+        props.put(KEY_CONVERTER_CLASS_CONFIG + "." + JsonConverterConfig.SCHEMAS_ENABLE_CONFIG, "false");
         props.put(VALUE_CONVERTER_CLASS_CONFIG, JsonConverter.class.getName());
+        props.put(VALUE_CONVERTER_CLASS_CONFIG + "." + JsonConverterConfig.SCHEMAS_ENABLE_CONFIG, "false");
         props.remove(BigQuerySinkConfig.KAFKA_KEY_FIELD_NAME_CONFIG);
         // start a sink connector
         connect.configureConnector(CONNECTOR_NAME, props);
@@ -164,7 +196,9 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
 
         // use the JSON converter with schemas enabled
         props.put(KEY_CONVERTER_CLASS_CONFIG, JsonConverter.class.getName());
+        props.put(KEY_CONVERTER_CLASS_CONFIG + "." + JsonConverterConfig.SCHEMAS_ENABLE_CONFIG, "false");
         props.put(VALUE_CONVERTER_CLASS_CONFIG, JsonConverter.class.getName());
+        props.put(VALUE_CONVERTER_CLASS_CONFIG + "." + JsonConverterConfig.SCHEMAS_ENABLE_CONFIG, "false");
         props.remove(BigQuerySinkConfig.KAFKA_KEY_FIELD_NAME_CONFIG);
         // start a sink connector
         connect.configureConnector(CONNECTOR_NAME, props);
@@ -320,16 +354,48 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
     }
 
     private void createTable(String table, boolean incompleteSchema) {
-        com.google.cloud.bigquery.Schema schema = incompleteSchema ? com.google.cloud.bigquery.Schema.of(
+        com.google.cloud.bigquery.Schema tableSchema;
+        if (incompleteSchema) {
+            tableSchema = com.google.cloud.bigquery.Schema.of(
                 Field.of("f1", StandardSQLTypeName.STRING),
                 Field.of("f2", StandardSQLTypeName.BOOL)
-        ) : com.google.cloud.bigquery.Schema.of(
+            );
+        } else {
+            FieldList subStructFields = FieldList.of(
+                Field.of("ssf1", StandardSQLTypeName.INT64),
+                Field.of("ssf2", StandardSQLTypeName.BOOL)
+            );
+
+            FieldList nestedStructFields = FieldList.of(
+                Field.of("sf1", StandardSQLTypeName.STRING),
+                Field.newBuilder("sf2", StandardSQLTypeName.STRUCT, subStructFields).build(),
+                Field.of("sf3", StandardSQLTypeName.FLOAT64)
+            );
+
+            FieldList primitivesFields = FieldList.of(
+                Field.of("boolean_field", StandardSQLTypeName.BOOL),
+                Field.of("float32_field", StandardSQLTypeName.FLOAT64),
+                Field.of("float64_field", StandardSQLTypeName.FLOAT64),
+                Field.of("int8_field", StandardSQLTypeName.INT64),
+                Field.of("int16_field", StandardSQLTypeName.INT64),
+                Field.of("int32_field", StandardSQLTypeName.INT64),
+                Field.of("int64_field", StandardSQLTypeName.INT64),
+                Field.of("string_field", StandardSQLTypeName.STRING)
+            );
+
+            tableSchema = com.google.cloud.bigquery.Schema.of(
                 Field.of("f1", StandardSQLTypeName.STRING),
                 Field.of("f2", StandardSQLTypeName.BOOL),
-                Field.of("f3", StandardSQLTypeName.FLOAT64)
-        );
+                Field.of("f3", StandardSQLTypeName.FLOAT64),
+                Field.of("bytes_field", StandardSQLTypeName.BYTES),
+                Field.of("nested_field", StandardSQLTypeName.STRUCT, nestedStructFields),
+                Field.of("primitives_field", StandardSQLTypeName.STRUCT, primitivesFields),
+                Field.newBuilder("array_field", StandardSQLTypeName.STRING).setMode(Field.Mode.REPEATED).build()
+            );
+        }
+
         try {
-            BigQueryTestUtils.createPartitionedTable(bigQuery, dataset(), table, schema);
+            BigQueryTestUtils.createPartitionedTable(bigQuery, dataset(), table, tableSchema);
         } catch (BigQueryException ex) {
             if (!ex.getError().getReason().equalsIgnoreCase("duplicate"))
                 throw new ConnectException("Failed to create table: ", ex);
@@ -344,7 +410,7 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
         // Prepare records
         for (int i = 0; i < NUM_RECORDS_PRODUCED; i++) {
             List<SchemaAndValue> record = new ArrayList<>();
-            SchemaAndValue schemaAndValue = new SchemaAndValue(valueSchema, data(i));
+            SchemaAndValue schemaAndValue = new SchemaAndValue(valueSchema, avroValue(i));
             SchemaAndValue keyschemaAndValue = new SchemaAndValue(keySchema, new Struct(keySchema).put("k1", (long) i));
 
             record.add(keyschemaAndValue);
@@ -372,11 +438,42 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
 
     private void produceJsonRecords(String topic) {
         // Prepare records
-        for (int i = 0; i < NUM_RECORDS_PRODUCED; i++) {
+        for (long iteration = 0; iteration < NUM_RECORDS_PRODUCED; iteration++) {
+            Map<String, Object> primitivesValue = new HashMap<>();
+            primitivesValue.put("boolean_field", iteration % 3 == 1);
+            primitivesValue.put("float32_field", iteration  * 1.5f);
+            primitivesValue.put("float64_field", iteration * 0.5);
+            primitivesValue.put("int8_field", (byte) (iteration % 10));
+            primitivesValue.put("int16_field", (short) (iteration % 30 + 1));
+            primitivesValue.put("int32_field", (int) (-1 * (iteration % 100)));
+            primitivesValue.put("int64_field", iteration * 10);
+            primitivesValue.put("string_field", Long.toString(iteration * 123));
+
+            Map<String, Object> subValue = new HashMap<>();
+            subValue.put("ssf1", iteration  / 2);
+            subValue.put("ssf2", false);
+
+            Map<String, Object> nestedValue = new HashMap<>();
+            nestedValue.put("sf1", "sv1");
+            nestedValue.put("sf2", subValue);
+            nestedValue.put("sf3", iteration * 1.0);
+
+            List<String> arrayValue = LongStream.of(iteration % 10)
+                .mapToObj(l -> "array element " + l)
+                .collect(Collectors.toList());
+
+            // no bytes value since that gets serialized as a base 64 string by the JSON
+            // converter, which we don't convert to a byte array before sending to bigquery,
+            // causing insertions to fail
+
             Map<String, Object> kafkaValue = new HashMap<>();
-            kafkaValue.put("f1", "api" + i);
-            kafkaValue.put("f2", i % 2 == 0);
-            kafkaValue.put("f3", i * 0.01);
+            kafkaValue.put("f1", "api" + iteration);
+            kafkaValue.put("f2", iteration % 2 == 0);
+            kafkaValue.put("f3", iteration * 0.01);
+            kafkaValue.put("nested_field", nestedValue);
+            kafkaValue.put("primitives_field", primitivesValue);
+            kafkaValue.put("array_field", arrayValue);
+
             connect.kafka().produce(
                     topic,
                     null,
@@ -391,7 +488,7 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
 
     private Converter converter(boolean isKey) {
         Map<String, Object> props = new HashMap<>();
-        props.put(JsonConverterConfig.SCHEMAS_ENABLE_CONFIG, true);
+        props.put(JsonConverterConfig.SCHEMAS_ENABLE_CONFIG, false);
         Converter result = new JsonConverter();
         result.configure(props, isKey);
         return result;
@@ -421,11 +518,45 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
         return result;
     }
 
-    private Struct data(long iteration) {
+    private Struct avroValue(long iteration) {
+        Struct primitivesStruct = new Struct(valueSchema.field("primitives_field").schema());
+        primitivesStruct.put("boolean_field", iteration % 3 == 1);
+        primitivesStruct.put("float32_field", iteration  * 1.5f);
+        primitivesStruct.put("float64_field", iteration * 0.5);
+        primitivesStruct.put("int8_field", (byte) (iteration % 10));
+        primitivesStruct.put("int16_field", (short) (iteration % 30 + 1));
+        primitivesStruct.put("int32_field", (int) (-1 * (iteration % 100)));
+        primitivesStruct.put("int64_field", iteration * 10);
+        primitivesStruct.put("string_field", Long.toString(iteration * 123));
+
+        Struct subStruct = new Struct(valueSchema
+            .field("nested_field").schema()
+            .field("sf2").schema()
+        );
+        subStruct.put("ssf1", iteration  / 2);
+        subStruct.put("ssf2", false);
+
+        Struct nestedStruct = new Struct(valueSchema.field("nested_field").schema());
+        nestedStruct.put("sf1", "sv1");
+        nestedStruct.put("sf2", subStruct);
+        nestedStruct.put("sf3", iteration * 1.0);
+
+        List<String> arrayValue = LongStream.of(iteration % 10)
+            .mapToObj(l -> "array element " + l)
+            .collect(Collectors.toList());
+
+        byte[] bytesValue = new byte[(int) iteration % 4];
+        for (int i = 0; i < bytesValue.length; i++)
+            bytesValue[i] = (byte) i;
+
         return new Struct(valueSchema)
-                .put("f1", "api" + iteration)
-                .put("f2", iteration % 2 == 0)
-                .put("f3", iteration * 0.01);
+            .put("f1", "api" + iteration)
+            .put("f2", iteration % 2 == 0)
+            .put("f3", iteration * 0.01)
+            .put("bytes_field", bytesValue)
+            .put("nested_field", nestedStruct)
+            .put("primitives_field", primitivesStruct)
+            .put("array_field", arrayValue);
     }
 
     private Set<Object> expectedRows() {

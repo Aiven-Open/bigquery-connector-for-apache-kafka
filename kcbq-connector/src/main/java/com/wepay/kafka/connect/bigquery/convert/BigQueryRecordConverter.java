@@ -162,10 +162,21 @@ public class BigQueryRecordConverter implements RecordConverter<Map<String, Obje
         return convertBytes(kafkaConnectObject);
       case FLOAT64:
         return convertDouble((Double)kafkaConnectObject);
-      case BOOLEAN:
+
       case FLOAT32:
+          return useStorageWriteApi
+              ? ((Float) kafkaConnectObject).doubleValue()
+              : kafkaConnectObject;
       case INT8:
+          return useStorageWriteApi
+              ? ((Byte) kafkaConnectObject).intValue()
+              : kafkaConnectObject;
       case INT16:
+          return useStorageWriteApi
+              ? ((Short) kafkaConnectObject).intValue()
+              : kafkaConnectObject;
+
+      case BOOLEAN:
       case INT32:
       case INT64:
       case STRING:
@@ -275,6 +286,6 @@ public class BigQueryRecordConverter implements RecordConverter<Map<String, Obje
     } else {
       bytes = (byte[]) kafkaConnectObject;
     }
-    return useStorageWriteApi? ByteString.copyFrom(bytes) : Base64.getEncoder().encodeToString(bytes);
+    return useStorageWriteApi ? ByteString.copyFrom(bytes) : Base64.getEncoder().encodeToString(bytes);
   }
 }
