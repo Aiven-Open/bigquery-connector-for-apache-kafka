@@ -19,6 +19,7 @@ import org.apache.kafka.connect.json.JsonConverter;
 import org.apache.kafka.connect.json.JsonConverterConfig;
 import org.apache.kafka.connect.runtime.ConnectorConfig;
 import org.apache.kafka.connect.runtime.SinkConnectorConfig;
+import org.apache.kafka.connect.sink.SinkTask;
 import org.apache.kafka.connect.storage.Converter;
 import org.apache.kafka.test.IntegrationTest;
 import org.junit.After;
@@ -58,7 +59,7 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
     private static final String KAFKA_FIELD_NAME = "kafkaKey";
     private static final int TASKS_MAX = 3;
     private static final long NUM_RECORDS_PRODUCED = 5 * TASKS_MAX;
-    protected static final long COMMIT_MAX_DURATION_MS = TimeUnit.MINUTES.toMillis(7);
+    protected static final long COMMIT_MAX_DURATION_MS = TimeUnit.MINUTES.toMillis(2);
 
 
     @Before
@@ -108,6 +109,59 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
 
         // setup props for the sink connector
         Map<String, String> props = configs(topic);
+        // use the JSON converter with schemas enabled
+        props.put(KEY_CONVERTER_CLASS_CONFIG, JsonConverter.class.getName());
+        props.put(VALUE_CONVERTER_CLASS_CONFIG, JsonConverter.class.getName());
+        props.remove(BigQuerySinkConfig.KAFKA_KEY_FIELD_NAME_CONFIG);
+        // start a sink connector
+        connect.configureConnector(CONNECTOR_NAME, props);
+
+        // wait for tasks to spin up
+        waitForConnectorToStart(CONNECTOR_NAME, TASKS_MAX);
+
+        // Instantiate the converters we'll use to send records to the connector
+        initialiseJsonConverters();
+
+        //produce records
+        produceJsonRecords(topic);
+
+        // wait for tasks to write to BigQuery and commit offsets for their records
+        waitForCommittedRecords(CONNECTOR_NAME, topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
+
+        // verify records are present.
+        List<List<Object>> testRows;
+        try {
+            testRows = readAllRows(bigQuery, table, "f3");
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+
+        assertEquals(expectedRows(), testRows.stream().map(row -> row.get(0)).collect(Collectors.toSet()));
+    }
+
+    @Test
+    public void testBaseJsonWithTopicsRegex() throws InterruptedException {
+        // create topic in Kafka
+        final String topic = suffixedTableOrTopic("storage-api-append-json-topics-regex" + System.nanoTime());
+
+        final String table = sanitizedTable(topic);
+
+        // create topic
+        connect.kafka().createTopic(topic, TASKS_MAX);
+
+        // clean table
+        TableClearer.clearTables(bigQuery, dataset(), table);
+
+        // create the table with the correct schema
+        createTable(table, false);
+
+        // setup props for the sink connector
+        Map<String, String> props = configs(topic);
+
+        // use topics regex instead of topics list
+        props.remove(BigQuerySinkConfig.TOPICS_CONFIG);
+        props.put(SinkTask.TOPICS_REGEX_CONFIG, topic);
+
         // use the JSON converter with schemas enabled
         props.put(KEY_CONVERTER_CLASS_CONFIG, JsonConverter.class.getName());
         props.put(VALUE_CONVERTER_CLASS_CONFIG, JsonConverter.class.getName());

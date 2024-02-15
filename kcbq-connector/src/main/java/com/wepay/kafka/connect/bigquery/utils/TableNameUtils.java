@@ -80,18 +80,4 @@ public class TableNameUtils {
 
     return new String[]{dataset, tableName};
   }
-
-  /**
-   * Returns list of all tablenames in project/project_id/dataset/dataset_id/tablename format
-   */
-  public static List<String> getAllTableNames(BigQuerySinkTaskConfig config) {
-    String projectId = config.getString(BigQuerySinkTaskConfig.PROJECT_CONFIG);
-    return config.getList(BigQuerySinkConfig.TOPICS_CONFIG)
-            .stream()
-            .map(topic -> {
-              String[] dataSetAndTopic = getDataSetAndTableName(config, topic);
-              return TableName.of(projectId, dataSetAndTopic[0], dataSetAndTopic[1]).toString();
-            })
-            .collect(Collectors.toList());
-  }
 }

@@ -239,6 +239,27 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiBase {
     }
 
     /**
+     * Attempts to commit all eligible streams. A stream is eligible if it
+     * {@link ApplicationStream#canBeCommitted can be committed} and
+     * if it is no longer capable of receiving new records.
+     * <p>
+     * In addition, every stream that has received at least one record is
+     * replaced by a new current stream.
+     */
+    public void refreshStreams() {
+        // Normally, iterating over a concurrent collection is unsafe since there
+        // is no guarantee that the collection won't be modified during iteration
+        // However, the weak consistency guarantees provided by this kind of iterator
+        // (see https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/package-summary.html#Weakly)
+        // are sufficient: we are guaranteed to iterate once each over the elements in
+        // the collection that existed at the start of iteration, and may or may not also
+        // iterate over elements that were added later on
+        // If an element (i.e., application stream) is added later, we'll just try to commit it
+        // later, possibly in the next invocation of this method
+        currentStreams.keySet().forEach(table -> maybeCreateStream(table, null));
+    }
+
+    /**
      * Assigns offsets to current stream on table
      *
      * @param tableName The name of table

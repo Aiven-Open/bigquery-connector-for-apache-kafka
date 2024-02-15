@@ -103,7 +103,7 @@ public class BigQueryStorageApiBatchSinkTaskTest {
 
         doNothing().when(mockedStorageWriteApiBatchStream).initializeAndWriteRecords(any(), any(), eq("dummyStream"));
         doNothing().when(mockedStorageWriteApiBatchStream).shutdown();
-        doNothing().when(mockedBatchHandler).createNewStream();
+        doNothing().when(mockedBatchHandler).refreshStreams();
         when(mockedBatchHandler.updateOffsetsOnStream(any(), any())).thenReturn("dummyStream");
         when(mockedBatchHandler.getCommitableOffsets()).thenReturn(mockedOffset);
         testTask.initialize(sinkTaskContext);
@@ -145,7 +145,7 @@ public class BigQueryStorageApiBatchSinkTaskTest {
         loadExecutorTask.getValue().run();
 
         // Ensure that the load task created a new stream
-        verify(mockedBatchHandler, times(1)).createNewStream();
+        verify(mockedBatchHandler, times(1)).refreshStreams();
     }
 
     @Test(expected = BigQueryStorageWriteApiConnectException.class)
@@ -159,7 +159,7 @@ public class BigQueryStorageApiBatchSinkTaskTest {
         verify(loadExecutor, times(1)).scheduleAtFixedRate(loadExecutorTask.capture(), anyLong(), anyLong(), any());
 
         // Run that load task
-        doThrow(exception).when(mockedBatchHandler).createNewStream();
+        doThrow(exception).when(mockedBatchHandler).refreshStreams();
         loadExecutorTask.getValue().run();
 
         // Ensure that the failure of the load task has caused the load executor to be shut down

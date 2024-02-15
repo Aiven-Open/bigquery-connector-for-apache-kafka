@@ -44,8 +44,8 @@ public class StorageApiBatchModeHandlerTest {
     }
 
     @Test
-    public void testCreateStreams() {
-        batchModeHandler.createNewStream();
+    public void testCommitStreams() {
+        batchModeHandler.refreshStreams();
     }
 
     @Test

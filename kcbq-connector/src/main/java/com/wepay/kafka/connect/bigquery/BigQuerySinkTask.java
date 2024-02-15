@@ -647,7 +647,7 @@ public class BigQuerySinkTask extends SinkTask {
 
   private void batchLoadExecutorRunnable() {
     try {
-      batchHandler.createNewStream();
+      batchHandler.refreshStreams();
     } catch(Throwable t) {
       logger.error("Storage Write API batch handler has failed due to : {}, {} ", t, Arrays.toString(t.getStackTrace()));
       loadExecutor.shutdown();

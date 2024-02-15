@@ -1,7 +1,6 @@
 package com.wepay.kafka.connect.bigquery.write.storage;
 
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkTaskConfig;
-import com.wepay.kafka.connect.bigquery.utils.TableNameUtils;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.slf4j.Logger;
@@ -17,32 +16,18 @@ public class StorageApiBatchModeHandler {
 
     private static final Logger logger = LoggerFactory.getLogger(StorageApiBatchModeHandler.class);
     private final StorageWriteApiBatchApplicationStream streamApi;
-    private List<String> tableNames;
 
     public StorageApiBatchModeHandler(StorageWriteApiBatchApplicationStream streamApi, BigQuerySinkTaskConfig config) {
         this.streamApi = streamApi;
-        this.tableNames = TableNameUtils.getAllTableNames(config);
     }
 
     /**
-     * Used by the scheduler to create stream on all tables
+     * Used by the scheduler to commit all eligible streams and create new active
+     * streams.
      */
-    public void createNewStream() {
-        logger.trace("Storage Write API create stream attempt by scheduler");
-        tableNames.forEach(this::createNewStreamForTable);
-    }
-
-    /**
-     * Creates a new stream for given table if required.
-     *
-     * @param tableName Name of tha table in project/dataset/tablename format
-     */
-    private void createNewStreamForTable(String tableName) {
-        if (streamApi.maybeCreateStream(tableName, null)) {
-            logger.debug("Created new stream for table " + tableName);
-        } else {
-            logger.debug("Not creating new stream for table " + tableName);
-        }
+    public void refreshStreams() {
+        logger.trace("Storage Write API commit stream attempt by scheduler");
+        streamApi.refreshStreams();
     }
 
     /**
