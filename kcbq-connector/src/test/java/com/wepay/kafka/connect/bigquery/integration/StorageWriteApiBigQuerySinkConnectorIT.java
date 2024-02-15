@@ -172,7 +172,98 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
     }
 
     @Test
-    public void testBaseJsonWithTopicsRegex() throws InterruptedException {
+    public void testBaseAvro() throws InterruptedException {
+        // create topic in Kafka
+        final String topic = suffixedTableOrTopic("storage-api-append"+ System.nanoTime());
+        final String table = sanitizedTable(topic);
+
+        // create topic
+        connect.kafka().createTopic(topic, TASKS_MAX);
+
+        // clean table
+        TableClearer.clearTables(bigQuery, dataset(), table);
+
+        // setup props for the sink connector
+        Map<String, String> props = configs(topic);
+
+        // start a sink connector
+        connect.configureConnector(CONNECTOR_NAME, props);
+
+        // wait for tasks to spin up
+        waitForConnectorToStart(CONNECTOR_NAME, TASKS_MAX);
+
+        // Instantiate the converters we'll use to send records to the connector
+        initialiseAvroConverters();
+
+        //produce records
+        produceAvroRecords(topic);
+
+        // wait for tasks to write to BigQuery and commit offsets for their records
+        waitForCommittedRecords(
+                CONNECTOR_NAME, Collections.singleton(topic), NUM_RECORDS_PRODUCED, TASKS_MAX, COMMIT_MAX_DURATION_MS);
+
+        // verify records are present.
+        List<List<Object>> testRows;
+        try {
+            testRows = readAllRows(bigQuery, table, "f3");
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+
+        assertEquals(expectedRows(), testRows.stream().map(row -> row.get(0)).collect(Collectors.toSet()));
+    }
+
+    @Test
+    public void testAvroWithSchemaUpdate() throws InterruptedException {
+        // create topic in Kafka
+        final String topic = suffixedTableOrTopic("storage-api-schema-update-append" + System.nanoTime());
+        final String table = sanitizedTable(topic);
+
+        // create topic
+        connect.kafka().createTopic(topic, TASKS_MAX);
+
+        // clean table
+        TableClearer.clearTables(bigQuery, dataset(), table);
+
+        // create the table with an incomplete schema
+        createTable(table, true);
+
+        // setup props + schema update props for the sink connector
+        Map<String, String> props = configs(topic);
+
+        props.put(BigQuerySinkConfig.ALLOW_BIGQUERY_REQUIRED_FIELD_RELAXATION_CONFIG, "true");
+        props.put(BigQuerySinkConfig.ALLOW_NEW_BIGQUERY_FIELDS_CONFIG, "true");
+        props.put(BigQuerySinkConfig.ALLOW_SCHEMA_UNIONIZATION_CONFIG, "true");
+        props.put(BigQuerySinkConfig.ALL_BQ_FIELDS_NULLABLE_CONFIG, "true");
+
+        // start a sink connector
+        connect.configureConnector(CONNECTOR_NAME, props);
+
+        // wait for tasks to spin up
+        waitForConnectorToStart(CONNECTOR_NAME, TASKS_MAX);
+
+        // Instantiate the converters we'll use to send records to the connector
+        initialiseAvroConverters();
+
+        //produce records
+        produceAvroRecords(topic);
+
+        // wait for tasks to write to BigQuery and commit offsets for their records
+        waitForCommittedRecords(CONNECTOR_NAME, topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
+
+        // verify records are present.
+        List<List<Object>> testRows;
+        try {
+            testRows = readAllRows(bigQuery, table, "f3");
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+
+        assertEquals(expectedRows(), testRows.stream().map(row -> row.get(0)).collect(Collectors.toSet()));
+    }
+
+    @Test
+    public void testTopicsRegex() throws InterruptedException {
         // create topic in Kafka
         final String topic = suffixedTableOrTopic("storage-api-append-json-topics-regex" + System.nanoTime());
 
@@ -227,98 +318,7 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
     }
 
     @Test
-    public void testBaseAvro() throws InterruptedException {
-        // create topic in Kafka
-        final String topic = suffixedTableOrTopic("storage-api-append"+ System.nanoTime());
-        final String table = sanitizedTable(topic);
-
-        // create topic
-        connect.kafka().createTopic(topic, TASKS_MAX);
-
-        // clean table
-        TableClearer.clearTables(bigQuery, dataset(), table);
-
-        // setup props for the sink connector
-        Map<String, String> props = configs(topic);
-
-        // start a sink connector
-        connect.configureConnector(CONNECTOR_NAME, props);
-
-        // wait for tasks to spin up
-        waitForConnectorToStart(CONNECTOR_NAME, TASKS_MAX);
-
-        // Instantiate the converters we'll use to send records to the connector
-        initialiseAvroConverters();
-
-        //produce records
-        produceAvroRecords(topic);
-
-        // wait for tasks to write to BigQuery and commit offsets for their records
-        waitForCommittedRecords(
-                CONNECTOR_NAME, Collections.singleton(topic), NUM_RECORDS_PRODUCED, TASKS_MAX, COMMIT_MAX_DURATION_MS);
-
-        // verify records are present.
-        List<List<Object>> testRows;
-        try {
-            testRows = readAllRows(bigQuery, table, "f3");
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-
-        assertEquals(expectedRows(), testRows.stream().map(row -> row.get(0)).collect(Collectors.toSet()));
-    }
-
-    @Test
-    public void testBaseAvroWithSchemaUpdate() throws InterruptedException {
-        // create topic in Kafka
-        final String topic = suffixedTableOrTopic("storage-api-schema-update-append" + System.nanoTime());
-        final String table = sanitizedTable(topic);
-
-        // create topic
-        connect.kafka().createTopic(topic, TASKS_MAX);
-
-        // clean table
-        TableClearer.clearTables(bigQuery, dataset(), table);
-
-        // create the table with an incomplete schema
-        createTable(table, true);
-
-        // setup props + schema update props for the sink connector
-        Map<String, String> props = configs(topic);
-
-        props.put(BigQuerySinkConfig.ALLOW_BIGQUERY_REQUIRED_FIELD_RELAXATION_CONFIG, "true");
-        props.put(BigQuerySinkConfig.ALLOW_NEW_BIGQUERY_FIELDS_CONFIG, "true");
-        props.put(BigQuerySinkConfig.ALLOW_SCHEMA_UNIONIZATION_CONFIG, "true");
-        props.put(BigQuerySinkConfig.ALL_BQ_FIELDS_NULLABLE_CONFIG, "true");
-
-        // start a sink connector
-        connect.configureConnector(CONNECTOR_NAME, props);
-
-        // wait for tasks to spin up
-        waitForConnectorToStart(CONNECTOR_NAME, TASKS_MAX);
-
-        // Instantiate the converters we'll use to send records to the connector
-        initialiseAvroConverters();
-
-        //produce records
-        produceAvroRecords(topic);
-
-        // wait for tasks to write to BigQuery and commit offsets for their records
-        waitForCommittedRecords(CONNECTOR_NAME, topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
-
-        // verify records are present.
-        List<List<Object>> testRows;
-        try {
-            testRows = readAllRows(bigQuery, table, "f3");
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-
-        assertEquals(expectedRows(), testRows.stream().map(row -> row.get(0)).collect(Collectors.toSet()));
-    }
-
-    @Test
-    public void testBaseAvroFailure() throws InterruptedException {
+    public void testFailWhenTableDoesNotExistAndCreationDisabled() throws InterruptedException {
         // create topic in Kafka
         final String topic = suffixedTableOrTopic("storage-api-append-fail" + System.nanoTime());
         final String table = sanitizedTable(topic);
