@@ -110,13 +110,20 @@ public class BigQueryStorageWriteApiErrorResponsesTest {
     }
 
     @Test
+    public void testInvalidSchemaHasMoreFieldsThanBigQuerySchema() {
+        Collection<String> errors = new ArrayList<>();
+        errors.add("INVALID_ARGUMENT: Input schema has more fields than BigQuery schema, extra fields:");
+        boolean result = BigQueryStorageWriteApiErrorResponses.hasInvalidSchema(errors);
+        assertTrue(result);
+    }
+
+    @Test
     public void testHasInvalidStorageSchema() {
         Collection<String> errors = new ArrayList<>();
         errors.add("Failed to write records due to SCHEMA_MISMATCH_EXTRA_FIELDS");
         boolean result = BigQueryStorageWriteApiErrorResponses.hasInvalidSchema(errors);
         assertTrue(result);
     }
-
 
     @Test
     public void testHasNoInvalidSchema() {

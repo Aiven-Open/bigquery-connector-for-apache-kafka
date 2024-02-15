@@ -38,6 +38,7 @@ public class BigQueryStorageWriteApiErrorResponses {
             StorageError.StorageErrorCode.STORAGE_ERROR_CODE_UNSPECIFIED.name(),
             StorageError.StorageErrorCode.STREAM_ALREADY_COMMITTED.name()
     ));
+    private static final String MORE_FIELDS_THAN_BIGQUERY_SCHEMA = "Input schema has more fields than BigQuery schema";
     private static final String UNKNOWN_FIELD = "The source object has fields unknown to BigQuery";
     private static final String MISSING_REQUIRED_FIELD = "JSONObject does not have the required field";
     private static final String STREAM_CLOSED = "StreamWriterClosedException";
@@ -88,6 +89,7 @@ public class BigQueryStorageWriteApiErrorResponses {
         return messages.stream().anyMatch(message ->
                 message.contains(UNKNOWN_FIELD)
                         || message.contains(MISSING_REQUIRED_FIELD)
+                        || message.contains(MORE_FIELDS_THAN_BIGQUERY_SCHEMA)
                         || message.contains(StorageError.StorageErrorCode.SCHEMA_MISMATCH_EXTRA_FIELDS.name()));
     }
 

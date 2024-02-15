@@ -319,10 +319,17 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiBase {
     }
 
     private boolean shouldHandleSchemaMismatch(Exception e) {
-        return canAttemptSchemaUpdate()
-                && ((BigQueryStorageWriteApiErrorResponses.isMalformedRequest(e.getMessage())
+        if (!canAttemptSchemaUpdate())
+            return false;
+
+        if (BigQueryStorageWriteApiErrorResponses.hasInvalidSchema(Collections.singletonList(e.getMessage())))
+            return true;
+
+        if (BigQueryStorageWriteApiErrorResponses.isMalformedRequest(e.getMessage())
                 && BigQueryStorageWriteApiErrorResponses.hasInvalidSchema(getRowErrorMapping(e).values()))
-                || BigQueryStorageWriteApiErrorResponses.hasInvalidSchema(Collections.singletonList(e.getMessage())));
+                return true;
+
+        return false;
     }
 
     private boolean shouldHandleTableCreation(String errorMessage) {

@@ -337,7 +337,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
   private static final ConfigDef.Type COMMIT_INTERVAL_SEC_TYPE = ConfigDef.Type.INT;
   private static final Integer COMMIT_INTERVAL_SEC_DEFAULT = 60;
 
-  private static final ConfigDef.Validator COMMIT_INTERVAL_VALIDATOR = ConfigDef.Range.between(60, 14400); // currently allows 1 min -> 4 hours
+  private static final ConfigDef.Validator COMMIT_INTERVAL_VALIDATOR = ConfigDef.Range.between(15, 14400); // currently allows 15 sec -> 4 hours
   private static final ConfigDef.Importance COMMIT_INTERVAL_SEC_IMPORTANCE = ConfigDef.Importance.LOW;
   private static final String COMMIT_INTERVAL_SEC_DOC =
           "The interval, in seconds, in which to attempt to commit streamed records.";
