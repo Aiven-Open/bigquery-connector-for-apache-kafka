@@ -25,6 +25,7 @@ import org.apache.kafka.connect.storage.Converter;
 import org.apache.kafka.test.IntegrationTest;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.slf4j.Logger;
@@ -42,7 +43,12 @@ import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
 import static io.confluent.kafka.serializers.AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG;
+import static org.apache.kafka.clients.consumer.ConsumerConfig.FETCH_MAX_BYTES_CONFIG;
+import static org.apache.kafka.clients.consumer.ConsumerConfig.MAX_PARTITION_FETCH_BYTES_CONFIG;
+import static org.apache.kafka.clients.consumer.ConsumerConfig.MAX_POLL_RECORDS_CONFIG;
+import static org.apache.kafka.connect.runtime.ConnectorConfig.CONNECTOR_CLIENT_CONSUMER_OVERRIDES_PREFIX;
 import static org.apache.kafka.connect.runtime.ConnectorConfig.KEY_CONVERTER_CLASS_CONFIG;
+import static org.apache.kafka.connect.runtime.ConnectorConfig.TASKS_MAX_CONFIG;
 import static org.apache.kafka.connect.runtime.ConnectorConfig.VALUE_CONVERTER_CLASS_CONFIG;
 import static org.junit.Assert.assertEquals;
 
@@ -353,6 +359,66 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
         );
     }
 
+    @Test
+    @Ignore("TODO: Add error handling for 'INVALID_ARGUMENT: MessageSize is too large.'")
+    public void testAvroThroughput() throws InterruptedException {
+        // create topic in Kafka
+        final String topic = suffixedTableOrTopic("storage-api-append-throughput"+ System.nanoTime());
+        final String table = sanitizedTable(topic);
+
+        int tasksMax = 5;
+        long numRecords = tasksMax * 1_000_000L;
+
+        // create topic
+        connect.kafka().createTopic(topic, tasksMax);
+
+        // clean table
+        TableClearer.clearTables(bigQuery, dataset(), table);
+
+        // Instantiate the converters we'll use to send records to the connector
+        initialiseAvroConverters();
+
+        //produce records
+        produceAvroRecords(topic, numRecords);
+
+        // setup props for the sink connector
+        Map<String, String> props = configs(topic);
+        props.put(TASKS_MAX_CONFIG, Integer.toString(tasksMax));
+        props.put(
+            CONNECTOR_CLIENT_CONSUMER_OVERRIDES_PREFIX + MAX_POLL_RECORDS_CONFIG,
+            Long.toString(numRecords)
+        );
+        props.put(
+            CONNECTOR_CLIENT_CONSUMER_OVERRIDES_PREFIX + MAX_PARTITION_FETCH_BYTES_CONFIG,
+            Integer.toString(Integer.MAX_VALUE)
+        );
+        props.put(
+            CONNECTOR_CLIENT_CONSUMER_OVERRIDES_PREFIX + FETCH_MAX_BYTES_CONFIG,
+            Integer.toString(Integer.MAX_VALUE)
+        );
+
+
+        // start a sink connector
+        connect.configureConnector(CONNECTOR_NAME, props);
+
+        // wait for tasks to spin up
+        waitForConnectorToStart(CONNECTOR_NAME, tasksMax);
+
+        // wait for tasks to write to BigQuery and commit offsets for their records
+        waitForCommittedRecords(
+            CONNECTOR_NAME, Collections.singleton(topic), numRecords, tasksMax, TimeUnit.MINUTES.toMillis(5));
+
+        // verify records are present.
+        List<List<Object>> testRows;
+        try {
+            testRows = readAllRows(bigQuery, table, "f3");
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+
+        assertEquals(expectedRows(), testRows.stream().map(row -> row.get(0)).collect(Collectors.toSet()));
+    }
+
     private void createTable(String table, boolean incompleteSchema) {
         com.google.cloud.bigquery.Schema tableSchema;
         if (incompleteSchema) {
@@ -405,10 +471,15 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
     }
 
     private void produceAvroRecords(String topic) {
+        produceAvroRecords(topic, NUM_RECORDS_PRODUCED);
+    }
+
+
+    private void produceAvroRecords(String topic, long numRecords) {
         List<List<SchemaAndValue>> records = new ArrayList<>();
 
         // Prepare records
-        for (int i = 0; i < NUM_RECORDS_PRODUCED; i++) {
+        for (long i = 0; i < numRecords; i++) {
             List<SchemaAndValue> record = new ArrayList<>();
             SchemaAndValue schemaAndValue = new SchemaAndValue(valueSchema, avroValue(i));
             SchemaAndValue keyschemaAndValue = new SchemaAndValue(keySchema, new Struct(keySchema).put("k1", (long) i));

@@ -3,6 +3,7 @@ package com.wepay.kafka.connect.bigquery.write.storage;
 import com.google.cloud.bigquery.BigQueryException;
 import com.google.cloud.bigquery.TableId;
 import com.google.cloud.bigquery.storage.v1.TableName;
+import com.wepay.kafka.connect.bigquery.exception.BigQueryErrorResponses;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiConnectException;
 import com.wepay.kafka.connect.bigquery.utils.TableNameUtils;
 import com.wepay.kafka.connect.bigquery.utils.Time;
@@ -126,6 +127,11 @@ public class StorageWriteApiRetryHandler {
                 logger.info("Skipping multiple table operation attempts");
             }
         } catch (BigQueryException exception) {
+            if (BigQueryErrorResponses.isRateLimitExceededError(exception)) {
+                // Can happen if several tasks try to create a table all at once; should be fine
+                logger.info("Table appears to have been created by a different task");
+                return;
+            }
             throw new BigQueryStorageWriteApiConnectException(
                     "Failed to create table " + getTableId(), exception);
         }
