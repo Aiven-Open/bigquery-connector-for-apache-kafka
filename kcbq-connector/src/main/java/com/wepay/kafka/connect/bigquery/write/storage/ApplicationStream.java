@@ -50,7 +50,7 @@ public class ApplicationStream {
      */
     private final AtomicInteger maxCalls;
     private final AtomicLong totalRowsSent;
-    private List<String> committableStreams ;
+    private List<String> committableStreams;
 
     public ApplicationStream(String tableName, BigQueryWriteClient client) throws Exception {
         this.client = client;

@@ -6,17 +6,16 @@ import com.google.cloud.bigquery.storage.v1.BigQueryWriteSettings;
 import com.google.cloud.bigquery.storage.v1.TableName;
 import com.google.cloud.bigquery.storage.v1.AppendRowsResponse;
 import com.google.common.annotations.VisibleForTesting;
-import com.google.rpc.Status;
+import com.google.protobuf.Descriptors;
 import com.wepay.kafka.connect.bigquery.ErrantRecordHandler;
 import com.wepay.kafka.connect.bigquery.SchemaManager;
 
 import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiConnectException;
-import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiErrorResponses;
-import com.wepay.kafka.connect.bigquery.utils.Time;
 import org.json.JSONArray;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.util.List;
 
 import java.util.concurrent.ConcurrentMap;
@@ -29,9 +28,6 @@ public class StorageWriteApiDefaultStream extends StorageWriteApiBase {
     private static final Logger logger = LoggerFactory.getLogger(StorageWriteApiDefaultStream.class);
     ConcurrentMap<String, JsonStreamWriter> tableToStream = new ConcurrentHashMap<>();
 
-    @VisibleForTesting
-    Time time;
-
     public StorageWriteApiDefaultStream(int retry,
                                         long retryWait,
                                         BigQueryWriteSettings writeSettings,
@@ -39,28 +35,15 @@ public class StorageWriteApiDefaultStream extends StorageWriteApiBase {
                                         ErrantRecordHandler errantRecordHandler,
                                         SchemaManager schemaManager,
                                         boolean attemptSchemaUpdate) {
-        this(
+        super(
             retry,
             retryWait,
             writeSettings,
             autoCreateTables,
             errantRecordHandler,
             schemaManager,
-            attemptSchemaUpdate,
-            Time.SYSTEM
+            attemptSchemaUpdate
         );
-    }
-
-    public StorageWriteApiDefaultStream(int retry,
-                                        long retryWait,
-                                        BigQueryWriteSettings writeSettings,
-                                        boolean autoCreateTables,
-                                        ErrantRecordHandler errantRecordHandler,
-                                        SchemaManager schemaManager,
-                                        boolean attemptSchemaUpdate,
-                                        Time time) {
-        super(retry, retryWait, writeSettings, autoCreateTables, errantRecordHandler, schemaManager, attemptSchemaUpdate);
-        this.time = time;
     }
 
     @Override
@@ -107,9 +90,9 @@ public class StorageWriteApiDefaultStream extends StorageWriteApiBase {
                             tableName,
                             e.getMessage());
                     retryHandler.setMostRecentException(new BigQueryStorageWriteApiConnectException(baseErrorMessage, e));
-                    if (BigQueryStorageWriteApiErrorResponses.isTableMissing(e.getMessage()) && getAutoCreateTables()) {
+                    if (shouldHandleTableCreation(e.getMessage())) {
                         retryHandler.attemptTableOperation(schemaManager::createTable);
-                    } else if (!BigQueryStorageWriteApiErrorResponses.isRetriableError(e.getMessage())) {
+                    } else if (isNonRetriable(e)) {
                         throw retryHandler.getMostRecentException();
                     }
                     logger.warn(baseErrorMessage + " Retry attempt {}...", retryHandler.getAttempt());
@@ -123,90 +106,50 @@ public class StorageWriteApiDefaultStream extends StorageWriteApiBase {
         });
     }
 
-    /**
-     * Calls AppendRows and handles exception if the ingestion fails
-     *
-     * @param tableName  The table to write data to
-     * @param rows       List of pre- and post-conversion records.
-     *                   Converted JSONObjects would be sent to api.
-     *                   Pre-conversion sink records are required for DLQ routing
-     * @param streamName The stream to use to write table to table. This will be DEFAULT always.
-     */
     @Override
-    public void initializeAndWriteRecords(TableName tableName, List<ConvertedRecord> rows, String streamName) {
-        JSONArray jsonArr;
-        StorageWriteApiRetryHandler retryHandler = new StorageWriteApiRetryHandler(tableName, getSinkRecords(rows), retry, retryWait, time);
-        logger.debug("Sending {} records to write Api default stream on {} ...", rows.size(), tableName);
-
-        do {
-            try {
-                jsonArr = new JSONArray();
-                for (ConvertedRecord item : rows) {
-                    jsonArr.put(item.converted());
-                }
-                logger.trace("Sending records to Storage API writer...");
-                JsonStreamWriter writer = getDefaultStream(tableName, rows);
-                ApiFuture<AppendRowsResponse> response = writer.append(jsonArr);
-                AppendRowsResponse writeResult = response.get();
-                logger.trace("Received response from Storage API writer...");
-
-                if (writeResult.hasUpdatedSchema()) {
-                    logger.warn("Sent records schema does not match with table schema, will attempt to update schema");
-                    if(!canAttemptSchemaUpdate()) {
-                        throw new BigQueryStorageWriteApiConnectException("Connector is not configured to perform schema updates.");
-                    }
-                    retryHandler.attemptTableOperation(schemaManager::updateSchema);
-                } else if (writeResult.hasError()) {
-                    Status errorStatus = writeResult.getError();
-                    String errorMessage = String.format("Failed to write rows on table %s due to %s", tableName, errorStatus.getMessage());
-                    retryHandler.setMostRecentException(new BigQueryStorageWriteApiConnectException(errorMessage));
-                    if (BigQueryStorageWriteApiErrorResponses.isMalformedRequest(errorMessage)) {
-                        rows = maybeHandleDlqRoutingAndFilterRecords(rows, convertToMap(writeResult.getRowErrorsList()), tableName.getTable());
-                        if (rows.isEmpty()) {
-                            return;
-                        }
-                    } else if (!BigQueryStorageWriteApiErrorResponses.isRetriableError(errorStatus.getMessage())) {
-                        // Fail on non-retriable error
-                        logger.error(errorMessage);
-                        throw retryHandler.getMostRecentException();
-                    }
-                    logger.warn(errorMessage + " Retry attempt " + retryHandler.getAttempt());
-                } else {
-                    logger.debug("Call to write Api default stream completed after {} retries!", retryHandler.getAttempt());
-                    return;
-                }
-            } catch (BigQueryStorageWriteApiConnectException exception) {
-                throw exception;
-            } catch (Exception e) {
-                String message = e.getMessage();
-                String errorMessage = String.format("Failed to write rows on table %s due to %s", tableName, message);
-                retryHandler.setMostRecentException(new BigQueryStorageWriteApiConnectException(errorMessage, e));
-
-                if (canAttemptSchemaUpdate()
-                        && BigQueryStorageWriteApiErrorResponses.isMalformedRequest(message)
-                        && BigQueryStorageWriteApiErrorResponses.hasInvalidSchema(getRowErrorMapping(e).values())) {
-                    logger.warn("Sent records schema does not match with table schema, will attempt to update schema");
-                    retryHandler.attemptTableOperation(schemaManager::updateSchema);
-                } else if (BigQueryStorageWriteApiErrorResponses.isMalformedRequest(message)) {
-                    rows = maybeHandleDlqRoutingAndFilterRecords(rows, getRowErrorMapping(e), tableName.getTable());
-                    if (rows.isEmpty()) {
-                        return;
-                    }
-                } else if (BigQueryStorageWriteApiErrorResponses.isStreamClosed(message)) {
-                    // Streams can get autoclosed if there occurs any issues, we should delete the cached stream
-                    // so that a new one gets created on retry.
-                    closeAndDelete(tableName.toString());
-                } else if (BigQueryStorageWriteApiErrorResponses.isTableMissing(message) && getAutoCreateTables()) {
-                    retryHandler.attemptTableOperation(schemaManager::createTable);
-                } else if (!BigQueryStorageWriteApiErrorResponses.isRetriableError(message)) {
-                    // Fail on non-retriable error
-                    throw retryHandler.getMostRecentException();
-                }
-                logger.warn(errorMessage + " Retry attempt " + retryHandler.getAttempt());
-            }
-        } while (retryHandler.maybeRetry());
-        throw new BigQueryStorageWriteApiConnectException(
-                String.format("Exceeded %s attempts to write to table %s ", retryHandler.getAttempt(), tableName),
-                retryHandler.getMostRecentException());
+    protected StreamWriter streamWriter(
+        TableName tableName,
+        String streamName,
+        List<ConvertedRecord> records
+    ) {
+        return new DefaultStreamWriter(tableName, records);
     }
+
+    class DefaultStreamWriter implements StreamWriter {
+
+        private final TableName tableName;
+        private final List<ConvertedRecord> inputRows;
+        private JsonStreamWriter jsonStreamWriter;
+
+        public DefaultStreamWriter(TableName tableName, List<ConvertedRecord> inputRows) {
+            this.tableName = tableName;
+            this.inputRows = inputRows;
+        }
+
+        @Override
+        public ApiFuture<AppendRowsResponse> appendRows(
+            JSONArray rows
+        ) throws Descriptors.DescriptorValidationException, IOException {
+            if (jsonStreamWriter == null)
+                jsonStreamWriter = getDefaultStream(tableName, inputRows);
+            return jsonStreamWriter.append(rows);
+        }
+
+        @Override
+        public void onSuccess() {
+            // no-op
+        }
+
+        @Override
+        public void refresh() {
+            closeAndDelete(tableName.toString());
+            jsonStreamWriter = null;
+        }
+
+        @Override
+        public void close() {
+            jsonStreamWriter.close();
+        }
+    }
+
 }
