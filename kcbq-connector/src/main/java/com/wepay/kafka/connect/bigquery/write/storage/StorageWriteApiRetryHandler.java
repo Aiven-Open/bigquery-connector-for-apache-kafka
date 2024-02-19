@@ -13,25 +13,29 @@ import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Random;
+import java.util.function.BiConsumer;
 
 /**
- * A POJO to handle retries by the Storage Write Api
+ * Handles retries with writes to the Storage Write API and operations performed
+ * during that process (such as table creation/update).
  */
 public class StorageWriteApiRetryHandler {
+
     private static final Logger logger = LoggerFactory.getLogger(StorageWriteApiRetryHandler.class);
-    private boolean tableCreationOrUpdateAttempted;
-    private int additionalRetries;
-    private int additionalWait;
-    private BigQueryStorageWriteApiConnectException mostRecentException;
-    private TableName table;
-    private List<SinkRecord> records;
     private static final int ADDITIONAL_RETRIES_TABLE_CREATE_UPDATE = 30;
     private static final int ADDITIONAL_RETRIES_WAIT_TABLE_CREATE_UPDATE = 30000;
-    private int currentAttempt;
+
+    private final TableName table;
+    private final List<SinkRecord> records;
     private final Random random;
-    private int userConfiguredRetry;
-    private long userConfiguredRetryWait;
+    private final int userConfiguredRetry;
+    private final long userConfiguredRetryWait;
     private final Time time;
+
+    private BigQueryStorageWriteApiConnectException mostRecentException;
+    private int additionalRetries;
+    private int additionalWait;
+    private int currentAttempt;
 
     public StorageWriteApiRetryHandler(
         TableName table,
@@ -40,7 +44,6 @@ public class StorageWriteApiRetryHandler {
         long retryWait,
         Time time
     ) {
-        tableCreationOrUpdateAttempted = false;
         additionalRetries = 0;
         additionalWait = 0;
         mostRecentException = null;
@@ -51,19 +54,6 @@ public class StorageWriteApiRetryHandler {
         this.userConfiguredRetryWait = retryWait;
         this.time = time;
         this.random = new Random();
-    }
-
-    public boolean isTableCreationOrUpdateAttempted() {
-        return tableCreationOrUpdateAttempted;
-    }
-
-    public void setTableCreationOrUpdateAttempted(boolean tableCreationOrUpdateAttempted) {
-        this.tableCreationOrUpdateAttempted = tableCreationOrUpdateAttempted;
-    }
-
-    public void setAdditionalRetriesAndWait() {
-        this.additionalRetries = ADDITIONAL_RETRIES_TABLE_CREATE_UPDATE;
-        this.additionalWait = ADDITIONAL_RETRIES_WAIT_TABLE_CREATE_UPDATE;
     }
 
     public BigQueryStorageWriteApiConnectException getMostRecentException() {
@@ -78,20 +68,13 @@ public class StorageWriteApiRetryHandler {
         return this.currentAttempt;
     }
 
-    public TableId getTableId() {
+    private void setAdditionalRetriesAndWait() {
+        this.additionalRetries = ADDITIONAL_RETRIES_TABLE_CREATE_UPDATE;
+        this.additionalWait = ADDITIONAL_RETRIES_WAIT_TABLE_CREATE_UPDATE;
+    }
+
+    private TableId tableId() {
         return TableNameUtils.tableId(table);
-    }
-
-    public void setTable(TableName table) {
-        this.table = table;
-    }
-
-    public List<SinkRecord> getRecords() {
-        return records;
-    }
-
-    public void setRecords(List<SinkRecord> records) {
-        this.records = records;
     }
 
     private void waitRandomTime() throws InterruptedException {
@@ -116,16 +99,11 @@ public class StorageWriteApiRetryHandler {
      * Attempts to create table
      * @param tableOperation lambda of the table operation to perform
      */
-    public void attemptTableOperation(TableOperation tableOperation) {
+    public void attemptTableOperation(BiConsumer<TableId, List<SinkRecord>> tableOperation) {
         try {
-            if (!isTableCreationOrUpdateAttempted()) {
-                setTableCreationOrUpdateAttempted(true);
-                tableOperation.performOperation(getTableId(), getRecords());
-                // Table takes time to be available for after creation
-                setAdditionalRetriesAndWait();
-            } else {
-                logger.info("Skipping multiple table operation attempts");
-            }
+            tableOperation.accept(tableId(), records);
+            // Table takes time to be available for after creation
+            setAdditionalRetriesAndWait();
         } catch (BigQueryException exception) {
             if (BigQueryErrorResponses.isRateLimitExceededError(exception)) {
                 // Can happen if several tasks try to create a table all at once; should be fine
@@ -133,11 +111,8 @@ public class StorageWriteApiRetryHandler {
                 return;
             }
             throw new BigQueryStorageWriteApiConnectException(
-                    "Failed to create table " + getTableId(), exception);
+                    "Failed to create table " + tableId(), exception);
         }
     }
-}
 
-interface TableOperation {
-    void performOperation(TableId tableId, List<SinkRecord> records);
 }

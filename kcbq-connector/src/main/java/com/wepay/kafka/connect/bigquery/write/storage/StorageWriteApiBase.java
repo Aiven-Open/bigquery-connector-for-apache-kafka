@@ -14,6 +14,7 @@ import com.wepay.kafka.connect.bigquery.ErrantRecordHandler;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiConnectException;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiErrorResponses;
 import com.wepay.kafka.connect.bigquery.utils.Time;
+import com.wepay.kafka.connect.bigquery.write.RecordBatches;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.json.JSONArray;
 import org.slf4j.Logger;
@@ -102,11 +103,12 @@ public abstract class StorageWriteApiBase {
     public void initializeAndWriteRecords(TableName tableName, List<ConvertedRecord> rows, String streamName) {
         StorageWriteApiRetryHandler retryHandler = new StorageWriteApiRetryHandler(tableName, getSinkRecords(rows), retry, retryWait, time);
         logger.debug("Sending {} records to write Api Application stream {} ...", rows.size(), streamName);
+        RecordBatches<ConvertedRecord> batches = new RecordBatches<>(rows);
         try (StreamWriter writer = streamWriter(tableName, streamName, rows)) {
-
             do {
                 try {
-                    JSONArray jsonRecords = getJsonRecords(rows);
+                    List<ConvertedRecord> batch = batches.currentBatch();
+                    JSONArray jsonRecords = getJsonRecords(batch);
                     logger.trace("Sending records to Storage API writer for batch load...");
                     ApiFuture<AppendRowsResponse> response = writer.appendRows(jsonRecords);
                     AppendRowsResponse writeResult = response.get();
