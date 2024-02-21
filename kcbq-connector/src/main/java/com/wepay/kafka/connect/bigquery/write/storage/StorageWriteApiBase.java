@@ -102,17 +102,17 @@ public abstract class StorageWriteApiBase {
      */
     public void initializeAndWriteRecords(TableName tableName, List<ConvertedRecord> rows, String streamName) {
         StorageWriteApiRetryHandler retryHandler = new StorageWriteApiRetryHandler(tableName, getSinkRecords(rows), retry, retryWait, time);
-        logger.debug("Sending {} records to write Api Application stream {} ...", rows.size(), streamName);
+        logger.debug("Sending {} records to write Api Application stream {}", rows.size(), streamName);
         RecordBatches<ConvertedRecord> batches = new RecordBatches<>(rows);
         try (StreamWriter writer = streamWriter(tableName, streamName, rows)) {
             do {
                 try {
                     List<ConvertedRecord> batch = batches.currentBatch();
                     JSONArray jsonRecords = getJsonRecords(batch);
-                    logger.trace("Sending records to Storage API writer for batch load...");
+                    logger.trace("Sending records to Storage API writer for batch load");
                     ApiFuture<AppendRowsResponse> response = writer.appendRows(jsonRecords);
                     AppendRowsResponse writeResult = response.get();
-                    logger.trace("Received response from Storage API writer batch...");
+                    logger.trace("Received response from Storage API writer batch");
 
                     if (writeResult.hasUpdatedSchema()) {
                         logger.warn("Sent records schema does not match with table schema, will attempt to update schema");

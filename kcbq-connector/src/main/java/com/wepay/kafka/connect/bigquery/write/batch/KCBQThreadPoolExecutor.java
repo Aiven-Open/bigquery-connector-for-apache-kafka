@@ -28,6 +28,7 @@ import org.slf4j.LoggerFactory;
 import java.util.Optional;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -48,13 +49,19 @@ public class KCBQThreadPoolExecutor extends ThreadPoolExecutor {
    * @param config the {@link BigQuerySinkTaskConfig}
    * @param workQueue the queue for storing tasks.
    */
-  public KCBQThreadPoolExecutor(BigQuerySinkTaskConfig config,
-                                BlockingQueue<Runnable> workQueue) {
-    super(config.getInt(BigQuerySinkTaskConfig.THREAD_POOL_SIZE_CONFIG),
-          config.getInt(BigQuerySinkTaskConfig.THREAD_POOL_SIZE_CONFIG),
-          // the following line is irrelevant because the core and max thread counts are the same.
-          1, TimeUnit.SECONDS,
-          workQueue);
+  public KCBQThreadPoolExecutor(
+      BigQuerySinkTaskConfig config,
+      BlockingQueue<Runnable> workQueue,
+      ThreadFactory threadFactory
+  ) {
+    super(
+        config.getInt(BigQuerySinkTaskConfig.THREAD_POOL_SIZE_CONFIG),
+        config.getInt(BigQuerySinkTaskConfig.THREAD_POOL_SIZE_CONFIG),
+        // the following line is irrelevant because the core and max thread counts are the same.
+        1, TimeUnit.SECONDS,
+        workQueue,
+        threadFactory
+    );
   }
 
   @Override

@@ -47,7 +47,7 @@ public class StorageWriteApiWriter implements Runnable {
     @Override
     public void run() {
         if(records.size() == 0) {
-            logger.debug("There are no records, skipping...");
+            logger.debug("There are no records, skipping");
             return;
         }
         logger.debug("Putting {} records into {} stream", records.size(), streamName);

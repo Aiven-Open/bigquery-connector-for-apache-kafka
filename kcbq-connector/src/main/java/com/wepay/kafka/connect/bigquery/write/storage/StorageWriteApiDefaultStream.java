@@ -95,7 +95,7 @@ public class StorageWriteApiDefaultStream extends StorageWriteApiBase {
                     } else if (isNonRetriable(e)) {
                         throw retryHandler.getMostRecentException();
                     }
-                    logger.warn(baseErrorMessage + " Retry attempt {}...", retryHandler.getAttempt());
+                    logger.warn(baseErrorMessage + " Retry attempt {}", retryHandler.getAttempt());
                 }
             } while (retryHandler.maybeRetry());
             throw new BigQueryStorageWriteApiConnectException(

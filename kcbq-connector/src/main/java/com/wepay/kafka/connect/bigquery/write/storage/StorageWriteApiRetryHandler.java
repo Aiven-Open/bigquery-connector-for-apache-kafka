@@ -87,7 +87,7 @@ public class StorageWriteApiRetryHandler {
             try {
                 waitRandomTime();
             } catch (InterruptedException e) {
-                logger.warn("Thread interrupted while waiting for random time...");
+                logger.warn("Thread interrupted while waiting for random time");
             }
             return true;
         } else {

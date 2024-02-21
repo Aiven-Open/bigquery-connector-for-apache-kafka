@@ -67,6 +67,7 @@ import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.sink.SinkTask;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 
 import java.time.Instant;
 import java.util.Arrays;
@@ -82,6 +83,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -104,7 +106,6 @@ public class BigQuerySinkTask extends SinkTask {
 
   private boolean useMessageTimeDatePartitioning;
   private boolean usePartitionDecorator;
-  private boolean sanitize;
   private boolean upsertDelete;
   private MergeBatches mergeBatches;
   private MergeQueries mergeQueries;
@@ -575,14 +576,16 @@ public class BigQuerySinkTask extends SinkTask {
     cache = getCache();
     bigQueryWriter = getBigQueryWriter(errantRecordHandler);
     gcsToBQWriter = getGcsWriter();
-    executor = new KCBQThreadPoolExecutor(config, new LinkedBlockingQueue<>());
+    executor = new KCBQThreadPoolExecutor(
+        config,
+        new LinkedBlockingQueue<>(),
+        new MdcContextThreadFactory()
+    );
     topicPartitionManager = new TopicPartitionManager();
     useMessageTimeDatePartitioning =
         config.getBoolean(BigQuerySinkConfig.BIGQUERY_MESSAGE_TIME_PARTITIONING_CONFIG);
     usePartitionDecorator = 
             config.getBoolean(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG);
-    sanitize =
-            config.getBoolean(BigQuerySinkConfig.SANITIZE_TOPICS_CONFIG);
     if (config.getBoolean(BigQuerySinkTaskConfig.GCS_BQ_TASK_CONFIG)) {
       startGCSToBQLoadTask();
     } else if (upsertDelete) {
@@ -600,11 +603,11 @@ public class BigQuerySinkTask extends SinkTask {
 
   private void initializeStorageApiMode() {
     if (testStorageWriteApi != null) {
-      logger.info("Starting task with Test Storage Write API Stream...");
+      logger.info("Starting task with Test Storage Write API Stream");
       storageApiWriter = testStorageWriteApi;
       batchHandler = testStorageApiBatchHandler;
       if (loadExecutor == null) {
-        loadExecutor = Executors.newScheduledThreadPool(1);
+        loadExecutor = Executors.newScheduledThreadPool(1, new MdcContextThreadFactory());
       }
       int commitInterval = config.getInt(BigQuerySinkConfig.COMMIT_INTERVAL_SEC_CONFIG);
       loadExecutor.scheduleAtFixedRate(this::batchLoadExecutorRunnable, commitInterval, commitInterval, TimeUnit.SECONDS);
@@ -624,14 +627,14 @@ public class BigQuerySinkTask extends SinkTask {
         );
         storageApiWriter = writer;
 
-        logger.info("Starting task with Storage Write API Batch Mode...");
+        logger.info("Starting task with Storage Write API Batch Mode");
         batchHandler = new StorageApiBatchModeHandler(writer, config);
 
-        logger.info("Starting Load Executor for Storage Write API Batch Mode with {} seconds interval ...", commitInterval);
-        loadExecutor = Executors.newScheduledThreadPool(1);
+        logger.info("Starting Load Executor for Storage Write API Batch Mode with {} seconds interval ", commitInterval);
+        loadExecutor = Executors.newScheduledThreadPool(1, new MdcContextThreadFactory());
         loadExecutor.scheduleAtFixedRate(this::batchLoadExecutorRunnable, commitInterval, commitInterval, TimeUnit.SECONDS);
       } else {
-        logger.info("Starting task with Storage Write API Default Stream...");
+        logger.info("Starting task with Storage Write API Default Stream");
         storageApiWriter = new StorageWriteApiDefaultStream(
                 retry,
                 retryWait,
@@ -651,7 +654,7 @@ public class BigQuerySinkTask extends SinkTask {
     } catch(Throwable t) {
       logger.error("Storage Write API batch handler has failed due to : {}, {} ", t, Arrays.toString(t.getStackTrace()));
       loadExecutor.shutdown();
-      logger.error("Shutting down the batch load handler...");
+      logger.error("Shutting down the batch load handler");
     }
   }
 
@@ -665,7 +668,7 @@ public class BigQuerySinkTask extends SinkTask {
 
   private void startGCSToBQLoadTask() {
     logger.info("Attempting to start GCS Load Executor.");
-    loadExecutor = Executors.newScheduledThreadPool(1);
+    loadExecutor = Executors.newScheduledThreadPool(1, new MdcContextThreadFactory());
     String bucketName = config.getString(BigQuerySinkConfig.GCS_BUCKET_NAME_CONFIG);
     Storage gcs = getGcs();
     // get the bucket, or create it if it does not exist.
@@ -697,7 +700,7 @@ public class BigQuerySinkTask extends SinkTask {
       return;
     }
     logger.info("Attempting to start upsert/delete load executor");
-    loadExecutor = Executors.newScheduledThreadPool(1);
+    loadExecutor = Executors.newScheduledThreadPool(1, new MdcContextThreadFactory());
     loadExecutor.scheduleAtFixedRate(
         mergeQueries::mergeFlushAll, intervalMs, intervalMs, TimeUnit.MILLISECONDS);
   }
@@ -753,6 +756,27 @@ public class BigQuerySinkTask extends SinkTask {
     String version = Version.version();
     logger.trace("task.version() = {}", version);
     return version;
+  }
+
+  private static class MdcContextThreadFactory implements ThreadFactory {
+
+    private final Map<String, String> mdcContext;
+
+    public MdcContextThreadFactory() {
+      this.mdcContext = MDC.getCopyOfContextMap();
+    }
+
+    @Override
+    public Thread newThread(Runnable runnable) {
+      if (mdcContext == null) {
+        return new Thread(runnable);
+      } else {
+        return new Thread(() -> {
+          MDC.setContextMap(mdcContext);
+          runnable.run();
+        });
+      }
+    }
   }
 
   private class TopicPartitionManager {

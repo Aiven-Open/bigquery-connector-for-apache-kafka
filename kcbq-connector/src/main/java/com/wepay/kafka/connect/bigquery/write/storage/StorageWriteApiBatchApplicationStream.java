@@ -118,9 +118,9 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiBase {
                             ApplicationStream applicationStream = applicationStreamEntry.getValue();
                             String streamName = applicationStreamEntry.getKey();
                             if (applicationStream.isInactive()) {
-                                logger.trace("Ignoring inactive stream {} at index {}...", streamName, i);
+                                logger.trace("Ignoring inactive stream {} at index {}", streamName, i);
                             } else if (applicationStream.isReadyForOffsetCommit()) {
-                                logger.trace("Pulling offsets from committed stream {} at index {} ...", streamName, i);
+                                logger.trace("Pulling offsets from committed stream {} at index {} ", streamName, i);
                                 offsetsReadyForCommits.putAll(applicationStream.getOffsetInformation());
                                 applicationStream.markInactive();
                             } else {
@@ -230,7 +230,7 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiBase {
                 } else if (isNonRetriable(e)) {
                     failTask(retryHandler.getMostRecentException());
                 }
-                logger.warn(baseErrorMessage + " Retry attempt {}...", retryHandler.getAttempt());
+                logger.warn(baseErrorMessage + " Retry attempt {}", retryHandler.getAttempt());
             }
         } while (retryHandler.maybeRetry());
         throw new BigQueryStorageWriteApiConnectException(
