@@ -1,0 +1,46 @@
+# Workflow to check pull requests and new commits to main branches
+# This checks the source in the state as if after the merge.
+name: Pull request checks
+on:
+  pull_request:
+    branches: [ master, storage-write-api, storage-write-api-cleanup ]
+  push:
+    branches: [ master, storage-write-api, storage-write-api-cleanup ]
+
+# Disallow concurrent runs for the same PR by cancelling in-progress runs
+# when new commits are pushed
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Set up JDK 8
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'adopt'
+          java-version: 8
+          cache: maven
+      - name: Build (Maven)
+        run: mvn --batch-mode clean package -DskipTests
+      - name: Unit tests (Maven)
+        run: mvn --batch-mode test
+      - name: Integration tests (Maven)
+        env:
+          # Necessary for client builder integration tests that run with
+          # default application credentials
+          CREDENTIALS_JSON: ${{ secrets.GCP_CREDENTIALS }}
+          GOOGLE_APPLICATION_CREDENTIALS: /tmp/creds.json
+          KCBQ_TEST_KEYFILE:    /tmp/creds.json
+          KCBQ_TEST_KEY_SOURCE: FILE
+          KCBQ_TEST_PROJECT:    ${{ secrets.KCBQ_TEST_PROJECT }}
+          KCBQ_TEST_DATASET:    ${{ secrets.KCBQ_TEST_DATASET }}
+          KCBQ_TEST_BUCKET:     ${{ secrets.KCBQ_TEST_BUCKET }}
+        run: |
+          echo "$CREDENTIALS_JSON" > /tmp/creds.json
+          mvn -Dskip.unit.tests=true verify
