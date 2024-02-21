@@ -45,7 +45,6 @@ public class ApplicationStreamIT extends BaseConnectorIT {
                 .withProject(project())
                 .withKeySource(GcpClientBuilder.KeySource.valueOf(keySource()))
                 .withKey(keyFile())
-                .withUserAgent("IT-Test-Application-Stream")
                 .withWriterApi(true)
                 .build();
         client = BigQueryWriteClient.create(writeSettings);

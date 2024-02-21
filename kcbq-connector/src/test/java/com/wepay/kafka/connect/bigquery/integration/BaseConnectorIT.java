@@ -152,7 +152,6 @@ public abstract class BaseConnectorIT {
         .withKey(keyFile())
         .withKeySource(GcpClientBuilder.KeySource.valueOf(keySource()))
         .withProject(project())
-        .withUserAgent("ITTest-user-agent")
         .build();
   }
 

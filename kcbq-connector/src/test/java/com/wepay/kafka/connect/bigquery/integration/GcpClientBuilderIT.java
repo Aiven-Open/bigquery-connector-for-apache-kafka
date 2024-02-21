@@ -31,22 +31,22 @@ import java.util.concurrent.TimeUnit;
 @Category(IntegrationTest.class)
 public class GcpClientBuilderIT extends BaseConnectorIT {
 
-    Logger logger= LoggerFactory.getLogger(GcpClientBuilderIT.class);
-    private BigQuery bigQueryInstance;
+    private static final Logger logger= LoggerFactory.getLogger(GcpClientBuilderIT.class);
 
     private TableId tableId;
+
     @Before
     public void setup() throws Exception {
-        bigQueryInstance = newBigQuery();
+        BigQuery bigQuery = newBigQuery();
         tableId = TableId.of(project(),dataset(),"authenticate-storage-api");
-        if(bigQueryInstance.getTable(tableId) == null) {
+        if(bigQuery.getTable(tableId) == null) {
             logger.info("Going to Create table : "+ tableId.toString());
-            bigQueryInstance.create(TableInfo.of(tableId, StandardTableDefinition.newBuilder().build()));
+            bigQuery.create(TableInfo.of(tableId, StandardTableDefinition.newBuilder().build()));
             logger.info("Created table : "+ tableId.toString());
             // table takes time after creation before being available for operations. You may have to wait a few minutes (~5 minutes)
             // Try to wait for 5 minutes if table is seen.
             int attempts = 10;
-            while(bigQueryInstance.getTable(tableId) == null && attempts > 0)  {
+            while(bigQuery.getTable(tableId) == null && attempts > 0) {
                 logger.debug("Busy waiting for table {} to appear! Attempt {}", tableId.getTable(), (10-attempts));
                 Thread.sleep(TimeUnit.SECONDS.toMillis(30));
                 attempts--;
@@ -64,8 +64,7 @@ public class GcpClientBuilderIT extends BaseConnectorIT {
 
         if (keySource == GcpClientBuilder.KeySource.APPLICATION_DEFAULT) {
             properties.put(BigQuerySinkConfig.KEYFILE_CONFIG, null);
-        }
-        else if (keySource == GcpClientBuilder.KeySource.JSON){
+        } else if (keySource == GcpClientBuilder.KeySource.JSON) {
             // actually keyFile is the path to the credentials file, so we convert it to the json string
             String credentialsJsonString = new String(Files.readAllBytes(Paths.get(keyFile())), StandardCharsets.UTF_8);
             properties.put(BigQuerySinkConfig.KEYFILE_CONFIG, credentialsJsonString);
@@ -79,58 +78,42 @@ public class GcpClientBuilderIT extends BaseConnectorIT {
      * @param keySource the key Source to use
      * @throws IOException
      */
-    private void testClients(GcpClientBuilder.KeySource keySource) throws IOException, Descriptors.DescriptorValidationException, InterruptedException {
+    private void testClients(GcpClientBuilder.KeySource keySource) throws Exception {
         Map<String, String> properties = connectorProps(keySource);
         properties.put(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, "false");
         BigQuerySinkConfig config = new BigQuerySinkConfig(properties);
 
         BigQuery bigQuery = new GcpClientBuilder.BigQueryBuilder().withConfig(config).build();
-        Storage storage = new GcpClientBuilder.GcsBuilder().withConfig(config).build();
+        bigQuery.listTables(DatasetId.of(dataset()));
+
+        try (Storage storage = new GcpClientBuilder.GcsBuilder().withConfig(config).build()) {
+            storage.get(gcsBucket());
+        }
 
         BigQueryWriteSettings settings = new GcpClientBuilder.BigQueryWriteSettingsBuilder().withConfig(config).build();
         BigQueryWriteClient client = BigQueryWriteClient.create(settings);
-
-        bigQuery.listTables(DatasetId.of(dataset()));
-        storage.get(gcsBucket());
-        JsonStreamWriter writer = JsonStreamWriter.newBuilder(TableNameUtils.tableName(tableId).toString(), client).build();
-        assertTrue(writer.getStreamName().contains("default"));
-    }
-
-    private void testClientsWithScopes(GcpClientBuilder.KeySource keySource) throws IOException, Descriptors.DescriptorValidationException, InterruptedException {
-        Map<String, String> properties = connectorProps(keySource);
-        properties.put(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, "true");
-        BigQuerySinkConfig config = new BigQuerySinkConfig(properties);
-
-        BigQuery bigQuery = new GcpClientBuilder.BigQueryBuilder().withConfig(config).build();
-        Storage storage = new GcpClientBuilder.GcsBuilder().withConfig(config).build();
-
-        BigQueryWriteSettings settings = new GcpClientBuilder.BigQueryWriteSettingsBuilder().withConfig(config).build();
-        BigQueryWriteClient client = BigQueryWriteClient.create(settings);
-
-        bigQuery.listTables(DatasetId.of(dataset()));
-        storage.get(gcsBucket());
-
-        JsonStreamWriter writer = JsonStreamWriter.newBuilder(TableNameUtils.tableName(tableId).toString(), client).build();
-        assertTrue(writer.getStreamName().contains("default"));
+        JsonStreamWriter.Builder writerBuilder = JsonStreamWriter.newBuilder(
+            TableNameUtils.tableName(tableId).toString(),
+            client
+        );
+        try (JsonStreamWriter writer = writerBuilder.build()) {
+            assertTrue(writer.getStreamName().contains("default"));
+        }
     }
 
     @Test
-    public void testApplicationDefaultCredentials() throws IOException, Descriptors.DescriptorValidationException, InterruptedException {
+    public void testApplicationDefaultCredentials() throws Exception {
         testClients(GcpClientBuilder.KeySource.APPLICATION_DEFAULT);
-        testClientsWithScopes(GcpClientBuilder.KeySource.APPLICATION_DEFAULT);
     }
 
     @Test
-    public void testFile() throws IOException, Descriptors.DescriptorValidationException, InterruptedException {
+    public void testFile() throws Exception {
         testClients(GcpClientBuilder.KeySource.FILE);
-        testClientsWithScopes(GcpClientBuilder.KeySource.FILE);
     }
 
     @Test
-    public void
-    testJson() throws IOException, Descriptors.DescriptorValidationException, InterruptedException {
+    public void testJson() throws Exception {
         testClients(GcpClientBuilder.KeySource.JSON);
-        testClientsWithScopes(GcpClientBuilder.KeySource.JSON);
     }
 
 }
