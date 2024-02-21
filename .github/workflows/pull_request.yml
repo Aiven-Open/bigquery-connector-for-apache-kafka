@@ -19,4 +19,11 @@ jobs:
         run: mvn --batch-mode clean package -DskipTests
       - name: Unit tests (Maven)
         run: mvn --batch-mode test
-      # TODO: Integration tests (need secrets)
+      - name: Integration tests (Maven)
+        run: mvn --batch-mode -Dskip.unit.tests=true integration-test
+        env:
+          KCBQ_TEST_KEYFILE:    ${{ secrets.KCBQ_TEST_KEYFILE }}
+          KCBQ_TEST_KEY_SOURCE: ${{ secrets.KCBQ_TEST_KEY_SOURCE }}
+          KCBQ_TEST_PROJECT:    ${{ secrets.KCBQ_TEST_PROJECT }}
+          KCBQ_TEST_DATASET:    ${{ secrets.KCBQ_TEST_DATASET }}
+          KCBQ_TEST_BUCKET:     ${{ secrets.KCBQ_TEST_BUCKET }}

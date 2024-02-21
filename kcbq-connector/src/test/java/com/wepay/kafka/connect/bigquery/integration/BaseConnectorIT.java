@@ -368,10 +368,12 @@ public abstract class BaseConnectorIT {
 
   protected String keyFile() {
     if (GcpClientBuilder.KeySource.APPLICATION_DEFAULT.name().equalsIgnoreCase(keySource())) {
-      // No key file necessary
-      return "";
+      // Key file is optional for most tests when using application default credentials
+      return readEnvVar(KEYFILE_ENV_VAR, "");
+    } else {
+      // Key file is required
+      return readEnvVar(KEYFILE_ENV_VAR);
     }
-    return readEnvVar(KEYFILE_ENV_VAR);
   }
 
   protected String project() {
