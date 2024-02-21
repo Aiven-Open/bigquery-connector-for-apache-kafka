@@ -3,7 +3,7 @@
 name: Pull request checks
 on:
   pull_request:
-    branches: [ gh-actions ]
+    branches: [ github-actions ]
 jobs:
   build:
     name: Build
