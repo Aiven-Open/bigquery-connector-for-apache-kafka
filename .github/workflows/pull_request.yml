@@ -1,0 +1,22 @@
+# The workflow to check pull requests
+# This checks the source in the state as if after the merge.
+name: Pull request checks
+on:
+  pull_request:
+    branches: [ gh-actions ]
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Set up JDK 8
+        uses: actions/setup-java@v1
+        with:
+          java-version: 8
+      - name: Build (Maven)
+        run: mvn --batch-mode clean package -DskipTests
+      - name: Unit tests (Maven)
+        run: mvn --batch-mode test
+      # TODO: Integration tests (need secrets)
