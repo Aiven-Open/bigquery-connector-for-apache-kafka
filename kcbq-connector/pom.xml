@@ -239,62 +239,6 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-checkstyle-plugin</artifactId>
             </plugin>
-            <plugin>
-                <groupId>io.confluent</groupId>
-                <artifactId>kafka-connect-maven-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>kafka-connect</goal>
-                        </goals>
-                        <configuration>
-                            <title>BigQuery Sink Connector</title>
-                            <name>kafka-connect-bigquery</name>
-                            <description>
-                                A sink connector for writing to Google BigQuery, with support for automatic table creation and schema evolution.
-                            </description>
-                            <logo>logos/BigQuery.png</logo>
-                            <documentationUrl>https://docs.confluent.io/kafka-connect-bigquery/current/index.html</documentationUrl>
-                            <sourceUrl>https://github.com/confluentinc/kafka-connect-bigquery</sourceUrl>
-
-                            <supportProviderName>Confluent, Inc.</supportProviderName>
-                            <supportSummary><![CDATA[Confluent supports WePay's BigQuery connector version 1.1.2 and later. This connector is <a href="https://www.confluent.io/subscription/">supported by Confluent</a> as part of a <a href="https://www.confluent.io/product/confluent-platform/">Confluent Platform</a> subscription.]]></supportSummary>
-                            <supportUrl>https://docs.confluent.io/kafka-connect-bigquery/current/index.html</supportUrl>
-                            <supportLogo>logos/confluent.png</supportLogo>
-
-                            <ownerUsername>wepay</ownerUsername>
-                            <ownerType>organization</ownerType>
-                            <ownerName>WePay</ownerName>
-                            <ownerUrl>https://go.wepay.com/</ownerUrl>
-
-                            <confluentControlCenterIntegration>true</confluentControlCenterIntegration>
-
-                            <componentTypes>
-                                <componentType>sink</componentType>
-                            </componentTypes>
-
-                            <tags>
-                                <tag>cloud</tag>
-                                <tag>analytics</tag>
-                                <tag>data</tag>
-                                <tag>gcp</tag>
-                                <tag>google</tag>
-                                <tag>bigquery</tag>
-                                <tag>warehouse</tag>
-                                <tag>platform</tag>
-                                <tag>nosql</tag>
-                            </tags>
-
-                            <requirements>
-                                <requirement>Apache Kafka 2.6 or higher / Confluent Platform 6.0 or higher</requirement>
-                                <requirement>Java 1.8 or higher</requirement>
-                                <requirement>Active Google Cloud Platform (GCP) account with authorization to create resources</requirement>
-                                <requirement>Kafka Connect 2.6 or higher / Confluent Platform 6.0 or higher</requirement>
-                            </requirements>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
         </plugins>
     </build>
 </project>
