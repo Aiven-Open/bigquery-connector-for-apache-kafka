@@ -4,6 +4,13 @@ name: Pull request checks
 on:
   pull_request:
     branches: [ github-actions ]
+
+# Disallow concurrent runs for the same PR by cancelling in-progress runs
+# when new commits are pushed
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     name: Build
