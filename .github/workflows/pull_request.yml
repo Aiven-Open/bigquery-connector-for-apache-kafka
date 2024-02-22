@@ -20,7 +20,7 @@ jobs:
       - name: Unit tests (Maven)
         run: mvn --batch-mode test
       - name: Integration tests (Maven)
-        run: mvn --batch-mode -Dskip.unit.tests=true integration-test
+        run: mvn --batch-mode -Dskip.unit.tests=true verify
         env:
           KCBQ_TEST_KEYFILE:    ${{ secrets.KCBQ_TEST_KEYFILE }}
           KCBQ_TEST_KEY_SOURCE: ${{ secrets.KCBQ_TEST_KEY_SOURCE }}
