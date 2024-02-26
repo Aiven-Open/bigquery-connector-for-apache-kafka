@@ -19,22 +19,20 @@
 
 package com.wepay.kafka.connect.bigquery;
 
+import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.PROJECT_CONFIG;
+import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG;
+
 import com.google.api.gax.core.FixedCredentialsProvider;
-import com.google.api.gax.rpc.HeaderProvider;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.BigQueryOptions;
 import com.google.cloud.bigquery.storage.v1.BigQueryWriteSettings;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageOptions;
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiConnectException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.ByteArrayInputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -42,64 +40,58 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.Objects;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.PROJECT_CONFIG;
-import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG;
-
-public abstract class GcpClientBuilder<Client> {
-
-  public enum KeySource {
-    FILE, JSON, APPLICATION_DEFAULT
-  }
+public abstract class GcpClientBuilder<ClientT> {
 
   private static final Logger logger = LoggerFactory.getLogger(GcpClientBuilder.class);
+  // Scope list taken from : https://developers.google.com/identity/protocols/oauth2/scopes#bigquery
+  private static final Collection<String> scopes = Lists.newArrayList(
+      "https://www.googleapis.com/auth/bigquery",
+      "https://www.googleapis.com/auth/bigquery.insertdata",
+      "https://www.googleapis.com/auth/cloud-platform",
+      "https://www.googleapis.com/auth/cloud-platform.read-only",
+      "https://www.googleapis.com/auth/devstorage.full_control",
+      "https://www.googleapis.com/auth/devstorage.read_only",
+      "https://www.googleapis.com/auth/devstorage.read_write"
+  );
   private String project = null;
   private KeySource keySource = null;
   private String key = null;
 
   private boolean useStorageWriteApi = false;
 
-  // Scope list taken from : https://developers.google.com/identity/protocols/oauth2/scopes#bigquery
-  private static final Collection<String> scopes = Lists.newArrayList(
-          "https://www.googleapis.com/auth/bigquery",
-          "https://www.googleapis.com/auth/bigquery.insertdata",
-          "https://www.googleapis.com/auth/cloud-platform",
-          "https://www.googleapis.com/auth/cloud-platform.read-only",
-          "https://www.googleapis.com/auth/devstorage.full_control",
-          "https://www.googleapis.com/auth/devstorage.read_only",
-          "https://www.googleapis.com/auth/devstorage.read_write"
-  );
-
-  public GcpClientBuilder<Client> withConfig(BigQuerySinkConfig config) {
+  public GcpClientBuilder<ClientT> withConfig(BigQuerySinkConfig config) {
     return withProject(config.getString(PROJECT_CONFIG))
         .withKeySource(config.getKeySource())
         .withKey(config.getKey())
         .withWriterApi(config.getBoolean(USE_STORAGE_WRITE_API_CONFIG));
   }
 
-  public GcpClientBuilder<Client> withProject(String project) {
+  public GcpClientBuilder<ClientT> withProject(String project) {
     Objects.requireNonNull(project, "Project cannot be null");
     this.project = project;
     return this;
   }
 
-  public GcpClientBuilder<Client> withWriterApi(Boolean useStorageWriteApi) {
+  public GcpClientBuilder<ClientT> withWriterApi(Boolean useStorageWriteApi) {
     this.useStorageWriteApi = useStorageWriteApi;
     return this;
   }
 
-  public GcpClientBuilder<Client> withKeySource(KeySource keySource) {
+  public GcpClientBuilder<ClientT> withKeySource(KeySource keySource) {
     Objects.requireNonNull(keySource, "Key cannot be null");
     this.keySource = keySource;
     return this;
   }
 
-  public GcpClientBuilder<Client> withKey(String key) {
+  public GcpClientBuilder<ClientT> withKey(String key) {
     this.key = key;
     return this;
   }
 
-  public Client build() {
+  public ClientT build() {
     return doBuild(project, credentials());
   }
 
@@ -136,15 +128,19 @@ public abstract class GcpClientBuilder<Client> {
     }
 
     try {
-      return useStorageWriteApi ?
-              GoogleCredentials.fromStream(credentialsStream).createScoped(scopes)
-              : GoogleCredentials.fromStream(credentialsStream);
+      return useStorageWriteApi
+          ? GoogleCredentials.fromStream(credentialsStream).createScoped(scopes)
+          : GoogleCredentials.fromStream(credentialsStream);
     } catch (IOException e) {
       throw new BigQueryConnectException("Failed to create credentials from input stream", e);
     }
   }
 
-  protected abstract Client doBuild(String project, GoogleCredentials credentials);
+  protected abstract ClientT doBuild(String project, GoogleCredentials credentials);
+
+  public enum KeySource {
+    FILE, JSON, APPLICATION_DEFAULT
+  }
 
   public static class BigQueryBuilder extends GcpClientBuilder<BigQuery> {
     @Override
@@ -183,24 +179,24 @@ public abstract class GcpClientBuilder<Client> {
    */
   public static class BigQueryWriteSettingsBuilder extends GcpClientBuilder<BigQueryWriteSettings> {
 
-      @Override
-      protected BigQueryWriteSettings doBuild(String project, GoogleCredentials credentials) {
-          BigQueryWriteSettings.Builder builder = BigQueryWriteSettings.newBuilder()
-                  .setQuotaProjectId(project);
+    @Override
+    protected BigQueryWriteSettings doBuild(String project, GoogleCredentials credentials) {
+      BigQueryWriteSettings.Builder builder = BigQueryWriteSettings.newBuilder()
+          .setQuotaProjectId(project);
 
-          if (credentials != null) {
-              builder.setCredentialsProvider(FixedCredentialsProvider.create(credentials));
-          } else {
-              logger.warn("Attempting to access GCS without authentication");
-          }
-
-          try {
-              return builder.build();
-          } catch (IOException e) {
-              logger.error("Failed to create Storage API write settings due to {}", e.getMessage());
-              throw new BigQueryStorageWriteApiConnectException("Failed to create Storage API write settings", e);
-          }
+      if (credentials != null) {
+        builder.setCredentialsProvider(FixedCredentialsProvider.create(credentials));
+      } else {
+        logger.warn("Attempting to access GCS without authentication");
       }
+
+      try {
+        return builder.build();
+      } catch (IOException e) {
+        logger.error("Failed to create Storage API write settings due to {}", e.getMessage());
+        throw new BigQueryStorageWriteApiConnectException("Failed to create Storage API write settings", e);
+      }
+    }
   }
 
 }

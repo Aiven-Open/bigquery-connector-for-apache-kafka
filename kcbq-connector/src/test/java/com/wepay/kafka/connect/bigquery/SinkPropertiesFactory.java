@@ -20,7 +20,6 @@
 package com.wepay.kafka.connect.bigquery;
 
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
-
 import java.util.HashMap;
 import java.util.Map;
 

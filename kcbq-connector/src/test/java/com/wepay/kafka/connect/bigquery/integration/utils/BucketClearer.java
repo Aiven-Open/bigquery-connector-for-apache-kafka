@@ -34,12 +34,13 @@ public class BucketClearer {
   /**
    * Clear out a GCS bucket. Useful in integration testing to provide a clean slate before creating
    * a connector and writing to that bucket.
-   * @param key The GCP credentials to use (can be a filename or a raw JSON string).
-   * @param project The GCP project the bucket belongs to.
+   *
+   * @param key        The GCP credentials to use (can be a filename or a raw JSON string).
+   * @param project    The GCP project the bucket belongs to.
    * @param bucketName The bucket to clear.
    * @param folderName The folder to clear (can be empty or null).
-   * @param keySource The key source. If "FILE", then the {@code key} parameter will be treated as a
-   *                  filename; if "JSON", then {@code key} will be treated as a raw JSON string.
+   * @param keySource  The key source. If "FILE", then the {@code key} parameter will be treated as a
+   *                   filename; if "JSON", then {@code key} will be treated as a raw JSON string.
    */
   public static void clearBucket(String key, String project, String bucketName, String folderName, String keySource) {
     Storage gcs = new GcpClientBuilder.GcsBuilder()

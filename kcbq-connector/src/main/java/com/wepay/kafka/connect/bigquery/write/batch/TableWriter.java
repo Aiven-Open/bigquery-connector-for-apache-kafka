@@ -21,28 +21,25 @@ package com.wepay.kafka.connect.bigquery.write.batch;
 
 import com.google.cloud.bigquery.BigQueryException;
 import com.google.cloud.bigquery.InsertAllRequest.RowToInsert;
-
 import com.google.cloud.bigquery.TableId;
-import com.wepay.kafka.connect.bigquery.utils.SinkRecordConverter;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
+import com.wepay.kafka.connect.bigquery.exception.BigQueryErrorResponses;
 import com.wepay.kafka.connect.bigquery.exception.ExpectedInterruptException;
 import com.wepay.kafka.connect.bigquery.utils.PartitionedTableId;
-import com.wepay.kafka.connect.bigquery.exception.BigQueryErrorResponses;
+import com.wepay.kafka.connect.bigquery.utils.SinkRecordConverter;
 import com.wepay.kafka.connect.bigquery.write.row.BigQueryWriter;
-
-import org.apache.kafka.connect.sink.SinkRecord;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.SortedMap;
 import java.util.TreeMap;
-import java.util.Objects;
 import java.util.function.Consumer;
+import org.apache.kafka.connect.sink.SinkRecord;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Simple Table Writer that attempts to write all the rows it is given at once.
@@ -57,9 +54,9 @@ public class TableWriter implements Runnable {
   private final Consumer<Collection<RowToInsert>> onFinish;
 
   /**
-   * @param writer the {@link BigQueryWriter} to use.
-   * @param table the BigQuery table to write to.
-   * @param rows the rows to write.
+   * @param writer   the {@link BigQueryWriter} to use.
+   * @param table    the BigQuery table to write to.
+   * @param rows     the rows to write.
    * @param onFinish a callback to invoke after all rows have been written successfully, which is
    *                 called with all the rows written by the writer
    */
@@ -73,6 +70,48 @@ public class TableWriter implements Runnable {
     this.onFinish = onFinish;
   }
 
+  private static int getNewBatchSize(int currentBatchSize, Throwable err) {
+    if (currentBatchSize == 1) {
+      logger.error("Attempted to reduce batch size below 1");
+      throw new BigQueryConnectException(
+          "Failed to write to BigQuery even after reducing batch size to 1 row at a time. "
+              + "This can indicate an error in the connector's logic for classifying BigQuery errors, as non-retriable"
+              + "errors may be being treated as retriable."
+              + "If that appears to be the case, please report the issue to the project's maintainers and include the "
+              + "complete stack trace for this error as it appears in the logs. "
+              + "Alternatively, there may be a record that the connector has read from Kafka that is too large to "
+              + "write to BigQuery using the streaming insert API, which cannot be addressed with a change to the "
+              + "connector and will need to be handled externally by optionally writing the record to BigQuery using "
+              + "another means and then reconfiguring the connector to skip the record. "
+              + "Finally, streaming insert quotas for BigQuery may be causing insertion failures for the connector; "
+              + "in that case, please ensure that quotas for maximum rows per second, maximum bytes per second, etc. "
+              + "are being respected before restarting the connector. "
+              + "The cause of this exception is the error encountered from BigQuery after the last attempt to write a "
+              + "batch was made.",
+          err
+      );
+    }
+    // round batch size up so we don't end up with a dangling 1 row at the end.
+    return (int) Math.ceil(currentBatchSize / 2.0);
+  }
+
+  /**
+   * @param exception the {@link BigQueryException} to check.
+   * @return true if this error is an error that can be fixed by retrying with a smaller batch
+   * size, or false otherwise.
+   */
+  private static boolean isBatchSizeError(BigQueryException exception) {
+    /*
+     * 400 with no error or reason represents a request that is more than 10MB. This is not
+     * documented but is referenced slightly under "Error codes" here:
+     * https://cloud.google.com/bigquery/quota-policy
+     * (by decreasing the batch size we can eventually expect to end up with a request under 10MB)
+     */
+    return BigQueryErrorResponses.isUnspecifiedBadRequestError(exception)
+        || BigQueryErrorResponses.isRequestTooLargeError(exception)
+        || BigQueryErrorResponses.isTooManyRowsError(exception);
+  }
+
   @Override
   public void run() {
     int currentIndex = 0;
@@ -84,10 +123,10 @@ public class TableWriter implements Runnable {
     try {
       while (currentIndex < rows.size()) {
         List<Map.Entry<SinkRecord, RowToInsert>> currentBatchList =
-                rowsList.subList(currentIndex, Math.min(currentIndex + currentBatchSize, rows.size()));
+            rowsList.subList(currentIndex, Math.min(currentIndex + currentBatchSize, rows.size()));
         try {
           SortedMap<SinkRecord, RowToInsert> currentBatch = new TreeMap<>(rows.comparator());
-          for (Map.Entry<SinkRecord, RowToInsert> record: currentBatchList) {
+          for (Map.Entry<SinkRecord, RowToInsert> record : currentBatchList) {
             currentBatch.put(record.getKey(), record.getValue());
           }
           writer.writeRows(table, currentBatch);
@@ -124,49 +163,6 @@ public class TableWriter implements Runnable {
     onFinish.accept(rows.values());
   }
 
-  private static int getNewBatchSize(int currentBatchSize, Throwable err) {
-    if (currentBatchSize == 1) {
-      logger.error("Attempted to reduce batch size below 1");
-      throw new BigQueryConnectException(
-          "Failed to write to BigQuery even after reducing batch size to 1 row at a time. "
-              + "This can indicate an error in the connector's logic for classifying BigQuery errors, as non-retriable"
-              + "errors may be being treated as retriable."
-              + "If that appears to be the case, please report the issue to the project's maintainers and include the "
-              + "complete stack trace for this error as it appears in the logs. "
-              + "Alternatively, there may be a record that the connector has read from Kafka that is too large to "
-              + "write to BigQuery using the streaming insert API, which cannot be addressed with a change to the "
-              + "connector and will need to be handled externally by optionally writing the record to BigQuery using "
-              + "another means and then reconfiguring the connector to skip the record. "
-              + "Finally, streaming insert quotas for BigQuery may be causing insertion failures for the connector; "
-              + "in that case, please ensure that quotas for maximum rows per second, maximum bytes per second, etc. "
-              + "are being respected before restarting the connector. "
-              + "The cause of this exception is the error encountered from BigQuery after the last attempt to write a "
-              + "batch was made.",
-          err
-      );
-    }
-    // round batch size up so we don't end up with a dangling 1 row at the end.
-    return (int) Math.ceil(currentBatchSize / 2.0);
-  }
-
-  /**
-   * @param exception the {@link BigQueryException} to check.
-   * @return true if this error is an error that can be fixed by retrying with a smaller batch
-   *         size, or false otherwise.
-   */
-  private static boolean isBatchSizeError(BigQueryException exception) {
-    /*
-     * 400 with no error or reason represents a request that is more than 10MB. This is not
-     * documented but is referenced slightly under "Error codes" here:
-     * https://cloud.google.com/bigquery/quota-policy
-     * (by decreasing the batch size we can eventually expect to end up with a request under 10MB)
-     */
-    return BigQueryErrorResponses.isUnspecifiedBadRequestError(exception)
-        || BigQueryErrorResponses.isRequestTooLargeError(exception)
-        || BigQueryErrorResponses.isTooManyRowsError(exception);
-  }
-
-
   public static class Builder implements TableWriterBuilder {
     private final BigQueryWriter writer;
     private final PartitionedTableId table;
@@ -176,8 +172,8 @@ public class TableWriter implements Runnable {
     private Consumer<Collection<RowToInsert>> onFinish;
 
     /**
-     * @param writer the BigQueryWriter to use
-     * @param table the BigQuery table to write to.
+     * @param writer          the BigQueryWriter to use
+     * @param table           the BigQuery table to write to.
      * @param recordConverter the record converter used to convert records to rows
      */
     public Builder(BigQueryWriter writer, PartitionedTableId table, SinkRecordConverter recordConverter) {
@@ -185,7 +181,7 @@ public class TableWriter implements Runnable {
       this.table = table;
 
       this.rows = new TreeMap<>(Comparator.comparing(SinkRecord::kafkaPartition)
-              .thenComparing(SinkRecord::kafkaOffset));
+          .thenComparing(SinkRecord::kafkaOffset));
       this.recordConverter = recordConverter;
 
       this.onFinish = null;
@@ -199,6 +195,7 @@ public class TableWriter implements Runnable {
     /**
      * Specify a callback to be invoked after all rows have been written. The callback will be
      * invoked with the full list of rows written by this table writer.
+     *
      * @param onFinish the callback to invoke; may not be null
      * @throws IllegalStateException if invoked more than once on a single builder instance
      */
@@ -211,7 +208,8 @@ public class TableWriter implements Runnable {
 
     @Override
     public TableWriter build() {
-      return new TableWriter(writer, table, rows, onFinish != null ? onFinish : n -> { });
+      return new TableWriter(writer, table, rows, onFinish != null ? onFinish : n -> {
+      });
     }
   }
 }

@@ -19,16 +19,15 @@
 
 package com.wepay.kafka.connect.bigquery.integration.utils;
 
+import static com.wepay.kafka.connect.bigquery.utils.TableNameUtils.table;
+
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.TableId;
 import com.wepay.kafka.connect.bigquery.utils.FieldNameSanitizer;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.util.Arrays;
 import java.util.Collection;
-
-import static com.wepay.kafka.connect.bigquery.utils.TableNameUtils.table;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class TableClearer {
   private static final Logger logger = LoggerFactory.getLogger(TableClearer.class);
@@ -36,9 +35,10 @@ public class TableClearer {
   /**
    * Clear out one or more BigQuery tables. Useful in integration testing to provide a clean slate
    * before creating a connector and writing to those tables.
+   *
    * @param bigQuery The BigQuery client to use when sending table deletion requests.
-   * @param dataset The dataset that the to-be-cleared tables belong to.
-   * @param tables The tables to clear.
+   * @param dataset  The dataset that the to-be-cleared tables belong to.
+   * @param tables   The tables to clear.
    */
   public static void clearTables(BigQuery bigQuery, String dataset, Collection<String> tables) {
     for (String tableName : tables) {
@@ -54,9 +54,10 @@ public class TableClearer {
   /**
    * Clear out one or more BigQuery tables. Useful in integration testing to provide a clean slate
    * before creating a connector and writing to those tables.
+   *
    * @param bigQuery The BigQuery client to use when sending table deletion requests.
-   * @param dataset The dataset that the to-be-cleared tables belong to.
-   * @param tables The tables to clear.
+   * @param dataset  The dataset that the to-be-cleared tables belong to.
+   * @param tables   The tables to clear.
    */
   public static void clearTables(BigQuery bigQuery, String dataset, String... tables) {
     clearTables(bigQuery, dataset, Arrays.asList(tables));

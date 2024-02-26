@@ -20,11 +20,9 @@
 package com.wepay.kafka.connect.bigquery.exception;
 
 import com.google.cloud.bigquery.BigQueryError;
-
-import org.apache.kafka.connect.errors.ConnectException;
-
 import java.util.List;
 import java.util.Map;
+import org.apache.kafka.connect.errors.ConnectException;
 
 /**
  * Class for exceptions that occur while interacting with BigQuery, such as login failures, schema
@@ -66,7 +64,8 @@ public class BigQueryConnectException extends ConnectException {
 
   @Override
   public String toString() {
-    return getCause() != null ?
-        super.toString() + "\nCaused by: " + getCause().getLocalizedMessage() : super.toString();
+    return getCause() != null
+        ? super.toString() + "\nCaused by: " + getCause().getLocalizedMessage()
+        : super.toString();
   }
 }

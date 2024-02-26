@@ -19,12 +19,25 @@
 
 package com.wepay.kafka.connect.bigquery.integration;
 
+import static io.confluent.kafka.serializers.AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG;
+import static org.apache.kafka.connect.runtime.ConnectorConfig.KEY_CONVERTER_CLASS_CONFIG;
+import static org.apache.kafka.connect.runtime.ConnectorConfig.VALUE_CONVERTER_CLASS_CONFIG;
+import static org.junit.Assert.assertEquals;
+
 import com.google.cloud.bigquery.BigQuery;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.integration.utils.SchemaRegistryTestUtils;
 import com.wepay.kafka.connect.bigquery.integration.utils.TableClearer;
 import com.wepay.kafka.connect.bigquery.retrieve.IdentitySchemaRetriever;
 import io.confluent.connect.avro.AvroConverter;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.LongStream;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaAndValue;
 import org.apache.kafka.connect.data.SchemaBuilder;
@@ -40,15 +53,6 @@ import org.junit.experimental.categories.Category;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.*;
-import java.util.stream.Collectors;
-import java.util.stream.LongStream;
-
-import static io.confluent.kafka.serializers.AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG;
-import static org.apache.kafka.connect.runtime.ConnectorConfig.KEY_CONVERTER_CLASS_CONFIG;
-import static org.apache.kafka.connect.runtime.ConnectorConfig.VALUE_CONVERTER_CLASS_CONFIG;
-import static org.junit.Assert.assertEquals;
-
 @Category(IntegrationTest.class)
 public class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
 
@@ -58,19 +62,16 @@ public class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
   private static final long NUM_RECORDS_PRODUCED = 8;
   private static final int TASKS_MAX = 1;
   private static final String KAFKA_FIELD_NAME = "kafkaKey";
-
-  private BigQuery bigQuery;
-
   private static SchemaRegistryTestUtils schemaRegistry;
-
   private static String schemaRegistryUrl;
-
+  private BigQuery bigQuery;
   private Converter keyConverter;
 
   private Converter valueConverter;
   private Schema valueSchema;
 
   private Schema keySchema;
+
   @Before
   public void setup() throws Exception {
     startConnect();
@@ -81,15 +82,15 @@ public class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
     schemaRegistryUrl = schemaRegistry.schemaRegistryUrl();
 
     valueSchema = SchemaBuilder.struct()
-            .optional()
-            .field("f1", Schema.STRING_SCHEMA)
-            .field("f2", Schema.BOOLEAN_SCHEMA)
-            .field("f3", Schema.FLOAT64_SCHEMA)
-            .build();
+        .optional()
+        .field("f1", Schema.STRING_SCHEMA)
+        .field("f2", Schema.BOOLEAN_SCHEMA)
+        .field("f3", Schema.FLOAT64_SCHEMA)
+        .build();
 
     keySchema = SchemaBuilder.struct()
-            .field("k1", Schema.INT64_SCHEMA)
-            .build();
+        .field("k1", Schema.INT64_SCHEMA)
+        .build();
   }
 
   @After
@@ -114,12 +115,12 @@ public class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
     // use the Avro converter with schemas enabled
     result.put(KEY_CONVERTER_CLASS_CONFIG, AvroConverter.class.getName());
     result.put(
-            ConnectorConfig.KEY_CONVERTER_CLASS_CONFIG + "." + SCHEMA_REGISTRY_URL_CONFIG,
-            schemaRegistryUrl);
+        ConnectorConfig.KEY_CONVERTER_CLASS_CONFIG + "." + SCHEMA_REGISTRY_URL_CONFIG,
+        schemaRegistryUrl);
     result.put(VALUE_CONVERTER_CLASS_CONFIG, AvroConverter.class.getName());
     result.put(
-            ConnectorConfig.VALUE_CONVERTER_CLASS_CONFIG + "." + SCHEMA_REGISTRY_URL_CONFIG,
-            schemaRegistryUrl);
+        ConnectorConfig.VALUE_CONVERTER_CLASS_CONFIG + "." + SCHEMA_REGISTRY_URL_CONFIG,
+        schemaRegistryUrl);
 
     if (upsert) {
       result.put(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG, "true");
@@ -175,9 +176,9 @@ public class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
       // Each pair of records will share a key. Only the second record of each pair should be
       // present in the table at the end of the test
       List<SchemaAndValue> record = new ArrayList<>();
-              SchemaAndValue schemaAndValue = new SchemaAndValue(valueSchema, data(i));
+      SchemaAndValue schemaAndValue = new SchemaAndValue(valueSchema, data(i));
       SchemaAndValue keyschemaAndValue = new SchemaAndValue(keySchema, new Struct(keySchema)
-              .put("k1", i/2l));
+          .put("k1", i / 2l));
 
       logger.debug("Sending message with key '{}' and value '{}' to topic '{}'", keyschemaAndValue, schemaAndValue, topic);
 
@@ -243,13 +244,13 @@ public class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
       List<SchemaAndValue> record = new ArrayList<>();
       SchemaAndValue schemaAndValue;
       // Every fourth record will be a tombstone, so every record pair with an odd-numbered key will be dropped
-      if(i % 4 == 3) {
-        schemaAndValue = new SchemaAndValue(valueSchema,null);
+      if (i % 4 == 3) {
+        schemaAndValue = new SchemaAndValue(valueSchema, null);
       } else {
         schemaAndValue = new SchemaAndValue(valueSchema, data(i));
       }
       SchemaAndValue keyschemaAndValue = new SchemaAndValue(keySchema, new Struct(keySchema)
-              .put("k1", i/ 2L));
+          .put("k1", i / 2L));
 
       logger.debug("Sending message with key '{}' and value '{}' to topic '{}'", keyschemaAndValue, schemaAndValue, topic);
 
@@ -318,14 +319,14 @@ public class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
       List<SchemaAndValue> record = new ArrayList<>();
       SchemaAndValue schemaAndValue;
       // Every fourth record will be a tombstone, so every record pair with an odd-numbered key will be dropped
-      if(i % 4 == 3) {
-        schemaAndValue = new SchemaAndValue(valueSchema,null);
+      if (i % 4 == 3) {
+        schemaAndValue = new SchemaAndValue(valueSchema, null);
       } else {
         schemaAndValue = new SchemaAndValue(valueSchema, data(i));
       }
 
       SchemaAndValue keyschemaAndValue = new SchemaAndValue(keySchema, new Struct(keySchema)
-              .put("k1", i/ 2L));
+          .put("k1", i / 2L));
 
       logger.debug("Sending message with key '{}' and value '{}' to topic '{}'", keyschemaAndValue, schemaAndValue, topic);
 
@@ -359,19 +360,20 @@ public class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
     keyConverter = new AvroConverter();
     valueConverter = new AvroConverter();
     keyConverter.configure(Collections.singletonMap(
-                    SCHEMA_REGISTRY_URL_CONFIG,schemaRegistryUrl
-            ), true
+            SCHEMA_REGISTRY_URL_CONFIG, schemaRegistryUrl
+        ), true
     );
     valueConverter.configure(Collections.singletonMap(
-                    SCHEMA_REGISTRY_URL_CONFIG,schemaRegistryUrl
-            ), false
+            SCHEMA_REGISTRY_URL_CONFIG, schemaRegistryUrl
+        ), false
     );
   }
+
   private Struct data(long iteration) {
     return new Struct(valueSchema)
-            .put("f1", iteration % 2 == 0 ? "a string" : "another string")
-            .put("f2", iteration % 3 == 0)
-            .put("f3", iteration / 0.69);
+        .put("f1", iteration % 2 == 0 ? "a string" : "another string")
+        .put("f2", iteration % 3 == 0)
+        .put("f3", iteration / 0.69);
   }
 
 }

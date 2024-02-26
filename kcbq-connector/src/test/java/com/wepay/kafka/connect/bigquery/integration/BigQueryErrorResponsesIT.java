@@ -19,6 +19,12 @@
 
 package com.wepay.kafka.connect.bigquery.integration;
 
+import static com.google.cloud.bigquery.InsertAllRequest.RowToInsert;
+import static com.wepay.kafka.connect.bigquery.utils.TableNameUtils.table;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.BigQueryError;
 import com.google.cloud.bigquery.BigQueryException;
@@ -32,14 +38,8 @@ import com.google.cloud.bigquery.StandardTableDefinition;
 import com.google.cloud.bigquery.Table;
 import com.google.cloud.bigquery.TableId;
 import com.google.cloud.bigquery.TableInfo;
-import com.wepay.kafka.connect.bigquery.integration.utils.TableClearer;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryErrorResponses;
-import org.apache.kafka.test.TestUtils;
-import org.junit.Before;
-import org.junit.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
+import com.wepay.kafka.connect.bigquery.integration.utils.TableClearer;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -48,12 +48,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
-
-import static com.google.cloud.bigquery.InsertAllRequest.RowToInsert;
-import static com.wepay.kafka.connect.bigquery.utils.TableNameUtils.table;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import org.apache.kafka.test.TestUtils;
+import org.junit.Before;
+import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class BigQueryErrorResponsesIT extends BaseConnectorIT {
 
@@ -82,7 +81,7 @@ public class BigQueryErrorResponsesIT extends BaseConnectorIT {
 
   @Test
   public void testWriteToRecreatedTable() throws Exception {
-    TableId  table = TableId.of(dataset(), suffixedAndSanitizedTable("recreated table"));
+    TableId table = TableId.of(dataset(), suffixedAndSanitizedTable("recreated table"));
     TableClearer.clearTables(bigQuery, dataset(), table.getTable());
 
     Schema schema = Schema.of(Field.of("f1", LegacySQLTypeName.STRING));

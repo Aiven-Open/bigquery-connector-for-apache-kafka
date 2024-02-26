@@ -19,6 +19,12 @@
 
 package com.wepay.kafka.connect.bigquery.write.row;
 
+import static org.mockito.Matchers.anyObject;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.Table;
 import com.google.cloud.bigquery.TableId;
@@ -34,8 +40,10 @@ import com.wepay.kafka.connect.bigquery.config.BigQuerySinkTaskConfig;
 import com.wepay.kafka.connect.bigquery.utils.MockTime;
 import com.wepay.kafka.connect.bigquery.utils.Time;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageApiBatchModeHandler;
-
 import com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiDefaultStream;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
@@ -46,17 +54,7 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-
-import static org.mockito.Matchers.anyObject;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
-public class GCSToBQWriterTest {
+public class GcsToBqWriterTest {
 
   private static SinkPropertiesFactory propertiesFactory;
 
@@ -102,7 +100,7 @@ public class GCSToBQWriterTest {
         Collections.singletonList(spoofSinkRecord(topic, 0, 0, "some_field", "some_value")));
     testTask.flush(Collections.emptyMap());
 
-    verify(storage, times(1)).create((BlobInfo)anyObject(), (byte[])anyObject());
+    verify(storage, times(1)).create((BlobInfo) anyObject(), (byte[]) anyObject());
   }
 
   @Test
@@ -121,7 +119,7 @@ public class GCSToBQWriterTest {
     SchemaManager schemaManager = mock(SchemaManager.class);
     Map<TableId, Table> cache = new HashMap<>();
 
-    when(storage.create((BlobInfo)anyObject(), (byte[])anyObject()))
+    when(storage.create((BlobInfo) anyObject(), (byte[]) anyObject()))
         .thenThrow(new StorageException(500, "internal server error")) // throw first time
         .thenReturn(null); // return second time. (we don't care about the result.)
 
@@ -141,7 +139,7 @@ public class GCSToBQWriterTest {
         Collections.singletonList(spoofSinkRecord(topic, 0, 0, "some_field", "some_value")));
     testTask.flush(Collections.emptyMap());
 
-    verify(storage, times(2)).create((BlobInfo)anyObject(), (byte[])anyObject());
+    verify(storage, times(2)).create((BlobInfo) anyObject(), (byte[]) anyObject());
   }
 
   @Test
@@ -160,7 +158,7 @@ public class GCSToBQWriterTest {
     SchemaManager schemaManager = mock(SchemaManager.class);
     Map<TableId, Table> cache = new HashMap<>();
 
-    when(storage.create((BlobInfo)anyObject(), (byte[])anyObject()))
+    when(storage.create((BlobInfo) anyObject(), (byte[]) anyObject()))
         .thenThrow(new StorageException(500, "internal server error"));
 
     BigQuerySinkTask testTask = new BigQuerySinkTask(
@@ -181,7 +179,7 @@ public class GCSToBQWriterTest {
       testTask.flush(Collections.emptyMap());
       Assert.fail("expected testTask.flush to fail.");
     } catch (ConnectException ex) {
-      verify(storage, times(4)).create((BlobInfo)anyObject(), (byte[])anyObject());
+      verify(storage, times(4)).create((BlobInfo) anyObject(), (byte[]) anyObject());
     }
   }
 
@@ -192,16 +190,17 @@ public class GCSToBQWriterTest {
 
   /**
    * Utility method for making and retrieving properties based on provided parameters.
-   * @param bigqueryRetry The number of retries.
+   *
+   * @param bigqueryRetry     The number of retries.
    * @param bigqueryRetryWait The wait time for each retry.
-   * @param topic The topic of the record.
-   * @param dataset The dataset of the record.
+   * @param topic             The topic of the record.
+   * @param dataset           The dataset of the record.
    * @return The map of bigquery sink configurations.
    */
-  private Map<String,String> makeProperties(String bigqueryRetry,
-                                            String bigqueryRetryWait,
-                                            String topic,
-                                            String dataset) {
+  private Map<String, String> makeProperties(String bigqueryRetry,
+                                             String bigqueryRetryWait,
+                                             String topic,
+                                             String dataset) {
     Map<String, String> properties = propertiesFactory.getProperties();
     properties.put(BigQuerySinkConfig.BIGQUERY_RETRY_CONFIG, bigqueryRetry);
     properties.put(BigQuerySinkConfig.BIGQUERY_RETRY_WAIT_CONFIG, bigqueryRetryWait);
@@ -216,10 +215,11 @@ public class GCSToBQWriterTest {
 
   /**
    * Utility method for spoofing SinkRecords that should be passed to SinkTask.put()
-   * @param topic The topic of the record.
+   *
+   * @param topic     The topic of the record.
    * @param partition The partition of the record.
-   * @param field The name of the field in the record's struct.
-   * @param value The content of the field.
+   * @param field     The name of the field in the record's struct.
+   * @param value     The content of the field.
    * @return The spoofed SinkRecord.
    */
   private SinkRecord spoofSinkRecord(String topic,

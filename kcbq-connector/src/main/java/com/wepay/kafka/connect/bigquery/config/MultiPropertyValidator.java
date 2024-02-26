@@ -19,15 +19,14 @@
 
 package com.wepay.kafka.connect.bigquery.config;
 
-import org.apache.kafka.common.config.ConfigValue;
-
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import org.apache.kafka.common.config.ConfigValue;
 
-public abstract class MultiPropertyValidator<Config> {
+public abstract class MultiPropertyValidator<ConfigT> {
 
   private final String propertyName;
 
@@ -39,7 +38,7 @@ public abstract class MultiPropertyValidator<Config> {
     return propertyName;
   }
 
-  public Optional<String> validate(ConfigValue value, Config config, Map<String, ConfigValue> valuesByName) {
+  public Optional<String> validate(ConfigValue value, ConfigT config, Map<String, ConfigValue> valuesByName) {
     // Only perform follow-up validation if the property doesn't already have an error associated with it
     if (!value.errorMessages().isEmpty()) {
       return Optional.empty();
@@ -66,5 +65,6 @@ public abstract class MultiPropertyValidator<Config> {
   }
 
   protected abstract Collection<String> dependents();
-  protected abstract Optional<String> doValidate(Config config);
+
+  protected abstract Optional<String> doValidate(ConfigT config);
 }

@@ -24,19 +24,15 @@ import static org.junit.Assert.assertThrows;
 
 import com.google.cloud.bigquery.Field;
 import com.google.cloud.bigquery.LegacySQLTypeName;
-
 import com.wepay.kafka.connect.bigquery.exception.ConversionConnectException;
-
 import com.wepay.kafka.connect.bigquery.utils.FieldNameSanitizer;
+import io.confluent.connect.avro.AvroData;
 import org.apache.kafka.connect.data.Date;
 import org.apache.kafka.connect.data.Decimal;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Timestamp;
-
 import org.junit.Test;
-
-import io.confluent.connect.avro.AvroData;
 
 public class BigQuerySchemaConverterTest {
 
@@ -343,12 +339,12 @@ public class BigQuerySchemaConverterTest {
 
     Field floatField =
         Field.newBuilder(keyName, LegacySQLTypeName.FLOAT)
-             .setMode(Field.Mode.REQUIRED)
-             .build();
+            .setMode(Field.Mode.REQUIRED)
+            .build();
     Field stringField =
         Field.newBuilder(valueName, LegacySQLTypeName.STRING)
-             .setMode(Field.Mode.REQUIRED)
-             .build();
+            .setMode(Field.Mode.REQUIRED)
+            .build();
 
     com.google.cloud.bigquery.Schema bigQueryExpectedSchema =
         com.google.cloud.bigquery.Schema.of(
@@ -616,7 +612,7 @@ public class BigQuerySchemaConverterTest {
     com.google.cloud.bigquery.Schema bigQueryExpectedSchema =
         com.google.cloud.bigquery.Schema.of(
             com.google.cloud.bigquery.Field.newBuilder(fieldName,
-                                                       LegacySQLTypeName.STRING)
+                    LegacySQLTypeName.STRING)
                 .setMode(com.google.cloud.bigquery.Field.Mode.REQUIRED)
                 .setDescription(fieldDoc)
                 .build()
@@ -624,8 +620,8 @@ public class BigQuerySchemaConverterTest {
 
     Schema kafkaConnectTestSchema =
         SchemaBuilder.struct()
-                     .field(fieldName, SchemaBuilder.string().doc(fieldDoc).build())
-                     .build();
+            .field(fieldName, SchemaBuilder.string().doc(fieldDoc).build())
+            .build();
 
     com.google.cloud.bigquery.Schema bigQueryTestSchema =
         new BigQuerySchemaConverter(false).convertSchema(kafkaConnectTestSchema);
@@ -687,8 +683,8 @@ public class BigQuerySchemaConverterTest {
         .fields()
         .name(fieldName)
         .type()
-            .array().items()
-                .map().values().type("RecursiveItem").noDefault()
+        .array().items()
+        .map().values().type("RecursiveItem").noDefault()
         .endRecord();
 
     Schema connectSchema = new AvroData(100).toConnectSchema(recursiveAvroSchema);

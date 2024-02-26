@@ -19,30 +19,28 @@
 
 package com.wepay.kafka.connect.bigquery.config;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Optional;
-
 import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.DELETE_ENABLED_CONFIG;
 import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.KAFKA_KEY_FIELD_NAME_CONFIG;
 import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.MERGE_INTERVAL_MS_CONFIG;
 import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.MERGE_RECORDS_THRESHOLD_CONFIG;
 import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.UPSERT_ENABLED_CONFIG;
 
-public abstract class UpsertDeleteValidator extends MultiPropertyValidator<BigQuerySinkConfig> {
-  private UpsertDeleteValidator(String propertyName) {
-    super(propertyName);
-  }
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+public abstract class UpsertDeleteValidator extends MultiPropertyValidator<BigQuerySinkConfig> {
   private static final Collection<String> DEPENDENTS = Collections.unmodifiableCollection(Arrays.asList(
       MERGE_INTERVAL_MS_CONFIG, MERGE_RECORDS_THRESHOLD_CONFIG, KAFKA_KEY_FIELD_NAME_CONFIG
   ));
-
   private static final Logger logger = LoggerFactory.getLogger(UpsertDeleteValidator.class);
+
+  private UpsertDeleteValidator(String propertyName) {
+    super(propertyName);
+  }
 
   @Override
   protected Collection<String> dependents() {
@@ -68,9 +66,9 @@ public abstract class UpsertDeleteValidator extends MultiPropertyValidator<BigQu
 
     if (mergeInterval != -1 && mergeInterval < 10_000L) {
       logger.warn(String.format(
-              "%s should not be set to less than 10 seconds. A validation would be introduced in a future release to " +
-                      "this effect.",
-              MERGE_INTERVAL_MS_CONFIG
+          "%s should not be set to less than 10 seconds. A validation would be introduced in a future release to "
+              + "this effect.",
+          MERGE_INTERVAL_MS_CONFIG
       ));
     }
 

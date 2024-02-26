@@ -3,14 +3,14 @@ package com.wepay.kafka.connect.bigquery.write.storage;
 import com.google.api.core.ApiFuture;
 import com.google.cloud.bigquery.storage.v1.AppendRowsResponse;
 import com.google.protobuf.Descriptors;
-import org.json.JSONArray;
-
 import java.io.IOException;
+import org.json.JSONArray;
 
 public interface StreamWriter extends AutoCloseable {
 
   /**
    * Write the provided rows
+   *
    * @param rows the rows to write; may not be null
    * @return the response from BigQuery for the write attempt
    */

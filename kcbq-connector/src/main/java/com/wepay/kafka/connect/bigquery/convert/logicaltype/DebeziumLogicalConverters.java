@@ -20,26 +20,26 @@
 package com.wepay.kafka.connect.bigquery.convert.logicaltype;
 
 import com.google.cloud.bigquery.LegacySQLTypeName;
-
 import io.debezium.time.Date;
 import io.debezium.time.MicroTime;
 import io.debezium.time.MicroTimestamp;
 import io.debezium.time.Time;
 import io.debezium.time.Timestamp;
 import io.debezium.time.ZonedTimestamp;
-
-import org.apache.kafka.connect.data.Schema;
-
 import java.text.SimpleDateFormat;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.TemporalAccessor;
 import java.util.concurrent.TimeUnit;
+import org.apache.kafka.connect.data.Schema;
 
 /**
  * Class containing all the Debezium logical type converters.
  */
 public class DebeziumLogicalConverters {
+
+  private static final int MICROS_IN_SEC = 1000000;
+  private static final int MICROS_IN_MILLI = 1000;
 
   static {
     LogicalConverterRegistry.register(Date.SCHEMA_NAME, new DateConverter());
@@ -50,9 +50,6 @@ public class DebeziumLogicalConverters {
     LogicalConverterRegistry.register(Timestamp.SCHEMA_NAME, new TimestampConverter());
   }
 
-  private static final int MICROS_IN_SEC = 1000000;
-  private static final int MICROS_IN_MILLI = 1000;
-
   /**
    * Class for converting Debezium date logical types to BigQuery dates.
    */
@@ -62,8 +59,8 @@ public class DebeziumLogicalConverters {
      */
     public DateConverter() {
       super(Date.SCHEMA_NAME,
-            Schema.Type.INT32,
-            LegacySQLTypeName.DATE);
+          Schema.Type.INT32,
+          LegacySQLTypeName.DATE);
     }
 
     @Override
@@ -71,7 +68,7 @@ public class DebeziumLogicalConverters {
       Integer daysSinceEpoch = (Integer) kafkaConnectObject;
       long msSinceEpoch = TimeUnit.DAYS.toMillis(daysSinceEpoch);
       java.util.Date date = new java.util.Date(msSinceEpoch);
-      return getBQDateFormat().format(date);
+      return getBqDateFormat().format(date);
     }
   }
 
@@ -84,8 +81,8 @@ public class DebeziumLogicalConverters {
      */
     public MicroTimeConverter() {
       super(MicroTime.SCHEMA_NAME,
-            Schema.Type.INT64,
-            LegacySQLTypeName.TIME);
+          Schema.Type.INT64,
+          LegacySQLTypeName.TIME);
     }
 
     @Override
@@ -115,8 +112,8 @@ public class DebeziumLogicalConverters {
      */
     public MicroTimestampConverter() {
       super(MicroTimestamp.SCHEMA_NAME,
-            Schema.Type.INT64,
-            LegacySQLTypeName.TIMESTAMP);
+          Schema.Type.INT64,
+          LegacySQLTypeName.TIMESTAMP);
     }
 
     @Override
@@ -146,14 +143,14 @@ public class DebeziumLogicalConverters {
      */
     public TimeConverter() {
       super(Time.SCHEMA_NAME,
-            Schema.Type.INT32,
-            LegacySQLTypeName.TIME);
+          Schema.Type.INT32,
+          LegacySQLTypeName.TIME);
     }
 
     @Override
     public String convert(Object kafkaConnectObject) {
       java.util.Date date = new java.util.Date((Integer) kafkaConnectObject);
-      return getBQTimeFormat().format(date);
+      return getBqTimeFormat().format(date);
     }
   }
 
@@ -166,8 +163,8 @@ public class DebeziumLogicalConverters {
      */
     public TimestampConverter() {
       super(Timestamp.SCHEMA_NAME,
-            Schema.Type.INT64,
-            LegacySQLTypeName.TIMESTAMP);
+          Schema.Type.INT64,
+          LegacySQLTypeName.TIMESTAMP);
     }
 
     @Override
@@ -186,8 +183,8 @@ public class DebeziumLogicalConverters {
      */
     public ZonedTimestampConverter() {
       super(ZonedTimestamp.SCHEMA_NAME,
-            Schema.Type.STRING,
-            LegacySQLTypeName.TIMESTAMP);
+          Schema.Type.STRING,
+          LegacySQLTypeName.TIMESTAMP);
     }
 
     @Override

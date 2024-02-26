@@ -19,6 +19,20 @@
 
 package com.wepay.kafka.connect.bigquery;
 
+import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.Table;
 import com.google.cloud.bigquery.TableId;
@@ -31,6 +45,13 @@ import com.wepay.kafka.connect.bigquery.utils.MockTime;
 import com.wepay.kafka.connect.bigquery.utils.Time;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageApiBatchModeHandler;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiBatchApplicationStream;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.record.TimestampType;
@@ -44,177 +65,152 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
-
-import static org.junit.Assert.assertTrue;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.eq;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.CALLS_REAL_METHODS;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.reset;
-
 public class BigQueryStorageApiBatchSinkTaskTest {
-    private static final SinkTaskPropertiesFactory propertiesFactory = new SinkTaskPropertiesFactory();
-    Map<String, String> properties;
-    private final AtomicLong spoofedRecordOffset = new AtomicLong();
-    private final StorageWriteApiBatchApplicationStream mockedStorageWriteApiBatchStream = mock(
-            StorageWriteApiBatchApplicationStream.class, CALLS_REAL_METHODS);
-    private final StorageApiBatchModeHandler mockedBatchHandler = mock(StorageApiBatchModeHandler.class);
+  private static final SinkTaskPropertiesFactory propertiesFactory = new SinkTaskPropertiesFactory();
+  final String topic = "test-topic";
+  private final AtomicLong spoofedRecordOffset = new AtomicLong();
+  private final StorageWriteApiBatchApplicationStream mockedStorageWriteApiBatchStream = mock(
+      StorageWriteApiBatchApplicationStream.class, CALLS_REAL_METHODS);
+  private final StorageApiBatchModeHandler mockedBatchHandler = mock(StorageApiBatchModeHandler.class);
+  Map<String, String> properties;
+  BigQuery bigQuery = mock(BigQuery.class);
+  Storage storage = mock(Storage.class);
+  SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
+  SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
+  SchemaManager schemaManager = mock(SchemaManager.class);
+  Map<TableId, Table> cache = new HashMap<>();
+  Time time = new MockTime();
+  BigQuerySinkTask testTask = new BigQuerySinkTask(
+      bigQuery, schemaRetriever, storage, schemaManager, cache, mockedStorageWriteApiBatchStream, mockedBatchHandler, time);
+  BigQueryStorageWriteApiConnectException exception = new BigQueryStorageWriteApiConnectException("error 12345");
+  Map<TopicPartition, OffsetAndMetadata> mockedOffset = mock(Map.class);
 
-    BigQuery bigQuery = mock(BigQuery.class);
+  @Before
+  public void setUp() {
+    reset(mockedStorageWriteApiBatchStream);
+    properties = propertiesFactory.getProperties();
 
-    Storage storage = mock(Storage.class);
-    SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
-    SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
-    SchemaManager schemaManager = mock(SchemaManager.class);
-    Map<TableId, Table> cache = new HashMap<>();
-    Time time = new MockTime();
-    BigQuerySinkTask testTask = new BigQuerySinkTask(
-            bigQuery, schemaRetriever, storage, schemaManager, cache, mockedStorageWriteApiBatchStream, mockedBatchHandler, time);
-    BigQueryStorageWriteApiConnectException exception = new BigQueryStorageWriteApiConnectException("error 12345");
-    final String topic = "test-topic";
+    properties.put(BigQuerySinkConfig.TOPICS_CONFIG, topic);
+    properties.put(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, "true");
+    properties.put(BigQuerySinkConfig.ENABLE_BATCH_MODE_CONFIG, "true");
+    properties.put(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG, "scratch");
+    spoofedRecordOffset.set(0);
+    mockedOffset.put(new TopicPartition(topic, 0), new OffsetAndMetadata(0));
 
-    Map<TopicPartition, OffsetAndMetadata> mockedOffset = mock(Map.class);
+    doNothing().when(mockedStorageWriteApiBatchStream).initializeAndWriteRecords(any(), any(), eq("dummyStream"));
+    doNothing().when(mockedStorageWriteApiBatchStream).shutdown();
+    doNothing().when(mockedBatchHandler).refreshStreams();
+    when(mockedBatchHandler.updateOffsetsOnStream(any(), any())).thenReturn("dummyStream");
+    when(mockedBatchHandler.getCommitableOffsets()).thenReturn(mockedOffset);
+    testTask.initialize(sinkTaskContext);
+  }
 
-    @Before
-    public void setUp()  {
-        reset(mockedStorageWriteApiBatchStream);
-        properties = propertiesFactory.getProperties();
+  @After
+  public void teardown() {
+    testTask.stop();
+  }
 
-        properties.put(BigQuerySinkConfig.TOPICS_CONFIG, topic);
-        properties.put(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, "true");
-        properties.put(BigQuerySinkConfig.ENABLE_BATCH_MODE_CONFIG, "true");
-        properties.put(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG, "scratch");
-        spoofedRecordOffset.set(0);
-        mockedOffset.put(new TopicPartition(topic, 0), new OffsetAndMetadata(0));
+  @Test
+  public void testPut() throws Exception {
+    CountDownLatch writeThreadStarted = new CountDownLatch(1);
+    doAnswer(invocationOnMock -> {
+      writeThreadStarted.countDown();
+      return null;
+    }).when(mockedStorageWriteApiBatchStream).initializeAndWriteRecords(any(), any(), any());
 
-        doNothing().when(mockedStorageWriteApiBatchStream).initializeAndWriteRecords(any(), any(), eq("dummyStream"));
-        doNothing().when(mockedStorageWriteApiBatchStream).shutdown();
-        doNothing().when(mockedBatchHandler).refreshStreams();
-        when(mockedBatchHandler.updateOffsetsOnStream(any(), any())).thenReturn("dummyStream");
-        when(mockedBatchHandler.getCommitableOffsets()).thenReturn(mockedOffset);
-        testTask.initialize(sinkTaskContext);
-    }
+    testTask.start(properties);
+    testTask.put(Collections.singletonList(spoofSinkRecord()));
 
-    @After
-    public void teardown() {
-        testTask.stop();
-    }
+    assertTrue(
+        "Task did not initialize expected write thread for record in time",
+        writeThreadStarted.await(1, TimeUnit.SECONDS)
+    );
+  }
 
-    @Test
-    public void testPut() throws Exception {
-        CountDownLatch writeThreadStarted = new CountDownLatch(1);
-        doAnswer(invocationOnMock -> {
-            writeThreadStarted.countDown();
-            return null;
-        }).when(mockedStorageWriteApiBatchStream).initializeAndWriteRecords(any(), any(), any());
+  @Test
+  public void testStart() {
+    ScheduledExecutorService loadExecutor = mock(ScheduledExecutorService.class);
+    testTask.loadExecutor = loadExecutor;
+    testTask.start(properties);
 
-        testTask.start(properties);
-        testTask.put(Collections.singletonList(spoofSinkRecord()));
+    // Ensure that the task has scheduled exactly one load task
+    ArgumentCaptor<Runnable> loadExecutorTask = ArgumentCaptor.forClass(Runnable.class);
+    verify(loadExecutor, times(1)).scheduleAtFixedRate(loadExecutorTask.capture(), anyLong(), anyLong(), any());
 
-        assertTrue(
-            "Task did not initialize expected write thread for record in time",
-            writeThreadStarted.await(1, TimeUnit.SECONDS)
-        );
-    }
+    // Run that load task
+    loadExecutorTask.getValue().run();
 
-    @Test
-    public void testStart() {
-        ScheduledExecutorService loadExecutor = mock(ScheduledExecutorService.class);
-        testTask.loadExecutor = loadExecutor;
-        testTask.start(properties);
+    // Ensure that the load task created a new stream
+    verify(mockedBatchHandler, times(1)).refreshStreams();
+  }
 
-        // Ensure that the task has scheduled exactly one load task
-        ArgumentCaptor<Runnable> loadExecutorTask = ArgumentCaptor.forClass(Runnable.class);
-        verify(loadExecutor, times(1)).scheduleAtFixedRate(loadExecutorTask.capture(), anyLong(), anyLong(), any());
+  @Test(expected = BigQueryStorageWriteApiConnectException.class)
+  public void testBatchLoadFailure() throws InterruptedException {
+    ScheduledExecutorService loadExecutor = mock(ScheduledExecutorService.class);
+    testTask.loadExecutor = loadExecutor;
+    testTask.start(properties);
 
-        // Run that load task
-        loadExecutorTask.getValue().run();
+    // Ensure that the task has scheduled exactly one load task
+    ArgumentCaptor<Runnable> loadExecutorTask = ArgumentCaptor.forClass(Runnable.class);
+    verify(loadExecutor, times(1)).scheduleAtFixedRate(loadExecutorTask.capture(), anyLong(), anyLong(), any());
 
-        // Ensure that the load task created a new stream
-        verify(mockedBatchHandler, times(1)).refreshStreams();
-    }
+    // Run that load task
+    doThrow(exception).when(mockedBatchHandler).refreshStreams();
+    loadExecutorTask.getValue().run();
 
-    @Test(expected = BigQueryStorageWriteApiConnectException.class)
-    public void testBatchLoadFailure() throws InterruptedException {
-        ScheduledExecutorService loadExecutor = mock(ScheduledExecutorService.class);
-        testTask.loadExecutor = loadExecutor;
-        testTask.start(properties);
+    // Ensure that the failure of the load task has caused the load executor to be shut down
+    verify(loadExecutor).shutdown();
+    when(loadExecutor.isTerminated()).thenReturn(true);
 
-        // Ensure that the task has scheduled exactly one load task
-        ArgumentCaptor<Runnable> loadExecutorTask = ArgumentCaptor.forClass(Runnable.class);
-        verify(loadExecutor, times(1)).scheduleAtFixedRate(loadExecutorTask.capture(), anyLong(), anyLong(), any());
+    // Ensure that the load task failure is propagated by put()
+    testTask.put(Collections.emptyList());
+  }
 
-        // Run that load task
-        doThrow(exception).when(mockedBatchHandler).refreshStreams();
-        loadExecutorTask.getValue().run();
+  @Test(expected = BigQueryConnectException.class)
+  public void testSimplePutException() throws Exception {
+    testTask.start(properties);
+    doThrow(exception).when(mockedStorageWriteApiBatchStream).initializeAndWriteRecords(any(), any(), eq("dummyStream"));
 
-        // Ensure that the failure of the load task has caused the load executor to be shut down
-        verify(loadExecutor).shutdown();
-        when(loadExecutor.isTerminated()).thenReturn(true);
-
-        // Ensure that the load task failure is propagated by put()
+    testTask.put(Collections.singletonList(spoofSinkRecord()));
+    try {
+      while (true) {
+        Thread.sleep(100);
         testTask.put(Collections.emptyList());
+      }
+    } catch (Exception e) {
+      assertTrue(e.getCause() instanceof BigQueryStorageWriteApiConnectException);
+      throw e;
     }
+  }
 
-    @Test(expected = BigQueryConnectException.class)
-    public void testSimplePutException() throws Exception {
-        testTask.start(properties);
-        doThrow(exception).when(mockedStorageWriteApiBatchStream).initializeAndWriteRecords(any(), any(), eq("dummyStream"));
-
-        testTask.put(Collections.singletonList(spoofSinkRecord()));
-        try {
-            while (true) {
-                Thread.sleep(100);
-                testTask.put(Collections.emptyList());
-            }
-        } catch (Exception e) {
-            assertTrue(e.getCause() instanceof BigQueryStorageWriteApiConnectException);
-            throw e;
-        }
-    }
-
-    @Test
-    public void testPrecommit() {
-        testTask.start(properties);
-        testTask.preCommit(Collections.emptyMap());
-        verify(mockedBatchHandler, times(1)).getCommitableOffsets();
-    }
+  @Test
+  public void testPrecommit() {
+    testTask.start(properties);
+    testTask.preCommit(Collections.emptyMap());
+    verify(mockedBatchHandler, times(1)).getCommitableOffsets();
+  }
 
 
-    @Test(expected = BigQueryStorageWriteApiConnectException.class)
-    public void testStop() {
-        testTask.start(properties);
-        testTask.stop();
+  @Test(expected = BigQueryStorageWriteApiConnectException.class)
+  public void testStop() {
+    testTask.start(properties);
+    testTask.stop();
 
-        verify(mockedStorageWriteApiBatchStream, times(1)).shutdown();
+    verify(mockedStorageWriteApiBatchStream, times(1)).shutdown();
 
-        testTask.put(Collections.singletonList(spoofSinkRecord()));
-    }
+    testTask.put(Collections.singletonList(spoofSinkRecord()));
+  }
 
-    private SinkRecord spoofSinkRecord() {
-        Schema basicValueSchema = SchemaBuilder
-                .struct()
-                .field("sink_task_test_field", Schema.STRING_SCHEMA)
-                .build();
-        Struct basicValue = new Struct(basicValueSchema);
-        basicValue.put("sink_task_test_field", "sink task test row");
+  private SinkRecord spoofSinkRecord() {
+    Schema basicValueSchema = SchemaBuilder
+        .struct()
+        .field("sink_task_test_field", Schema.STRING_SCHEMA)
+        .build();
+    Struct basicValue = new Struct(basicValueSchema);
+    basicValue.put("sink_task_test_field", "sink task test row");
 
-        return new SinkRecord(topic, 0, null, null,
-                basicValueSchema, basicValue, spoofedRecordOffset.getAndIncrement(), null, TimestampType.NO_TIMESTAMP_TYPE);
-    }
+    return new SinkRecord(topic, 0, null, null,
+        basicValueSchema, basicValue, spoofedRecordOffset.getAndIncrement(), null, TimestampType.NO_TIMESTAMP_TYPE);
+  }
 
 }

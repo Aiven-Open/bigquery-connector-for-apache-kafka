@@ -22,9 +22,6 @@ package com.wepay.kafka.connect.bigquery.write.batch;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkTaskConfig;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
 import com.wepay.kafka.connect.bigquery.exception.ExpectedInterruptException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.util.Optional;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
@@ -32,6 +29,8 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * ThreadPoolExecutor for writing Rows to BigQuery.
@@ -39,17 +38,17 @@ import java.util.concurrent.atomic.AtomicReference;
  * <p>Keeps track of the number of threads actively writing for each topic.
  * Keeps track of the number of failed threads in each batch of requests.
  */
-public class KCBQThreadPoolExecutor extends ThreadPoolExecutor {
+public class KcbqThreadPoolExecutor extends ThreadPoolExecutor {
 
-  private static final Logger logger = LoggerFactory.getLogger(KCBQThreadPoolExecutor.class);
+  private static final Logger logger = LoggerFactory.getLogger(KcbqThreadPoolExecutor.class);
 
   private final AtomicReference<Throwable> encounteredError = new AtomicReference<>();
 
   /**
-   * @param config the {@link BigQuerySinkTaskConfig}
+   * @param config    the {@link BigQuerySinkTaskConfig}
    * @param workQueue the queue for storing tasks.
    */
-  public KCBQThreadPoolExecutor(
+  public KcbqThreadPoolExecutor(
       BigQuerySinkTaskConfig config,
       BlockingQueue<Runnable> workQueue,
       ThreadFactory threadFactory
@@ -80,7 +79,7 @@ public class KCBQThreadPoolExecutor extends ThreadPoolExecutor {
    * Wait for all the currently queued tasks to complete, and then return.
    *
    * @throws BigQueryConnectException if any of the tasks failed.
-   * @throws InterruptedException if interrupted while waiting.
+   * @throws InterruptedException     if interrupted while waiting.
    */
   public void awaitCurrentTasks() throws InterruptedException, BigQueryConnectException {
     /*

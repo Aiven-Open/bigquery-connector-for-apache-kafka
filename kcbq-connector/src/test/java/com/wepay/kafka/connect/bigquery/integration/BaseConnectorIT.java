@@ -19,47 +19,6 @@
 
 package com.wepay.kafka.connect.bigquery.integration;
 
-import java.time.LocalDate;
-import java.time.ZoneOffset;
-import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
-
-import com.google.cloud.bigquery.BigQuery;
-import com.google.cloud.bigquery.Field;
-import com.google.cloud.bigquery.FieldValue;
-import com.google.cloud.bigquery.QueryJobConfiguration;
-import com.google.cloud.bigquery.Schema;
-import com.google.cloud.bigquery.Table;
-import com.google.cloud.bigquery.TableResult;
-import com.wepay.kafka.connect.bigquery.GcpClientBuilder;
-import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
-import com.wepay.kafka.connect.bigquery.utils.FieldNameSanitizer;
-import org.apache.kafka.clients.admin.Admin;
-import org.apache.kafka.clients.consumer.OffsetAndMetadata;
-import org.apache.kafka.common.TopicPartition;
-import org.apache.kafka.common.utils.Utils;
-import org.apache.kafka.connect.runtime.AbstractStatus;
-import org.apache.kafka.connect.runtime.WorkerConfig;
-import org.apache.kafka.connect.runtime.rest.entities.ConnectorStateInfo;
-import org.apache.kafka.connect.util.clusters.EmbeddedConnectCluster;
-import org.apache.kafka.test.IntegrationTest;
-import org.apache.kafka.test.NoRetryException;
-import org.junit.experimental.categories.Category;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import static com.google.cloud.bigquery.LegacySQLTypeName.BIGNUMERIC;
 import static com.google.cloud.bigquery.LegacySQLTypeName.BOOLEAN;
 import static com.google.cloud.bigquery.LegacySQLTypeName.BYTES;
@@ -76,10 +35,53 @@ import static org.apache.kafka.connect.runtime.ConnectorConfig.TASKS_MAX_CONFIG;
 import static org.apache.kafka.test.TestUtils.waitForCondition;
 import static org.junit.Assert.assertTrue;
 
+import com.google.cloud.bigquery.BigQuery;
+import com.google.cloud.bigquery.Field;
+import com.google.cloud.bigquery.FieldValue;
+import com.google.cloud.bigquery.QueryJobConfiguration;
+import com.google.cloud.bigquery.Schema;
+import com.google.cloud.bigquery.Table;
+import com.google.cloud.bigquery.TableResult;
+import com.wepay.kafka.connect.bigquery.GcpClientBuilder;
+import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
+import com.wepay.kafka.connect.bigquery.utils.FieldNameSanitizer;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
+import org.apache.kafka.clients.admin.Admin;
+import org.apache.kafka.clients.consumer.OffsetAndMetadata;
+import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.utils.Utils;
+import org.apache.kafka.connect.runtime.AbstractStatus;
+import org.apache.kafka.connect.runtime.WorkerConfig;
+import org.apache.kafka.connect.runtime.rest.entities.ConnectorStateInfo;
+import org.apache.kafka.connect.util.clusters.EmbeddedConnectCluster;
+import org.apache.kafka.test.IntegrationTest;
+import org.apache.kafka.test.NoRetryException;
+import org.junit.experimental.categories.Category;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 @Category(IntegrationTest.class)
 public abstract class BaseConnectorIT {
+  protected static final long OFFSET_COMMIT_INTERVAL_MS = TimeUnit.SECONDS.toMillis(10);
+  protected static final long COMMIT_MAX_DURATION_MS = TimeUnit.MINUTES.toMillis(5);
+  protected static final long OFFSETS_READ_TIMEOUT_MS = TimeUnit.SECONDS.toMillis(10);
+  protected static final long CONNECTOR_STARTUP_DURATION_MS = TimeUnit.SECONDS.toMillis(60);
   private static final Logger logger = LoggerFactory.getLogger(BaseConnectorIT.class);
-
   private static final String KEY_SOURCE_ENV_VAR = "KCBQ_TEST_KEY_SOURCE";
   private static final String KEYFILE_ENV_VAR = "KCBQ_TEST_KEYFILE";
   private static final String PROJECT_ENV_VAR = "KCBQ_TEST_PROJECT";
@@ -87,14 +89,16 @@ public abstract class BaseConnectorIT {
   private static final String GCS_BUCKET_ENV_VAR = "KCBQ_TEST_BUCKET";
   private static final String GCS_FOLDER_ENV_VAR = "KCBQ_TEST_FOLDER";
   private static final String TEST_NAMESPACE_ENV_VAR = "KCBQ_TEST_TABLE_SUFFIX";
-
-  protected static final long OFFSET_COMMIT_INTERVAL_MS = TimeUnit.SECONDS.toMillis(10);
-  protected static final long COMMIT_MAX_DURATION_MS = TimeUnit.MINUTES.toMillis(5);
-  protected static final long OFFSETS_READ_TIMEOUT_MS = TimeUnit.SECONDS.toMillis(10);
-  protected static final long CONNECTOR_STARTUP_DURATION_MS = TimeUnit.SECONDS.toMillis(60);
-
   protected EmbeddedConnectCluster connect;
   private Admin kafkaAdminClient;
+
+  protected static List<Byte> boxByteArray(byte[] bytes) {
+    Byte[] result = new Byte[bytes.length];
+    for (int i = 0; i < bytes.length; i++) {
+      result[i] = bytes[i];
+    }
+    return Arrays.asList(result);
+  }
 
   protected void startConnect() {
     Map<String, String> workerProps = new HashMap<>();
@@ -115,11 +119,12 @@ public abstract class BaseConnectorIT {
     kafkaAdminClient = connect.kafka().createAdminClient();
 
     // the exception handler installed by the embedded zookeeper instance is noisy and unnecessary
-    Thread.setDefaultUncaughtExceptionHandler((t, e) -> { });
+    Thread.setDefaultUncaughtExceptionHandler((t, e) -> {
+    });
   }
 
   protected void stopConnect() {
-    if (kafkaAdminClient !=  null) {
+    if (kafkaAdminClient != null) {
       Utils.closeQuietly(kafkaAdminClient, "admin client for embedded Kafka cluster");
       kafkaAdminClient = null;
     }
@@ -207,8 +212,9 @@ public abstract class BaseConnectorIT {
 
   /**
    * Read all rows from the given table.
-   * @param bigQuery used to connect to BigQuery
-   * @param tableName the table to read
+   *
+   * @param bigQuery   used to connect to BigQuery
+   * @param tableName  the table to read
    * @param sortColumn a column to sort rows by (can use dot notation to refer to nested fields)
    * @return a list of all rows from the table, in random order.
    */
@@ -230,14 +236,6 @@ public abstract class BaseConnectorIT {
     return StreamSupport.stream(tableResult.iterateAll().spliterator(), false)
         .map(fieldValues -> convertRow(schema.getFields(), fieldValues))
         .collect(Collectors.toList());
-  }
-
-  protected static List<Byte> boxByteArray(byte[] bytes) {
-    Byte[] result = new Byte[bytes.length];
-    for (int i = 0; i < bytes.length; i++) {
-      result[i] = bytes[i];
-    }
-    return Arrays.asList(result);
   }
 
   private Object convertField(Field fieldSchema, FieldValue field) {
@@ -306,7 +304,7 @@ public abstract class BaseConnectorIT {
    * Wait up to {@link #CONNECTOR_STARTUP_DURATION_MS maximum time limit} for the connector with the given
    * name to start the specified number of tasks.
    *
-   * @param name the name of the connector
+   * @param name     the name of the connector
    * @param numTasks the minimum number of tasks that are expected
    * @return the time this method discovered the connector has started, in milliseconds past epoch
    * @throws InterruptedException if this was interrupted
@@ -323,16 +321,16 @@ public abstract class BaseConnectorIT {
    * Confirm that a connector with an exact number of tasks is running.
    *
    * @param connectorName the connector
-   * @param numTasks the minimum number of tasks
+   * @param numTasks      the minimum number of tasks
    * @return true if the connector and tasks are in RUNNING state; false otherwise
    */
   protected Optional<Boolean> assertConnectorAndTasksRunning(String connectorName, int numTasks) {
     try {
       ConnectorStateInfo info = connect.connectorStatus(connectorName);
       boolean result = info != null
-                       && info.tasks().size() >= numTasks
-                       && info.connector().state().equals(AbstractStatus.State.RUNNING.toString())
-                       && info.tasks().stream().allMatch(s -> s.state().equals(AbstractStatus.State.RUNNING.toString()));
+          && info.tasks().size() >= numTasks
+          && info.connector().state().equals(AbstractStatus.State.RUNNING.toString())
+          && info.tasks().stream().allMatch(s -> s.state().equals(AbstractStatus.State.RUNNING.toString()));
       return Optional.of(result);
     } catch (Exception e) {
       logger.debug("Could not check connector state info.", e);

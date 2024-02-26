@@ -20,13 +20,9 @@
 package com.wepay.kafka.connect.bigquery.utils;
 
 import com.google.cloud.bigquery.TableId;
-
+import java.time.LocalDate;
 import org.junit.Assert;
 import org.junit.Test;
-
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
 
 public class PartitionedTableIdTest {
 
@@ -94,7 +90,7 @@ public class PartitionedTableIdTest {
     final long utcTime = 1509007584334L;
 
     final PartitionedTableId partitionedTableId =
-            new PartitionedTableId.Builder(dataset, table).setDayPartition(utcTime).build();
+        new PartitionedTableId.Builder(dataset, table).setDayPartition(utcTime).build();
 
     final String expectedPartition = "20171026";
 

@@ -23,18 +23,14 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
 import com.google.cloud.bigquery.LegacySQLTypeName;
-
 import com.wepay.kafka.connect.bigquery.convert.logicaltype.KafkaLogicalConverters.DateConverter;
 import com.wepay.kafka.connect.bigquery.convert.logicaltype.KafkaLogicalConverters.DecimalConverter;
-import com.wepay.kafka.connect.bigquery.convert.logicaltype.KafkaLogicalConverters.TimestampConverter;
 import com.wepay.kafka.connect.bigquery.convert.logicaltype.KafkaLogicalConverters.TimeConverter;
-
-import org.apache.kafka.connect.data.Schema;
-
-import org.junit.Test;
-
+import com.wepay.kafka.connect.bigquery.convert.logicaltype.KafkaLogicalConverters.TimestampConverter;
 import java.math.BigDecimal;
 import java.util.Date;
+import org.apache.kafka.connect.data.Schema;
+import org.junit.Test;
 
 public class KafkaLogicalConvertersTest {
 
@@ -45,7 +41,7 @@ public class KafkaLogicalConvertersTest {
   public void testDateConversion() {
     DateConverter converter = new DateConverter();
 
-    assertEquals(LegacySQLTypeName.DATE, converter.getBQSchemaType());
+    assertEquals(LegacySQLTypeName.DATE, converter.getBqSchemaType());
 
     try {
       converter.checkEncodingType(Schema.Type.INT32);
@@ -62,7 +58,7 @@ public class KafkaLogicalConvertersTest {
   public void testDecimalConversion() {
     DecimalConverter converter = new DecimalConverter();
 
-    assertEquals(LegacySQLTypeName.FLOAT, converter.getBQSchemaType());
+    assertEquals(LegacySQLTypeName.FLOAT, converter.getBqSchemaType());
 
     try {
       converter.checkEncodingType(Schema.Type.BYTES);
@@ -82,7 +78,7 @@ public class KafkaLogicalConvertersTest {
   public void testTimestampConversion() {
     TimestampConverter converter = new TimestampConverter();
 
-    assertEquals(LegacySQLTypeName.TIMESTAMP, converter.getBQSchemaType());
+    assertEquals(LegacySQLTypeName.TIMESTAMP, converter.getBqSchemaType());
 
     try {
       converter.checkEncodingType(Schema.Type.INT64);
@@ -108,7 +104,7 @@ public class KafkaLogicalConvertersTest {
   public void testTimeConversion() {
     TimeConverter converter = new KafkaLogicalConverters.TimeConverter();
 
-    assertEquals(LegacySQLTypeName.TIME, converter.getBQSchemaType());
+    assertEquals(LegacySQLTypeName.TIME, converter.getBqSchemaType());
 
     try {
       converter.checkEncodingType(Schema.Type.INT32);

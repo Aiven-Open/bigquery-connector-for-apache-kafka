@@ -19,11 +19,17 @@
 
 package com.wepay.kafka.connect.bigquery.config;
 
+import static com.wepay.kafka.connect.bigquery.GcpClientBuilder.KeySource;
+import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.ENABLE_BATCH_CONFIG;
+import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.GCS_BUCKET_NAME_CONFIG;
+import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.KEYFILE_CONFIG;
+import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.KEY_SOURCE_CONFIG;
+import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.PROJECT_CONFIG;
+
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.storage.v1.BigQueryWriteSettings;
 import com.google.cloud.storage.Storage;
 import com.wepay.kafka.connect.bigquery.GcpClientBuilder;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -31,22 +37,15 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
-import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.ENABLE_BATCH_CONFIG;
-import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.GCS_BUCKET_NAME_CONFIG;
-import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.KEYFILE_CONFIG;
-import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.KEY_SOURCE_CONFIG;
-import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.PROJECT_CONFIG;
-import static com.wepay.kafka.connect.bigquery.GcpClientBuilder.KeySource;
-
-public abstract class CredentialsValidator<ClientBuilder extends GcpClientBuilder<?>> extends MultiPropertyValidator<BigQuerySinkConfig> {
-
-  public CredentialsValidator() {
-    super(KEYFILE_CONFIG);
-  }
+public abstract class CredentialsValidator<ClientBuilderT extends GcpClientBuilder<?>> extends MultiPropertyValidator<BigQuerySinkConfig> {
 
   private static final Collection<String> DEPENDENTS = Collections.unmodifiableCollection(Arrays.asList(
       PROJECT_CONFIG, KEY_SOURCE_CONFIG
   ));
+
+  public CredentialsValidator() {
+    super(KEYFILE_CONFIG);
+  }
 
   @Override
   protected Collection<String> dependents() {
@@ -58,9 +57,9 @@ public abstract class CredentialsValidator<ClientBuilder extends GcpClientBuilde
     String keyFile = config.getKey();
     KeySource keySource = config.getKeySource();
 
-    if (keySource == KeySource.APPLICATION_DEFAULT && keyFile != null  && !keyFile.isEmpty()) {
+    if (keySource == KeySource.APPLICATION_DEFAULT && keyFile != null && !keyFile.isEmpty()) {
       String errorMessage = KEYFILE_CONFIG + " should not be provided if " + KEY_SOURCE_CONFIG
-              + " is " + KeySource.APPLICATION_DEFAULT;
+          + " is " + KeySource.APPLICATION_DEFAULT;
       return Optional.of(errorMessage);
     }
 
@@ -84,7 +83,8 @@ public abstract class CredentialsValidator<ClientBuilder extends GcpClientBuilde
   }
 
   protected abstract String gcpService();
-  protected abstract ClientBuilder clientBuilder();
+
+  protected abstract ClientBuilderT clientBuilder();
 
   public static class BigQueryCredentialsValidator extends CredentialsValidator<GcpClientBuilder<BigQuery>> {
     @Override

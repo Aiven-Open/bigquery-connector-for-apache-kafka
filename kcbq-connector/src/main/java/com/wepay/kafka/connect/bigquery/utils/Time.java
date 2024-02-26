@@ -7,10 +7,6 @@ package com.wepay.kafka.connect.bigquery.utils;
  */
 public interface Time {
 
-  void sleep(long durationMs) throws InterruptedException;
-
-  long milliseconds();
-
   Time SYSTEM = new Time() {
     @Override
     public void sleep(long durationMs) throws InterruptedException {
@@ -22,5 +18,9 @@ public interface Time {
       return System.currentTimeMillis();
     }
   };
+
+  void sleep(long durationMs) throws InterruptedException;
+
+  long milliseconds();
 
 }

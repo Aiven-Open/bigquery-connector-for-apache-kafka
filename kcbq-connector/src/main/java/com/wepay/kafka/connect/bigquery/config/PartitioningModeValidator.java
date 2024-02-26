@@ -19,22 +19,22 @@
 
 package com.wepay.kafka.connect.bigquery.config;
 
+import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG;
+import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.BIGQUERY_TIMESTAMP_PARTITION_FIELD_NAME_CONFIG;
+
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Optional;
 
-import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG;
-import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.BIGQUERY_TIMESTAMP_PARTITION_FIELD_NAME_CONFIG;
-
 public class PartitioningModeValidator extends MultiPropertyValidator<BigQuerySinkConfig> {
-  public PartitioningModeValidator() {
-    super(BIGQUERY_PARTITION_DECORATOR_CONFIG);
-  }
-
   private static final Collection<String> DEPENDENTS = Collections.unmodifiableCollection(Arrays.asList(
       BIGQUERY_TIMESTAMP_PARTITION_FIELD_NAME_CONFIG
   ));
+
+  public PartitioningModeValidator() {
+    super(BIGQUERY_PARTITION_DECORATOR_CONFIG);
+  }
 
   @Override
   protected Collection<String> dependents() {

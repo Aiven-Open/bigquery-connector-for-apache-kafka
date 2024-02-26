@@ -22,6 +22,10 @@ package com.wepay.kafka.connect.bigquery;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkTaskConfig;
 import com.wepay.kafka.connect.bigquery.utils.Version;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import org.apache.kafka.common.config.Config;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigValue;
@@ -30,21 +34,15 @@ import org.apache.kafka.connect.sink.SinkConnector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 /**
  * A {@link SinkConnector} used to delegate BigQuery data writes to
  * {@link org.apache.kafka.connect.sink.SinkTask SinkTasks}.
  */
 public class BigQuerySinkConnector extends SinkConnector {
 
+  private static final Logger logger = LoggerFactory.getLogger(BigQuerySinkConnector.class);
   private BigQuerySinkConfig config;
   private Map<String, String> configProperties;
-
-  private static final Logger logger = LoggerFactory.getLogger(BigQuerySinkConnector.class);
 
   @Override
   public ConfigDef config() {

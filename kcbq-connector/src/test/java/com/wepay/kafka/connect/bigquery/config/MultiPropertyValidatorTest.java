@@ -19,10 +19,11 @@
 
 package com.wepay.kafka.connect.bigquery.config;
 
-import com.google.common.collect.ImmutableMap;
-import org.apache.kafka.common.config.ConfigValue;
-import org.junit.Test;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.fail;
 
+import com.google.common.collect.ImmutableMap;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -30,34 +31,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.fail;
+import org.apache.kafka.common.config.ConfigValue;
+import org.junit.Test;
 
 public class MultiPropertyValidatorTest {
-
-  private static class TestValidator<Config> extends MultiPropertyValidator<Config> {
-
-    private final List<String> dependents;
-    private final Function<Config, Optional<String>> validationFunction;
-
-    public TestValidator(String propertyName, List<String> dependents, Function<Config, Optional<String>> validationFunction) {
-      super(propertyName);
-      this.dependents = dependents;
-      this.validationFunction = validationFunction;
-    }
-
-    @Override
-    protected Collection<String> dependents() {
-      return dependents;
-    }
-
-    @Override
-    protected Optional<String> doValidate(Config config) {
-      return validationFunction.apply(config);
-    }
-  }
 
   @Test
   public void testExistingErrorSkipsValidation() {
@@ -134,5 +111,27 @@ public class MultiPropertyValidatorTest {
         Optional.empty(),
         validator.validate(configValue, null, Collections.emptyMap())
     );
+  }
+
+  private static class TestValidator<Config> extends MultiPropertyValidator<Config> {
+
+    private final List<String> dependents;
+    private final Function<Config, Optional<String>> validationFunction;
+
+    public TestValidator(String propertyName, List<String> dependents, Function<Config, Optional<String>> validationFunction) {
+      super(propertyName);
+      this.dependents = dependents;
+      this.validationFunction = validationFunction;
+    }
+
+    @Override
+    protected Collection<String> dependents() {
+      return dependents;
+    }
+
+    @Override
+    protected Optional<String> doValidate(Config config) {
+      return validationFunction.apply(config);
+    }
   }
 }

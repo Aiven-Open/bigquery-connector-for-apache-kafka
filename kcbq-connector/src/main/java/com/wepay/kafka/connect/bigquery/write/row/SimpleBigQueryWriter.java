@@ -23,20 +23,17 @@ import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.BigQueryError;
 import com.google.cloud.bigquery.InsertAllRequest;
 import com.google.cloud.bigquery.InsertAllResponse;
-
 import com.wepay.kafka.connect.bigquery.ErrantRecordHandler;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.utils.PartitionedTableId;
-
 import com.wepay.kafka.connect.bigquery.utils.Time;
-import org.apache.kafka.connect.sink.SinkRecord;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
+import org.apache.kafka.connect.sink.SinkRecord;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A simple BigQueryWriter implementation. Sends the request to BigQuery, and throws an exception if
@@ -48,20 +45,21 @@ public class SimpleBigQueryWriter extends BigQueryWriter {
   private final BigQuery bigQuery;
 
   /**
-   * @param bigQuery The object used to send write requests to BigQuery.
-   * @param retry How many retries to make in the event of a 500/503 error.
-   * @param retryWait How long to wait in between retries.
+   * @param bigQuery            The object used to send write requests to BigQuery.
+   * @param retry               How many retries to make in the event of a 500/503 error.
+   * @param retryWait           How long to wait in between retries.
    * @param errantRecordHandler Used to handle errant records
-   * @param time used to wait during backoff periods
+   * @param time                used to wait during backoff periods
    */
   public SimpleBigQueryWriter(BigQuery bigQuery, int retry, long retryWait, ErrantRecordHandler errantRecordHandler, Time time) {
-    super(retry, retryWait,errantRecordHandler, time);
+    super(retry, retryWait, errantRecordHandler, time);
     this.bigQuery = bigQuery;
   }
 
   /**
    * Sends the request to BigQuery, and return a map of insertErrors in case of partial failure.
    * Throws an exception if any other errors occur as a result of doing so.
+   *
    * @see BigQueryWriter#performWriteRequest(PartitionedTableId, SortedMap)
    */
   @Override
@@ -72,7 +70,7 @@ public class SimpleBigQueryWriter extends BigQueryWriter {
     if (writeResponse.hasErrors()) {
       logger.warn(
           "You may want to enable schema updates by specifying "
-          + "{}=true or {}=true in the properties file",
+              + "{}=true or {}=true in the properties file",
           BigQuerySinkConfig.ALLOW_NEW_BIGQUERY_FIELDS_CONFIG, BigQuerySinkConfig.ALLOW_BIGQUERY_REQUIRED_FIELD_RELAXATION_CONFIG
       );
       return writeResponse.getInsertErrors();

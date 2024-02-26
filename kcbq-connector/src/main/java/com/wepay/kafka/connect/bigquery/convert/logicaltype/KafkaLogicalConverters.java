@@ -20,14 +20,12 @@
 package com.wepay.kafka.connect.bigquery.convert.logicaltype;
 
 import com.google.cloud.bigquery.LegacySQLTypeName;
-
+import java.math.BigDecimal;
 import org.apache.kafka.connect.data.Date;
 import org.apache.kafka.connect.data.Decimal;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.Time;
 import org.apache.kafka.connect.data.Timestamp;
-
-import java.math.BigDecimal;
 
 /**
  * Class containing all the Kafka logical type converters.
@@ -50,13 +48,13 @@ public class KafkaLogicalConverters {
      */
     public DateConverter() {
       super(Date.LOGICAL_NAME,
-            Schema.Type.INT32,
-            LegacySQLTypeName.DATE);
+          Schema.Type.INT32,
+          LegacySQLTypeName.DATE);
     }
 
     @Override
     public String convert(Object kafkaConnectObject) {
-      return getBQDateFormat().format((java.util.Date) kafkaConnectObject);
+      return getBqDateFormat().format((java.util.Date) kafkaConnectObject);
     }
   }
 
@@ -69,8 +67,8 @@ public class KafkaLogicalConverters {
      */
     public DecimalConverter() {
       super(Decimal.LOGICAL_NAME,
-            Schema.Type.BYTES,
-            LegacySQLTypeName.FLOAT);
+          Schema.Type.BYTES,
+          LegacySQLTypeName.FLOAT);
     }
 
     @Override
@@ -89,7 +87,7 @@ public class KafkaLogicalConverters {
      */
     public TimestampConverter() {
       super(Timestamp.LOGICAL_NAME,
-        Schema.Type.INT64,
+          Schema.Type.INT64,
           LegacySQLTypeName.TIMESTAMP);
     }
 

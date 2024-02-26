@@ -19,30 +19,29 @@
 
 package com.wepay.kafka.connect.bigquery.config;
 
+import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.AUTO_CREATE_BUCKET_CONFIG;
+import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.ENABLE_BATCH_CONFIG;
+import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.GCS_BUCKET_NAME_CONFIG;
+
 import com.google.cloud.storage.Bucket;
 import com.google.cloud.storage.Storage;
 import com.google.common.annotations.VisibleForTesting;
 import com.wepay.kafka.connect.bigquery.GcpClientBuilder;
-
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
-import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.AUTO_CREATE_BUCKET_CONFIG;
-import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.ENABLE_BATCH_CONFIG;
-import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.GCS_BUCKET_NAME_CONFIG;
-
 public class GcsBucketValidator extends MultiPropertyValidator<BigQuerySinkConfig> {
-
-  public GcsBucketValidator() {
-    super(GCS_BUCKET_NAME_CONFIG);
-  }
 
   private static final Collection<String> DEPENDENTS = Collections.unmodifiableCollection(Arrays.asList(
       ENABLE_BATCH_CONFIG, AUTO_CREATE_BUCKET_CONFIG
   ));
+
+  public GcsBucketValidator() {
+    super(GCS_BUCKET_NAME_CONFIG);
+  }
 
   @Override
   protected Collection<String> dependents() {
@@ -53,7 +52,7 @@ public class GcsBucketValidator extends MultiPropertyValidator<BigQuerySinkConfi
   protected Optional<String> doValidate(BigQuerySinkConfig config) {
     Storage gcs;
     try {
-      gcs  = new GcpClientBuilder.GcsBuilder()
+      gcs = new GcpClientBuilder.GcsBuilder()
           .withConfig(config)
           .build();
     } catch (RuntimeException e) {
@@ -68,7 +67,7 @@ public class GcsBucketValidator extends MultiPropertyValidator<BigQuerySinkConfi
   @VisibleForTesting
   Optional<String> doValidate(Storage gcs, BigQuerySinkConfig config) {
     List<String> batchLoadedTopics = config.getList(ENABLE_BATCH_CONFIG);
-    if (batchLoadedTopics ==  null || batchLoadedTopics.isEmpty()) {
+    if (batchLoadedTopics == null || batchLoadedTopics.isEmpty()) {
       // Batch loading is disabled; no need to validate the GCS bucket
       return Optional.empty();
     }

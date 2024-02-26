@@ -19,23 +19,28 @@
 
 package com.wepay.kafka.connect.bigquery.config;
 
-import org.apache.kafka.common.config.ConfigDef;
-
 import java.util.Map;
+import org.apache.kafka.common.config.ConfigDef;
 
 /**
  * Class for task-specific configuration properties.
  */
 public class BigQuerySinkTaskConfig extends BigQuerySinkConfig {
-  
+
   public static final String GCS_BQ_TASK_CONFIG = "GCSBQTask";
+  public static final String TASK_ID_CONFIG = "taskId";
+  public static final ConfigDef.Importance TASK_ID_IMPORTANCE = ConfigDef.Importance.LOW;
   private static final ConfigDef.Type GCS_BQ_TASK_TYPE = ConfigDef.Type.BOOLEAN;
   private static final boolean GCS_BQ_TASK_DEFAULT = false;
   private static final ConfigDef.Importance GCS_BQ_TASK_IMPORTANCE = ConfigDef.Importance.LOW;
+  private static final ConfigDef.Type TASK_ID_TYPE = ConfigDef.Type.INT;
 
-  public static final String TASK_ID_CONFIG =                   "taskId";
-  private static final ConfigDef.Type TASK_ID_TYPE =            ConfigDef.Type.INT;
-  public static final ConfigDef.Importance TASK_ID_IMPORTANCE = ConfigDef.Importance.LOW;
+  /**
+   * @param properties A Map detailing configuration properties and their respective values.
+   */
+  public BigQuerySinkTaskConfig(Map<String, String> properties) {
+    super(config(), properties);
+  }
 
   /**
    * Return a ConfigDef object used to define this config's fields.
@@ -55,12 +60,5 @@ public class BigQuerySinkTaskConfig extends BigQuerySinkConfig {
             ConfigDef.NO_DEFAULT_VALUE,
             TASK_ID_IMPORTANCE
         );
-  }
-
-  /**
-   * @param properties A Map detailing configuration properties and their respective values.
-   */
-  public BigQuerySinkTaskConfig(Map<String, String> properties) {
-    super(config(), properties);
   }
 }

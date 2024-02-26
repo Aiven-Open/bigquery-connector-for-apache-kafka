@@ -23,6 +23,7 @@ import org.apache.kafka.connect.data.Schema;
 
 /**
  * Interface for converting from a {@link Schema Kafka Connect Schema} to some other kind of schema.
+ *
  * @param <S> The kind of schema to convert to.
  */
 public interface SchemaConverter<S> {

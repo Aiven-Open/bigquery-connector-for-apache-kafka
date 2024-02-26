@@ -36,42 +36,23 @@ import com.google.cloud.bigquery.BigQueryException;
 import com.google.cloud.bigquery.Field;
 import com.google.cloud.bigquery.InsertAllRequest;
 import com.google.cloud.bigquery.InsertAllResponse;
-import com.google.cloud.bigquery.StandardTableDefinition;
-import com.google.cloud.bigquery.Table;
 import com.google.cloud.bigquery.LegacySQLTypeName;
 import com.google.cloud.bigquery.QueryJobConfiguration;
+import com.google.cloud.bigquery.StandardTableDefinition;
+import com.google.cloud.bigquery.Table;
 import com.google.cloud.bigquery.TableId;
 import com.google.cloud.bigquery.TimePartitioning;
 import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.Storage;
-
 import com.wepay.kafka.connect.bigquery.api.SchemaRetriever;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
 import com.wepay.kafka.connect.bigquery.utils.MockTime;
 import com.wepay.kafka.connect.bigquery.utils.Time;
 import com.wepay.kafka.connect.bigquery.write.batch.MergeBatches;
-import java.net.SocketTimeoutException;
-
 import com.wepay.kafka.connect.bigquery.write.storage.StorageApiBatchModeHandler;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiDefaultStream;
-
-import org.apache.kafka.common.record.TimestampType;
-import org.apache.kafka.connect.data.Schema;
-import org.apache.kafka.connect.data.SchemaBuilder;
-import org.apache.kafka.connect.data.Struct;
-import org.apache.kafka.connect.errors.ConnectException;
-import org.apache.kafka.connect.errors.RetriableException;
-import org.apache.kafka.connect.sink.SinkRecord;
-import org.apache.kafka.connect.sink.SinkTaskContext;
-
-import org.junit.After;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
-import org.mockito.ArgumentCaptor;
-
+import java.net.SocketTimeoutException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -82,6 +63,19 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import org.apache.kafka.common.record.TimestampType;
+import org.apache.kafka.connect.data.Schema;
+import org.apache.kafka.connect.data.SchemaBuilder;
+import org.apache.kafka.connect.data.Struct;
+import org.apache.kafka.connect.errors.ConnectException;
+import org.apache.kafka.connect.errors.RetriableException;
+import org.apache.kafka.connect.sink.SinkRecord;
+import org.apache.kafka.connect.sink.SinkTaskContext;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
+import org.mockito.ArgumentCaptor;
 
 public class BigQuerySinkTaskTest {
   private static SinkTaskPropertiesFactory propertiesFactory;
@@ -96,6 +90,112 @@ public class BigQuerySinkTaskTest {
   @BeforeClass
   public static void initializePropertiesFactory() {
     propertiesFactory = new SinkTaskPropertiesFactory();
+  }
+
+  /**
+   * Utility method for spoofing SinkRecords that should be passed to SinkTask.put()
+   *
+   * @param topic         The topic of the record.
+   * @param keyField      The field name for the record key; may be null.
+   * @param key           The content of the record key; may be null.
+   * @param valueField    The field name for the record value; may be null
+   * @param value         The content of the record value; may be null
+   * @param timestampType The type of timestamp embedded in the message
+   * @param timestamp     The timestamp in milliseconds
+   * @return The spoofed SinkRecord.
+   */
+  public static SinkRecord spoofSinkRecord(String topic, String keyField, String key,
+                                           String valueField, String value,
+                                           TimestampType timestampType, Long timestamp) {
+    Schema basicKeySchema = null;
+    Struct basicKey = null;
+    if (keyField != null) {
+      basicKeySchema = SchemaBuilder
+          .struct()
+          .field(keyField, Schema.STRING_SCHEMA)
+          .build();
+      basicKey = new Struct(basicKeySchema);
+      basicKey.put(keyField, key);
+    }
+
+    Schema basicValueSchema = null;
+    Struct basicValue = null;
+    if (valueField != null) {
+      basicValueSchema = SchemaBuilder
+          .struct()
+          .field(valueField, Schema.STRING_SCHEMA)
+          .build();
+      basicValue = new Struct(basicValueSchema);
+      basicValue.put(valueField, value);
+    }
+
+    return new SinkRecord(topic, 0, basicKeySchema, basicKey,
+        basicValueSchema, basicValue, spoofedRecordOffset.getAndIncrement(), timestamp, timestampType);
+  }
+
+  /**
+   * Utility method for spoofing SinkRecords that should be passed to SinkTask.put()
+   *
+   * @param topic         The topic of the record.
+   * @param field         The field name for the record value.
+   * @param value         The content of the record value.
+   * @param timestampType The type of timestamp embedded in the message
+   * @param timestamp     The timestamp in milliseconds
+   * @return The spoofed SinkRecord.
+   */
+  public static SinkRecord spoofSinkRecord(String topic, String field, String value,
+                                           TimestampType timestampType, Long timestamp) {
+    return spoofSinkRecord(topic, null, null, field, value, timestampType, timestamp);
+  }
+
+  /**
+   * Utility method for spoofing SinkRecords that should be passed to SinkTask.put()
+   *
+   * @param topic       The topic of the record.
+   * @param valueSchema The schema of the record.
+   * @param value       The content of the record.
+   * @return The spoofed SinkRecord.
+   */
+  public static SinkRecord spoofSinkRecord(String topic, Schema valueSchema, Struct value) {
+    return new SinkRecord(topic, 0, null, null, valueSchema, value, 0);
+  }
+
+  /**
+   * Utility method for spoofing SinkRecords that should be passed to SinkTask.put(). Creates a
+   * record with a struct schema that contains only one string field with a given name and value.
+   *
+   * @param topic The topic of the record.
+   * @param field The name of the field in the record's struct.
+   * @param value The content of the field.
+   * @return The spoofed SinkRecord.
+   */
+  public static SinkRecord spoofSinkRecord(String topic, String field, String value) {
+    return spoofSinkRecord(topic, field, value, TimestampType.NO_TIMESTAMP_TYPE, null);
+  }
+
+  /**
+   * Utility method for spoofing SinkRecords that should be passed to SinkTask.put(). Creates a
+   * record with a struct schema that contains only one string field with a default name and a given
+   * value.
+   *
+   * @param topic The topic of the record.
+   * @param value The content of the record.
+   * @return The spoofed SinkRecord.
+   */
+  public static SinkRecord spoofSinkRecord(String topic, String value) {
+    return spoofSinkRecord(topic, "sink_task_test_field", value);
+  }
+
+  /**
+   * Utility method for spoofing SinkRecords that should be passed to SinkTask.put(). Creates a
+   * record with a struct schema that contains only one string field with a default name and a
+   * default value.
+   *
+   * @param topic The topic of the record.
+   * @return The spoofed SinkRecord.
+   */
+  public static SinkRecord spoofSinkRecord(String topic) {
+    return spoofSinkRecord(topic, "sink task test row");
   }
 
   @Before
@@ -191,15 +291,16 @@ public class BigQuerySinkTaskTest {
     testTask.initialize(sinkTaskContext);
     testTask.start(properties);
 
-    IntStream.range(0,repeats).forEach(i -> testTask.put(Collections.singletonList(spoofSinkRecord(topic))));
+    IntStream.range(0, repeats).forEach(i -> testTask.put(Collections.singletonList(spoofSinkRecord(topic))));
 
     ArgumentCaptor<BlobInfo> blobInfo = ArgumentCaptor.forClass(BlobInfo.class);
     testTask.flush(Collections.emptyMap());
 
-    verify(storage, times(repeats)).create(blobInfo.capture(), (byte[])anyObject());
+    verify(storage, times(repeats)).create(blobInfo.capture(), (byte[]) anyObject());
     assertEquals(repeats, blobInfo.getAllValues().stream().map(info -> info.getBlobId().getName()).collect(Collectors.toSet()).size());
 
   }
+
   @Test
   public void testSimplePutWhenSchemaRetrieverIsNotNull() {
     final String topic = "test-topic";
@@ -348,17 +449,17 @@ public class BigQuerySinkTaskTest {
     verify(bigQuery, times(1)).insertAll(argument.capture());
     assertEquals("test-topic$20171026", argument.getValue().getTable().getTable());
   }
-  
+
   @Test
   public void testPutWhenPartitioningIsSetToTrue() {
     final String topic = "test-topic";
-    
+
     Map<String, String> properties = propertiesFactory.getProperties();
     properties.put(BigQuerySinkConfig.TOPICS_CONFIG, topic);
     properties.put(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG, "scratch");
     properties.put(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG, "true");
     properties.put(BigQuerySinkConfig.BIGQUERY_MESSAGE_TIME_PARTITIONING_CONFIG, "true");
-    
+
     BigQuery bigQuery = mock(BigQuery.class);
     Table mockTable = mock(Table.class);
     when(bigQuery.getTable(any())).thenReturn(mockTable);
@@ -366,7 +467,7 @@ public class BigQuerySinkTaskTest {
     Storage storage = mock(Storage.class);
     SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
     InsertAllResponse insertAllResponse = mock(InsertAllResponse.class);
-    
+
     when(bigQuery.insertAll(anyObject())).thenReturn(insertAllResponse);
     when(insertAllResponse.hasErrors()).thenReturn(false);
 
@@ -386,25 +487,25 @@ public class BigQuerySinkTaskTest {
     );
     testTask.initialize(sinkTaskContext);
     testTask.start(properties);
-    
+
     testTask.put(Collections.singletonList(spoofSinkRecord(topic, "value", "message text",
         TimestampType.CREATE_TIME, 1509007584334L)));
     testTask.flush(Collections.emptyMap());
     ArgumentCaptor<InsertAllRequest> argument = ArgumentCaptor.forClass(InsertAllRequest.class);
-    
+
     verify(bigQuery, times(1)).insertAll(argument.capture());
     assertEquals("test-topic$20171026", argument.getValue().getTable().getTable());
   }
-  
+
   @Test
   public void testPutWhenPartitioningIsSetToFalse() {
     final String topic = "test-topic";
-    
+
     Map<String, String> properties = propertiesFactory.getProperties();
     properties.put(BigQuerySinkConfig.TOPICS_CONFIG, topic);
     properties.put(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG, "scratch");
     properties.put(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG, "false");
-    
+
     BigQuery bigQuery = mock(BigQuery.class);
     Table mockTable = mock(Table.class);
     when(bigQuery.getTable(any())).thenReturn(mockTable);
@@ -412,7 +513,7 @@ public class BigQuerySinkTaskTest {
     Storage storage = mock(Storage.class);
     SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
     InsertAllResponse insertAllResponse = mock(InsertAllResponse.class);
-    
+
     when(bigQuery.insertAll(anyObject())).thenReturn(insertAllResponse);
     when(insertAllResponse.hasErrors()).thenReturn(false);
 
@@ -436,7 +537,7 @@ public class BigQuerySinkTaskTest {
         TimestampType.CREATE_TIME, 1509007584334L)));
     testTask.flush(Collections.emptyMap());
     ArgumentCaptor<InsertAllRequest> argument = ArgumentCaptor.forClass(InsertAllRequest.class);
-    
+
     verify(bigQuery, times(1)).insertAll(argument.capture());
     assertEquals("test-topic", argument.getValue().getTable().getTable());
   }
@@ -839,7 +940,7 @@ public class BigQuerySinkTaskTest {
     InsertAllResponse insertAllResponse = mock(InsertAllResponse.class);
     BigQueryError quotaExceededError = new BigQueryError("quotaExceeded", null, null);
     when(bigQuery.insertAll(anyObject()))
-      .thenThrow(new BigQueryException(403, "mock quota exceeded", quotaExceededError));
+        .thenThrow(new BigQueryException(403, "mock quota exceeded", quotaExceededError));
     when(insertAllResponse.hasErrors()).thenReturn(false);
 
     SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
@@ -874,7 +975,7 @@ public class BigQuerySinkTaskTest {
     properties.put(BigQuerySinkConfig.TOPICS_CONFIG, topic);
     properties.put(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG, dataset);
 
-    BigQuery bigQuery  = mock(BigQuery.class);
+    BigQuery bigQuery = mock(BigQuery.class);
     Table mockTable = mock(Table.class);
     when(bigQuery.getTable(any())).thenReturn(mockTable);
 
@@ -929,7 +1030,7 @@ public class BigQuerySinkTaskTest {
     tableCache.put(TableId.of(dataset, topic), table);
 
     Storage storage = mock(Storage.class);
-    BigQuery bigQuery  = mock(BigQuery.class);
+    BigQuery bigQuery = mock(BigQuery.class);
 
     BigQuerySinkTask testTask = new BigQuerySinkTask(
         bigQuery,
@@ -1000,105 +1101,5 @@ public class BigQuerySinkTaskTest {
     verify(bigQuery, times(1)).insertAll(any(InsertAllRequest.class));
 
     testTask.put(Collections.singletonList(spoofSinkRecord(topic)));
-  }
-
-  /**
-   * Utility method for spoofing SinkRecords that should be passed to SinkTask.put()
-   * @param topic The topic of the record.
-   * @param keyField The field name for the record key; may be null.
-   * @param key The content of the record key; may be null.
-   * @param valueField The field name for the record value; may be null
-   * @param value The content of the record value; may be null
-   * @param timestampType The type of timestamp embedded in the message
-   * @param timestamp The timestamp in milliseconds
-   * @return The spoofed SinkRecord.
-   */
-  public static SinkRecord spoofSinkRecord(String topic, String keyField, String key,
-                                           String valueField, String value,
-                                           TimestampType timestampType, Long timestamp) {
-    Schema basicKeySchema = null;
-    Struct basicKey = null;
-    if (keyField != null) {
-      basicKeySchema = SchemaBuilder
-          .struct()
-          .field(keyField, Schema.STRING_SCHEMA)
-          .build();
-      basicKey = new Struct(basicKeySchema);
-      basicKey.put(keyField, key);
-    }
-
-    Schema basicValueSchema = null;
-    Struct basicValue = null;
-    if (valueField != null) {
-      basicValueSchema = SchemaBuilder
-          .struct()
-          .field(valueField, Schema.STRING_SCHEMA)
-          .build();
-      basicValue = new Struct(basicValueSchema);
-      basicValue.put(valueField, value);
-    }
-
-    return new SinkRecord(topic, 0, basicKeySchema, basicKey,
-        basicValueSchema, basicValue, spoofedRecordOffset.getAndIncrement(), timestamp, timestampType);
-  }
-
-  /**
-   * Utility method for spoofing SinkRecords that should be passed to SinkTask.put()
-   * @param topic The topic of the record.
-   * @param field The field name for the record value.
-   * @param value The content of the record value.
-   * @param timestampType The type of timestamp embedded in the message
-   * @param timestamp The timestamp in milliseconds
-   * @return The spoofed SinkRecord.
-   */
-  public static SinkRecord spoofSinkRecord(String topic, String field, String value,
-                                           TimestampType timestampType, Long timestamp) {
-    return spoofSinkRecord(topic, null, null, field, value, timestampType, timestamp);
-  }
-
-  /**
-   * Utility method for spoofing SinkRecords that should be passed to SinkTask.put()
-   * @param topic The topic of the record.
-   * @param valueSchema The schema of the record.
-   * @param value The content of the record.
-   * @return The spoofed SinkRecord.
-   */
-  public static SinkRecord spoofSinkRecord(String topic, Schema valueSchema, Struct value) {
-    return new SinkRecord(topic, 0, null, null, valueSchema, value, 0);
-  }
-
-  /**
-   * Utility method for spoofing SinkRecords that should be passed to SinkTask.put(). Creates a
-   * record with a struct schema that contains only one string field with a given name and value.
-   * @param topic The topic of the record.
-   * @param field The name of the field in the record's struct.
-   * @param value The content of the field.
-   * @return The spoofed SinkRecord.
-   */
-  public static SinkRecord spoofSinkRecord(String topic, String field, String value) {
-    return spoofSinkRecord(topic, field, value, TimestampType.NO_TIMESTAMP_TYPE, null);
-  }
-
-  /**
-   * Utility method for spoofing SinkRecords that should be passed to SinkTask.put(). Creates a
-   * record with a struct schema that contains only one string field with a default name and a given
-   * value.
-   * @param topic The topic of the record.
-   * @param value The content of the record.
-   * @return The spoofed SinkRecord.
-   */
-  public static SinkRecord spoofSinkRecord(String topic, String value) {
-    return spoofSinkRecord(topic, "sink_task_test_field", value);
-  }
-
-  /**
-   * Utility method for spoofing SinkRecords that should be passed to SinkTask.put(). Creates a
-   * record with a struct schema that contains only one string field with a default name and a
-   * default value.
-   * @param topic The topic of the record.
-   * @return The spoofed SinkRecord.
-   */
-  public static SinkRecord spoofSinkRecord(String topic) {
-    return spoofSinkRecord(topic, "sink task test row");
   }
 }

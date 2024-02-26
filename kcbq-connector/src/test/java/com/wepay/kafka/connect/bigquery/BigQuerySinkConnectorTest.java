@@ -19,41 +19,22 @@
 
 package com.wepay.kafka.connect.bigquery;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNotSame;
+
 import com.wepay.kafka.connect.bigquery.api.SchemaRetriever;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkTaskConfig;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNotSame;
-
 public class BigQuerySinkConnectorTest {
   private static SinkPropertiesFactory propertiesFactory;
-
-  // Would just use Mockito, but can't provide the name of an anonymous class to the config file
-  public static class MockSchemaRetriever implements SchemaRetriever {
-    @Override
-    public void configure(Map<String, String> properties) {
-      // Shouldn't be called
-    }
-
-    @Override
-    public Schema retrieveKeySchema(SinkRecord record){
-      return null;
-    }
-
-    @Override
-    public Schema retrieveValueSchema(SinkRecord record){
-      return null;
-    }
-  }
 
   @BeforeClass
   public static void initializePropertiesFactory() {
@@ -73,7 +54,7 @@ public class BigQuerySinkConnectorTest {
 
     testConnector.start(properties);
 
-    for (int i : new int[] { 1, 2, 10, 100 }) {
+    for (int i : new int[]{1, 2, 10, 100}) {
       Map<String, String> expectedProperties = new HashMap<>(properties);
       List<Map<String, String>> taskConfigs = testConnector.taskConfigs(i);
       assertEquals(i, taskConfigs.size());
@@ -117,5 +98,23 @@ public class BigQuerySinkConnectorTest {
   @Test
   public void testStop() {
     new BigQuerySinkConnector().stop();
+  }
+
+  // Would just use Mockito, but can't provide the name of an anonymous class to the config file
+  public static class MockSchemaRetriever implements SchemaRetriever {
+    @Override
+    public void configure(Map<String, String> properties) {
+      // Shouldn't be called
+    }
+
+    @Override
+    public Schema retrieveKeySchema(SinkRecord record) {
+      return null;
+    }
+
+    @Override
+    public Schema retrieveValueSchema(SinkRecord record) {
+      return null;
+    }
   }
 }

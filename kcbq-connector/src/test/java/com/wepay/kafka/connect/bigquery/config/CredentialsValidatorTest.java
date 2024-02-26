@@ -19,17 +19,16 @@
 
 package com.wepay.kafka.connect.bigquery.config;
 
-import com.wepay.kafka.connect.bigquery.GcpClientBuilder;
-import org.junit.Test;
-
-import java.util.Optional;
-
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+
+import com.wepay.kafka.connect.bigquery.GcpClientBuilder;
+import java.util.Optional;
+import org.junit.Test;
 
 public class CredentialsValidatorTest {
 
@@ -47,8 +46,8 @@ public class CredentialsValidatorTest {
         new CredentialsValidator.GcsCredentialsValidator().doValidate(config)
     );
     assertEquals(
-            Optional.empty(),
-            new CredentialsValidator.BigQueryStorageWriteApiCredentialsValidator().doValidate(config)
+        Optional.empty(),
+        new CredentialsValidator.BigQueryStorageWriteApiCredentialsValidator().doValidate(config)
     );
   }
 
@@ -71,8 +70,8 @@ public class CredentialsValidatorTest {
         new CredentialsValidator.GcsCredentialsValidator().doValidate(config)
     );
     assertNotEquals(
-            Optional.empty(),
-            new CredentialsValidator.BigQueryStorageWriteApiCredentialsValidator().doValidate(config)
+        Optional.empty(),
+        new CredentialsValidator.BigQueryStorageWriteApiCredentialsValidator().doValidate(config)
     );
   }
 
@@ -83,12 +82,12 @@ public class CredentialsValidatorTest {
     when(config.getKeySource()).thenReturn(GcpClientBuilder.KeySource.APPLICATION_DEFAULT);
 
     assertTrue(
-            new CredentialsValidator.BigQueryCredentialsValidator().doValidate(config)
-                    .get().contains("should not be provided")
+        new CredentialsValidator.BigQueryCredentialsValidator().doValidate(config)
+            .get().contains("should not be provided")
     );
     assertTrue(
-            new CredentialsValidator.BigQueryStorageWriteApiCredentialsValidator().doValidate(config)
-                    .get().contains("should not be provided")
+        new CredentialsValidator.BigQueryStorageWriteApiCredentialsValidator().doValidate(config)
+            .get().contains("should not be provided")
     );
   }
 }

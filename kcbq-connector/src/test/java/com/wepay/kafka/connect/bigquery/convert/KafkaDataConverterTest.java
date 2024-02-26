@@ -20,81 +20,80 @@
 package com.wepay.kafka.connect.bigquery.convert;
 
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
 import com.google.cloud.bigquery.Field;
 import com.google.cloud.bigquery.LegacySQLTypeName;
+import java.util.HashMap;
+import java.util.Map;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.HashMap;
-import java.util.Map;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-
 public class KafkaDataConverterTest {
 
-    public static final String kafkaDataFieldName = "kafkaData";
-    private static final String kafkaDataTopicName = "topic";
-    private static final String kafkaDataPartitionName = "partition";
-    private static final String kafkaDataOffsetName = "offset";
-    private static final String kafkaDataInsertTimeName = "insertTime";
-    Map<String, Object> expectedKafkaDataFields = new HashMap<>();
-    private static final String kafkaDataTopicValue = "testTopic";
-    private static final int kafkaDataPartitionValue = 101;
-    private static final long kafkaDataOffsetValue = 1337;
+  public static final String kafkaDataFieldName = "kafkaData";
+  private static final String kafkaDataTopicName = "topic";
+  private static final String kafkaDataPartitionName = "partition";
+  private static final String kafkaDataOffsetName = "offset";
+  private static final String kafkaDataInsertTimeName = "insertTime";
+  private static final String kafkaDataTopicValue = "testTopic";
+  private static final int kafkaDataPartitionValue = 101;
+  private static final long kafkaDataOffsetValue = 1337;
+  Map<String, Object> expectedKafkaDataFields = new HashMap<>();
 
-    @Before
-    public void setup() {
-        expectedKafkaDataFields.put(kafkaDataTopicName, kafkaDataTopicValue);
-        expectedKafkaDataFields.put(kafkaDataPartitionName, kafkaDataPartitionValue);
-        expectedKafkaDataFields.put(kafkaDataOffsetName, kafkaDataOffsetValue);
-    }
+  @Before
+  public void setup() {
+    expectedKafkaDataFields.put(kafkaDataTopicName, kafkaDataTopicValue);
+    expectedKafkaDataFields.put(kafkaDataPartitionName, kafkaDataPartitionValue);
+    expectedKafkaDataFields.put(kafkaDataOffsetName, kafkaDataOffsetValue);
+  }
 
-    @Test
-    public void testBuildKafkaDataRecord() {
-        SinkRecord record = new SinkRecord(kafkaDataTopicValue, kafkaDataPartitionValue, null, null, null, null, kafkaDataOffsetValue);
-        Map<String, Object> actualKafkaDataFields = KafkaDataBuilder.buildKafkaDataRecord(record);
+  @Test
+  public void testBuildKafkaDataRecord() {
+    SinkRecord record = new SinkRecord(kafkaDataTopicValue, kafkaDataPartitionValue, null, null, null, null, kafkaDataOffsetValue);
+    Map<String, Object> actualKafkaDataFields = KafkaDataBuilder.buildKafkaDataRecord(record);
 
-        assertTrue(actualKafkaDataFields.containsKey(kafkaDataInsertTimeName));
-        assertTrue(actualKafkaDataFields.get(kafkaDataInsertTimeName) instanceof Double);
+    assertTrue(actualKafkaDataFields.containsKey(kafkaDataInsertTimeName));
+    assertTrue(actualKafkaDataFields.get(kafkaDataInsertTimeName) instanceof Double);
 
-        actualKafkaDataFields.remove(kafkaDataInsertTimeName);
+    actualKafkaDataFields.remove(kafkaDataInsertTimeName);
 
-        assertEquals(expectedKafkaDataFields, actualKafkaDataFields);
-    }
+    assertEquals(expectedKafkaDataFields, actualKafkaDataFields);
+  }
 
-    @Test
-    public void testBuildKafkaDataRecordStorageWriteApi() {
-        SinkRecord record = new SinkRecord(kafkaDataTopicValue, kafkaDataPartitionValue, null, null, null, null, kafkaDataOffsetValue);
-        Map<String, Object> actualKafkaDataFields = KafkaDataBuilder.buildKafkaDataRecordStorageApi(record);
+  @Test
+  public void testBuildKafkaDataRecordStorageWriteApi() {
+    SinkRecord record = new SinkRecord(kafkaDataTopicValue, kafkaDataPartitionValue, null, null, null, null, kafkaDataOffsetValue);
+    Map<String, Object> actualKafkaDataFields = KafkaDataBuilder.buildKafkaDataRecordStorageApi(record);
 
-        assertTrue(actualKafkaDataFields.containsKey(kafkaDataInsertTimeName));
-        assertTrue(actualKafkaDataFields.get(kafkaDataInsertTimeName) instanceof Long);
+    assertTrue(actualKafkaDataFields.containsKey(kafkaDataInsertTimeName));
+    assertTrue(actualKafkaDataFields.get(kafkaDataInsertTimeName) instanceof Long);
 
-        actualKafkaDataFields.remove(kafkaDataInsertTimeName);
+    actualKafkaDataFields.remove(kafkaDataInsertTimeName);
 
-        assertEquals(expectedKafkaDataFields, actualKafkaDataFields);
-    }
+    assertEquals(expectedKafkaDataFields, actualKafkaDataFields);
+  }
 
-    @Test
-    public void testBuildKafkaDataField() {
-        Field topicField = Field.of("topic", LegacySQLTypeName.STRING);
-        Field partitionField = Field.of("partition", LegacySQLTypeName.INTEGER);
-        Field offsetField = Field.of("offset", LegacySQLTypeName.INTEGER);
-        Field insertTimeField = Field.newBuilder("insertTime",LegacySQLTypeName.TIMESTAMP)
-                .setMode(Field.Mode.NULLABLE)
-                .build();
+  @Test
+  public void testBuildKafkaDataField() {
+    Field topicField = Field.of("topic", LegacySQLTypeName.STRING);
+    Field partitionField = Field.of("partition", LegacySQLTypeName.INTEGER);
+    Field offsetField = Field.of("offset", LegacySQLTypeName.INTEGER);
+    Field insertTimeField = Field.newBuilder("insertTime", LegacySQLTypeName.TIMESTAMP)
+        .setMode(Field.Mode.NULLABLE)
+        .build();
 
-        Field expectedBigQuerySchema = Field.newBuilder(kafkaDataFieldName,
-                LegacySQLTypeName.RECORD,
-                topicField,
-                partitionField,
-                offsetField,
-                insertTimeField)
-                .setMode(Field.Mode.NULLABLE)
-                .build();
-        Field actualBigQuerySchema = KafkaDataBuilder.buildKafkaDataField(kafkaDataFieldName);
-        assertEquals(expectedBigQuerySchema, actualBigQuerySchema);
-    }
+    Field expectedBigQuerySchema = Field.newBuilder(kafkaDataFieldName,
+            LegacySQLTypeName.RECORD,
+            topicField,
+            partitionField,
+            offsetField,
+            insertTimeField)
+        .setMode(Field.Mode.NULLABLE)
+        .build();
+    Field actualBigQuerySchema = KafkaDataBuilder.buildKafkaDataField(kafkaDataFieldName);
+    assertEquals(expectedBigQuerySchema, actualBigQuerySchema);
+  }
 }

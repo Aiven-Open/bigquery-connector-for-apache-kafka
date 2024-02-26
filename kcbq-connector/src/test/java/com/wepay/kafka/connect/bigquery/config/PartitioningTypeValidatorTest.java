@@ -19,17 +19,16 @@
 
 package com.wepay.kafka.connect.bigquery.config;
 
-import com.google.cloud.bigquery.TimePartitioning;
-import org.junit.Test;
-
-import java.util.Optional;
-
 import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG;
 import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.TABLE_CREATE_CONFIG;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+
+import com.google.cloud.bigquery.TimePartitioning;
+import java.util.Optional;
+import org.junit.Test;
 
 public class PartitioningTypeValidatorTest {
 
@@ -64,12 +63,12 @@ public class PartitioningTypeValidatorTest {
       if (TimePartitioning.Type.DAY.equals(timePartitioningType)) {
         continue;
       }
-      
+
       BigQuerySinkConfig config = mock(BigQuerySinkConfig.class);
       when(config.getBoolean(BIGQUERY_PARTITION_DECORATOR_CONFIG)).thenReturn(true);
       when(config.getBoolean(TABLE_CREATE_CONFIG)).thenReturn(true);
       when(config.getTimePartitioningType()).thenReturn(Optional.of(timePartitioningType));
-  
+
       assertNotEquals(
           Optional.empty(),
           new PartitioningTypeValidator().doValidate(config)

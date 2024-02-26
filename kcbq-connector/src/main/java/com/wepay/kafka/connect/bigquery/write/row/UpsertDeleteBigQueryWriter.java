@@ -27,10 +27,9 @@ import com.wepay.kafka.connect.bigquery.SchemaManager;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
 import com.wepay.kafka.connect.bigquery.utils.PartitionedTableId;
 import com.wepay.kafka.connect.bigquery.utils.Time;
-import org.apache.kafka.connect.sink.SinkRecord;
-
 import java.util.List;
 import java.util.Map;
+import org.apache.kafka.connect.sink.SinkRecord;
 
 public class UpsertDeleteBigQueryWriter extends AdaptiveBigQueryWriter {
 
@@ -39,17 +38,17 @@ public class UpsertDeleteBigQueryWriter extends AdaptiveBigQueryWriter {
   private final Map<TableId, TableId> intermediateToDestinationTables;
 
   /**
-   * @param bigQuery Used to send write requests to BigQuery.
-   * @param schemaManager Used to update BigQuery tables.
-   * @param retry How many retries to make in the event of a 500/503 error.
-   * @param retryWait How long to wait in between retries.
-   * @param autoCreateTables Whether destination tables should be automatically created
+   * @param bigQuery                        Used to send write requests to BigQuery.
+   * @param schemaManager                   Used to update BigQuery tables.
+   * @param retry                           How many retries to make in the event of a 500/503 error.
+   * @param retryWait                       How long to wait in between retries.
+   * @param autoCreateTables                Whether destination tables should be automatically created
    * @param intermediateToDestinationTables A mapping used to determine the destination table for
    *                                        given intermediate tables; used for create/update
    *                                        operations in order to propagate them to the destination
    *                                        table
-   * @param errantRecordHandler Used to handle errant records
-   * @param time used to wait during backoff periods
+   * @param errantRecordHandler             Used to handle errant records
+   * @param time                            used to wait during backoff periods
    */
   public UpsertDeleteBigQueryWriter(BigQuery bigQuery,
                                     SchemaManager schemaManager,

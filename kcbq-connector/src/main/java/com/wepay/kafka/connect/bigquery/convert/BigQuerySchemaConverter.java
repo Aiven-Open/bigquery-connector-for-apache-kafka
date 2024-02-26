@@ -21,16 +21,12 @@ package com.wepay.kafka.connect.bigquery.convert;
 
 import com.google.cloud.bigquery.FieldList;
 import com.google.cloud.bigquery.LegacySQLTypeName;
-
 import com.wepay.kafka.connect.bigquery.convert.logicaltype.DebeziumLogicalConverters;
 import com.wepay.kafka.connect.bigquery.convert.logicaltype.KafkaLogicalConverters;
 import com.wepay.kafka.connect.bigquery.convert.logicaltype.LogicalConverterRegistry;
 import com.wepay.kafka.connect.bigquery.convert.logicaltype.LogicalTypeConverter;
 import com.wepay.kafka.connect.bigquery.exception.ConversionConnectException;
-
 import com.wepay.kafka.connect.bigquery.utils.FieldNameSanitizer;
-import org.apache.kafka.connect.data.Schema;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -38,6 +34,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.apache.kafka.connect.data.Schema;
 
 /**
  * Class for converting from {@link Schema Kafka Connect Schemas} to
@@ -64,23 +61,23 @@ public class BigQuerySchemaConverter implements SchemaConverter<com.google.cloud
 
     PRIMITIVE_TYPE_MAP = new HashMap<>();
     PRIMITIVE_TYPE_MAP.put(Schema.Type.BOOLEAN,
-                           LegacySQLTypeName.BOOLEAN);
+        LegacySQLTypeName.BOOLEAN);
     PRIMITIVE_TYPE_MAP.put(Schema.Type.FLOAT32,
-                           LegacySQLTypeName.FLOAT);
+        LegacySQLTypeName.FLOAT);
     PRIMITIVE_TYPE_MAP.put(Schema.Type.FLOAT64,
-                           LegacySQLTypeName.FLOAT);
+        LegacySQLTypeName.FLOAT);
     PRIMITIVE_TYPE_MAP.put(Schema.Type.INT8,
-                           LegacySQLTypeName.INTEGER);
+        LegacySQLTypeName.INTEGER);
     PRIMITIVE_TYPE_MAP.put(Schema.Type.INT16,
-                           LegacySQLTypeName.INTEGER);
+        LegacySQLTypeName.INTEGER);
     PRIMITIVE_TYPE_MAP.put(Schema.Type.INT32,
-                           LegacySQLTypeName.INTEGER);
+        LegacySQLTypeName.INTEGER);
     PRIMITIVE_TYPE_MAP.put(Schema.Type.INT64,
-                           LegacySQLTypeName.INTEGER);
+        LegacySQLTypeName.INTEGER);
     PRIMITIVE_TYPE_MAP.put(Schema.Type.STRING,
-                           LegacySQLTypeName.STRING);
+        LegacySQLTypeName.STRING);
     PRIMITIVE_TYPE_MAP.put(Schema.Type.BYTES,
-                           LegacySQLTypeName.BYTES);
+        LegacySQLTypeName.BYTES);
   }
 
   private final boolean allFieldsNullable;
@@ -104,7 +101,7 @@ public class BigQuerySchemaConverter implements SchemaConverter<com.google.cloud
    *                           into a row format that requires each field to consist of both a name
    *                           and a value.
    * @return The resulting schema, which can then be used to create a new table or update an
-   *         existing one.
+   * existing one.
    */
   public com.google.cloud.bigquery.Schema convertSchema(Schema kafkaConnectSchema) {
     // TODO: Permit non-struct keys
@@ -117,9 +114,9 @@ public class BigQuerySchemaConverter implements SchemaConverter<com.google.cloud
 
     List<com.google.cloud.bigquery.Field> fields = kafkaConnectSchema.fields().stream()
         .flatMap(kafkaConnectField ->
-          convertField(kafkaConnectField.schema(), kafkaConnectField.name())
-          .map(Stream::of)
-          .orElse(Stream.empty())
+            convertField(kafkaConnectField.schema(), kafkaConnectField.name())
+                .map(Stream::of)
+                .orElse(Stream.empty())
         )
         .map(com.google.cloud.bigquery.Field.Builder::build)
         .collect(Collectors.toList());
@@ -137,7 +134,7 @@ public class BigQuerySchemaConverter implements SchemaConverter<com.google.cloud
     }
 
     seenSoFar.add(kafkaConnectSchema);
-    switch(kafkaConnectSchema.type()) {
+    switch (kafkaConnectSchema.type()) {
       case ARRAY:
         throwOnCycle(kafkaConnectSchema.valueSchema(), seenSoFar);
         break;
@@ -215,8 +212,8 @@ public class BigQuerySchemaConverter implements SchemaConverter<com.google.cloud
         .stream()
         .flatMap(kafkaConnectField ->
             convertField(kafkaConnectField.schema(), kafkaConnectField.name())
-            .map(Stream::of)
-            .orElse(Stream.empty())
+                .map(Stream::of)
+                .orElse(Stream.empty())
         )
         .map(com.google.cloud.bigquery.Field.Builder::build)
         .collect(Collectors.toList());
@@ -227,8 +224,8 @@ public class BigQuerySchemaConverter implements SchemaConverter<com.google.cloud
     FieldList fieldList = FieldList.of(bigQueryRecordFields);
 
     return Optional.of(com.google.cloud.bigquery.Field.newBuilder(fieldName,
-                                                                  LegacySQLTypeName.RECORD,
-                                                                  fieldList));
+        LegacySQLTypeName.RECORD,
+        fieldList));
   }
 
   private Optional<com.google.cloud.bigquery.Field.Builder> convertArray(Schema kafkaConnectSchema,
@@ -251,9 +248,9 @@ public class BigQuerySchemaConverter implements SchemaConverter<com.google.cloud
     return maybeKeyField.flatMap(keyField ->
         maybeValueField.map(valueField ->
             com.google.cloud.bigquery.Field.newBuilder(fieldName,
-                                                       LegacySQLTypeName.RECORD,
-                                                       keyField,
-                                                       valueField)
+                    LegacySQLTypeName.RECORD,
+                    keyField,
+                    valueField)
                 .setMode(com.google.cloud.bigquery.Field.Mode.REPEATED)
         )
     );
@@ -271,6 +268,6 @@ public class BigQuerySchemaConverter implements SchemaConverter<com.google.cloud
     LogicalTypeConverter converter =
         LogicalConverterRegistry.getConverter(kafkaConnectSchema.name());
     converter.checkEncodingType(kafkaConnectSchema.type());
-    return com.google.cloud.bigquery.Field.newBuilder(fieldName, converter.getBQSchemaType());
+    return com.google.cloud.bigquery.Field.newBuilder(fieldName, converter.getBqSchemaType());
   }
 }

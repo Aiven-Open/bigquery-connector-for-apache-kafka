@@ -24,4 +24,11 @@
         "http://www.puppycrawl.com/dtds/suppressions_1_1.dtd">
 
 <suppressions>
+    <suppress checks="MissingJavadocType" files=".*" />
+    <suppress checks="MissingJavadocMethod" files=".*" />
+    <suppress checks="SummaryJavadoc" files="." />
+    <suppress checks="JavadocTagContinuationIndentation" files=".*" />
+    <suppress checks="NonEmptyAtclauseDescription" files=".*" />
+
+    <suppress checks="LineLength" files=".*" />
 </suppressions>

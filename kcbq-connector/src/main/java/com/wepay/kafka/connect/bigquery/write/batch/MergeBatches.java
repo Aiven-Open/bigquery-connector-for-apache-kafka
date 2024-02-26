@@ -19,6 +19,8 @@
 
 package com.wepay.kafka.connect.bigquery.write.batch;
 
+import static com.wepay.kafka.connect.bigquery.utils.TableNameUtils.intTable;
+
 import com.google.cloud.bigquery.InsertAllRequest;
 import com.google.cloud.bigquery.TableId;
 import com.google.common.annotations.VisibleForTesting;
@@ -28,13 +30,6 @@ import com.google.common.collect.Maps;
 import com.wepay.kafka.connect.bigquery.MergeQueries;
 import com.wepay.kafka.connect.bigquery.exception.ExpectedInterruptException;
 import com.wepay.kafka.connect.bigquery.utils.FieldNameSanitizer;
-import org.apache.kafka.clients.consumer.OffsetAndMetadata;
-import org.apache.kafka.common.TopicPartition;
-import org.apache.kafka.connect.errors.ConnectException;
-import org.apache.kafka.connect.sink.SinkRecord;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -43,8 +38,11 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
-
-import static com.wepay.kafka.connect.bigquery.utils.TableNameUtils.intTable;
+import org.apache.kafka.clients.consumer.OffsetAndMetadata;
+import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.connect.sink.SinkRecord;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class MergeBatches {
   private static final Logger logger = LoggerFactory.getLogger(MergeBatches.class);
@@ -58,6 +56,15 @@ public class MergeBatches {
   private final ConcurrentMap<TableId, ConcurrentMap<Integer, Batch>> batches;
   private final Map<TopicPartition, Long> offsets;
 
+  public MergeBatches(String intermediateTableSuffix) {
+    this.intermediateTableSuffix = intermediateTableSuffix;
+
+    this.intermediateToDestinationTables = Maps.synchronizedBiMap(HashBiMap.create());
+    this.batchNumbers = new ConcurrentHashMap<>();
+    this.batches = new ConcurrentHashMap<>();
+    this.offsets = new HashMap<>();
+  }
+
   @VisibleForTesting
   public static void setStreamingBufferAvailabilityWait(long waitMs) {
     streamingBufferAvailabilityWaitMs = waitMs;
@@ -68,18 +75,10 @@ public class MergeBatches {
     streamingBufferAvailabilityWaitMs = STREAMING_BUFFER_AVAILABILITY_WAIT_MS;
   }
 
-  public MergeBatches(String intermediateTableSuffix) {
-    this.intermediateTableSuffix = intermediateTableSuffix;
-
-    this.intermediateToDestinationTables = Maps.synchronizedBiMap(HashBiMap.create());
-    this.batchNumbers = new ConcurrentHashMap<>();
-    this.batches = new ConcurrentHashMap<>();
-    this.offsets = new HashMap<>();
-  }
-
   /**
    * Get the latest safe-to-commit offsets for every topic partition that has had at least one
    * record make its way to a destination table.
+   *
    * @return the offsets map which can be used in
    * {@link org.apache.kafka.connect.sink.SinkTask#preCommit(Map)}; never null
    */
@@ -108,6 +107,7 @@ public class MergeBatches {
 
   /**
    * Get the intermediate table for a given destination table, computing a new one if necessary
+   *
    * @param destinationTable the destination table to fetch an intermediate table for
    * @return the {@link TableId} of the intermediate table; never null
    */
@@ -138,9 +138,10 @@ public class MergeBatches {
   /**
    * Find a batch number for the record, insert that number into the converted value, record the
    * offset for that record, and return the total size of that batch.
-   * @param record the record for the batch
+   *
+   * @param record            the record for the batch
    * @param intermediateTable the intermediate table the record will be streamed into
-   * @param convertedRecord the converted record that will be passed to the BigQuery client
+   * @param convertedRecord   the converted record that will be passed to the BigQuery client
    * @return the total number of records in the batch that this record is added to
    */
   public long addToBatch(SinkRecord record, TableId intermediateTable, Map<String, Object> convertedRecord) {
@@ -169,8 +170,9 @@ public class MergeBatches {
   /**
    * Record a successful write of a list of rows to the given intermediate table, and decrease the
    * pending record counts for every applicable batch accordingly.
+   *
    * @param intermediateTable the intermediate table
-   * @param rows the rows
+   * @param rows              the rows
    */
   public void onRowWrites(TableId intermediateTable, Collection<InsertAllRequest.RowToInsert> rows) {
     Map<Integer, Long> rowsByBatch = rows.stream().collect(Collectors.groupingBy(
@@ -192,6 +194,7 @@ public class MergeBatches {
 
   /**
    * Checks if current batch of intermediate table has no records so far
+   *
    * @param intermediateTable the table whose current batch needs to be checked
    * @return true if no records, else false
    */
@@ -203,9 +206,10 @@ public class MergeBatches {
     }
     return currentBatch == null || currentBatch.total.get() == 0L;
   }
-  
+
   /**
    * Increment the batch number for the given table, and return the old batch number.
+   *
    * @param intermediateTable the table whose batch number should be incremented
    * @return the batch number for the table, pre-increment
    */
@@ -220,8 +224,9 @@ public class MergeBatches {
   /**
    * Prepare to merge the batch for the given table, by ensuring that all prior batches for that
    * table have completed and that all rows for the batch itself have been written.
+   *
    * @param intermediateTable the table for the batch
-   * @param batchNumber the batch number to prepare to flush
+   * @param batchNumber       the batch number to prepare to flush
    * @return whether a flush is necessary (will be false if no rows were present in the given batch)
    */
   public boolean prepareToFlush(TableId intermediateTable, int batchNumber) {
@@ -294,8 +299,9 @@ public class MergeBatches {
    * Record a successful merge flush of all of the rows for the given batch in the intermediate
    * table, alert any waiting merge flushes that are predicated on the completion of this merge
    * flush, and marke the offsets for all of those rows as safe to commit.
+   *
    * @param intermediateTable the source of the merge flush
-   * @param batchNumber the batch for the merge flush
+   * @param batchNumber       the batch for the merge flush
    */
   public void recordSuccessfulFlush(TableId intermediateTable, int batchNumber) {
     logger.trace("Successfully merge flushed batch {} for {}",
@@ -350,6 +356,7 @@ public class MergeBatches {
 
     /**
      * Increment the total and pending number of records, and return the number of pending records
+     *
      * @return the number of pending records for this batch
      */
     public long increment() {

@@ -25,12 +25,12 @@ import org.apache.kafka.connect.errors.ConnectException;
  * Class for exceptions that occur while interacting with Google Cloud Storage, such as login
  * failures.
  */
-public class GCSConnectException extends ConnectException {
-  public GCSConnectException(String msg) {
+public class GcsConnectException extends ConnectException {
+  public GcsConnectException(String msg) {
     super(msg);
   }
 
-  public GCSConnectException(String msg, Throwable thr) {
+  public GcsConnectException(String msg, Throwable thr) {
     super(msg, thr);
   }
 }

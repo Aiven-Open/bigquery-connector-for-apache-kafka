@@ -19,6 +19,15 @@
 
 package com.wepay.kafka.connect.bigquery.integration;
 
+import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.TIME_PARTITIONING_TYPE_CONFIG;
+import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkTaskConfig.BIGQUERY_MESSAGE_TIME_PARTITIONING_CONFIG;
+import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkTaskConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG;
+import static org.apache.kafka.connect.runtime.ConnectorConfig.KEY_CONVERTER_CLASS_CONFIG;
+import static org.apache.kafka.connect.runtime.ConnectorConfig.VALUE_CONVERTER_CLASS_CONFIG;
+import static org.apache.kafka.test.TestUtils.waitForCondition;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.QueryJobConfiguration;
 import com.google.cloud.bigquery.StandardTableDefinition;
@@ -28,6 +37,12 @@ import com.google.cloud.bigquery.TimePartitioning;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.integration.utils.TableClearer;
 import com.wepay.kafka.connect.bigquery.retrieve.IdentitySchemaRetriever;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerConfig;
@@ -53,23 +68,6 @@ import org.junit.runners.Parameterized;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.concurrent.TimeUnit;
-
-import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.TIME_PARTITIONING_TYPE_CONFIG;
-import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkTaskConfig.BIGQUERY_MESSAGE_TIME_PARTITIONING_CONFIG;
-import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkTaskConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG;
-import static org.apache.kafka.connect.runtime.ConnectorConfig.KEY_CONVERTER_CLASS_CONFIG;
-import static org.apache.kafka.connect.runtime.ConnectorConfig.VALUE_CONVERTER_CLASS_CONFIG;
-import static org.apache.kafka.test.TestUtils.waitForCondition;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-
 @Category(IntegrationTest.class)
 @RunWith(Parameterized.class)
 public class TimePartitioningIT {
@@ -80,15 +78,13 @@ public class TimePartitioningIT {
   private static final int TASKS_MAX = 1;
 
   private static BaseConnectorIT testBase;
-
-  private BigQuery bigQuery;
-
   private final TimePartitioning.Type partitioningType;
   private final boolean usePartitionDecorator;
   private final boolean messageTimePartitioning;
   private final int testCase;
   private final long testStartTime;
   private final String connectorName;
+  private BigQuery bigQuery;
 
   public TimePartitioningIT(
       TimePartitioning.Type partitioningType,
@@ -108,24 +104,34 @@ public class TimePartitioningIT {
   public static Iterable<Object[]> data() {
     int testCase = 0;
     return Arrays.asList(
-      new Object[] {TimePartitioning.Type.HOUR, false, false, testCase++ },
-      new Object[] {TimePartitioning.Type.DAY, true, true, testCase++ },
-      new Object[] {TimePartitioning.Type.DAY, true, false, testCase++ },
-      new Object[] {TimePartitioning.Type.DAY, false, false, testCase++ },
-      new Object[] {TimePartitioning.Type.MONTH, false, false, testCase++ },
-      new Object[] {TimePartitioning.Type.YEAR, false, false, testCase }
+        new Object[]{TimePartitioning.Type.HOUR, false, false, testCase++},
+        new Object[]{TimePartitioning.Type.DAY, true, true, testCase++},
+        new Object[]{TimePartitioning.Type.DAY, true, false, testCase++},
+        new Object[]{TimePartitioning.Type.DAY, false, false, testCase++},
+        new Object[]{TimePartitioning.Type.MONTH, false, false, testCase++},
+        new Object[]{TimePartitioning.Type.YEAR, false, false, testCase}
     );
   }
 
   @BeforeClass
   public static void globalSetup() {
-    testBase = new BaseConnectorIT() {};
+    testBase = new BaseConnectorIT() {
+    };
     BigQuery bigQuery = testBase.newBigQuery();
     data().forEach(args -> {
       int testCase = (int) args[3];
       TableClearer.clearTables(bigQuery, testBase.dataset(), table(testCase));
     });
     testBase.startConnect();
+  }
+
+  @AfterClass
+  public static void globalCleanup() {
+    testBase.stopConnect();
+  }
+
+  private static String table(int testCase) {
+    return testBase.suffixedAndSanitizedTable("test-time-partitioning-" + testCase);
   }
 
   @Before
@@ -137,11 +143,6 @@ public class TimePartitioningIT {
   public void close() {
     bigQuery = null;
     testBase.connect.deleteConnector(connectorName);
-  }
-
-  @AfterClass
-  public static void globalCleanup() {
-    testBase.stopConnect();
   }
 
   private Map<String, String> partitioningProps() {
@@ -156,10 +157,6 @@ public class TimePartitioningIT {
     result.put(TIME_PARTITIONING_TYPE_CONFIG, partitioningType.name());
 
     return result;
-  }
-
-  private static String table(int testCase) {
-    return testBase.suffixedAndSanitizedTable("test-time-partitioning-" + testCase);
   }
 
   @Test

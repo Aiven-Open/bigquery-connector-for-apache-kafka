@@ -19,10 +19,22 @@
 
 package com.wepay.kafka.connect.bigquery.integration;
 
+import static org.apache.kafka.connect.runtime.ConnectorConfig.KEY_CONVERTER_CLASS_CONFIG;
+import static org.apache.kafka.connect.runtime.ConnectorConfig.VALUE_CONVERTER_CLASS_CONFIG;
+import static org.junit.Assert.assertEquals;
+
 import com.google.cloud.bigquery.BigQuery;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.integration.utils.TableClearer;
 import com.wepay.kafka.connect.bigquery.retrieve.IdentitySchemaRetriever;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.LongStream;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
@@ -40,19 +52,6 @@ import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
-import java.util.stream.LongStream;
-
-import static org.apache.kafka.connect.runtime.ConnectorConfig.KEY_CONVERTER_CLASS_CONFIG;
-import static org.apache.kafka.connect.runtime.ConnectorConfig.VALUE_CONVERTER_CLASS_CONFIG;
-import static org.junit.Assert.assertEquals;
 
 @Category(IntegrationTest.class)
 public class UpsertDeleteBigQuerySinkConnectorIT extends BaseConnectorIT {
@@ -322,15 +321,15 @@ public class UpsertDeleteBigQuerySinkConnectorIT extends BaseConnectorIT {
     props.put(SinkConnectorConfig.TOPICS_CONFIG, topic);
     // Allow for at most 10,000 records per call to poll
     props.put(ConnectorConfig.CONNECTOR_CLIENT_CONSUMER_OVERRIDES_PREFIX
-        + ConsumerConfig.MAX_POLL_RECORDS_CONFIG,
+            + ConsumerConfig.MAX_POLL_RECORDS_CONFIG,
         "10000");
     // Try to get at least 1 MB per partition with each request
     props.put(ConnectorConfig.CONNECTOR_CLIENT_CONSUMER_OVERRIDES_PREFIX
-        + ConsumerConfig.FETCH_MIN_BYTES_CONFIG,
+            + ConsumerConfig.FETCH_MIN_BYTES_CONFIG,
         Integer.toString(ConsumerConfig.DEFAULT_MAX_PARTITION_FETCH_BYTES * numPartitions));
     // Wait up to one second for each batch to reach the requested size
     props.put(ConnectorConfig.CONNECTOR_CLIENT_CONSUMER_OVERRIDES_PREFIX
-        + ConsumerConfig.FETCH_MAX_WAIT_MS_CONFIG,
+            + ConsumerConfig.FETCH_MAX_WAIT_MS_CONFIG,
         "1000"
     );
 

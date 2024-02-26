@@ -27,10 +27,6 @@ import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryErrorResponses;
 import com.wepay.kafka.connect.bigquery.utils.PartitionedTableId;
 import com.wepay.kafka.connect.bigquery.utils.Time;
-import org.apache.kafka.connect.sink.SinkRecord;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -39,6 +35,9 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import org.apache.kafka.connect.sink.SinkRecord;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A class for writing lists of rows to a BigQuery table.
@@ -48,21 +47,19 @@ public abstract class BigQueryWriter {
   private static final int WAIT_MAX_JITTER = 1000;
 
   private static final Logger logger = LoggerFactory.getLogger(BigQueryWriter.class);
-
+  protected final Time time;
   private final int retries;
   private final long retryWaitMs;
   private final Random random;
-
   private final ErrantRecordHandler errantRecordHandler;
-  protected final Time time;
 
   /**
-   * @param retries the number of times to retry a request if BQ returns an internal service error
-   *                or a service unavailable error.
-   * @param retryWaitMs the amount of time to wait in between reattempting a request if BQ returns
-   *                    an internal service error or a service unavailable error.
+   * @param retries             the number of times to retry a request if BQ returns an internal service error
+   *                            or a service unavailable error.
+   * @param retryWaitMs         the amount of time to wait in between reattempting a request if BQ returns
+   *                            an internal service error or a service unavailable error.
    * @param errantRecordHandler used to handle errant records
-   * @param time used to wait during backoff periods
+   * @param time                used to wait during backoff periods
    */
   public BigQueryWriter(int retries, long retryWaitMs, ErrantRecordHandler errantRecordHandler, Time time) {
     this.retries = retries;
@@ -76,19 +73,21 @@ public abstract class BigQueryWriter {
   /**
    * Handle the actual transmission of the write request to BigQuery, including any exceptions or
    * errors that happen as a result.
+   *
    * @param tableId The PartitionedTableId.
-   * @param rows The rows to write.
+   * @param rows    The rows to write.
    * @return map from failed row id to the BigQueryError.
    */
   protected abstract Map<Long, List<BigQueryError>> performWriteRequest(
-          PartitionedTableId tableId,
-          SortedMap<SinkRecord, InsertAllRequest.RowToInsert> rows)
+      PartitionedTableId tableId,
+      SortedMap<SinkRecord, InsertAllRequest.RowToInsert> rows)
       throws BigQueryException, BigQueryConnectException;
 
   /**
    * Create an InsertAllRequest.
+   *
    * @param tableId the table to insert into.
-   * @param rows the rows to insert.
+   * @param rows    the rows to insert.
    * @return the InsertAllRequest.
    */
   protected InsertAllRequest createInsertAllRequest(PartitionedTableId tableId,
@@ -101,7 +100,7 @@ public abstract class BigQueryWriter {
 
   /**
    * @param table The BigQuery table to write the rows to.
-   * @param rows The rows to write.
+   * @param rows  The rows to write.
    * @throws InterruptedException if interrupted.
    */
   public void writeRows(PartitionedTableId table,
@@ -131,17 +130,17 @@ public abstract class BigQueryWriter {
           retryCount++;
         } else {
           if (errantRecordHandler.getErrantRecordReporter() != null) {
-            failedRowsMap = filterAndSendRecordsToDLQ(rows, failedRowsMap, table);
+            failedRowsMap = filterAndSendRecordsToDlq(rows, failedRowsMap, table);
             if (failedRowsMap.isEmpty()) {
               logger.info("Failed Row Map is empty");
               return;
             }
             if (hasStoppedErrorRecords(failedRowsMap)) {
-                rows = getFailedRows(rows, failedRowsMap.keySet(), table);
-                mostRecentException = new BigQueryConnectException(table.toString(), failedRowsMap);
-                retryCount++;
+              rows = getFailedRows(rows, failedRowsMap.keySet(), table);
+              mostRecentException = new BigQueryConnectException(table.toString(), failedRowsMap);
+              retryCount++;
             } else {
-                throw new BigQueryConnectException(table.toString(), failedRowsMap);
+              throw new BigQueryConnectException(table.toString(), failedRowsMap);
             }
           } else {
             // throw an exception in case of complete failure
@@ -159,7 +158,7 @@ public abstract class BigQueryWriter {
         } else if (BigQueryErrorResponses.isRateLimitExceededError(err)) {
           logger.warn("Rate limit exceeded for table {}, attempting retry", table);
           retryCount++;
-        } else if (BigQueryErrorResponses.isIOError(err)){
+        } else if (BigQueryErrorResponses.isIoError(err)) {
           logger.warn("IO Exception: {}, attempting retry", err.getCause().getMessage());
           retryCount++;
         } else {
@@ -167,19 +166,21 @@ public abstract class BigQueryWriter {
         }
       }
     } while (retryCount <= retries);
-      if (errantRecordHandler.getErrantRecordReporter() != null && failedRowsMap!=null) {
-        failedRowsMap = filterAndSendRecordsToDLQ(rows, failedRowsMap, table);
-        if (failedRowsMap.isEmpty())
-            return;
+    if (errantRecordHandler.getErrantRecordReporter() != null && failedRowsMap != null) {
+      failedRowsMap = filterAndSendRecordsToDlq(rows, failedRowsMap, table);
+      if (failedRowsMap.isEmpty()) {
+        return;
       }
-      throw new BigQueryConnectException(
-          String.format("Exceeded configured %d attempts for write request", retries),
-          mostRecentException);
+    }
+    throw new BigQueryConnectException(
+        String.format("Exceeded configured %d attempts for write request", retries),
+        mostRecentException);
   }
 
   /**
    * Decide whether the failure is a partial failure or complete failure
-   * @param rows The rows to write.
+   *
+   * @param rows          The rows to write.
    * @param failedRowsMap A map from failed row index to the BigQueryError.
    * @return isPartialFailure.
    */
@@ -190,17 +191,18 @@ public abstract class BigQueryWriter {
 
   /**
    * Filter out succeed rows, and return a list of failed rows.
-   * @param rows The rows to write.
+   *
+   * @param rows        The rows to write.
    * @param failRowsSet A set of failed row index.
    * @return A list of failed rows.
    */
   private SortedMap<SinkRecord, InsertAllRequest.RowToInsert> getFailedRows(SortedMap<SinkRecord, InsertAllRequest.RowToInsert> rows,
-                                                           Set<Long> failRowsSet,
-                                                           PartitionedTableId table) {
+                                                                            Set<Long> failRowsSet,
+                                                                            PartitionedTableId table) {
     SortedMap<SinkRecord, InsertAllRequest.RowToInsert> failRows = new TreeMap<>(rows.comparator());
     int index = 0;
-    for (Map.Entry<SinkRecord, InsertAllRequest.RowToInsert> row: rows.entrySet()) {
-      if (failRowsSet.contains((long)index)) {
+    for (Map.Entry<SinkRecord, InsertAllRequest.RowToInsert> row : rows.entrySet()) {
+      if (failRowsSet.contains((long) index)) {
         failRows.put(row.getKey(), row.getValue());
       }
       index++;
@@ -211,6 +213,7 @@ public abstract class BigQueryWriter {
 
   /**
    * Wait at least {@link #retryWaitMs}, with up to an additional 1 second of random jitter.
+   *
    * @throws InterruptedException if interrupted.
    */
   private void waitRandomTime() throws InterruptedException {
@@ -220,25 +223,26 @@ public abstract class BigQueryWriter {
 
   /**
    * Filter and send Records to DLQ according to allowedBigQueryReason List
-   * @param rows The rows to write.
+   *
+   * @param rows          The rows to write.
    * @param failedRowsMap map from failed row id to the BigQueryError
-   * @param table The BigQuery table to write the rows to
+   * @param table         The BigQuery table to write the rows to
    * @return Filtered Map from failed row id to the BigQueryError which cannot be sent to DLQ
    */
-  private Map<Long, List<BigQueryError>> filterAndSendRecordsToDLQ(
+  private Map<Long, List<BigQueryError>> filterAndSendRecordsToDlq(
       SortedMap<SinkRecord, InsertAllRequest.RowToInsert> rows,
       Map<Long, List<BigQueryError>> failedRowsMap,
       PartitionedTableId table
   ) {
     long index = 0;
-    Set<SinkRecord> recordsToDLQ = new TreeSet<>(rows.comparator());
-    Map<Long, List<BigQueryError>> recordsToDLQFailureMap = new TreeMap<>();
+    Set<SinkRecord> recordsToDlq = new TreeSet<>(rows.comparator());
+    Map<Long, List<BigQueryError>> recordsToDlqFailureMap = new TreeMap<>();
     Map<Long, List<BigQueryError>> updatedFailedRowMap = new TreeMap<>();
     for (Map.Entry<SinkRecord, InsertAllRequest.RowToInsert> row : rows.entrySet()) {
       if (failedRowsMap.containsKey(index)) {
         if (errantRecordHandler.isErrorReasonAllowed(failedRowsMap.get(index))) {
-          recordsToDLQ.add(row.getKey());
-          recordsToDLQFailureMap.put(index, failedRowsMap.get(index));
+          recordsToDlq.add(row.getKey());
+          recordsToDlqFailureMap.put(index, failedRowsMap.get(index));
         } else {
           updatedFailedRowMap.put(index, failedRowsMap.get(index));
         }
@@ -247,9 +251,9 @@ public abstract class BigQueryWriter {
     }
 
     if (errantRecordHandler.getErrantRecordReporter() != null) {
-      errantRecordHandler.sendRecordsToDLQ(
-          recordsToDLQ,
-          new BigQueryConnectException(table.toString(), recordsToDLQFailureMap)
+      errantRecordHandler.reportErrantRecords(
+          recordsToDlq,
+          new BigQueryConnectException(table.toString(), recordsToDlqFailureMap)
       );
     }
 
@@ -257,8 +261,7 @@ public abstract class BigQueryWriter {
   }
 
   /**
-   *
-   * @param failedRowsMap: A map from failed row index to the BigQueryError
+   * @param failedRowsMap A map from failed row index to the BigQueryError
    * @return true if all rows has Stopped BigQuery error reason else false.
    */
   private boolean hasStoppedErrorRecords(Map<Long, List<BigQueryError>> failedRowsMap) {

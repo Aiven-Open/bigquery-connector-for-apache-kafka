@@ -49,8 +49,7 @@
         <mockito.version>3.2.4</mockito.version>
 
         <buildnumber.plugin.version>1.4</buildnumber.plugin.version>
-        <checkstyle.plugin.version>2.15</checkstyle.plugin.version>
-        <checkstyle.version>6.18</checkstyle.version>
+        <checkstyle.plugin.version>3.3.1</checkstyle.plugin.version>
         <compiler.plugin.version>3.8.1</compiler.plugin.version>
         <google.cloud.bom.version>26.14.0</google.cloud.bom.version>
         <jacoco.plugin.version>0.8.5</jacoco.plugin.version>
@@ -403,26 +402,21 @@ under the License.
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-checkstyle-plugin</artifactId>
                     <version>${checkstyle.plugin.version}</version>
+                    <configuration>
+                        <configLocation>google_checks.xml</configLocation>
+                        <suppressionsLocation>config/checkstyle/suppressions.xml</suppressionsLocation>
+                        <violationSeverity>warning</violationSeverity>
+                    </configuration>
                     <executions>
                         <execution>
                             <id>validate</id>
                             <phase>validate</phase>
-                            <configuration>
-                                <configLocation>${project.parent.basedir}/config/checkstyle/google_checks.xml</configLocation>
-                                <suppressionsLocation>${project.parent.basedir}/config/checkstyle/suppressions.xml</suppressionsLocation>
-                            </configuration>
                             <goals>
                                 <goal>check</goal>
+                                <goal>checkstyle</goal>
                             </goals>
                         </execution>
                     </executions>
-                    <dependencies>
-                        <dependency>
-                            <groupId>com.puppycrawl.tools</groupId>
-                            <artifactId>checkstyle</artifactId>
-                            <version>${checkstyle.version}</version>
-                        </dependency>
-                    </dependencies>
                 </plugin>
                 <!--
                     Override the default version for the site plugin to fix ClassNotFoundExceptions

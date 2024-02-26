@@ -19,25 +19,24 @@
 
 package com.wepay.kafka.connect.bigquery.config;
 
-import com.google.cloud.bigquery.TimePartitioning;
+import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG;
+import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.TABLE_CREATE_CONFIG;
+import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.TIME_PARTITIONING_TYPE_CONFIG;
 
+import com.google.cloud.bigquery.TimePartitioning;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Optional;
 
-import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG;
-import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.TABLE_CREATE_CONFIG;
-import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.TIME_PARTITIONING_TYPE_CONFIG;
-
 public class PartitioningTypeValidator extends MultiPropertyValidator<BigQuerySinkConfig> {
-  public PartitioningTypeValidator() {
-    super(TIME_PARTITIONING_TYPE_CONFIG);
-  }
-
   private static final Collection<String> DEPENDENTS = Collections.unmodifiableCollection(Arrays.asList(
       BIGQUERY_PARTITION_DECORATOR_CONFIG, TABLE_CREATE_CONFIG
   ));
+
+  public PartitioningTypeValidator() {
+    super(TIME_PARTITIONING_TYPE_CONFIG);
+  }
 
   @Override
   protected Collection<String> dependents() {

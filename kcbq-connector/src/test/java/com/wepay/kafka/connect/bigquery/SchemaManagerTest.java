@@ -20,8 +20,6 @@
 package com.wepay.kafka.connect.bigquery;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -37,33 +35,26 @@ import com.google.cloud.bigquery.TableId;
 import com.google.cloud.bigquery.TableInfo;
 import com.google.cloud.bigquery.TimePartitioning;
 import com.google.common.collect.ImmutableList;
-
 import com.wepay.kafka.connect.bigquery.api.SchemaRetriever;
 import com.wepay.kafka.connect.bigquery.convert.BigQuerySchemaConverter;
 import com.wepay.kafka.connect.bigquery.convert.SchemaConverter;
-
 import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
 import com.wepay.kafka.connect.bigquery.retrieve.IdentitySchemaRetriever;
-import java.util.Random;
-
 import com.wepay.kafka.connect.bigquery.utils.FieldNameSanitizer;
-import org.apache.kafka.connect.data.Schema;
-
-import org.apache.kafka.connect.data.SchemaBuilder;
-import org.apache.kafka.connect.data.Struct;
-import org.apache.kafka.connect.sink.SinkRecord;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-import org.mockito.ArgumentCaptor;
-import org.mockito.stubbing.OngoingStubbing;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import org.apache.kafka.connect.data.Schema;
+import org.apache.kafka.connect.data.SchemaBuilder;
+import org.apache.kafka.connect.sink.SinkRecord;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.stubbing.OngoingStubbing;
 
 public class SchemaManagerTest {
 
@@ -133,7 +124,7 @@ public class SchemaManagerTest {
         testField.get(),
         definition.getTimePartitioning().getField());
     Assert.assertNull("Partition expiration is not null",
-            ((StandardTableDefinition) tableInfo.getDefinition()).getTimePartitioning().getExpirationMs());
+        ((StandardTableDefinition) tableInfo.getDefinition()).getTimePartitioning().getExpirationMs());
   }
 
   @Test
@@ -842,7 +833,7 @@ public class SchemaManagerTest {
         Field.of(LegacySQLTypeName.RECORD.name(), LegacySQLTypeName.RECORD,
             Field.of(LegacySQLTypeName.STRING.name(), LegacySQLTypeName.STRING),
             Field.of(LegacySQLTypeName.DATE.name(), LegacySQLTypeName.DATE)
-    ));
+        ));
     com.google.cloud.bigquery.Schema s2 = com.google.cloud.bigquery.Schema.of(
         Field.of(LegacySQLTypeName.RECORD.name(), LegacySQLTypeName.RECORD,
             Field.of(LegacySQLTypeName.TIMESTAMP.name(), LegacySQLTypeName.TIMESTAMP)
@@ -852,7 +843,7 @@ public class SchemaManagerTest {
             Field.of(LegacySQLTypeName.STRING.name(), LegacySQLTypeName.STRING),
             Field.of(LegacySQLTypeName.DATE.name(), LegacySQLTypeName.DATE),
             Field.of(LegacySQLTypeName.TIMESTAMP.name(), LegacySQLTypeName.TIMESTAMP)
-            )
+        )
     );
     assertUnion(makeNullable(expected), s1, s2);
   }
@@ -907,14 +898,14 @@ public class SchemaManagerTest {
   @Test
   public void testUnionizeSchemaCaseInsensitive() {
     com.google.cloud.bigquery.Schema s1 = com.google.cloud.bigquery.Schema.of(
-            Field.of("CAPS", LegacySQLTypeName.RECORD,
-                    Field.newBuilder(LegacySQLTypeName.STRING.name(), LegacySQLTypeName.STRING).setMode(Mode.REQUIRED).build()
-            )
+        Field.of("CAPS", LegacySQLTypeName.RECORD,
+            Field.newBuilder(LegacySQLTypeName.STRING.name(), LegacySQLTypeName.STRING).setMode(Mode.REQUIRED).build()
+        )
     );
     com.google.cloud.bigquery.Schema s2 = com.google.cloud.bigquery.Schema.of(
-            Field.of("caps", LegacySQLTypeName.RECORD,
-                    Field.newBuilder(LegacySQLTypeName.STRING.name(), LegacySQLTypeName.STRING).setMode(Mode.NULLABLE).build()
-            )
+        Field.of("caps", LegacySQLTypeName.RECORD,
+            Field.newBuilder(LegacySQLTypeName.STRING.name(), LegacySQLTypeName.STRING).setMode(Mode.NULLABLE).build()
+        )
     );
     assertUnion(makeNullable(s1), s1, s2);
   }
@@ -970,7 +961,7 @@ public class SchemaManagerTest {
   }
 
   private void assertUnion(com.google.cloud.bigquery.Schema expected,
-      com.google.cloud.bigquery.Schema schema1, com.google.cloud.bigquery.Schema schema2) {
+                           com.google.cloud.bigquery.Schema schema1, com.google.cloud.bigquery.Schema schema2) {
     SchemaManager sm = createSchemaManager(true, true, true);
     assertEquals(
         expected, sm.unionizeSchemas(schema1, schema2)

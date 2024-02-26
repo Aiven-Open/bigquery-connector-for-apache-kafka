@@ -1,7 +1,6 @@
 package com.wepay.kafka.connect.bigquery;
 
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkTaskConfig;
-
 import java.util.Map;
 
 public class SinkTaskPropertiesFactory extends SinkPropertiesFactory {

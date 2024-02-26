@@ -25,15 +25,12 @@ import static org.mockito.Mockito.mock;
 
 import com.google.cloud.bigquery.TableId;
 import com.google.cloud.storage.Blob;
-
-import org.junit.Test;
-
-import org.mockito.Mockito;
-
 import java.util.Collections;
 import java.util.Map;
+import org.junit.Test;
+import org.mockito.Mockito;
 
-public class GCSToBQLoadRunnableTest {
+public class GcsToBqLoadRunnableTest {
 
   @Test
   public void testGetTableFromBlobWithProject() {
@@ -43,7 +40,7 @@ public class GCSToBQLoadRunnableTest {
         Collections.singletonMap("sinkTable", serializeTableId(expectedTableId));
     Blob mockBlob = createMockBlobWithTableMetadata(metadata);
 
-    TableId actualTableId = GCSToBQLoadRunnable.getTableFromBlob(mockBlob);
+    TableId actualTableId = GcsToBqLoadRunnable.getTableFromBlob(mockBlob);
     assertEquals(expectedTableId, actualTableId);
   }
 
@@ -55,7 +52,7 @@ public class GCSToBQLoadRunnableTest {
         Collections.singletonMap("sinkTable", serializeTableId(expectedTableId));
     Blob mockBlob = createMockBlobWithTableMetadata(metadata);
 
-    TableId actualTableId = GCSToBQLoadRunnable.getTableFromBlob(mockBlob);
+    TableId actualTableId = GcsToBqLoadRunnable.getTableFromBlob(mockBlob);
     assertEquals(expectedTableId, actualTableId);
   }
 
@@ -64,7 +61,7 @@ public class GCSToBQLoadRunnableTest {
     Blob mockBlob = mock(Blob.class);
     Mockito.when(mockBlob.getMetadata()).thenReturn(null);
 
-    TableId tableId = GCSToBQLoadRunnable.getTableFromBlob(mockBlob);
+    TableId tableId = GcsToBqLoadRunnable.getTableFromBlob(mockBlob);
     assertNull(tableId);
   }
 
@@ -73,7 +70,7 @@ public class GCSToBQLoadRunnableTest {
     Map<String, String> metadata = Collections.singletonMap("sinkTable", "bar/baz");
     Blob mockBlob = createMockBlobWithTableMetadata(metadata);
 
-    TableId tableId = GCSToBQLoadRunnable.getTableFromBlob(mockBlob);
+    TableId tableId = GcsToBqLoadRunnable.getTableFromBlob(mockBlob);
     assertNull(tableId);
   }
 

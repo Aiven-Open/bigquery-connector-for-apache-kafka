@@ -19,15 +19,14 @@
 
 package com.wepay.kafka.connect.bigquery.config;
 
-import org.junit.Test;
-
-import java.util.Optional;
-
 import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+
+import java.util.Optional;
+import org.junit.Test;
 
 public class PartitioningModeValidatorTest {
 

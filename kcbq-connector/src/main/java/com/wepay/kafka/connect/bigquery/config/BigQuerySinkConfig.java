@@ -28,7 +28,17 @@ import com.wepay.kafka.connect.bigquery.convert.BigQuerySchemaConverter;
 import com.wepay.kafka.connect.bigquery.convert.RecordConverter;
 import com.wepay.kafka.connect.bigquery.convert.SchemaConverter;
 import com.wepay.kafka.connect.bigquery.retrieve.IdentitySchemaRetriever;
-import com.wepay.kafka.connect.bigquery.utils.FieldNameSanitizer;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.config.Config;
 import org.apache.kafka.common.config.ConfigDef;
@@ -38,104 +48,164 @@ import org.apache.kafka.common.config.types.Password;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.sink.SinkConnector;
 
-import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
-
-import java.util.*;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
 /**
  * Base class for connector and task configs; contains properties shared between the two of them.
  */
 public class BigQuerySinkConfig extends AbstractConfig {
   // Values taken from https://github.com/apache/kafka/blob/1.1.1/connect/runtime/src/main/java/org/apache/kafka/connect/runtime/SinkConnectorConfig.java#L33
-  public static final String TOPICS_CONFIG =                     SinkConnector.TOPICS_CONFIG;
-  private static final ConfigDef.Type TOPICS_TYPE =              ConfigDef.Type.LIST;
-  private static final ConfigDef.Importance TOPICS_IMPORTANCE =  ConfigDef.Importance.HIGH;
-  private static final String TOPICS_GROUP =                     "Common";
-  private static final int TOPICS_ORDER_IN_GROUP =               4;
-  private static final ConfigDef.Width TOPICS_WIDTH =            ConfigDef.Width.LONG;
+  public static final String TOPICS_CONFIG = SinkConnector.TOPICS_CONFIG;
+  public static final String TOPICS_DEFAULT = "";
+  public static final String TOPICS_REGEX_CONFIG = "topics.regex";
+  public static final String TOPICS_REGEX_DEFAULT = "";
+  public static final String ENABLE_BATCH_CONFIG = "enableBatchLoad";
+  public static final String BATCH_LOAD_INTERVAL_SEC_CONFIG = "batchLoadIntervalSec";
+  public static final String GCS_BUCKET_NAME_CONFIG = "gcsBucketName";
+  public static final String GCS_FOLDER_NAME_CONFIG = "gcsFolderName";
+  public static final String GCS_FOLDER_NAME_DEFAULT = "";
+  public static final String PROJECT_CONFIG = "project";
+  public static final String DEFAULT_DATASET_CONFIG = "defaultDataset";
+  public static final String SCHEMA_RETRIEVER_CONFIG = "schemaRetriever";
+  public static final String KEYFILE_CONFIG = "keyfile";
+  public static final String KEYFILE_DEFAULT = null;
+  public static final String KEY_SOURCE_CONFIG = "keySource";
+  public static final String KEY_SOURCE_DEFAULT = GcpClientBuilder.KeySource.FILE.name();
+  public static final String SANITIZE_TOPICS_CONFIG = "sanitizeTopics";
+  public static final Boolean SANITIZE_TOPICS_DEFAULT = false;
+  public static final String TOPIC2TABLE_MAP_CONFIG = "topic2TableMap";
+  public static final String TOPIC2TABLE_MAP_DEFAULT = "";
+  public static final String TOPIC2TABLE_MAP_DOC = "Map of topics to tables (optional). "
+      + "Format: comma-separated tuples, e.g. <topic-1>:<table-1>,<topic-2>:<table-2>,... "
+      + "Note that topic name should not be modified using regex SMT while using this option."
+      + "Also note that SANITIZE_TOPICS_CONFIG would be ignored if this config is set."
+      + "Lastly, if the topic2table map doesn't contain the topic for a record, a table"
+      + " with the same name as the topic name would be created";
+  public static final String SANITIZE_FIELD_NAME_CONFIG = "sanitizeFieldNames";
+  public static final Boolean SANITIZE_FIELD_NAME_DEFAULT = false;
+  public static final String KAFKA_KEY_FIELD_NAME_CONFIG = "kafkaKeyFieldName";
+  public static final String KAFKA_KEY_FIELD_NAME_DEFAULT = null;
+  public static final String KAFKA_DATA_FIELD_NAME_CONFIG = "kafkaDataFieldName";
+  public static final String KAFKA_DATA_FIELD_NAME_DEFAULT = null;
+  public static final String AVRO_DATA_CACHE_SIZE_CONFIG = "avroDataCacheSize";
+  public static final Integer AVRO_DATA_CACHE_SIZE_DEFAULT = 100;
+  public static final String CONVERT_DOUBLE_SPECIAL_VALUES_CONFIG = "convertDoubleSpecialValues";
+  public static final ConfigDef.Type CONVERT_DOUBLE_SPECIAL_VALUES_TYPE = ConfigDef.Type.BOOLEAN;
+  public static final Boolean CONVERT_DOUBLE_SPECIAL_VALUES_DEFAULT = false;
+  public static final ConfigDef.Importance CONVERT_DOUBLE_SPECIAL_VALUES_IMPORTANCE =
+      ConfigDef.Importance.LOW;
+  public static final String CONVERT_DOUBLE_SPECIAL_VALUES_DOC =
+      "Should +Infinity be converted to Double.MAX_VALUE and -Infinity and NaN be "
+          + "converted to Double.MIN_VALUE so they can make it to BigQuery";
+  public static final String ALL_BQ_FIELDS_NULLABLE_CONFIG = "allBQFieldsNullable";
+  public static final String TABLE_CREATE_CONFIG = "autoCreateTables";
+  public static final boolean TABLE_CREATE_DEFAULT = true;
+  public static final String AUTO_CREATE_BUCKET_CONFIG = "autoCreateBucket";
+  public static final Boolean AUTO_CREATE_BUCKET_DEFAULT = true;
+  public static final String ALLOW_NEW_BIGQUERY_FIELDS_CONFIG = "allowNewBigQueryFields";
+  public static final Boolean ALLOW_NEW_BIGQUERY_FIELDS_DEFAULT = false;
+  public static final String ALLOW_BIGQUERY_REQUIRED_FIELD_RELAXATION_CONFIG = "allowBigQueryRequiredFieldRelaxation";
+  public static final Boolean ALLOW_BIGQUERY_REQUIRED_FIELD_RELAXATION_DEFAULT = false;
+  public static final String ALLOW_SCHEMA_UNIONIZATION_CONFIG = "allowSchemaUnionization";
+  public static final Boolean ALLOW_SCHEMA_UNIONIZATION_DEFAULT = false;
+  public static final String UPSERT_ENABLED_CONFIG = "upsertEnabled";
+  public static final boolean UPSERT_ENABLED_DEFAULT = false;
+  public static final String USE_STORAGE_WRITE_API_CONFIG = "useStorageWriteApi";
+  public static final boolean USE_STORAGE_WRITE_API_DEFAULT = false;
+  public static final String ENABLE_BATCH_MODE_CONFIG = "enableBatchMode";
+  public static final boolean ENABLE_BATCH_MODE_DEFAULT = false;
+  public static final String COMMIT_INTERVAL_SEC_CONFIG = "commitInterval";
+  public static final String DELETE_ENABLED_CONFIG = "deleteEnabled";
+  public static final boolean DELETE_ENABLED_DEFAULT = false;
+  public static final String INTERMEDIATE_TABLE_SUFFIX_CONFIG = "intermediateTableSuffix";
+  public static final String INTERMEDIATE_TABLE_SUFFIX_DEFAULT = "tmp";
+  public static final String MERGE_INTERVAL_MS_CONFIG = "mergeIntervalMs";
+  public static final String MERGE_RECORDS_THRESHOLD_CONFIG = "mergeRecordsThreshold";
+  public static final long MERGE_INTERVAL_MS_DEFAULT = 60_000L;
+  public static final long MERGE_RECORDS_THRESHOLD_DEFAULT = -1;
+  public static final String THREAD_POOL_SIZE_CONFIG = "threadPoolSize";
+  public static final Integer THREAD_POOL_SIZE_DEFAULT = 10;
+  public static final String QUEUE_SIZE_CONFIG = "queueSize";
+  // should this even have a default?
+  public static final Long QUEUE_SIZE_DEFAULT = -1L;
+  public static final String BIGQUERY_RETRY_CONFIG = "bigQueryRetry";
+  public static final Integer BIGQUERY_RETRY_DEFAULT = 0;
+  public static final String BIGQUERY_RETRY_WAIT_CONFIG = "bigQueryRetryWait";
+  public static final Long BIGQUERY_RETRY_WAIT_DEFAULT = 1000L;
+  public static final String BIGQUERY_MESSAGE_TIME_PARTITIONING_CONFIG =
+      "bigQueryMessageTimePartitioning";
+  public static final Boolean BIGQUERY_MESSAGE_TIME_PARTITIONING_DEFAULT = false;
+  public static final String BIGQUERY_PARTITION_DECORATOR_CONFIG =
+      "bigQueryPartitionDecorator";
+  //This has been set to true to preserve the existing behavior. However, we can set it to false if field based partitioning is used in BigQuery
+  public static final Boolean BIGQUERY_PARTITION_DECORATOR_DEFAULT = true;
+  public static final String BIGQUERY_TIMESTAMP_PARTITION_FIELD_NAME_CONFIG = "timestampPartitionFieldName";
+  public static final String BIGQUERY_CLUSTERING_FIELD_NAMES_CONFIG = "clusteringPartitionFieldNames";
+  public static final String CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_CONFIG = "convertDebeziumTimestampToInteger";
+  public static final String TIME_PARTITIONING_TYPE_CONFIG = "timePartitioningType";
+  public static final String TIME_PARTITIONING_TYPE_DEFAULT = TimePartitioning.Type.DAY.name().toUpperCase();
+  public static final String TIME_PARTITIONING_TYPE_NONE = "NONE";
+  public static final String BIGQUERY_PARTITION_EXPIRATION_CONFIG = "partitionExpirationMs";
+  public static final String MAX_RETRIES_CONFIG = "max.retries";
+  public static final String ENABLE_RETRIES_CONFIG = "enableRetries";
+  public static final Boolean ENABLE_RETRIES_DEFAULT = true;
+  private static final ConfigDef.Type TOPICS_TYPE = ConfigDef.Type.LIST;
+  private static final ConfigDef.Importance TOPICS_IMPORTANCE = ConfigDef.Importance.HIGH;
+  private static final String TOPICS_GROUP = "Common";
+  private static final int TOPICS_ORDER_IN_GROUP = 4;
+  private static final ConfigDef.Width TOPICS_WIDTH = ConfigDef.Width.LONG;
   private static final String TOPICS_DOC =
       "List of topics to consume, separated by commas";
-  public static final String TOPICS_DEFAULT = "";
-  private static final String TOPICS_DISPLAY =                   "Topics";
-
-  public static final String TOPICS_REGEX_CONFIG =                     "topics.regex";
-  private static final ConfigDef.Type TOPICS_REGEX_TYPE =              ConfigDef.Type.STRING;
-  private static final ConfigDef.Importance TOPICS_REGEX_IMPORTANCE =  ConfigDef.Importance.HIGH;
-  private static final String TOPICS_REGEX_GROUP =                     "Common";
-  private static final int TOPICS_REGEX_ORDER_IN_GROUP =               4;
-  private static final ConfigDef.Width TOPICS_REGEX_WIDTH =            ConfigDef.Width.LONG;
-  private static final String TOPICS_REGEX_DOC = "Regular expression giving topics to consume. " +
-	  "Under the hood, the regex is compiled to a <code>java.util.regex.Pattern</code>. " +
-	  "Only one of " + TOPICS_CONFIG + " or " + TOPICS_REGEX_CONFIG + " should be specified.";
-  public static final String TOPICS_REGEX_DEFAULT = "";
+  private static final String TOPICS_DISPLAY = "Topics";
+  private static final ConfigDef.Type TOPICS_REGEX_TYPE = ConfigDef.Type.STRING;
+  private static final ConfigDef.Importance TOPICS_REGEX_IMPORTANCE = ConfigDef.Importance.HIGH;
+  private static final String TOPICS_REGEX_GROUP = "Common";
+  private static final int TOPICS_REGEX_ORDER_IN_GROUP = 4;
+  private static final ConfigDef.Width TOPICS_REGEX_WIDTH = ConfigDef.Width.LONG;
+  private static final String TOPICS_REGEX_DOC = "Regular expression giving topics to consume. "
+      + "Under the hood, the regex is compiled to a <code>java.util.regex.Pattern</code>. "
+      + "Only one of " + TOPICS_CONFIG + " or " + TOPICS_REGEX_CONFIG + " should be specified.";
   private static final String TOPICS_REGEX_DISPLAY = "Topics regex";
-
-  public static final String ENABLE_BATCH_CONFIG =                         "enableBatchLoad";
-  private static final ConfigDef.Type ENABLE_BATCH_TYPE =                  ConfigDef.Type.LIST;
-  private static final List<String> ENABLE_BATCH_DEFAULT =                 Collections.emptyList();
-  private static final ConfigDef.Importance ENABLE_BATCH_IMPORTANCE =      ConfigDef.Importance.LOW;
+  private static final ConfigDef.Type ENABLE_BATCH_TYPE = ConfigDef.Type.LIST;
+  private static final List<String> ENABLE_BATCH_DEFAULT = Collections.emptyList();
+  private static final ConfigDef.Importance ENABLE_BATCH_IMPORTANCE = ConfigDef.Importance.LOW;
   private static final String ENABLE_BATCH_DOC =
       "Beta Feature; use with caution: The sublist of topics to be batch loaded through GCS";
-
-  public static final String BATCH_LOAD_INTERVAL_SEC_CONFIG =             "batchLoadIntervalSec";
-  private static final ConfigDef.Type BATCH_LOAD_INTERVAL_SEC_TYPE =      ConfigDef.Type.INT;
-  private static final Integer BATCH_LOAD_INTERVAL_SEC_DEFAULT =          120;
+  private static final ConfigDef.Type BATCH_LOAD_INTERVAL_SEC_TYPE = ConfigDef.Type.INT;
+  private static final Integer BATCH_LOAD_INTERVAL_SEC_DEFAULT = 120;
   private static final ConfigDef.Importance BATCH_LOAD_INTERVAL_SEC_IMPORTANCE =
       ConfigDef.Importance.LOW;
   private static final String BATCH_LOAD_INTERVAL_SEC_DOC =
       "The interval, in seconds, in which to attempt to run GCS to BQ load jobs. Only relevant "
-      + "if enableBatchLoad is configured.";
-
-  public static final String GCS_BUCKET_NAME_CONFIG =                     "gcsBucketName";
-  private static final ConfigDef.Type GCS_BUCKET_NAME_TYPE =              ConfigDef.Type.STRING;
-  private static final Object GCS_BUCKET_NAME_DEFAULT =                   "";
-  private static final ConfigDef.Importance GCS_BUCKET_NAME_IMPORTANCE =  ConfigDef.Importance.HIGH;
+          + "if enableBatchLoad is configured.";
+  private static final ConfigDef.Type GCS_BUCKET_NAME_TYPE = ConfigDef.Type.STRING;
+  private static final Object GCS_BUCKET_NAME_DEFAULT = "";
+  private static final ConfigDef.Importance GCS_BUCKET_NAME_IMPORTANCE = ConfigDef.Importance.HIGH;
   private static final String GCS_BUCKET_NAME_DOC =
       "The name of the bucket in which gcs blobs used to batch load to BigQuery "
-      + "should be located. Only relevant if enableBatchLoad is configured.";
-
-  public static final String GCS_FOLDER_NAME_CONFIG =                     "gcsFolderName";
-  private static final ConfigDef.Type GCS_FOLDER_NAME_TYPE =              ConfigDef.Type.STRING;
-  public static final String GCS_FOLDER_NAME_DEFAULT =                   "";
-  private static final ConfigDef.Importance GCS_FOLDER_NAME_IMPORTANCE =  ConfigDef.Importance.MEDIUM;
+          + "should be located. Only relevant if enableBatchLoad is configured.";
+  private static final ConfigDef.Type GCS_FOLDER_NAME_TYPE = ConfigDef.Type.STRING;
+  private static final ConfigDef.Importance GCS_FOLDER_NAME_IMPORTANCE = ConfigDef.Importance.MEDIUM;
   private static final String GCS_FOLDER_NAME_DOC =
-          "The name of the folder under the bucket in which gcs blobs used to batch load to BigQuery "
-                  + "should be located. Only relevant if enableBatchLoad is configured.";
-
-  public static final String PROJECT_CONFIG =                     "project";
-  private static final ConfigDef.Type PROJECT_TYPE =              ConfigDef.Type.STRING;
-  private static final ConfigDef.Importance PROJECT_IMPORTANCE =  ConfigDef.Importance.HIGH;
+      "The name of the folder under the bucket in which gcs blobs used to batch load to BigQuery "
+          + "should be located. Only relevant if enableBatchLoad is configured.";
+  private static final ConfigDef.Type PROJECT_TYPE = ConfigDef.Type.STRING;
+  private static final ConfigDef.Importance PROJECT_IMPORTANCE = ConfigDef.Importance.HIGH;
   private static final String PROJECT_DOC =
       "The BigQuery project to write to";
-
-  public static final String DEFAULT_DATASET_CONFIG =             "defaultDataset";
-  private static final ConfigDef.Type DEFAULT_DATASET_TYPE =       ConfigDef.Type.STRING;
-  private static final Object DEFAULT_DATASET_DEFAULT =             ConfigDef.NO_DEFAULT_VALUE;
+  private static final ConfigDef.Type DEFAULT_DATASET_TYPE = ConfigDef.Type.STRING;
+  private static final Object DEFAULT_DATASET_DEFAULT = ConfigDef.NO_DEFAULT_VALUE;
   private static final ConfigDef.Importance DEFAULT_DATASET_IMPORTANCE = ConfigDef.Importance.HIGH;
-  private static final String DEFAULT_DATASET_DOC =                  "The default dataset to be used";
-
-  public static final String SCHEMA_RETRIEVER_CONFIG =         "schemaRetriever";
-  private static final ConfigDef.Type SCHEMA_RETRIEVER_TYPE =  ConfigDef.Type.CLASS;
+  private static final String DEFAULT_DATASET_DOC = "The default dataset to be used";
+  private static final ConfigDef.Type SCHEMA_RETRIEVER_TYPE = ConfigDef.Type.CLASS;
   private static final Class<?> SCHEMA_RETRIEVER_DEFAULT = IdentitySchemaRetriever.class;
   private static final ConfigDef.Importance SCHEMA_RETRIEVER_IMPORTANCE =
       ConfigDef.Importance.MEDIUM;
   private static final String SCHEMA_RETRIEVER_DOC =
       "A class that can be used for automatically creating tables and/or updating schemas";
-
-  public static final String KEYFILE_CONFIG =                     "keyfile";
-  private static final ConfigDef.Type KEYFILE_TYPE =              ConfigDef.Type.PASSWORD;
-  public static final String KEYFILE_DEFAULT =                    null;
-  private static final ConfigDef.Importance KEYFILE_IMPORTANCE =  ConfigDef.Importance.MEDIUM;
+  private static final ConfigDef.Type KEYFILE_TYPE = ConfigDef.Type.PASSWORD;
+  private static final ConfigDef.Importance KEYFILE_IMPORTANCE = ConfigDef.Importance.MEDIUM;
   private static final String KEYFILE_DOC =
       "The file containing a JSON key with BigQuery service account credentials";
-
-  public static final String KEY_SOURCE_CONFIG =                "keySource";
-  private static final ConfigDef.Type KEY_SOURCE_TYPE =         ConfigDef.Type.STRING;
-  public static final String KEY_SOURCE_DEFAULT = GcpClientBuilder.KeySource.FILE.name();
+  private static final ConfigDef.Type KEY_SOURCE_TYPE = ConfigDef.Type.STRING;
   private static final ConfigDef.Validator KEY_SOURCE_VALIDATOR = ConfigDef.ValidString.in(
       Stream.of(GcpClientBuilder.KeySource.values())
           .map(GcpClientBuilder.KeySource::name)
@@ -144,31 +214,19 @@ public class BigQuerySinkConfig extends AbstractConfig {
   );
   private static final ConfigDef.Importance KEY_SOURCE_IMPORTANCE = ConfigDef.Importance.MEDIUM;
   private static final String KEY_SOURCE_DOC =
-          "Determines whether the " + KEYFILE_CONFIG + " config is the path to the credentials json file "
-              + "or the raw json of the key itself. "
-              + "If set to " + GcpClientBuilder.KeySource.APPLICATION_DEFAULT.name() + ", the "
-              + KEYFILE_CONFIG + " should not be provided and the connector will use any GCP "
-              + "application default credentials that it can find on the Connect worker for authentication.";
-
-  public static final String SANITIZE_TOPICS_CONFIG =                     "sanitizeTopics";
-  private static final ConfigDef.Type SANITIZE_TOPICS_TYPE =              ConfigDef.Type.BOOLEAN;
-  public static final Boolean SANITIZE_TOPICS_DEFAULT =                   false;
+      "Determines whether the " + KEYFILE_CONFIG + " config is the path to the credentials json file "
+          + "or the raw json of the key itself. "
+          + "If set to " + GcpClientBuilder.KeySource.APPLICATION_DEFAULT.name() + ", the "
+          + KEYFILE_CONFIG + " should not be provided and the connector will use any GCP "
+          + "application default credentials that it can find on the Connect worker for authentication.";
+  private static final ConfigDef.Type SANITIZE_TOPICS_TYPE = ConfigDef.Type.BOOLEAN;
   private static final ConfigDef.Importance SANITIZE_TOPICS_IMPORTANCE =
       ConfigDef.Importance.MEDIUM;
   private static final String SANITIZE_TOPICS_DOC =
       "Whether to automatically sanitize topic names before using them as table names;"
-      + " if not enabled topic names will be used directly as table names";
-
-  public static final String TOPIC2TABLE_MAP_CONFIG =                     "topic2TableMap";
-  private static final ConfigDef.Type TOPIC2TABLE_MAP_TYPE =              ConfigDef.Type.STRING;
-  public static final String TOPIC2TABLE_MAP_DEFAULT = "";
-  private static final ConfigDef.Importance TOPIC2TABLE_MAP_IMPORTANCE =  ConfigDef.Importance.LOW;
-  public static final String TOPIC2TABLE_MAP_DOC = "Map of topics to tables (optional). "
-          + "Format: comma-separated tuples, e.g. <topic-1>:<table-1>,<topic-2>:<table-2>,... " +
-          "Note that topic name should not be modified using regex SMT while using this option." +
-          "Also note that SANITIZE_TOPICS_CONFIG would be ignored if this config is set." +
-          "Lastly, if the topic2table map doesn't contain the topic for a record, a table" +
-          " with the same name as the topic name would be created";
+          + " if not enabled topic names will be used directly as table names";
+  private static final ConfigDef.Type TOPIC2TABLE_MAP_TYPE = ConfigDef.Type.STRING;
+  private static final ConfigDef.Importance TOPIC2TABLE_MAP_IMPORTANCE = ConfigDef.Importance.LOW;
   private static final ConfigDef.Validator TOPIC2TABLE_MAP_VALIDATOR = (name, value) -> {
     String topic2TableMapString = (String) ConfigDef.parseType(name, value, TOPIC2TABLE_MAP_TYPE);
 
@@ -183,9 +241,9 @@ public class BigQuerySinkConfig extends AbstractConfig {
 
       if (tt.length != 2) {
         throw new ConfigException(
-                name,
-                topic2TableMapString,
-                "One of the topic to table mappings has an invalid format."
+            name,
+            topic2TableMapString,
+            "One of the topic to table mappings has an invalid format."
         );
       }
 
@@ -194,180 +252,117 @@ public class BigQuerySinkConfig extends AbstractConfig {
 
       if (topic.isEmpty() || table.isEmpty()) {
         throw new ConfigException(
-                name,
-                topic2TableMapString,
-                "One of the topic to table mappings has an invalid format."
+            name,
+            topic2TableMapString,
+            "One of the topic to table mappings has an invalid format."
         );
       }
 
       if (topic2TableMap.containsKey(topic)) {
         throw new ConfigException(
-                name,
-                name,
-                String.format(
-                        "The topic name %s is duplicated. Topic names cannot be duplicated.",
-                        topic
-                )
+            name,
+            name,
+            String.format(
+                "The topic name %s is duplicated. Topic names cannot be duplicated.",
+                topic
+            )
         );
       }
 
       topic2TableMap.put(topic, table);
     }
   };
-
-
-  public static final String SANITIZE_FIELD_NAME_CONFIG =                     "sanitizeFieldNames";
-  private static final ConfigDef.Type SANITIZE_FIELD_NAME_TYPE =              ConfigDef.Type.BOOLEAN;
-  public static final Boolean SANITIZE_FIELD_NAME_DEFAULT =                   false;
+  private static final ConfigDef.Type SANITIZE_FIELD_NAME_TYPE = ConfigDef.Type.BOOLEAN;
   private static final ConfigDef.Importance SANITIZE_FIELD_NAME_IMPORTANCE =
-          ConfigDef.Importance.MEDIUM;
+      ConfigDef.Importance.MEDIUM;
   private static final String SANITIZE_FIELD_NAME_DOC =
-          "Whether to automatically sanitize field names before using them as field names in big query. "
-                  + "Big query specifies that field name can only contain letters, numbers, and "
-                  + "underscores. The sanitizer will replace the invalid symbols with underscore. "
-                  + "If the field name starts with a digit, the sanitizer will add an underscore in "
-                  + "front of field name. Note: field a.b and a_b will have same value after sanitizing, "
-                  + "and might cause key duplication error.";
-
-  public static final String KAFKA_KEY_FIELD_NAME_CONFIG =        "kafkaKeyFieldName";
+      "Whether to automatically sanitize field names before using them as field names in big query. "
+          + "Big query specifies that field name can only contain letters, numbers, and "
+          + "underscores. The sanitizer will replace the invalid symbols with underscore. "
+          + "If the field name starts with a digit, the sanitizer will add an underscore in "
+          + "front of field name. Note: field a.b and a_b will have same value after sanitizing, "
+          + "and might cause key duplication error.";
   private static final ConfigDef.Type KAFKA_KEY_FIELD_NAME_TYPE = ConfigDef.Type.STRING;
-  public static final String KAFKA_KEY_FIELD_NAME_DEFAULT =       null;
   private static final ConfigDef.Validator KAFKA_KEY_FIELD_NAME_VALIDATOR = new ConfigDef.NonEmptyString();
   private static final ConfigDef.Importance KAFKA_KEY_FIELD_NAME_IMPORTANCE = ConfigDef.Importance.LOW;
-  private static final String KAFKA_KEY_FIELD_NAME_DOC = "The name of the field of Kafka key. " +
-          "Default to be null, which means Kafka Key Field will not be included.";
-
-  public static final String KAFKA_DATA_FIELD_NAME_CONFIG =        "kafkaDataFieldName";
+  private static final String KAFKA_KEY_FIELD_NAME_DOC = "The name of the field of Kafka key. "
+      + "Default to be null, which means Kafka Key Field will not be included.";
   private static final ConfigDef.Type KAFKA_DATA_FIELD_NAME_TYPE = ConfigDef.Type.STRING;
-  public static final String KAFKA_DATA_FIELD_NAME_DEFAULT =       null;
   private static final ConfigDef.Validator KAFKA_DATA_FIELD_NAME_VALIDATOR = new ConfigDef.NonEmptyString();
   private static final ConfigDef.Importance KAFKA_DATA_FIELD_NAME_IMPORTANCE = ConfigDef.Importance.LOW;
-  private static final String KAFKA_DATA_FIELD_NAME_DOC = "The name of the field of Kafka Data. " +
-          "Default to be null, which means Kafka Data Field will not be included. ";
-
-  public static final String AVRO_DATA_CACHE_SIZE_CONFIG =                 "avroDataCacheSize";
-  private static final ConfigDef.Type AVRO_DATA_CACHE_SIZE_TYPE =          ConfigDef.Type.INT;
-  public static final Integer AVRO_DATA_CACHE_SIZE_DEFAULT =               100;
+  private static final String KAFKA_DATA_FIELD_NAME_DOC = "The name of the field of Kafka Data. "
+      + "Default to be null, which means Kafka Data Field will not be included. ";
+  private static final ConfigDef.Type AVRO_DATA_CACHE_SIZE_TYPE = ConfigDef.Type.INT;
   private static final ConfigDef.Validator AVRO_DATA_CACHE_SIZE_VALIDATOR =
       ConfigDef.Range.atLeast(0);
   private static final ConfigDef.Importance AVRO_DATA_CACHE_SIZE_IMPORTANCE =
       ConfigDef.Importance.LOW;
   private static final String AVRO_DATA_CACHE_SIZE_DOC =
       "The size of the cache to use when converting schemas from Avro to Kafka Connect";
-
-  public static final String CONVERT_DOUBLE_SPECIAL_VALUES_CONFIG =    "convertDoubleSpecialValues";
-  public static final ConfigDef.Type CONVERT_DOUBLE_SPECIAL_VALUES_TYPE =   ConfigDef.Type.BOOLEAN;
-  public static final Boolean CONVERT_DOUBLE_SPECIAL_VALUES_DEFAULT =       false;
-  public static final ConfigDef.Importance CONVERT_DOUBLE_SPECIAL_VALUES_IMPORTANCE =
-      ConfigDef.Importance.LOW;
-  public static final String CONVERT_DOUBLE_SPECIAL_VALUES_DOC =
-          "Should +Infinity be converted to Double.MAX_VALUE and -Infinity and NaN be "
-          + "converted to Double.MIN_VALUE so they can make it to BigQuery";
-
-  public static final String ALL_BQ_FIELDS_NULLABLE_CONFIG = "allBQFieldsNullable";
   private static final ConfigDef.Type ALL_BQ_FIELDS_NULLABLE_TYPE = ConfigDef.Type.BOOLEAN;
   private static final Boolean ALL_BQ_FIELDS_NULLABLE_DEFAULT = false;
   private static final ConfigDef.Importance ALL_BQ_FIELDS_NULLABLE_IMPORTANCE =
       ConfigDef.Importance.LOW;
   private static final String ALL_BQ_FIELDS_NULLABLE_DOC =
       "If true, no fields in any produced BigQuery schema will be REQUIRED. All "
-      + "non-nullable avro fields will be translated as NULLABLE (or REPEATED, if arrays).";
-
-  public static final String TABLE_CREATE_CONFIG =                     "autoCreateTables";
-  private static final ConfigDef.Type TABLE_CREATE_TYPE =              ConfigDef.Type.BOOLEAN;
-  public static final boolean TABLE_CREATE_DEFAULT =                   true;
-  private static final ConfigDef.Importance TABLE_CREATE_IMPORTANCE =  ConfigDef.Importance.HIGH;
+          + "non-nullable avro fields will be translated as NULLABLE (or REPEATED, if arrays).";
+  private static final ConfigDef.Type TABLE_CREATE_TYPE = ConfigDef.Type.BOOLEAN;
+  private static final ConfigDef.Importance TABLE_CREATE_IMPORTANCE = ConfigDef.Importance.HIGH;
   private static final String TABLE_CREATE_DOC =
-          "Automatically create BigQuery tables if they don't already exist";
-
-  public static final String AUTO_CREATE_BUCKET_CONFIG =                    "autoCreateBucket";
-  private static final ConfigDef.Type AUTO_CREATE_BUCKET_TYPE =             ConfigDef.Type.BOOLEAN;
-  public static final Boolean AUTO_CREATE_BUCKET_DEFAULT =                  true;
+      "Automatically create BigQuery tables if they don't already exist";
+  private static final ConfigDef.Type AUTO_CREATE_BUCKET_TYPE = ConfigDef.Type.BOOLEAN;
   private static final ConfigDef.Importance AUTO_CREATE_BUCKET_IMPORTANCE = ConfigDef.Importance.MEDIUM;
   private static final String AUTO_CREATE_BUCKET_DOC =
-          "Whether to automatically create the given bucket, if it does not exist. " +
-                  "Only relevant if enableBatchLoad is configured.";
-
-  public static final String ALLOW_NEW_BIGQUERY_FIELDS_CONFIG =                    "allowNewBigQueryFields";
-  private static final ConfigDef.Type ALLOW_NEW_BIGQUERY_FIELDS_TYPE =             ConfigDef.Type.BOOLEAN;
-  public static final Boolean ALLOW_NEW_BIGQUERY_FIELDS_DEFAULT =                  false;
+      "Whether to automatically create the given bucket, if it does not exist. Only relevant if enableBatchLoad is configured.";
+  private static final ConfigDef.Type ALLOW_NEW_BIGQUERY_FIELDS_TYPE = ConfigDef.Type.BOOLEAN;
   private static final ConfigDef.Importance ALLOW_NEW_BIGQUERY_FIELDS_IMPORTANCE = ConfigDef.Importance.MEDIUM;
   private static final String ALLOW_NEW_BIGQUERY_FIELDS_DOC =
-          "If true, new fields can be added to BigQuery tables during subsequent schema updates";
-
-  public static final String ALLOW_BIGQUERY_REQUIRED_FIELD_RELAXATION_CONFIG =                    "allowBigQueryRequiredFieldRelaxation";
-  private static final ConfigDef.Type ALLOW_BIGQUERY_REQUIRED_FIELD_RELAXATION_TYPE =             ConfigDef.Type.BOOLEAN;
-  public static final Boolean ALLOW_BIGQUERY_REQUIRED_FIELD_RELAXATION_DEFAULT =                  false;
+      "If true, new fields can be added to BigQuery tables during subsequent schema updates";
+  private static final ConfigDef.Type ALLOW_BIGQUERY_REQUIRED_FIELD_RELAXATION_TYPE = ConfigDef.Type.BOOLEAN;
   private static final ConfigDef.Importance ALLOW_BIGQUERY_REQUIRED_FIELD_RELAXATION_IMPORTANCE = ConfigDef.Importance.MEDIUM;
   private static final String ALLOW_BIGQUERY_REQUIRED_FIELD_RELAXATION_DOC =
-          "If true, fields in BigQuery Schema can be changed from REQUIRED to NULLABLE";
-
-  public static final String ALLOW_SCHEMA_UNIONIZATION_CONFIG =                    "allowSchemaUnionization";
-  private static final ConfigDef.Type ALLOW_SCHEMA_UNIONIZATION_TYPE =             ConfigDef.Type.BOOLEAN;
-  public static final Boolean ALLOW_SCHEMA_UNIONIZATION_DEFAULT =                  false;
+      "If true, fields in BigQuery Schema can be changed from REQUIRED to NULLABLE";
+  private static final ConfigDef.Type ALLOW_SCHEMA_UNIONIZATION_TYPE = ConfigDef.Type.BOOLEAN;
   private static final ConfigDef.Importance ALLOW_SCHEMA_UNIONIZATION_IMPORTANCE = ConfigDef.Importance.MEDIUM;
   private static final String ALLOW_SCHEMA_UNIONIZATION_DOC =
-          "If true, the existing table schema (if one is present) will be unionized with new "
-              + "record schemas during schema updates";
-
-  public static final String UPSERT_ENABLED_CONFIG =                    "upsertEnabled";
-  private static final ConfigDef.Type UPSERT_ENABLED_TYPE =             ConfigDef.Type.BOOLEAN;
-  public static final boolean UPSERT_ENABLED_DEFAULT =                  false;
+      "If true, the existing table schema (if one is present) will be unionized with new "
+          + "record schemas during schema updates";
+  private static final ConfigDef.Type UPSERT_ENABLED_TYPE = ConfigDef.Type.BOOLEAN;
   private static final ConfigDef.Importance UPSERT_ENABLED_IMPORTANCE = ConfigDef.Importance.LOW;
   private static final String UPSERT_ENABLED_DOC =
       "Enable upsert functionality on the connector through the use of record keys, intermediate "
-      + "tables, and periodic merge flushes. Row-matching will be performed based on the contents " 
-      + "of record keys.";
-
-  public static final String USE_STORAGE_WRITE_API_CONFIG = "useStorageWriteApi";
-
+          + "tables, and periodic merge flushes. Row-matching will be performed based on the contents "
+          + "of record keys.";
   private static final ConfigDef.Type USE_STORAGE_WRITE_API_TYPE = ConfigDef.Type.BOOLEAN;
-  public static final boolean USE_STORAGE_WRITE_API_DEFAULT = false;
   private static final ConfigDef.Importance USE_STORAGE_WRITE_API_IMPORTANCE = ConfigDef.Importance.MEDIUM;
   private static final String USE_STORAGE_WRITE_API_DOC =
-          "Use Google's New Storage Write API for data streaming. Not available for upsert/delete mode";
-
-  public static final String ENABLE_BATCH_MODE_CONFIG = "enableBatchMode";
+      "Use Google's New Storage Write API for data streaming. Not available for upsert/delete mode";
   private static final ConfigDef.Type ENABLE_BATCH_MODE_TYPE = ConfigDef.Type.BOOLEAN;
-  public static final boolean ENABLE_BATCH_MODE_DEFAULT = false;
   private static final ConfigDef.Importance ENABLE_BATCH_MODE_IMPORTANCE = ConfigDef.Importance.LOW;
   private static final String ENABLE_BATCH_MODE_DOC = "Use Google's New Storage Write API with batch mode";
-
-  public static final String COMMIT_INTERVAL_SEC_CONFIG = "commitInterval";
   private static final ConfigDef.Type COMMIT_INTERVAL_SEC_TYPE = ConfigDef.Type.INT;
   private static final Integer COMMIT_INTERVAL_SEC_DEFAULT = 60;
-
   private static final ConfigDef.Validator COMMIT_INTERVAL_VALIDATOR = ConfigDef.Range.between(15, 14400); // currently allows 15 sec -> 4 hours
   private static final ConfigDef.Importance COMMIT_INTERVAL_SEC_IMPORTANCE = ConfigDef.Importance.LOW;
   private static final String COMMIT_INTERVAL_SEC_DOC =
-          "The interval, in seconds, in which to attempt to commit streamed records.";
-
-  public static final String DELETE_ENABLED_CONFIG =                    "deleteEnabled";
-  private static final ConfigDef.Type DELETE_ENABLED_TYPE =             ConfigDef.Type.BOOLEAN;
-  public static final boolean DELETE_ENABLED_DEFAULT =                  false;
+      "The interval, in seconds, in which to attempt to commit streamed records.";
+  private static final ConfigDef.Type DELETE_ENABLED_TYPE = ConfigDef.Type.BOOLEAN;
   private static final ConfigDef.Importance DELETE_ENABLED_IMPORTANCE = ConfigDef.Importance.LOW;
   private static final String DELETE_ENABLED_DOC =
-      "Enable delete functionality on the connector through the use of record keys, intermediate " 
-      + "tables, and periodic merge flushes. A delete will be performed when a record with a null " 
-      + "value (i.e., a tombstone record) is read.";
-
-  public static final String INTERMEDIATE_TABLE_SUFFIX_CONFIG =                     "intermediateTableSuffix";
-  private static final ConfigDef.Type INTERMEDIATE_TABLE_SUFFIX_TYPE =              ConfigDef.Type.STRING;
-  public static final String INTERMEDIATE_TABLE_SUFFIX_DEFAULT =                    "tmp";
-  private static final ConfigDef.Validator INTERMEDIATE_TABLE_SUFFIX_VALIDATOR =    new ConfigDef.NonEmptyString();
+      "Enable delete functionality on the connector through the use of record keys, intermediate "
+          + "tables, and periodic merge flushes. A delete will be performed when a record with a null "
+          + "value (i.e., a tombstone record) is read.";
+  private static final ConfigDef.Type INTERMEDIATE_TABLE_SUFFIX_TYPE = ConfigDef.Type.STRING;
+  private static final ConfigDef.Validator INTERMEDIATE_TABLE_SUFFIX_VALIDATOR = new ConfigDef.NonEmptyString();
   private static final ConfigDef.Importance INTERMEDIATE_TABLE_SUFFIX_IMPORTANCE = ConfigDef.Importance.LOW;
   private static final String INTERMEDIATE_TABLE_SUFFIX_DOC =
-      "A suffix that will be appended to the names of destination tables to create the names for " 
-      + "the corresponding intermediate tables. Multiple intermediate tables may be created for a " 
-      + "single destination table, but their names will always start with the name of the " 
-      + "destination table, followed by this suffix, and possibly followed by an additional " 
-      + "suffix.";
-
-  public static final String MERGE_INTERVAL_MS_CONFIG =                    "mergeIntervalMs";
-  public static final String MERGE_RECORDS_THRESHOLD_CONFIG =                    "mergeRecordsThreshold";
-  private static final ConfigDef.Type MERGE_INTERVAL_MS_TYPE =              ConfigDef.Type.LONG;
-  public static final long MERGE_INTERVAL_MS_DEFAULT =                     60_000L;
-  private static final ConfigDef.Validator MERGE_INTERVAL_MS_VALIDATOR =   ConfigDef.LambdaValidator.with(
+      "A suffix that will be appended to the names of destination tables to create the names for "
+          + "the corresponding intermediate tables. Multiple intermediate tables may be created for a "
+          + "single destination table, but their names will always start with the name of the "
+          + "destination table, followed by this suffix, and possibly followed by an additional "
+          + "suffix.";
+  private static final ConfigDef.Type MERGE_INTERVAL_MS_TYPE = ConfigDef.Type.LONG;
+  private static final ConfigDef.Validator MERGE_INTERVAL_MS_VALIDATOR = ConfigDef.LambdaValidator.with(
       (name, value) -> {
         if (value == null) {
           return;
@@ -384,14 +379,12 @@ public class BigQuerySinkConfig extends AbstractConfig {
   );
   private static final ConfigDef.Importance MERGE_INTERVAL_MS_IMPORTANCE = ConfigDef.Importance.LOW;
   private static final String MERGE_INTERVAL_MS_DOC =
-      "How often (in milliseconds) to perform a merge flush, if upsert/delete is enabled. Can be set to -1" +
-              " to disable periodic flushing. Either " +MERGE_INTERVAL_MS_CONFIG + " or "
-              + MERGE_RECORDS_THRESHOLD_CONFIG + ", or both must be enabled.\nThis should not be set to less" +
-              " than 10 seconds. A validation would be introduced in a future release to this effect.";
-
-  private static final ConfigDef.Type MERGE_RECORDS_THRESHOLD_TYPE =             ConfigDef.Type.LONG;
-  public static final long MERGE_RECORDS_THRESHOLD_DEFAULT =                     -1;
-  private static final ConfigDef.Validator MERGE_RECORDS_THRESHOLD_VALIDATOR =   ConfigDef.LambdaValidator.with(
+      "How often (in milliseconds) to perform a merge flush, if upsert/delete is enabled. Can be set to -1"
+          + " to disable periodic flushing. Either " + MERGE_INTERVAL_MS_CONFIG + " or "
+          + MERGE_RECORDS_THRESHOLD_CONFIG + ", or both must be enabled.\nThis should not be set to less"
+          + " than 10 seconds. A validation would be introduced in a future release to this effect.";
+  private static final ConfigDef.Type MERGE_RECORDS_THRESHOLD_TYPE = ConfigDef.Type.LONG;
+  private static final ConfigDef.Validator MERGE_RECORDS_THRESHOLD_VALIDATOR = ConfigDef.LambdaValidator.with(
       (name, value) -> {
         if (value == null) {
           return;
@@ -408,78 +401,54 @@ public class BigQuerySinkConfig extends AbstractConfig {
   );
   private static final ConfigDef.Importance MERGE_RECORDS_THRESHOLD_IMPORTANCE = ConfigDef.Importance.LOW;
   private static final String MERGE_RECORDS_THRESHOLD_DOC =
-      "How many records to write to an intermediate table before performing a merge flush, if " 
-      + "upsert/delete is enabled. Can be set to -1 to disable record count-based flushing. Either "
-              + MERGE_INTERVAL_MS_CONFIG + " or " + MERGE_RECORDS_THRESHOLD_CONFIG + ", or both must be enabled.";
-
-  public static final String THREAD_POOL_SIZE_CONFIG =                  "threadPoolSize";
-  private static final ConfigDef.Type THREAD_POOL_SIZE_TYPE =           ConfigDef.Type.INT;
-  public static final Integer THREAD_POOL_SIZE_DEFAULT =                10;
+      "How many records to write to an intermediate table before performing a merge flush, if "
+          + "upsert/delete is enabled. Can be set to -1 to disable record count-based flushing. Either "
+          + MERGE_INTERVAL_MS_CONFIG + " or " + MERGE_RECORDS_THRESHOLD_CONFIG + ", or both must be enabled.";
+  private static final ConfigDef.Type THREAD_POOL_SIZE_TYPE = ConfigDef.Type.INT;
   private static final ConfigDef.Validator THREAD_POOL_SIZE_VALIDATOR = ConfigDef.Range.atLeast(1);
   private static final ConfigDef.Importance THREAD_POOL_SIZE_IMPORTANCE =
       ConfigDef.Importance.MEDIUM;
   private static final String THREAD_POOL_SIZE_DOC =
       "The size of the BigQuery write thread pool. This establishes the maximum number of "
           + "concurrent writes to BigQuery.";
-
-  public static final String QUEUE_SIZE_CONFIG =                    "queueSize";
-  private static final ConfigDef.Type QUEUE_SIZE_TYPE =             ConfigDef.Type.LONG;
-  // should this even have a default?
-  public static final Long QUEUE_SIZE_DEFAULT =                     -1L;
-  private static final ConfigDef.Validator QUEUE_SIZE_VALIDATOR =   ConfigDef.Range.atLeast(-1);
+  private static final ConfigDef.Type QUEUE_SIZE_TYPE = ConfigDef.Type.LONG;
+  private static final ConfigDef.Validator QUEUE_SIZE_VALIDATOR = ConfigDef.Range.atLeast(-1);
   private static final ConfigDef.Importance QUEUE_SIZE_IMPORTANCE = ConfigDef.Importance.HIGH;
   private static final String QUEUE_SIZE_DOC =
       "The maximum size (or -1 for no maximum size) of the worker queue for bigQuery write "
           + "requests before all topics are paused. This is a soft limit; the size of the queue can "
           + "go over this before topics are paused. All topics will be resumed once a flush is "
           + "requested or the size of the queue drops under half of the maximum size.";
-
-  public static final String BIGQUERY_RETRY_CONFIG =                    "bigQueryRetry";
-  private static final ConfigDef.Type BIGQUERY_RETRY_TYPE =             ConfigDef.Type.INT;
-  public static final Integer BIGQUERY_RETRY_DEFAULT =                  0;
-  private static final ConfigDef.Validator BIGQUERY_RETRY_VALIDATOR =   ConfigDef.Range.atLeast(0);
+  private static final ConfigDef.Type BIGQUERY_RETRY_TYPE = ConfigDef.Type.INT;
+  private static final ConfigDef.Validator BIGQUERY_RETRY_VALIDATOR = ConfigDef.Range.atLeast(0);
   private static final ConfigDef.Importance BIGQUERY_RETRY_IMPORTANCE =
       ConfigDef.Importance.MEDIUM;
   private static final String BIGQUERY_RETRY_DOC =
       "The number of retry attempts that will be made per BigQuery request that fails with a "
           + "backend error or a quota exceeded error";
-
-  public static final String BIGQUERY_RETRY_WAIT_CONFIG =               "bigQueryRetryWait";
   private static final ConfigDef.Type BIGQUERY_RETRY_WAIT_CONFIG_TYPE = ConfigDef.Type.LONG;
-  public static final Long BIGQUERY_RETRY_WAIT_DEFAULT =                1000L;
   private static final ConfigDef.Validator BIGQUERY_RETRY_WAIT_VALIDATOR =
       ConfigDef.Range.atLeast(0);
   private static final ConfigDef.Importance BIGQUERY_RETRY_WAIT_IMPORTANCE =
       ConfigDef.Importance.MEDIUM;
   private static final String BIGQUERY_RETRY_WAIT_DOC =
       "The minimum amount of time, in milliseconds, to wait between BigQuery backend or quota "
-          +  "exceeded error retry attempts.";
-
-  public static final String BIGQUERY_MESSAGE_TIME_PARTITIONING_CONFIG =
-      "bigQueryMessageTimePartitioning";
+          + "exceeded error retry attempts.";
   private static final ConfigDef.Type BIGQUERY_MESSAGE_TIME_PARTITIONING_CONFIG_TYPE =
       ConfigDef.Type.BOOLEAN;
-  public static final Boolean BIGQUERY_MESSAGE_TIME_PARTITIONING_DEFAULT =                   false;
   private static final ConfigDef.Importance BIGQUERY_MESSAGE_TIME_PARTITIONING_IMPORTANCE =
       ConfigDef.Importance.HIGH;
   private static final String BIGQUERY_MESSAGE_TIME_PARTITIONING_DOC =
       "Whether or not to use the message time when inserting records. "
           + "Default uses the connector processing time.";
-
-  public static final String BIGQUERY_PARTITION_DECORATOR_CONFIG =
-      "bigQueryPartitionDecorator";
   private static final ConfigDef.Type BIGQUERY_PARTITION_DECORATOR_CONFIG_TYPE =
       ConfigDef.Type.BOOLEAN;
-  //This has been set to true to preserve the existing behavior. However, we can set it to false if field based partitioning is used in BigQuery
-  public static final Boolean BIGQUERY_PARTITION_DECORATOR_DEFAULT =                 true;
   private static final ConfigDef.Importance BIGQUERY_PARTITION_DECORATOR_IMPORTANCE =
       ConfigDef.Importance.HIGH;
   private static final String BIGQUERY_PARTITION_DECORATOR_DOC =
       "Whether or not to append partition decorator to BigQuery table name when inserting records. "
           + "Default is true. Setting this to true appends partition decorator to table name (e.g. table$yyyyMMdd depending on the configuration set for bigQueryPartitionDecorator). "
           + "Setting this to false bypasses the logic to append the partition decorator and uses raw table name for inserts.";
-
-  public static final String BIGQUERY_TIMESTAMP_PARTITION_FIELD_NAME_CONFIG = "timestampPartitionFieldName";
   private static final ConfigDef.Type BIGQUERY_TIMESTAMP_PARTITION_FIELD_NAME_TYPE = ConfigDef.Type.STRING;
   private static final String BIGQUERY_TIMESTAMP_PARTITION_FIELD_NAME_DEFAULT = null;
   private static final ConfigDef.Validator BIGQUERY_TIMESTAMP_PARTITION_FIELD_NAME_VALIDATOR = new ConfigDef.NonEmptyString();
@@ -489,8 +458,6 @@ public class BigQuerySinkConfig extends AbstractConfig {
       "The name of the field in the value that contains the timestamp to partition by in BigQuery"
           + " and enable timestamp partitioning for each table. Leave this configuration blank,"
           + " to enable ingestion time partitioning for each table.";
-
-  public static final String BIGQUERY_CLUSTERING_FIELD_NAMES_CONFIG = "clusteringPartitionFieldNames";
   private static final ConfigDef.Type BIGQUERY_CLUSTERING_FIELD_NAMES_TYPE = ConfigDef.Type.LIST;
   private static final List<String> BIGQUERY_CLUSTERING_FIELD_NAMES_DEFAULT = null;
   private static final ConfigDef.Validator BIGQUERY_CLUSTERING_FIELD_NAMES_VALIDATOR = (name, value) -> {
@@ -508,28 +475,20 @@ public class BigQuerySinkConfig extends AbstractConfig {
       ConfigDef.Importance.LOW;
   private static final String BIGQUERY_CLUSTERING_FIELD_NAMES_DOC =
       "List of fields on which data should be clustered by in BigQuery, separated by commas";
-
-  public static final String CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_CONFIG = "convertDebeziumTimestampToInteger";
   private static final ConfigDef.Type CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_TYPE = ConfigDef.Type.BOOLEAN;
   private static final Boolean CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_DEFAULT = false;
   private static final ConfigDef.Importance CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_IMPORTANCE =
-          ConfigDef.Importance.MEDIUM;
-
-  public static final String TIME_PARTITIONING_TYPE_CONFIG = "timePartitioningType";
+      ConfigDef.Importance.MEDIUM;
   private static final ConfigDef.Type TIME_PARTITIONING_TYPE_TYPE = ConfigDef.Type.STRING;
-  public static final String TIME_PARTITIONING_TYPE_DEFAULT = TimePartitioning.Type.DAY.name().toUpperCase();
-  public static final String TIME_PARTITIONING_TYPE_NONE = "NONE";
   private static final ConfigDef.Importance TIME_PARTITIONING_TYPE_IMPORTANCE = ConfigDef.Importance.LOW;
   private static final List<String> TIME_PARTITIONING_TYPES = Stream.concat(
-        Stream.of(TimePartitioning.Type.values()).map(TimePartitioning.Type::name),
-        Stream.of(TIME_PARTITIONING_TYPE_NONE))
+          Stream.of(TimePartitioning.Type.values()).map(TimePartitioning.Type::name),
+          Stream.of(TIME_PARTITIONING_TYPE_NONE))
       .collect(Collectors.toList());
   private static final String TIME_PARTITIONING_TYPE_DOC =
       "The time partitioning type to use when creating tables, or '"
           + TIME_PARTITIONING_TYPE_NONE + "' to create non-partitioned tables. "
           + "Existing tables will not be altered to use this partitioning type.";
-
-  public static final String BIGQUERY_PARTITION_EXPIRATION_CONFIG = "partitionExpirationMs";
   private static final ConfigDef.Type BIGQUERY_PARTITION_EXPIRATION_TYPE = ConfigDef.Type.LONG;
   private static final String BIGQUERY_PARTITION_EXPIRATION_DEFAULT = null;
   private static final ConfigDef.Validator BIGQUERY_PARTITION_EXPIRATION_VALIDATOR = (name, value) -> {
@@ -543,18 +502,41 @@ public class BigQuerySinkConfig extends AbstractConfig {
           + "connector creates. If this field is set, all data in partitions in this connector's tables that are "
           + "older than the specified partition expiration time will be permanently deleted. "
           + "Existing tables will not be altered to use this partition expiration time.";
-
-  public static final String MAX_RETRIES_CONFIG = "max.retries";
   private static final ConfigDef.Type MAX_RETRIES_TYPE = ConfigDef.Type.INT;
   private static final int MAX_RETRIES_DEFAULT = 10;
   private static final ConfigDef.Validator MAX_RETRIES_VALIDATOR = ConfigDef.Range.atLeast(1);
   private static final ConfigDef.Importance MAX_RETRIES_IMPORTANCE = ConfigDef.Importance.MEDIUM;
   private static final String MAX_RETRIES_DOC = "The maximum number of times to retry on retriable errors before failing the task.";
-
-  public static final String ENABLE_RETRIES_CONFIG = "enableRetries";
   private static final ConfigDef.Type ENABLE_RETRIES_TYPE = ConfigDef.Type.BOOLEAN;
-  public static final Boolean ENABLE_RETRIES_DEFAULT = true;
   private static final ConfigDef.Importance ENABLE_RETRIES_IMPORTANCE = ConfigDef.Importance.MEDIUM;
+  private static final List<MultiPropertyValidator<BigQuerySinkConfig>> MULTI_PROPERTY_VALIDATIONS = new ArrayList<>();
+
+  static {
+    // Note that order matters here: validations are performed in the order they're added to this list, and if a
+    // property or any of the properties that it depends on has an error, validation for it gets skipped.
+    // This comes in handy for things like checking for the existence of tables, which requires valid BigQuery
+    // credentials. We validate those credentials before checking for tables so that we can safely assume while
+    // checking for those tables that the credentials are already valid.
+    MULTI_PROPERTY_VALIDATIONS.add(new CredentialsValidator.BigQueryCredentialsValidator());
+    MULTI_PROPERTY_VALIDATIONS.add(new CredentialsValidator.GcsCredentialsValidator());
+    MULTI_PROPERTY_VALIDATIONS.add(new CredentialsValidator.BigQueryStorageWriteApiCredentialsValidator());
+    MULTI_PROPERTY_VALIDATIONS.add(new GcsBucketValidator());
+    MULTI_PROPERTY_VALIDATIONS.add(new PartitioningModeValidator());
+    MULTI_PROPERTY_VALIDATIONS.add(new PartitioningTypeValidator());
+    MULTI_PROPERTY_VALIDATIONS.add(new StorageWriteApiValidator());
+    MULTI_PROPERTY_VALIDATIONS.add(new StorageWriteApiValidator.StorageWriteApiBatchValidator());
+    MULTI_PROPERTY_VALIDATIONS.add(new UpsertDeleteValidator.UpsertValidator());
+    MULTI_PROPERTY_VALIDATIONS.add(new UpsertDeleteValidator.DeleteValidator());
+  }
+
+  protected BigQuerySinkConfig(ConfigDef config, Map<String, String> properties) {
+    super(config, properties);
+  }
+
+  public BigQuerySinkConfig(Map<String, String> properties) {
+    this(getConfig(), properties);
+  }
+
   /**
    * Return the ConfigDef object used to define this config's fields.
    *
@@ -649,7 +631,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
             TOPIC2TABLE_MAP_VALIDATOR,
             TOPIC2TABLE_MAP_IMPORTANCE,
             TOPIC2TABLE_MAP_DOC
-          ).define(
+        ).define(
             SANITIZE_FIELD_NAME_CONFIG,
             SANITIZE_FIELD_NAME_TYPE,
             SANITIZE_FIELD_NAME_DEFAULT,
@@ -688,7 +670,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
             CONVERT_DOUBLE_SPECIAL_VALUES_DEFAULT,
             CONVERT_DOUBLE_SPECIAL_VALUES_IMPORTANCE,
             CONVERT_DOUBLE_SPECIAL_VALUES_DOC
-         ).define(
+        ).define(
             TABLE_CREATE_CONFIG,
             TABLE_CREATE_TYPE,
             TABLE_CREATE_DEFAULT,
@@ -881,24 +863,16 @@ public class BigQuerySinkConfig extends AbstractConfig {
         );
   }
 
-  private static final List<MultiPropertyValidator<BigQuerySinkConfig>> MULTI_PROPERTY_VALIDATIONS = new ArrayList<>();
+  public static boolean upsertDeleteEnabled(Map<String, String> props) {
+    String upsertStr = props.get(UPSERT_ENABLED_CONFIG);
+    String deleteStr = props.get(DELETE_ENABLED_CONFIG);
+    return Boolean.TRUE.toString().equalsIgnoreCase(upsertStr)
+        || Boolean.TRUE.toString().equalsIgnoreCase(deleteStr);
+  }
 
-  static {
-    // Note that order matters here: validations are performed in the order they're added to this list, and if a
-    // property or any of the properties that it depends on has an error, validation for it gets skipped.
-    // This comes in handy for things like checking for the existence of tables, which requires valid BigQuery
-    // credentials. We validate those credentials before checking for tables so that we can safely assume while
-    // checking for those tables that the credentials are already valid.
-    MULTI_PROPERTY_VALIDATIONS.add(new CredentialsValidator.BigQueryCredentialsValidator());
-    MULTI_PROPERTY_VALIDATIONS.add(new CredentialsValidator.GcsCredentialsValidator());
-    MULTI_PROPERTY_VALIDATIONS.add(new CredentialsValidator.BigQueryStorageWriteApiCredentialsValidator());
-    MULTI_PROPERTY_VALIDATIONS.add(new GcsBucketValidator());
-    MULTI_PROPERTY_VALIDATIONS.add(new PartitioningModeValidator());
-    MULTI_PROPERTY_VALIDATIONS.add(new PartitioningTypeValidator());
-    MULTI_PROPERTY_VALIDATIONS.add(new StorageWriteApiValidator());
-    MULTI_PROPERTY_VALIDATIONS.add(new StorageWriteApiValidator.StorageWriteApiBatchValidator());
-    MULTI_PROPERTY_VALIDATIONS.add(new UpsertDeleteValidator.UpsertValidator());
-    MULTI_PROPERTY_VALIDATIONS.add(new UpsertDeleteValidator.DeleteValidator());
+  public static boolean gcsBatchLoadingEnabled(Map<String, String> props) {
+    String batchLoadStr = props.get(ENABLE_BATCH_CONFIG);
+    return batchLoadStr != null && !batchLoadStr.isEmpty();
   }
 
   /**
@@ -946,18 +920,6 @@ public class BigQuerySinkConfig extends AbstractConfig {
     }
   }
 
-  public static boolean upsertDeleteEnabled(Map<String, String> props) {
-    String upsertStr = props.get(UPSERT_ENABLED_CONFIG);
-    String deleteStr = props.get(DELETE_ENABLED_CONFIG);
-    return Boolean.TRUE.toString().equalsIgnoreCase(upsertStr)
-        || Boolean.TRUE.toString().equalsIgnoreCase(deleteStr);
-  }
-
-  public static boolean gcsBatchLoadingEnabled(Map<String, String> props) {
-    String batchLoadStr = props.get(ENABLE_BATCH_CONFIG);
-    return batchLoadStr != null && !batchLoadStr.isEmpty();
-  }
-
   /**
    * Returns the keyfile
    */
@@ -967,6 +929,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
 
   /**
    * Return a new instance of the configured Schema Converter.
+   *
    * @return a {@link SchemaConverter} for BigQuery.
    */
   public SchemaConverter<Schema> getSchemaConverter() {
@@ -977,18 +940,20 @@ public class BigQuerySinkConfig extends AbstractConfig {
 
   /**
    * Return a new instance of the configured Record Converter.
+   *
    * @return a {@link RecordConverter} for BigQuery.
    */
   public RecordConverter<Map<String, Object>> getRecordConverter() {
     return new BigQueryRecordConverter(
-            getBoolean(CONVERT_DOUBLE_SPECIAL_VALUES_CONFIG),
-            getBoolean(CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_CONFIG),
-            getBoolean(USE_STORAGE_WRITE_API_CONFIG)
+        getBoolean(CONVERT_DOUBLE_SPECIAL_VALUES_CONFIG),
+        getBoolean(CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_CONFIG),
+        getBoolean(USE_STORAGE_WRITE_API_CONFIG)
     );
   }
 
   /**
    * Locate the class specified by the user for use in retrieving schemas, and instantiate it.
+   *
    * @return A new instance of the user's specified SchemaRetriever class.
    * @throws ConfigException If the user did not specify a SchemaRetriever class.
    * @throws ConfigException If the specified class does not implement the SchemaRetriever
@@ -1029,8 +994,8 @@ public class BigQuerySinkConfig extends AbstractConfig {
     try {
       schemaRetriever = schemaRetrieverConstructor.newInstance();
     } catch (InstantiationException
-        | IllegalAccessException
-        | InvocationTargetException
+             | IllegalAccessException
+             | InvocationTargetException
         exception) {
       throw new ConfigException(
           "Failed to instantiate class specified for SchemaRetriever",
@@ -1115,6 +1080,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
 
   /**
    * Returns the partition expiration in ms.
+   *
    * @return Long that represents the partition expiration.
    */
   public Optional<Long> getPartitionExpirationMs() {
@@ -1123,6 +1089,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
 
   /**
    * Returns the field name to use for timestamp partitioning.
+   *
    * @return String that represents the field name.
    */
   public Optional<String> getTimestampPartitionFieldName() {
@@ -1131,6 +1098,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
 
   /**
    * Returns the field names to use for clustering.
+   *
    * @return List of Strings that represent the field names.
    */
   public Optional<List<String>> getClusteringPartitionFieldNames() {
@@ -1138,13 +1106,5 @@ public class BigQuerySinkConfig extends AbstractConfig {
         .ofNullable(getList(BIGQUERY_CLUSTERING_FIELD_NAMES_CONFIG))
         // With Java 11 there's Predicate::not, but for now we have to just manually invert the isEmpty check
         .filter(l -> !l.isEmpty());
-  }
-
-  protected BigQuerySinkConfig(ConfigDef config, Map<String, String> properties) {
-    super(config, properties);
-  }
-
-  public BigQuerySinkConfig(Map<String, String> properties) {
-    this(getConfig(), properties);
   }
 }

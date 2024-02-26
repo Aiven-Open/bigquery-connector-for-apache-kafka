@@ -19,15 +19,14 @@
 
 package com.wepay.kafka.connect.bigquery.utils;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import org.junit.Before;
 import org.junit.Test;
-
-import java.util.HashMap;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 public class FieldNameSanitizerTest {
   private Map<String, Object> testMap;

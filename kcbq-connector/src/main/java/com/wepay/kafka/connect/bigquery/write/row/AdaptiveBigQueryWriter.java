@@ -20,30 +20,26 @@
 package com.wepay.kafka.connect.bigquery.write.row;
 
 import com.google.cloud.bigquery.BigQuery;
-import com.google.cloud.bigquery.TableId;
 import com.google.cloud.bigquery.BigQueryError;
 import com.google.cloud.bigquery.BigQueryException;
 import com.google.cloud.bigquery.InsertAllRequest;
 import com.google.cloud.bigquery.InsertAllResponse;
-
+import com.google.cloud.bigquery.TableId;
 import com.wepay.kafka.connect.bigquery.ErrantRecordHandler;
 import com.wepay.kafka.connect.bigquery.SchemaManager;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
-
 import com.wepay.kafka.connect.bigquery.exception.BigQueryErrorResponses;
 import com.wepay.kafka.connect.bigquery.exception.ExpectedInterruptException;
 import com.wepay.kafka.connect.bigquery.utils.PartitionedTableId;
-
 import com.wepay.kafka.connect.bigquery.utils.Time;
-import org.apache.kafka.connect.sink.SinkRecord;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
+import org.apache.kafka.connect.sink.SinkRecord;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A {@link BigQueryWriter} capable of updating BigQuery table schemas and creating non-existed tables automatically.
@@ -61,13 +57,13 @@ public class AdaptiveBigQueryWriter extends BigQueryWriter {
   private final boolean autoCreateTables;
 
   /**
-   * @param bigQuery Used to send write requests to BigQuery.
-   * @param schemaManager Used to update BigQuery tables.
-   * @param retry How many retries to make in the event of a 500/503 error.
-   * @param retryWait How long to wait in between retries.
-   * @param autoCreateTables Whether tables should be automatically created
+   * @param bigQuery            Used to send write requests to BigQuery.
+   * @param schemaManager       Used to update BigQuery tables.
+   * @param retry               How many retries to make in the event of a 500/503 error.
+   * @param retryWait           How long to wait in between retries.
+   * @param autoCreateTables    Whether tables should be automatically created
    * @param errantRecordHandler Used to handle errant records
-   * @param time used to wait during backoff periods
+   * @param time                used to wait during backoff periods
    */
   public AdaptiveBigQueryWriter(BigQuery bigQuery,
                                 SchemaManager schemaManager,
@@ -86,12 +82,13 @@ public class AdaptiveBigQueryWriter extends BigQueryWriter {
    * Sends the request to BigQuery, then checks the response to see if any errors have occurred. If
    * any have, and all errors can be blamed upon invalid columns in the rows sent, attempts to
    * update the schema of the table in BigQuery and then performs the same write request.
+   *
    * @see BigQueryWriter#performWriteRequest(PartitionedTableId, SortedMap)
    */
   @Override
   public Map<Long, List<BigQueryError>> performWriteRequest(
-          PartitionedTableId tableId,
-          SortedMap<SinkRecord, InsertAllRequest.RowToInsert> rows) {
+      PartitionedTableId tableId,
+      SortedMap<SinkRecord, InsertAllRequest.RowToInsert> rows) {
     InsertAllResponse writeResponse = null;
     InsertAllRequest request = null;
 
@@ -100,7 +97,7 @@ public class AdaptiveBigQueryWriter extends BigQueryWriter {
       writeResponse = bigQuery.insertAll(request);
       // Should only perform one schema update attempt.
       if (writeResponse.hasErrors()
-              && onlyContainsInvalidSchemaErrors(writeResponse.getInsertErrors())) {
+          && onlyContainsInvalidSchemaErrors(writeResponse.getInsertErrors())) {
         attemptSchemaUpdate(tableId, new ArrayList<>(rows.keySet()));
       }
     } catch (BigQueryException exception) {
@@ -168,7 +165,7 @@ public class AdaptiveBigQueryWriter extends BigQueryWriter {
       schemaManager.createTable(tableId, records);
     } catch (BigQueryException exception) {
       throw new BigQueryConnectException(
-              "Failed to create table " + tableId, exception);
+          "Failed to create table " + tableId, exception);
     }
   }
 

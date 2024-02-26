@@ -23,11 +23,8 @@ import com.google.cloud.bigquery.TableId;
 import com.google.cloud.bigquery.storage.v1.TableName;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkTaskConfig;
-import org.apache.kafka.connect.errors.ConnectException;
-
-import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
+import org.apache.kafka.connect.errors.ConnectException;
 
 public class TableNameUtils {
 
@@ -38,6 +35,7 @@ public class TableNameUtils {
   public static TableName tableName(TableId id) {
     return TableName.of(id.getProject(), id.getDataset(), id.getTable());
   }
+
   public static String intTable(TableId table) {
     return "intermediate " + table(table);
   }
@@ -67,10 +65,10 @@ public class TableNameUtils {
         tableName = smtReplacement[0];
       } else {
         throw new ConnectException(String.format(
-                "Incorrect regex replacement format in topic name '%s'. "
-                        + "SMT replacement should either produce the <dataset>:<tableName> format "
-                        + "or just the <tableName> format.",
-                topic
+            "Incorrect regex replacement format in topic name '%s'. "
+                + "SMT replacement should either produce the <dataset>:<tableName> format "
+                + "or just the <tableName> format.",
+            topic
         ));
       }
       if (config.getBoolean(BigQuerySinkConfig.SANITIZE_TOPICS_CONFIG)) {

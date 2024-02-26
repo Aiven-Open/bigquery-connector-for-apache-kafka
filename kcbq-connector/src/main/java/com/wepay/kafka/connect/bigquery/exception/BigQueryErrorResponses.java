@@ -21,7 +21,6 @@ package com.wepay.kafka.connect.bigquery.exception;
 
 import com.google.cloud.bigquery.BigQueryError;
 import com.google.cloud.bigquery.BigQueryException;
-
 import java.io.IOException;
 import java.util.Optional;
 import java.util.function.Function;
@@ -75,8 +74,8 @@ public class BigQueryErrorResponses {
     //       suggest it's an internal backend error and we should retry, so lets take that at face
     //       value
     return INTERNAL_SERVICE_ERROR_CODE == exception.getCode()
-        || BAD_GATEWAY_CODE  == exception.getCode()
-        || SERVICE_UNAVAILABLE_CODE  == exception.getCode();
+        || BAD_GATEWAY_CODE == exception.getCode()
+        || SERVICE_UNAVAILABLE_CODE == exception.getCode();
   }
 
   public static boolean isUnspecifiedBadRequestError(BigQueryException exception) {
@@ -87,7 +86,7 @@ public class BigQueryErrorResponses {
 
   public static boolean isJobInternalError(BigQueryException exception) {
     return BAD_REQUEST_CODE == exception.getCode()
-            && JOB_INTERNAL_ERROR.equals(exception.getReason());
+        && JOB_INTERNAL_ERROR.equals(exception.getReason());
   }
 
   public static boolean isQuotaExceededError(BigQueryException exception) {
@@ -116,15 +115,15 @@ public class BigQueryErrorResponses {
         && message(exception.getError()).startsWith("too many rows present in the request");
   }
 
-  public static boolean isIOError(BigQueryException error) {
+  public static boolean isIoError(BigQueryException error) {
     return BigQueryException.UNKNOWN_CODE == error.getCode()
         && error.getCause() instanceof IOException;
   }
 
   public static boolean isCouldNotSerializeAccessError(BigQueryException exception) {
     return BAD_REQUEST_CODE == exception.getCode()
-            && INVALID_QUERY_REASON.equals(exception.getReason())
-            && message(exception.getError()).startsWith("Could not serialize access to");
+        && INVALID_QUERY_REASON.equals(exception.getReason())
+        && message(exception.getError()).startsWith("Could not serialize access to");
   }
 
   /**
@@ -133,11 +132,20 @@ public class BigQueryErrorResponses {
    */
   public static boolean isAuthenticationError(BigQueryException error) {
     String err = error.toString();
-    return ((err.contains(String.valueOf(BAD_REQUEST_CODE))) &&
-            (err.contains("invalid_request") || err.contains("invalid_client") || err.contains("invalid_grant") ||
-             err.contains("unauthorized_client") || err.contains("unsupported_grant_type")))
-            ||
-            err.contains(String.valueOf(AUTHENTICATION_ERROR_CODE));
+
+    if (err.contains(String.valueOf(AUTHENTICATION_ERROR_CODE))) {
+      return true;
+    }
+
+    if (!err.contains(String.valueOf(BAD_REQUEST_CODE))) {
+      return false;
+    }
+
+    return err.contains("invalid_request")
+        || err.contains("invalid_client")
+        || err.contains("invalid_grant")
+        || err.contains("unauthorized_client")
+        || err.contains("unsupported_grant_type");
   }
 
   public static boolean isUnrecognizedFieldError(BigQueryError error) {
