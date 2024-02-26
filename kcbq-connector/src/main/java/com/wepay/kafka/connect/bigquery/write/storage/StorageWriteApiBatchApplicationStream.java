@@ -86,7 +86,9 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiBase {
       boolean autoCreateTables,
       ErrantRecordHandler errantRecordHandler,
       SchemaManager schemaManager,
-      boolean attemptSchemaUpdate) {
+      boolean attemptSchemaUpdate,
+      boolean upsertEnabled,
+      boolean deleteEnabled) {
     super(
         retry,
         retryWait,
@@ -94,7 +96,9 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiBase {
         autoCreateTables,
         errantRecordHandler,
         schemaManager,
-        attemptSchemaUpdate
+        attemptSchemaUpdate,
+        upsertEnabled,
+        deleteEnabled
     );
     streams = new ConcurrentHashMap<>();
     currentStreams = new ConcurrentHashMap<>();
@@ -237,7 +241,7 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiBase {
         TableName.parse(tableName), rows != null ? getSinkRecords(rows) : null, retry, retryWait, time);
     do {
       try {
-        return new ApplicationStream(tableName, getWriteClient());
+        return new ApplicationStream(tableName, getWriteClient(), upsertEnabled);
       } catch (Exception e) {
         String baseErrorMessage = String.format(
             "Failed to create Application stream writer on table %s due to %s",

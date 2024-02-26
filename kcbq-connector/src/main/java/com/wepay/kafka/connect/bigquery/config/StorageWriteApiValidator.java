@@ -37,16 +37,12 @@ import java.util.Optional;
 
 public class StorageWriteApiValidator extends MultiPropertyValidator<BigQuerySinkConfig> {
 
-  public static final String upsertNotSupportedError = "Upsert mode is not supported with Storage Write API."
-      + " Either disable Upsert mode or disable Storage Write API";
   public static final String legacyBatchNotSupportedError = "Legacy Batch mode is not supported with Storage Write API."
       + " Either disable Legacy Batch mode or disable Storage Write API";
   public static final String newBatchNotSupportedError = "Storage Write Api Batch load is supported only when useStorageWriteApi is "
       + "enabled. Either disable batch mode or enable Storage Write API";
-  public static final String deleteNotSupportedError = "Delete mode is not supported with Storage Write API. Either disable Delete mode "
-      + "or disable Storage Write API";
   private static final Collection<String> DEPENDENTS = Collections.unmodifiableCollection(Arrays.asList(
-      UPSERT_ENABLED_CONFIG, DELETE_ENABLED_CONFIG, ENABLE_BATCH_CONFIG
+      ENABLE_BATCH_CONFIG
   ));
 
   protected StorageWriteApiValidator(String propertyName) {
@@ -71,11 +67,7 @@ public class StorageWriteApiValidator extends MultiPropertyValidator<BigQuerySin
       //No legacy modes validation needed if not using new api
       return Optional.empty();
     }
-    if (config.getBoolean(UPSERT_ENABLED_CONFIG)) {
-      return Optional.of(upsertNotSupportedError);
-    } else if (config.getBoolean(DELETE_ENABLED_CONFIG)) {
-      return Optional.of(deleteNotSupportedError);
-    } else if (!config.getList(ENABLE_BATCH_CONFIG).isEmpty()) {
+    if (!config.getList(ENABLE_BATCH_CONFIG).isEmpty()) {
       return Optional.of(legacyBatchNotSupportedError);
     } else if (config.originals().containsKey(BIGQUERY_PARTITION_DECORATOR_CONFIG)
         && config.getBoolean(BIGQUERY_PARTITION_DECORATOR_CONFIG)
