@@ -29,15 +29,16 @@ jobs:
       - name: Unit tests (Maven)
         run: mvn --batch-mode test
       - name: Integration tests (Maven)
-        run: |
-          echo "${{ secrets.KCBQ_TEST_KEYFILE }}" > /tmp/creds.json
-          mvn --batch-mode -Dskip.unit.tests=true verify
         env:
           # Necessary for client builder integration tests that run with
           # default application credentials
+          CREDENTIALS_JSON: ${{ secrets.KCBQ_TEST_KEYFILE }}
           GOOGLE_APPLICATION_CREDENTIALS: /tmp/creds.json
-          KCBQ_TEST_KEY_SOURCE: JSON
-          KCBQ_TEST_KEYFILE:    ${{ secrets.KCBQ_TEST_KEYFILE }}
+          KCBQ_TEST_KEYFILE:    /tmp/creds.json
+          KCBQ_TEST_KEY_SOURCE: FILE
           KCBQ_TEST_PROJECT:    ${{ secrets.KCBQ_TEST_PROJECT }}
           KCBQ_TEST_DATASET:    ${{ secrets.KCBQ_TEST_DATASET }}
           KCBQ_TEST_BUCKET:     ${{ secrets.KCBQ_TEST_BUCKET }}
+        run: |
+          echo "$CREDENTIALS_JSON" > /tmp/creds.json
+          mvn --batch-mode -Dskip.unit.tests=true verify -Dit.test=GcpClientBuilderIT
