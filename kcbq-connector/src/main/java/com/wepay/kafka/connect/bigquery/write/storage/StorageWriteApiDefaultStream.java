@@ -144,11 +144,6 @@ public class StorageWriteApiDefaultStream extends StorageWriteApiBase {
       closeAndDelete(tableName.toString());
       jsonStreamWriter = null;
     }
-
-    @Override
-    public void close() {
-      jsonStreamWriter.close();
-    }
   }
 
 }

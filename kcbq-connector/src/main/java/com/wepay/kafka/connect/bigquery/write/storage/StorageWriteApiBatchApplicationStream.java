@@ -391,11 +391,6 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiBase {
     public void refresh() {
       // No-op; handled internally by ApplicationStream class
     }
-
-    @Override
-    public void close() {
-      // No-op
-    }
   }
 
 }
