@@ -95,12 +95,8 @@ public class StorageWriteApiDefaultStream extends StorageWriteApiBase {
           }
           logger.warn(baseErrorMessage + " Retry attempt {}", retryHandler.getAttempt());
         }
-      } while (retryHandler.maybeRetry());
-      throw new BigQueryStorageWriteApiConnectException(
-          String.format(
-              "Exceeded %s attempts to create Default stream writer on table %s ",
-              retryHandler.getAttempt(), tableName),
-          retryHandler.getMostRecentException());
+        retryHandler.maybeRetry("create default stream on table " + tableName);
+      } while (true);
     });
   }
 
@@ -143,6 +139,11 @@ public class StorageWriteApiDefaultStream extends StorageWriteApiBase {
     public void refresh() {
       closeAndDelete(tableName.toString());
       jsonStreamWriter = null;
+    }
+
+    @Override
+    public String streamName() {
+      return StorageWriteApiWriter.DEFAULT;
     }
   }
 

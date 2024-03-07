@@ -33,6 +33,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.LongFunction;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 import org.apache.kafka.connect.data.Schema;
@@ -47,9 +49,9 @@ import org.apache.kafka.connect.runtime.SinkConnectorConfig;
 import org.apache.kafka.connect.sink.SinkTask;
 import org.apache.kafka.connect.storage.Converter;
 import org.apache.kafka.test.IntegrationTest;
+import org.apache.kafka.test.TestUtils;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.slf4j.Logger;
@@ -375,14 +377,13 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
   }
 
   @Test
-  @Ignore("TODO: Add error handling for 'INVALID_ARGUMENT: MessageSize is too large.'")
-  public void testAvroThroughput() throws InterruptedException {
+  public void testAvroLargeBatches() throws InterruptedException {
     // create topic in Kafka
-    final String topic = suffixedTableOrTopic("storage-api-append-throughput" + System.nanoTime());
+    final String topic = suffixedTableOrTopic("storage-api-append-large-batches" + System.nanoTime());
     final String table = sanitizedTable(topic);
 
-    int tasksMax = 5;
-    long numRecords = tasksMax * 1_000_000L;
+    int tasksMax = 1;
+    long numRecords = 100_000;
 
     // create topic
     connect.kafka().createTopic(topic, tasksMax);
@@ -393,12 +394,14 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
     // Instantiate the converters we'll use to send records to the connector
     initialiseAvroConverters();
 
-    //produce records
-    produceAvroRecords(topic, numRecords);
+    //produce records, each with a 100 byte value
+    produceAvroRecords(topic, numRecords, 100);
 
     // setup props for the sink connector
     Map<String, String> props = configs(topic);
     props.put(TASKS_MAX_CONFIG, Integer.toString(tasksMax));
+
+    // read as many records from Kafka in a single poll as possible
     props.put(
         CONNECTOR_CLIENT_CONSUMER_OVERRIDES_PREFIX + MAX_POLL_RECORDS_CONFIG,
         Long.toString(numRecords)
@@ -412,7 +415,6 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
         Integer.toString(Integer.MAX_VALUE)
     );
 
-
     // start a sink connector
     connect.configureConnector(CONNECTOR_NAME, props);
 
@@ -423,15 +425,19 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
     waitForCommittedRecords(
         CONNECTOR_NAME, Collections.singleton(topic), numRecords, tasksMax, TimeUnit.MINUTES.toMillis(5));
 
-    // verify records are present.
-    List<List<Object>> testRows;
-    try {
-      testRows = readAllRows(bigQuery, table, "f3");
-    } catch (InterruptedException e) {
-      throw new RuntimeException(e);
-    }
+    connect.deleteConnector(CONNECTOR_NAME);
 
-    assertEquals(expectedRows(), testRows.stream().map(row -> row.get(0)).collect(Collectors.toSet()));
+    final AtomicLong numRows = new AtomicLong();
+    TestUtils.waitForCondition(
+        () -> {
+          numRows.set(countRows(bigQuery, table));
+          assertEquals(numRecords, numRows.get());
+          return true;
+        },
+        10_000L,
+        () -> "Table should contain " + numRecords
+            + " rows, but has " + numRows.get() + " instead"
+    );
   }
 
   private void createTable(String table, boolean incompleteSchema) {
@@ -505,15 +511,58 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
 
 
   private void produceAvroRecords(String topic, long numRecords) {
+    produceAvroRecords(
+        topic,
+        numRecords,
+        keySchema,
+        valueSchema,
+        this::avroKey,
+        this::avroValue
+    );
+  }
+
+  private void produceAvroRecords(String topic, long numRecords, int valueSize) {
+    // AAAAAAAAAAAAAAAAAAAAAAAAAAA
+    String largeField = String.join("", Collections.nCopies(valueSize, "A"));
+
+    Schema largeValueSchema = SchemaBuilder.struct()
+        .field("f1", Schema.STRING_SCHEMA)
+        .build();
+
+    produceAvroRecords(
+        topic,
+        numRecords,
+        keySchema,
+        largeValueSchema,
+        this::avroKey,
+        i -> new Struct(largeValueSchema).put("f1", largeField)
+    );
+  }
+
+  private void produceAvroRecords(
+      String topic,
+      long numRecords,
+      Schema keySchema,
+      Schema valueSchema,
+      LongFunction<Object> computeKey,
+      LongFunction<Object> computeValue
+  ) {
     List<List<SchemaAndValue>> records = new ArrayList<>();
 
     // Prepare records
     for (long i = 0; i < numRecords; i++) {
       List<SchemaAndValue> record = new ArrayList<>();
-      SchemaAndValue schemaAndValue = new SchemaAndValue(valueSchema, avroValue(i));
-      SchemaAndValue keyschemaAndValue = new SchemaAndValue(keySchema, new Struct(keySchema).put("k1", (long) i));
 
-      record.add(keyschemaAndValue);
+      SchemaAndValue keySchemaAndValue = new SchemaAndValue(
+          keySchema,
+          computeKey.apply(i)
+      );
+      SchemaAndValue schemaAndValue = new SchemaAndValue(
+          valueSchema,
+          computeValue.apply(i)
+      );
+
+      record.add(keySchemaAndValue);
       record.add(schemaAndValue);
 
       records.add(record);
@@ -521,6 +570,7 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
 
     // send prepared records
     schemaRegistry.produceRecordsWithKey(keyConverter, valueConverter, records, topic);
+
   }
 
   private void initialiseAvroConverters() {
@@ -691,6 +741,10 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
         .put("primitives_field", primitivesStruct)
         .put("logicals_field", logicalsStruct)
         .put("array_field", arrayValue);
+  }
+
+  private Struct avroKey(long iteration) {
+    return new Struct(keySchema).put("k1", iteration);
   }
 
   private Set<Object> expectedRows() {

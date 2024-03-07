@@ -30,4 +30,6 @@ public interface StreamWriter {
    */
   void onSuccess();
 
+  String streamName();
+
 }

@@ -235,12 +235,8 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiBase {
         }
         logger.warn(baseErrorMessage + " Retry attempt {}", retryHandler.getAttempt());
       }
-    } while (retryHandler.maybeRetry());
-    throw new BigQueryStorageWriteApiConnectException(
-        String.format(
-            "Exceeded %s attempts to create Application stream on table %s ",
-            retryHandler.getAttempt(), tableName),
-        retryHandler.getMostRecentException());
+      retryHandler.maybeRetry("create application stream on table " + tableName);
+    } while (true);
   }
 
   /**
@@ -391,6 +387,12 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiBase {
     public void refresh() {
       // No-op; handled internally by ApplicationStream class
     }
+
+    @Override
+    public String streamName() {
+      return streamName;
+    }
+
   }
 
 }

@@ -70,6 +70,7 @@ public class SchemaRegistryTestUtils {
   private KafkaProducer<byte[], byte[]> configureProducer() {
     Map<String, Object> producerProps = new HashMap<>();
     producerProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, this.bootstrapServers);
+    producerProps.put(ProducerConfig.MAX_REQUEST_SIZE_CONFIG, 1024 * 1024 * 10);
     return new KafkaProducer<>(producerProps, new ByteArraySerializer(), new ByteArraySerializer());
   }
 
@@ -99,6 +100,7 @@ public class SchemaRegistryTestUtils {
       List<List<SchemaAndValue>> recordsList,
       String topic
   ) {
+    int iterationLogThreshold = Math.min(10_000, (int) Math.ceil(recordsList.size() / 100.0));
     try (KafkaProducer<byte[], byte[]> producer = configureProducer()) {
       List<Future<RecordMetadata>> produceFutures = new ArrayList<>();
       for (int i = 0; i < recordsList.size(); i++) {
@@ -113,14 +115,14 @@ public class SchemaRegistryTestUtils {
           convertedStructValue = valueConverter.fromConnectData(topic, value.schema(), value.value());
         }
         ProducerRecord<byte[], byte[]> msg = new ProducerRecord<>(topic, convertedStructKey, convertedStructValue);
-        final int iteration = i;
+        final int iteration = i + 1;
         Future<RecordMetadata> produceFuture = producer.send(
             msg,
             (recordMetadata, error) -> {
               if (error != null)
                 return;
 
-              if (iteration % 10_000 == 0)
+              if (iteration % iterationLogThreshold == 0)
                 log.info("Sent {} Avro records to topic {}", iteration, topic);
             }
         );
@@ -141,8 +143,6 @@ public class SchemaRegistryTestUtils {
           );
         }
       }
-      produceFutures.forEach(produceFuture -> {
-      });
     }
   }
 
