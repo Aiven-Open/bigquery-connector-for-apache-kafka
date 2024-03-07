@@ -14,6 +14,7 @@ import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkTaskConfig;
 import com.wepay.kafka.connect.bigquery.convert.BigQueryRecordConverter;
 import com.wepay.kafka.connect.bigquery.convert.RecordConverter;
+import com.wepay.kafka.connect.bigquery.utils.SinkRecordConverter;
 import com.wepay.kafka.connect.bigquery.write.batch.TableWriterBuilder;
 import java.util.HashSet;
 import java.util.List;
@@ -42,14 +43,17 @@ public class StorageWriteApiWriterTest {
   public void testRecordConversion() {
     StorageWriteApiBase mockStreamWriter = Mockito.mock(StorageWriteApiBase.class);
     BigQuerySinkTaskConfig mockedConfig = Mockito.mock(BigQuerySinkTaskConfig.class);
-    StorageApiBatchModeHandler batchModeHandler = mock(StorageApiBatchModeHandler.class);
-    RecordConverter<Map<String, Object>> mockedRecordConverter = new BigQueryRecordConverter(
+    when(mockedConfig.getBoolean(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG)).thenReturn(true);
+    RecordConverter<Map<String, Object>> recordConverter = new BigQueryRecordConverter(
         false,
         false,
         true
     );
+    when(mockedConfig.getRecordConverter()).thenReturn(recordConverter);
+    StorageApiBatchModeHandler batchModeHandler = mock(StorageApiBatchModeHandler.class);
+    SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(mockedConfig, null, null);
     TableWriterBuilder builder = new StorageWriteApiWriter.Builder(
-        mockStreamWriter, null, mockedRecordConverter, mockedConfig, batchModeHandler);
+        mockStreamWriter, null, sinkRecordConverter, batchModeHandler);
     @SuppressWarnings("unchecked")
     ArgumentCaptor<List<ConvertedRecord>> records = ArgumentCaptor.forClass(List.class);
     String expectedKafkaKey = "{\"key\":\"12345\"}";
@@ -90,14 +94,16 @@ public class StorageWriteApiWriterTest {
     TableName tableName = TableName.of("p", "d", "t");
     StorageWriteApiBase mockStreamWriter = Mockito.mock(StorageWriteApiBatchApplicationStream.class);
     BigQuerySinkTaskConfig mockedConfig = Mockito.mock(BigQuerySinkTaskConfig.class);
-    StorageApiBatchModeHandler batchModeHandler = mock(StorageApiBatchModeHandler.class);
-    RecordConverter mockedRecordConverter = new BigQueryRecordConverter(
+    when(mockedConfig.getBoolean(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG)).thenReturn(true);
+    RecordConverter<Map<String, Object>> recordConverter = new BigQueryRecordConverter(
         false, false, false);
+    when (mockedConfig.getRecordConverter()).thenReturn(recordConverter);
+    StorageApiBatchModeHandler batchModeHandler = mock(StorageApiBatchModeHandler.class);
+    SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(mockedConfig, null, null);
     ArgumentCaptor<String> streamName = ArgumentCaptor.forClass(String.class);
     String expectedStreamName = tableName.toString() + "_s1";
     TableWriterBuilder builder = new StorageWriteApiWriter.Builder(
-        mockStreamWriter, tableName, mockedRecordConverter, mockedConfig, batchModeHandler);
-
+        mockStreamWriter, tableName, sinkRecordConverter, batchModeHandler);
 
     Mockito.when(mockedConfig.getKafkaDataFieldName()).thenReturn(Optional.empty());
     Mockito.when(mockedConfig.getKafkaKeyFieldName()).thenReturn(Optional.of("i_am_kafka_key"));

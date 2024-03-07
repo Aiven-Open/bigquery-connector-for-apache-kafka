@@ -104,80 +104,79 @@ public abstract class StorageWriteApiBase {
     StorageWriteApiRetryHandler retryHandler = new StorageWriteApiRetryHandler(tableName, getSinkRecords(rows), retry, retryWait, time);
     logger.debug("Sending {} records to write Api Application stream {}", rows.size(), streamName);
     RecordBatches<ConvertedRecord> batches = new RecordBatches<>(rows);
-    try (StreamWriter writer = streamWriter(tableName, streamName, rows)) {
-      do {
-        try {
-          List<ConvertedRecord> batch = batches.currentBatch();
-          JSONArray jsonRecords = getJsonRecords(batch);
-          logger.trace("Sending records to Storage API writer for batch load");
-          ApiFuture<AppendRowsResponse> response = writer.appendRows(jsonRecords);
-          AppendRowsResponse writeResult = response.get();
-          logger.trace("Received response from Storage API writer batch");
+    StreamWriter writer = streamWriter(tableName, streamName, rows);
+    do {
+      try {
+        List<ConvertedRecord> batch = batches.currentBatch();
+        JSONArray jsonRecords = getJsonRecords(batch);
+        logger.trace("Sending records to Storage API writer for batch load");
+        ApiFuture<AppendRowsResponse> response = writer.appendRows(jsonRecords);
+        AppendRowsResponse writeResult = response.get();
+        logger.trace("Received response from Storage API writer batch");
 
-          if (writeResult.hasUpdatedSchema()) {
-            logger.warn("Sent records schema does not match with table schema, will attempt to update schema");
-            if (!canAttemptSchemaUpdate()) {
-              throw new BigQueryStorageWriteApiConnectException("Connector is not configured to perform schema updates.");
-            }
-            retryHandler.attemptTableOperation(schemaManager::updateSchema);
-          } else if (writeResult.hasError()) {
-            Status errorStatus = writeResult.getError();
-            String errorMessage = String.format("Failed to write rows on table %s due to %s", tableName, writeResult.getError().getMessage());
-            retryHandler.setMostRecentException(new BigQueryStorageWriteApiConnectException(errorMessage));
-            if (BigQueryStorageWriteApiErrorResponses.isMalformedRequest(errorMessage)) {
-              rows = maybeHandleDlqRoutingAndFilterRecords(rows, convertToMap(writeResult.getRowErrorsList()), tableName.getTable());
-              if (rows.isEmpty()) {
-                writer.onSuccess();
-                return;
-              }
-            } else if (!BigQueryStorageWriteApiErrorResponses.isRetriableError(errorStatus.getMessage())) {
-              failTask(retryHandler.getMostRecentException());
-            }
-            logger.warn(errorMessage + " Retry attempt " + retryHandler.getAttempt());
-          } else {
-            if (!writeResult.hasAppendResult()) {
-              logger.warn(
-                  "Write result did not report any errors, but also did not succeed. "
-                      + "This may be indicative of a bug in the BigQuery Java client library or back end; "
-                      + "please report it to the maintainers of the connector to investigate."
-              );
-            }
-            logger.trace("Append call completed successfully on stream {}", streamName);
-            writer.onSuccess();
-            return;
+        if (writeResult.hasUpdatedSchema()) {
+          logger.warn("Sent records schema does not match with table schema, will attempt to update schema");
+          if (!canAttemptSchemaUpdate()) {
+            throw new BigQueryStorageWriteApiConnectException("Connector is not configured to perform schema updates.");
           }
-        } catch (BigQueryStorageWriteApiConnectException exception) {
-          throw exception;
-        } catch (Exception e) {
-          String message = e.getMessage();
-          String errorMessage = String.format("Failed to write rows on table %s due to %s", tableName, message);
-          retryHandler.setMostRecentException(new BigQueryStorageWriteApiConnectException(errorMessage, e));
-
-          if (shouldHandleSchemaMismatch(e)) {
-            logger.warn("Sent records schema does not match with table schema, will attempt to update schema");
-            retryHandler.attemptTableOperation(schemaManager::updateSchema);
-          } else if (BigQueryStorageWriteApiErrorResponses.isMalformedRequest(message)) {
-            rows = maybeHandleDlqRoutingAndFilterRecords(rows, getRowErrorMapping(e), tableName.getTable());
+          retryHandler.attemptTableOperation(schemaManager::updateSchema);
+        } else if (writeResult.hasError()) {
+          Status errorStatus = writeResult.getError();
+          String errorMessage = String.format("Failed to write rows on table %s due to %s", tableName, writeResult.getError().getMessage());
+          retryHandler.setMostRecentException(new BigQueryStorageWriteApiConnectException(errorMessage));
+          if (BigQueryStorageWriteApiErrorResponses.isMalformedRequest(errorMessage)) {
+            rows = maybeHandleDlqRoutingAndFilterRecords(rows, convertToMap(writeResult.getRowErrorsList()), tableName.getTable());
             if (rows.isEmpty()) {
               writer.onSuccess();
               return;
             }
-          } else if (BigQueryStorageWriteApiErrorResponses.isStreamClosed(message)) {
-            writer.refresh();
-          } else if (BigQueryStorageWriteApiErrorResponses.isTableMissing(message) && getAutoCreateTables()) {
-            retryHandler.attemptTableOperation(schemaManager::createTable);
-          } else if (!BigQueryStorageWriteApiErrorResponses.isRetriableError(e.getMessage())
-              && BigQueryStorageWriteApiErrorResponses.isNonRetriableStorageError(e)
-          ) {
+          } else if (!BigQueryStorageWriteApiErrorResponses.isRetriableError(errorStatus.getMessage())) {
             failTask(retryHandler.getMostRecentException());
           }
           logger.warn(errorMessage + " Retry attempt " + retryHandler.getAttempt());
+        } else {
+          if (!writeResult.hasAppendResult()) {
+            logger.warn(
+                "Write result did not report any errors, but also did not succeed. "
+                    + "This may be indicative of a bug in the BigQuery Java client library or back end; "
+                    + "please report it to the maintainers of the connector to investigate."
+            );
+          }
+          logger.trace("Append call completed successfully on stream {}", streamName);
+          writer.onSuccess();
+          return;
         }
-      } while (retryHandler.maybeRetry());
-      throw new BigQueryStorageWriteApiConnectException(
-          String.format("Exceeded %s attempts to write to table %s ", retryHandler.getAttempt(), tableName),
-          retryHandler.getMostRecentException());
-    }
+      } catch (BigQueryStorageWriteApiConnectException exception) {
+        throw exception;
+      } catch (Exception e) {
+        String message = e.getMessage();
+        String errorMessage = String.format("Failed to write rows on table %s due to %s", tableName, message);
+        retryHandler.setMostRecentException(new BigQueryStorageWriteApiConnectException(errorMessage, e));
+
+        if (shouldHandleSchemaMismatch(e)) {
+          logger.warn("Sent records schema does not match with table schema, will attempt to update schema");
+          retryHandler.attemptTableOperation(schemaManager::updateSchema);
+        } else if (BigQueryStorageWriteApiErrorResponses.isMalformedRequest(message)) {
+          rows = maybeHandleDlqRoutingAndFilterRecords(rows, getRowErrorMapping(e), tableName.getTable());
+          if (rows.isEmpty()) {
+            writer.onSuccess();
+            return;
+          }
+        } else if (BigQueryStorageWriteApiErrorResponses.isStreamClosed(message)) {
+          writer.refresh();
+        } else if (BigQueryStorageWriteApiErrorResponses.isTableMissing(message) && getAutoCreateTables()) {
+          retryHandler.attemptTableOperation(schemaManager::createTable);
+        } else if (!BigQueryStorageWriteApiErrorResponses.isRetriableError(e.getMessage())
+            && BigQueryStorageWriteApiErrorResponses.isNonRetriableStorageError(e)
+        ) {
+          failTask(retryHandler.getMostRecentException());
+        }
+        logger.warn(errorMessage + " Retry attempt " + retryHandler.getAttempt());
+      }
+    } while (retryHandler.maybeRetry());
+    throw new BigQueryStorageWriteApiConnectException(
+        String.format("Exceeded %s attempts to write to table %s ", retryHandler.getAttempt(), tableName),
+        retryHandler.getMostRecentException());
   }
 
   /**

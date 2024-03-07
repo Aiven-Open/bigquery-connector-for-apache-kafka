@@ -63,7 +63,6 @@ public class SinkRecordConverter {
         config.getBoolean(config.BIGQUERY_MESSAGE_TIME_PARTITIONING_CONFIG);
     this.usePartitionDecorator =
         config.getBoolean(config.BIGQUERY_PARTITION_DECORATOR_CONFIG);
-
   }
 
   public InsertAllRequest.RowToInsert getRecordRow(SinkRecord record, TableId table) {
@@ -71,11 +70,7 @@ public class SinkRecordConverter {
         ? getUpsertDeleteRow(record, table)
         : getRegularRow(record);
 
-    Map<String, Object> result = config.getBoolean(config.SANITIZE_FIELD_NAME_CONFIG)
-        ? FieldNameSanitizer.replaceInvalidKeys(convertedRecord)
-        : convertedRecord;
-
-    return InsertAllRequest.RowToInsert.of(getRowId(record), result);
+    return InsertAllRequest.RowToInsert.of(getRowId(record), convertedRecord);
   }
 
   private Map<String, Object> getUpsertDeleteRow(SinkRecord record, TableId table) {
@@ -119,22 +114,31 @@ public class SinkRecordConverter {
       result.put(MergeQueries.INTERMEDIATE_TABLE_PARTITION_TIME_FIELD_NAME, System.currentTimeMillis() / 1000);
     }
 
-    return result;
+    return maybeSanitize(result);
   }
 
-  private Map<String, Object> getRegularRow(SinkRecord record) {
+  public Map<String, Object> getRegularRow(SinkRecord record) {
     Map<String, Object> result = recordConverter.convertRecord(record, KafkaSchemaRecordType.VALUE);
 
-    config.getKafkaDataFieldName().ifPresent(
-        fieldName -> result.put(fieldName, KafkaDataBuilder.buildKafkaDataRecord(record))
-    );
+    config.getKafkaDataFieldName().ifPresent(fieldName -> {
+      Map<String, Object> kafkaDataField = config.getBoolean(config.USE_STORAGE_WRITE_API_CONFIG)
+          ? KafkaDataBuilder.buildKafkaDataRecordStorageApi(record)
+          : KafkaDataBuilder.buildKafkaDataRecord(record);
+      result.put(fieldName, kafkaDataField);
+    });
 
     config.getKafkaKeyFieldName().ifPresent(fieldName -> {
       Map<String, Object> keyData = recordConverter.convertRecord(record, KafkaSchemaRecordType.KEY);
       result.put(fieldName, keyData);
     });
 
-    return result;
+    return maybeSanitize(result);
+  }
+
+  private Map<String, Object> maybeSanitize(Map<String, Object> convertedRecord) {
+    return config.getBoolean(config.SANITIZE_FIELD_NAME_CONFIG)
+        ? FieldNameSanitizer.replaceInvalidKeys(convertedRecord)
+        : convertedRecord;
   }
 
   private String getRowId(SinkRecord record) {

@@ -6,7 +6,7 @@ import com.google.protobuf.Descriptors;
 import java.io.IOException;
 import org.json.JSONArray;
 
-public interface StreamWriter extends AutoCloseable {
+public interface StreamWriter {
 
   /**
    * Write the provided rows
@@ -29,10 +29,5 @@ public interface StreamWriter extends AutoCloseable {
    * discarded (e.g., reported to an {@link com.wepay.kafka.connect.bigquery.ErrantRecordHandler}).
    */
   void onSuccess();
-
-  /**
-   * Inherited from {@link AutoCloseable}, but overridden to remove the throws clause
-   */
-  void close();
 
 }
