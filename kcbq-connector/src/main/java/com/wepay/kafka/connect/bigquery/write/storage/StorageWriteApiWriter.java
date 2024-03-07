@@ -8,6 +8,7 @@ import com.wepay.kafka.connect.bigquery.config.BigQuerySinkTaskConfig;
 import com.wepay.kafka.connect.bigquery.convert.KafkaDataBuilder;
 import com.wepay.kafka.connect.bigquery.convert.RecordConverter;
 import com.wepay.kafka.connect.bigquery.utils.FieldNameSanitizer;
+import com.wepay.kafka.connect.bigquery.utils.SinkRecordConverter;
 import com.wepay.kafka.connect.bigquery.write.batch.TableWriterBuilder;
 import java.util.ArrayList;
 import java.util.List;
@@ -55,21 +56,18 @@ public class StorageWriteApiWriter implements Runnable {
 
   public static class Builder implements TableWriterBuilder {
     private final List<ConvertedRecord> records = new ArrayList<>();
-    private final RecordConverter<Map<String, Object>> recordConverter;
-    private final BigQuerySinkTaskConfig config;
+    private final SinkRecordConverter recordConverter;
     private final TableName tableName;
     private final StorageWriteApiBase streamWriter;
     private final StorageApiBatchModeHandler batchModeHandler;
 
     public Builder(StorageWriteApiBase streamWriter,
                    TableName tableName,
-                   RecordConverter<Map<String, Object>> storageApiRecordConverter,
-                   BigQuerySinkTaskConfig config,
+                   SinkRecordConverter recordConverter,
                    StorageApiBatchModeHandler batchModeHandler) {
       this.streamWriter = streamWriter;
       this.tableName = tableName;
-      this.recordConverter = storageApiRecordConverter;
-      this.config = config;
+      this.recordConverter = recordConverter;
       this.batchModeHandler = batchModeHandler;
     }
 
@@ -90,22 +88,8 @@ public class StorageWriteApiWriter implements Runnable {
      * @return converted record as JSONObject
      */
     private JSONObject convertRecord(SinkRecord record) {
-      Map<String, Object> convertedRecord = recordConverter.convertRecord(record, KafkaSchemaRecordType.VALUE);
-
-      config.getKafkaDataFieldName().ifPresent(
-          fieldName -> convertedRecord.put(fieldName, KafkaDataBuilder.buildKafkaDataRecordStorageApi(record))
-      );
-
-      config.getKafkaKeyFieldName().ifPresent(fieldName -> {
-        Map<String, Object> keyData = recordConverter.convertRecord(record, KafkaSchemaRecordType.KEY);
-        convertedRecord.put(fieldName, keyData);
-      });
-
-      Map<String, Object> result = config.getBoolean(BigQuerySinkConfig.SANITIZE_FIELD_NAME_CONFIG)
-          ? FieldNameSanitizer.replaceInvalidKeys(convertedRecord)
-          : convertedRecord;
-
-      return getJsonFromMap(result);
+      Map<String, Object> convertedRecord = recordConverter.getRegularRow(record);
+      return getJsonFromMap(convertedRecord);
     }
 
     /**

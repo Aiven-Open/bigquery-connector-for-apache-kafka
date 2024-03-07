@@ -290,8 +290,7 @@ public class BigQuerySinkTask extends SinkTask {
             tableWriterBuilder = new StorageWriteApiWriter.Builder(
                 storageApiWriter,
                 TableNameUtils.tableName(table.getBaseTableId()),
-                config.getRecordConverter(),
-                config,
+                recordConverter,
                 batchHandler
             );
           } else if (config.getList(BigQuerySinkConfig.ENABLE_BATCH_CONFIG).contains(record.topic())) {
