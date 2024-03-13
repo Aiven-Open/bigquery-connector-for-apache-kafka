@@ -19,11 +19,10 @@ import org.slf4j.LoggerFactory;
 public class BigQueryStorageWriteApiErrorResponses {
 
   private static final Logger logger = LoggerFactory.getLogger(BigQueryStorageWriteApiErrorResponses.class);
-  private static final int INVALID_ARGUMENT_CODE = 3;
-  private static final String PERMISSION_DENIED = "PERMISSION_DENIED";
   private static final String NOT_EXIST = "(or it may not exist)";
   private static final String NOT_FOUND = "Not found: table";
   private static final String TABLE_IS_DELETED = "Table is deleted";
+  private static final String MESSAGE_TOO_LARGE = "MessageSize is too large";
   private static final String[] retriableCodes = {Code.INTERNAL.name(), Code.ABORTED.name(), Code.CANCELLED.name()};
   /*
    Below list is taken from :
@@ -50,7 +49,7 @@ public class BigQueryStorageWriteApiErrorResponses {
    * @return Returns true if message contains table missing substrings
    */
   public static boolean isTableMissing(String errorMessage) {
-    return (errorMessage.contains(PERMISSION_DENIED) && errorMessage.contains(NOT_EXIST))
+    return (errorMessage.contains(Code.PERMISSION_DENIED.name()) && errorMessage.contains(NOT_EXIST))
         || (errorMessage.contains(StorageError.StorageErrorCode.TABLE_NOT_FOUND.name()))
         || errorMessage.contains(NOT_FOUND)
         || errorMessage.contains(Code.NOT_FOUND.name())
@@ -75,7 +74,6 @@ public class BigQueryStorageWriteApiErrorResponses {
    */
   public static boolean isMalformedRequest(String errorMessage) {
     return errorMessage.contains(Code.INVALID_ARGUMENT.name());
-
   }
 
   /**
@@ -124,6 +122,11 @@ public class BigQueryStorageWriteApiErrorResponses {
     logger.trace("Storage exception occurred with errorCode {} and errors {} ", errorCode, storageException.getErrors().toString());
 
     return nonRetriableStreamFailureCodes.contains(errorCode);
+  }
+
+  public static boolean isMessageTooLargeError(String errorMessage) {
+    return isMalformedRequest(errorMessage)
+        && errorMessage.contains(MESSAGE_TOO_LARGE);
   }
 
 }

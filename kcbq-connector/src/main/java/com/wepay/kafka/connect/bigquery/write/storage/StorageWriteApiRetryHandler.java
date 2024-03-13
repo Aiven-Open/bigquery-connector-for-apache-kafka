@@ -80,7 +80,7 @@ public class StorageWriteApiRetryHandler {
     time.sleep(userConfiguredRetryWait + additionalWait + random.nextInt(1000));
   }
 
-  public boolean maybeRetry() {
+  public void maybeRetry(String operation) {
     if (currentAttempt < (userConfiguredRetry + additionalRetries)) {
       currentAttempt++;
       try {
@@ -88,9 +88,11 @@ public class StorageWriteApiRetryHandler {
       } catch (InterruptedException e) {
         logger.warn("Thread interrupted while waiting for random time");
       }
-      return true;
     } else {
-      return false;
+      throw new BigQueryStorageWriteApiConnectException(
+          String.format("Exceeded %s attempts to %s ", getAttempt(), operation),
+          getMostRecentException()
+      );
     }
   }
 

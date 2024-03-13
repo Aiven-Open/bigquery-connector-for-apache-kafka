@@ -16,8 +16,8 @@ public class RecordBatches<E> {
   }
 
   public List<E> currentBatch() {
-    int size = Math.max(records.size() - batchStart, batchSize);
-    return records.subList(batchStart, size);
+    int size = Math.min(records.size() - batchStart, batchSize);
+    return records.subList(batchStart, batchStart + size);
   }
 
   public void advanceToNextBatch() {
@@ -25,7 +25,7 @@ public class RecordBatches<E> {
   }
 
   public void reduceBatchSize() {
-    if (!canReduceBatchSize()) {
+    if (batchSize <= 1) {
       throw new IllegalStateException("Cannot reduce batch size any further");
     }
     batchSize /= 2;
@@ -33,10 +33,6 @@ public class RecordBatches<E> {
 
   public boolean completed() {
     return batchStart >= records.size();
-  }
-
-  public boolean canReduceBatchSize() {
-    return batchSize <= 1;
   }
 
 }

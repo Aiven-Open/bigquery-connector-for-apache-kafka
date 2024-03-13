@@ -33,11 +33,13 @@ import static com.google.cloud.bigquery.LegacySQLTypeName.TIMESTAMP;
 import static org.apache.kafka.connect.runtime.ConnectorConfig.CONNECTOR_CLASS_CONFIG;
 import static org.apache.kafka.connect.runtime.ConnectorConfig.TASKS_MAX_CONFIG;
 import static org.apache.kafka.test.TestUtils.waitForCondition;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.Field;
 import com.google.cloud.bigquery.FieldValue;
+import com.google.cloud.bigquery.FieldValueList;
 import com.google.cloud.bigquery.QueryJobConfiguration;
 import com.google.cloud.bigquery.Schema;
 import com.google.cloud.bigquery.Table;
@@ -56,11 +58,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Properties;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
+import kafka.server.KafkaConfig;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
@@ -108,8 +112,13 @@ public abstract class BaseConnectorIT {
     workerProps.put(
         WorkerConfig.CONNECTOR_CLIENT_POLICY_CLASS_CONFIG, "All");
 
+    Properties brokerProps = new Properties();
+    brokerProps.put(KafkaConfig.MessageMaxBytesProp(), 10 * 1024 * 1024);
+
     connect = new EmbeddedConnectCluster.Builder()
         .name("kcbq-connect-cluster")
+        .numBrokers(1)
+        .brokerProps(brokerProps)
         .workerProps(workerProps)
         .build();
 
@@ -173,6 +182,8 @@ public abstract class BaseConnectorIT {
         () -> {
           long totalCommittedRecords = totalCommittedRecords(connector, topics);
           if (totalCommittedRecords >= numRecords) {
+            logger.debug("Connector has successfully committed {} records for topics {}",
+                totalCommittedRecords, topics);
             return true;
           } else {
             // Check to make sure the connector is still running. If not, fail fast
@@ -236,6 +247,15 @@ public abstract class BaseConnectorIT {
     return StreamSupport.stream(tableResult.iterateAll().spliterator(), false)
         .map(fieldValues -> convertRow(schema.getFields(), fieldValues))
         .collect(Collectors.toList());
+  }
+
+  protected long countRows(BigQuery bigQuery, String tableName) throws InterruptedException {
+    TableResult tableResult = bigQuery.query(QueryJobConfiguration.of(
+        "SELECT COUNT(*) FROM `" + dataset() + "`.`" + tableName + "`"
+    ));
+    assertEquals(1, tableResult.getTotalRows());
+    FieldValueList fieldValueList = tableResult.iterateAll().iterator().next();
+    return fieldValueList.get(0).getLongValue();
   }
 
   private Object convertField(Field fieldSchema, FieldValue field) {
