@@ -1107,4 +1107,15 @@ public class BigQuerySinkConfig extends AbstractConfig {
         // With Java 11 there's Predicate::not, but for now we have to just manually invert the isEmpty check
         .filter(l -> !l.isEmpty());
   }
+
+  public static void main(String[] args) {
+    System.out.println(header("BigQuery Sink Connector Configuration Options"));
+    System.out.println(getConfig().toEnrichedRst());
+  }
+
+  private static String header(String text) {
+    String wrapper = text.replaceAll(".", "=");
+    return wrapper + "\n" + text + "\n" + wrapper + "\n";
+  }
+
 }
