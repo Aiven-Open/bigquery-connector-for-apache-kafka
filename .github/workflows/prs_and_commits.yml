@@ -49,6 +49,15 @@ jobs:
           distribution: 'adopt'
           java-version: 8
           cache: maven
+      - name: License header check
+        run: |
+          mvn license:remove license:format
+          if [[ -n $(git status -s) ]]; then
+            echo 1>&2 'Some files do not have the correct license header:'
+            git diff --name-only 1>&2
+            echo 1>&2 'Please update the license headers for these files by running `mvn license:remove license:format`'
+            exit 1
+          fi
       - name: Build (Maven)
         run: mvn -P ci --batch-mode clean package -DskipTests
       - name: Unit tests (Maven)
