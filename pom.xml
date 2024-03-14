@@ -51,6 +51,7 @@
         <buildnumber.plugin.version>1.4</buildnumber.plugin.version>
         <checkstyle.plugin.version>3.3.1</checkstyle.plugin.version>
         <compiler.plugin.version>3.8.1</compiler.plugin.version>
+        <exec.plugin.version>3.2.0</exec.plugin.version>
         <google.cloud.bom.version>26.14.0</google.cloud.bom.version>
         <kafka.connect.plugin.version>0.11.1</kafka.connect.plugin.version>
         <release.plugin.version>2.5.3</release.plugin.version>
@@ -63,7 +64,7 @@
 
     <name>kafka-connect-bigquery-parent</name>
 
-    <url>https://github.com/confluentinc/kafka-connect-bigquery</url>
+    <url>https://github.com/Aiven-Open/bigquery-connector-for-apache-kafka</url>
 
     <inceptionYear>2016</inceptionYear>
 
@@ -76,9 +77,9 @@
     </licenses>
 
     <scm>
-        <connection>scm:git:git://github.com/confluentinc/kafka-connect-bigquery.git</connection>
-        <developerConnection>scm:git:git@github.com:confluentinc/kafka-connect-bigquery.git</developerConnection>
-        <url>https://github.com/confluentinc/kafka-connect-bigquery</url>
+        <connection>scm:git:git://github.com/Aiven-Open/bigquery-connector-for-apache-kafka.git</connection>
+        <developerConnection>scm:git:git@github.com:Aiven-Open/bigquery-connector-for-apache-kafka.git</developerConnection>
+        <url>https://github.com/Aiven-Open/bigquery-connector-for-apache-kafka</url>
         <tag>HEAD</tag>
     </scm>
 
@@ -410,6 +411,11 @@ under the License.
                     <groupId>io.confluent</groupId>
                     <artifactId>kafka-connect-maven-plugin</artifactId>
                     <version>${kafka.connect.plugin.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.codehaus.mojo</groupId>
+                    <artifactId>exec-maven-plugin</artifactId>
+                    <version>${exec.plugin.version}</version>
                 </plugin>
             </plugins>
         </pluginManagement>
