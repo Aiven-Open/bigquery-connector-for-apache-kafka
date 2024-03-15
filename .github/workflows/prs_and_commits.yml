@@ -50,3 +50,4 @@ jobs:
         with:
           path: kcbq-connector/target/failsafe-reports/*-output.txt
           if-no-files-found: error
+          name: integration-test-output
