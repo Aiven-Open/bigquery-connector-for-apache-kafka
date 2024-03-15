@@ -36,6 +36,7 @@ import com.google.cloud.bigquery.TableResult;
 import com.google.cloud.bigquery.TimePartitioning;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.integration.utils.TableClearer;
+import com.wepay.kafka.connect.bigquery.integration.utils.TestCaseLogger;
 import com.wepay.kafka.connect.bigquery.retrieve.IdentitySchemaRetriever;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -61,8 +62,10 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
+import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.slf4j.Logger;
@@ -76,6 +79,9 @@ public class TimePartitioningIT {
 
   private static final long NUM_RECORDS_PRODUCED = 20;
   private static final int TASKS_MAX = 1;
+
+  @Rule
+  public TestRule watcher = new TestCaseLogger();
 
   private static BaseConnectorIT testBase;
   private final TimePartitioning.Type partitioningType;

@@ -374,6 +374,9 @@ under the License.
                             </goals>
                             <configuration>
                                 <groups>org.apache.kafka.test.IntegrationTest</groups>
+                                <redirectTestOutputToFile>true</redirectTestOutputToFile>
+                                <parallel>classes</parallel>
+                                <useUnlimitedThreads>true</useUnlimitedThreads>
                             </configuration>
                         </execution>
                     </executions>
