@@ -23,6 +23,7 @@ public class BigQueryStorageWriteApiErrorResponses {
   private static final String NOT_FOUND = "Not found: table";
   private static final String TABLE_IS_DELETED = "Table is deleted";
   private static final String MESSAGE_TOO_LARGE = "MessageSize is too large";
+  private static final String APPEND_ROWS_REQUEST_TOO_LARGE = "AppendRows request too large";
   private static final String[] retriableCodes = {Code.INTERNAL.name(), Code.ABORTED.name(), Code.CANCELLED.name()};
   /*
    Below list is taken from :
@@ -126,7 +127,9 @@ public class BigQueryStorageWriteApiErrorResponses {
 
   public static boolean isMessageTooLargeError(String errorMessage) {
     return isMalformedRequest(errorMessage)
-        && errorMessage.contains(MESSAGE_TOO_LARGE);
+        && (errorMessage.contains(MESSAGE_TOO_LARGE)
+        || errorMessage.contains(APPEND_ROWS_REQUEST_TOO_LARGE)
+      );
   }
 
 }
