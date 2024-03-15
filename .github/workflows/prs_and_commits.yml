@@ -44,10 +44,10 @@ jobs:
         run: |
           echo "$CREDENTIALS_JSON" > /tmp/creds.json
           mvn -Dskip.unit.tests=true verify
-      - name: Upload integration test output (Maven)
+      - name: Upload integration test results (Maven)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          path: kcbq-connector/target/failsafe-reports/*-output.txt
+          path: kcbq-connector/target/failsafe-reports/*
           if-no-files-found: error
-          name: integration-test-output
+          name: integration-test-results
