@@ -16,4 +16,9 @@ public class StorageWriteApiBatchBigQuerySinkConnectorIT extends StorageWriteApi
     return result;
   }
 
+  @Override
+  protected String topic(String basename) {
+    return super.topic(basename + "-batch-mode");
+  }
+
 }

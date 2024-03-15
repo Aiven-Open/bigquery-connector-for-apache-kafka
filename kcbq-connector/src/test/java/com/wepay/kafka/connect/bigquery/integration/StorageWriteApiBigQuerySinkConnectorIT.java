@@ -148,8 +148,7 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
   @Test
   public void testBaseJson() throws InterruptedException {
     // create topic in Kafka
-    final String topic = suffixedTableOrTopic("storage-api-append-json" + System.nanoTime());
-
+    final String topic = suffixedTableOrTopic("storage-api-append-json");
     final String table = sanitizedTable(topic);
 
     // create topic
@@ -198,7 +197,7 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
   @Test
   public void testBaseAvro() throws InterruptedException {
     // create topic in Kafka
-    final String topic = suffixedTableOrTopic("storage-api-append" + System.nanoTime());
+    final String topic = suffixedTableOrTopic("storage-api-append");
     final String table = sanitizedTable(topic);
 
     // create topic
@@ -240,7 +239,7 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
   @Test
   public void testAvroWithSchemaUpdate() throws InterruptedException {
     // create topic in Kafka
-    final String topic = suffixedTableOrTopic("storage-api-schema-update-append" + System.nanoTime());
+    final String topic = suffixedTableOrTopic("storage-api-schema-update-append");
     final String table = sanitizedTable(topic);
 
     // create topic
@@ -289,8 +288,7 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
   @Test
   public void testTopicsRegex() throws InterruptedException {
     // create topic in Kafka
-    final String topic = suffixedTableOrTopic("storage-api-append-json-topics-regex" + System.nanoTime());
-
+    final String topic = suffixedTableOrTopic("storage-api-append-json-topics-regex");
     final String table = sanitizedTable(topic);
 
     // create topic
@@ -344,7 +342,7 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
   @Test
   public void testFailWhenTableDoesNotExistAndCreationDisabled() throws InterruptedException {
     // create topic in Kafka
-    final String topic = suffixedTableOrTopic("storage-api-append-fail" + System.nanoTime());
+    final String topic = suffixedTableOrTopic("storage-api-append-fail");
     final String table = sanitizedTable(topic);
 
     // create topic
@@ -380,7 +378,7 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
   @Test
   public void testAvroLargeBatches() throws InterruptedException {
     // create topic in Kafka
-    final String topic = suffixedTableOrTopic("storage-api-append-large-batches" + System.nanoTime());
+    final String topic = suffixedTableOrTopic("storage-api-append-large-batches");
     final String table = sanitizedTable(topic);
 
     // pre-create the table
@@ -448,7 +446,7 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
   @Ignore("TODO: Handle 'java.lang.RuntimeException: Request has waited in inflight queue for <duration> for writer <writer>, which is over maximum wait time PT5M'")
   public void testAvroHighThroughput() throws InterruptedException {
     // create topic in Kafka
-    final String topic = suffixedTableOrTopic("storage-api-append-high-throughput" + System.nanoTime());
+    final String topic = suffixedTableOrTopic("storage-api-append-high-throughput");
     final String table = sanitizedTable(topic);
 
     // pre-create the table
@@ -848,4 +846,9 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
     }
     return rows;
   }
+
+  protected String topic(String baseName) {
+    return suffixedTableOrTopic(baseName);
+  }
+
 }

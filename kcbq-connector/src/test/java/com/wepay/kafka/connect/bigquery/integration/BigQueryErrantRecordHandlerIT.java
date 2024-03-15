@@ -77,8 +77,8 @@ public class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
 
   @Test
   public void testRecordsSentToDlqOnInvalidArgumentAvroStorageApi() throws Exception {
-    final String topic = "test-dlq-feature-avro" + System.nanoTime();
-    final String dlqTopic = "dlq_topic" + System.nanoTime();
+    final String topic = suffixedTableOrTopic("test-dlq-invalid-argument-storage-write-api-avro");
+    final String dlqTopic = topic + "_dlq_topic";
 
     createTopicAndTable(topic);
     Map<String, String> props = connectorAvroProps(topic, dlqTopic);
@@ -106,8 +106,8 @@ public class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
 
   @Test
   public void testRecordsSentToDlqOnInvalidArgumentStorageApi() throws InterruptedException {
-    final String topic = suffixedTableOrTopic("test-dlq-feature" + System.nanoTime());
-    final String dlqTopic = "dlq_topic" + System.nanoTime();
+    final String topic = suffixedTableOrTopic("test-dlq-invalid-argument-storage-write-api");
+    final String dlqTopic = topic + "_dlq_topic";
 
     createTopicAndTable(topic);
     Map<String, String> props = connectorProps(topic, dlqTopic);
@@ -136,8 +136,8 @@ public class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
 
   @Test
   public void testRecordsSentToDlqOnRecordConversionErrorStorageApi() throws InterruptedException {
-    final String topic = suffixedTableOrTopic("test-dlq-feature" + System.nanoTime());
-    final String dlqTopic = "dlq_topic" + System.nanoTime();
+    final String topic = suffixedTableOrTopic("test-dlq-conversion-error-storage-write-api");
+    final String dlqTopic = topic + "_dlq_topic";
     // Make sure each task gets to read from at least one partition
     connect.kafka().createTopic(topic, 1);
 
@@ -170,8 +170,8 @@ public class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
 
   @Test
   public void testRecordsSentToDlqOnInvalidArgumentAvroBatchStorageApi() throws Exception {
-    final String topic = "test-dlq-feature-avro" + System.nanoTime();
-    final String dlqTopic = "dlq_topic" + System.nanoTime();
+    final String topic = suffixedTableOrTopic("test-dlq-invalid-argument-storage-write-api-batch-avro");
+    final String dlqTopic = topic + "_dlq_topic";
     int recordCount = 2;
 
     createTopicAndTable(topic);
@@ -200,8 +200,8 @@ public class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
 
   @Test
   public void testRecordsSentToDlqOnInvalidArgumentBatchStorageApi() throws InterruptedException {
-    final String topic = suffixedTableOrTopic("test-dlq-feature" + System.nanoTime());
-    final String dlqTopic = "dlq_topic" + System.nanoTime();
+    final String topic = suffixedTableOrTopic("test-dlq-invalid-argument-storage-write-api-batch");
+    final String dlqTopic = topic + "_dlq_topic";
     int recordCount = 2;
     createTopicAndTable(topic);
     Map<String, String> props = connectorProps(topic, dlqTopic);
@@ -231,8 +231,8 @@ public class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
 
   @Test
   public void testRecordsSentToDlqOnRecordConversionErrorBatchStorageApi() throws InterruptedException {
-    final String topic = suffixedTableOrTopic("test-dlq-feature" + System.nanoTime());
-    final String dlqTopic = "dlq_topic" + System.nanoTime();
+    final String topic = suffixedTableOrTopic("test-dlq-conversion-error-storage-write-api-batch");
+    final String dlqTopic = topic + "_dlq_topic";
     int recordCount = 2;
     createTopicAndTable(topic);
     Map<String, String> props = connectorProps(topic, dlqTopic);
@@ -266,8 +266,8 @@ public class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
 
   @Test
   public void testRecordsSentToDlqOnInvalidReasonAvro() throws Exception {
-    final String topic = "test-dlq-feature-avro" + System.nanoTime();
-    final String dlqTopic = "dlq_topic" + System.nanoTime();
+    final String topic = suffixedTableOrTopic("test-dlq-invalid-reason-avro");
+    final String dlqTopic = topic + "_dlq_topic";
 
     createTopicAndTable(topic);
     Map<String, String> props = connectorAvroProps(topic, dlqTopic);
@@ -294,8 +294,8 @@ public class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
 
   @Test
   public void testRecordsSentToDlqOnInvalidReason() throws InterruptedException {
-    final String topic = suffixedTableOrTopic("test-dlq-feature" + System.nanoTime());
-    final String dlqTopic = "dlq_topic" + System.nanoTime();
+    final String topic = suffixedTableOrTopic("test-dlq-invalid-reason");
+    final String dlqTopic = topic + "_dlq_topic";
 
     createTopicAndTable(topic);
     Map<String, String> props = connectorProps(topic, dlqTopic);
@@ -325,8 +325,8 @@ public class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
 
   @Test
   public void testRecordsSentToDlqOnRecordConversionError() throws InterruptedException {
-    final String topic = suffixedTableOrTopic("test-dlq-feature" + System.nanoTime());
-    final String dlqTopic = "dlq_topic" + System.nanoTime();
+    final String topic = suffixedTableOrTopic("test-dlq-conversion-error");
+    final String dlqTopic = topic + "_dlq_topic";
     // Make sure each task gets to read from at least one partition
     connect.kafka().createTopic(topic, 1);
 

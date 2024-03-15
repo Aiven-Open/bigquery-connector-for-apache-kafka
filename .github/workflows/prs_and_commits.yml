@@ -43,6 +43,7 @@ jobs:
           KCBQ_TEST_BUCKET:     ${{ secrets.KCBQ_TEST_BUCKET }}
         run: |
           echo "$CREDENTIALS_JSON" > /tmp/creds.json
+          export KCBQ_TEST_TABLE_SUFFIX=_$(date +%s)_$RANDOM
           mvn -Dskip.unit.tests=true verify
       - name: Upload integration test results (Maven)
         if: always()
