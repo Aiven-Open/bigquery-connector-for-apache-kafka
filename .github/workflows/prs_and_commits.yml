@@ -46,5 +46,6 @@ jobs:
           mvn -Dskip.unit.tests=true verify
       - name: Upload integration test output (Maven)
         uses: actions/upload-artifact@v4
-        path: kcbq-connector/target/failsafe-reports/*-output.txt
-        if-no-files-found: error
+        with:
+          path: kcbq-connector/target/failsafe-reports/*-output.txt
+          if-no-files-found: error
