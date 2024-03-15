@@ -38,12 +38,15 @@ jobs:
 
       - name: Build
         run: |
-          mvn -f kcbq-connector clean package assembly:single@release-jar -DskipTests
+          mvn -f kcbq-connector clean package assembly:single@release-artifacts -DskipTests
 
-          export jar_file=$(ls kcbq-connector/target/ | grep bigquery-connector-for-apache-kafka)
-          echo jar_file=${jar_file} >> $GITHUB_ENV
+          export tar_file=$(ls ./kcbq-connector/target/ | grep tar)
+          export zip_file=$(ls ./kcbq-connector/target/ | grep zip)
+          echo tar_file=${tar_file} >> $GITHUB_ENV
+          echo zip_file=${zip_file} >> $GITHUB_ENV
 
-          echo jar_path=`realpath ./kcbq-connector/target/${jar_file}` >> $GITHUB_ENV
+          echo tar_path=`realpath ./kcbq-connector/target/${tar_file}` >> $GITHUB_ENV
+          echo zip_path=`realpath ./kcbq-connector/target/${zip_file}` >> $GITHUB_ENV
 
       - name: Create tag
         run: |
