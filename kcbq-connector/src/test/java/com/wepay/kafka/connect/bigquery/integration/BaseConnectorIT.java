@@ -118,6 +118,9 @@ public abstract class BaseConnectorIT {
     // Allow per-connector consumer configuration for throughput testing
     workerProps.put(
         WorkerConfig.CONNECTOR_CLIENT_POLICY_CLASS_CONFIG, "All");
+    // Some external plugin dependencies don't yet have service loader manifests
+    workerProps.put(
+        WorkerConfig.PLUGIN_DISCOVERY_CONFIG, "HYBRID_WARN");
 
     Properties brokerProps = new Properties();
     brokerProps.put(KafkaConfig.MessageMaxBytesProp(), 10 * 1024 * 1024);
