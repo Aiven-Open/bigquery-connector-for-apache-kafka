@@ -50,5 +50,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           path: kcbq-connector/target/failsafe-reports/*
-          if-no-files-found: error
           name: integration-test-results
