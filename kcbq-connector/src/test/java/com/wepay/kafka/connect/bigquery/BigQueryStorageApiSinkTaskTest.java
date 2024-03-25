@@ -1,7 +1,8 @@
 package com.wepay.kafka.connect.bigquery;
 
 import static com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiWriter.DEFAULT;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
@@ -34,8 +35,8 @@ import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.sink.SinkTaskContext;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 public class BigQueryStorageApiSinkTaskTest {
   private static final SinkTaskPropertiesFactory propertiesFactory = new SinkTaskPropertiesFactory();
@@ -57,7 +58,7 @@ public class BigQueryStorageApiSinkTaskTest {
   BigQuerySinkTask testTask = new BigQuerySinkTask(
       bigQuery, schemaRetriever, storage, schemaManager, cache, mockedStorageWriteApiDefaultStream, storageApiBatchHandler, time);
 
-  @Before
+  @BeforeEach
   public void setUp() {
     spoofedRecordOffset.set(0);
     properties = propertiesFactory.getProperties();
@@ -82,31 +83,35 @@ public class BigQueryStorageApiSinkTaskTest {
     verify(mockedStorageWriteApiDefaultStream, times(1)).initializeAndWriteRecords(any(), any(), eq(DEFAULT));
   }
 
-  @Test(expected = BigQueryConnectException.class)
-  public void testSimplePutException() throws Exception {
+  @Test
+  public void testSimplePutException() {
     BigQueryStorageWriteApiConnectException exception = new BigQueryStorageWriteApiConnectException("error 12345");
 
     doThrow(exception).when(mockedStorageWriteApiDefaultStream).initializeAndWriteRecords(any(), any(), eq(DEFAULT));
 
     testTask.put(Collections.singletonList(spoofSinkRecord()));
-    try {
-      while (true) {
-        Thread.sleep(100);
-        testTask.put(Collections.emptyList());
-      }
-    } catch (Exception e) {
-      assertTrue(e.getCause() instanceof BigQueryStorageWriteApiConnectException);
-      throw e;
-    }
+    BigQueryConnectException e = assertThrows(
+        BigQueryConnectException.class,
+        () -> {
+          // Try for at most 1 second to get the task to throw an exception
+          for (long startTime = System.currentTimeMillis(); System.currentTimeMillis() < startTime + 1_000; Thread.sleep(100)) {
+            testTask.put(Collections.emptyList());
+          }
+        }
+    );
+    assertInstanceOf(BigQueryStorageWriteApiConnectException.class, e.getCause());
   }
 
-  @Test(expected = RejectedExecutionException.class)
+  @Test
   public void testStop() {
     testTask.stop();
 
     verify(mockedStorageWriteApiDefaultStream, times(1)).shutdown();
 
-    testTask.put(Collections.singletonList(spoofSinkRecord()));
+    assertThrows(
+        RejectedExecutionException.class,
+        () -> testTask.put(Collections.singletonList(spoofSinkRecord()))
+    );
   }
 
   private SinkRecord spoofSinkRecord() {

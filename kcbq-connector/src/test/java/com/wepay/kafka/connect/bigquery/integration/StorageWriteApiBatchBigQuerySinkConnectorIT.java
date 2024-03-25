@@ -2,10 +2,9 @@ package com.wepay.kafka.connect.bigquery.integration;
 
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import java.util.Map;
-import org.apache.kafka.test.IntegrationTest;
-import org.junit.experimental.categories.Category;
+import org.junit.jupiter.api.Tag;
 
-@Category(IntegrationTest.class)
+@Tag("integration")
 public class StorageWriteApiBatchBigQuerySinkConnectorIT extends StorageWriteApiBigQuerySinkConnectorIT {
 
   @Override

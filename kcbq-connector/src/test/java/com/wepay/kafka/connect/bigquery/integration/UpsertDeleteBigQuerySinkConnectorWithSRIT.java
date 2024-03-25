@@ -22,7 +22,7 @@ package com.wepay.kafka.connect.bigquery.integration;
 import static io.confluent.kafka.serializers.AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG;
 import static org.apache.kafka.connect.runtime.ConnectorConfig.KEY_CONVERTER_CLASS_CONFIG;
 import static org.apache.kafka.connect.runtime.ConnectorConfig.VALUE_CONVERTER_CLASS_CONFIG;
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.google.cloud.bigquery.BigQuery;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
@@ -30,6 +30,7 @@ import com.wepay.kafka.connect.bigquery.integration.utils.SchemaRegistryTestUtil
 import com.wepay.kafka.connect.bigquery.integration.utils.TableClearer;
 import com.wepay.kafka.connect.bigquery.retrieve.IdentitySchemaRetriever;
 import io.confluent.connect.avro.AvroConverter;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -45,25 +46,25 @@ import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.runtime.ConnectorConfig;
 import org.apache.kafka.connect.runtime.SinkConnectorConfig;
 import org.apache.kafka.connect.storage.Converter;
-import org.apache.kafka.test.IntegrationTest;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-@Category(IntegrationTest.class)
+@Tag("integration")
 public class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
 
   private static final Logger logger = LoggerFactory.getLogger(UpsertDeleteBigQuerySinkConnectorWithSRIT.class);
 
-  private static final String CONNECTOR_NAME = "kcbq-sink-connector";
   private static final long NUM_RECORDS_PRODUCED = 8;
   private static final int TASKS_MAX = 1;
   private static final String KAFKA_FIELD_NAME = "kafkaKey";
   private static SchemaRegistryTestUtils schemaRegistry;
   private static String schemaRegistryUrl;
+  private String connectorName;
   private BigQuery bigQuery;
   private Converter keyConverter;
 
@@ -72,8 +73,12 @@ public class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
 
   private Schema keySchema;
 
-  @Before
-  public void setup() throws Exception {
+  @BeforeEach
+  public void setup(TestInfo testInfo) throws Exception {
+    String testMethod = testInfo.getTestMethod()
+        .map(Method::getName)
+        .orElseThrow(() -> new AssertionError("Test method not found"));
+    connectorName = "kcbq-sink-connector-" + testMethod + "-sr";
     startConnect();
     bigQuery = newBigQuery();
 
@@ -93,7 +98,7 @@ public class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
         .build();
   }
 
-  @After
+  @AfterEach
   public void close() throws Exception {
     bigQuery = null;
     stopConnect();
@@ -161,10 +166,10 @@ public class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
     props.putAll(upsertDeleteProps(true, false, 2));
 
     // start a sink connector
-    connect.configureConnector(CONNECTOR_NAME, props);
+    connect.configureConnector(connectorName, props);
 
     // wait for tasks to spin up
-    waitForConnectorToStart(CONNECTOR_NAME, TASKS_MAX);
+    waitForConnectorToStart(connectorName, TASKS_MAX);
 
     // Instantiate the converters we'll use to send records to the connector
     initialiseConverters();
@@ -192,7 +197,7 @@ public class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
     schemaRegistry.produceRecordsWithKey(keyConverter, valueConverter, records, topic);
 
     // wait for tasks to write to BigQuery and commit offsets for their records
-    waitForCommittedRecords(CONNECTOR_NAME, topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
+    waitForCommittedRecords(connectorName, topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
 
     List<List<Object>> allRows = readAllRows(bigQuery, table, KAFKA_FIELD_NAME + ".k1");
     List<List<Object>> expectedRows = LongStream.range(0, NUM_RECORDS_PRODUCED / 2)
@@ -227,10 +232,10 @@ public class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
     props.putAll(upsertDeleteProps(false, true, 2));
 
     // start a sink connector
-    connect.configureConnector(CONNECTOR_NAME, props);
+    connect.configureConnector(connectorName, props);
 
     // wait for tasks to spin up
-    waitForConnectorToStart(CONNECTOR_NAME, TASKS_MAX);
+    waitForConnectorToStart(connectorName, TASKS_MAX);
 
     // Instantiate the converters we'll use to send records to the connector
     initialiseConverters();
@@ -264,7 +269,7 @@ public class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
     schemaRegistry.produceRecordsWithKey(keyConverter, valueConverter, records, topic);
 
     // wait for tasks to write to BigQuery and commit offsets for their records
-    waitForCommittedRecords(CONNECTOR_NAME, topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
+    waitForCommittedRecords(connectorName, topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
 
     // Since we have multiple rows per key, order by key and the f3 field (which should be
     // monotonically increasing in insertion order)
@@ -302,10 +307,10 @@ public class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
     props.putAll(upsertDeleteProps(true, true, 2));
 
     // start a sink connector
-    connect.configureConnector(CONNECTOR_NAME, props);
+    connect.configureConnector(connectorName, props);
 
     // wait for tasks to spin up
-    waitForConnectorToStart(CONNECTOR_NAME, TASKS_MAX);
+    waitForConnectorToStart(connectorName, TASKS_MAX);
 
     // Instantiate the converters we'll use to send records to the connector
     initialiseConverters();
@@ -340,7 +345,7 @@ public class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
     schemaRegistry.produceRecordsWithKey(keyConverter, valueConverter, records, topic);
 
     // wait for tasks to write to BigQuery and commit offsets for their records
-    waitForCommittedRecords(CONNECTOR_NAME, topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
+    waitForCommittedRecords(connectorName, topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
 
     // Since we have multiple rows per key, order by key and the f3 field (which should be
     // monotonically increasing in insertion order)

@@ -19,7 +19,10 @@
 
 package com.wepay.kafka.connect.bigquery;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -50,9 +53,8 @@ import java.util.stream.Collectors;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.sink.SinkRecord;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.stubbing.OngoingStubbing;
 
@@ -69,7 +71,7 @@ public class SchemaManagerTest {
   private Schema mockKafkaSchema;
   private com.google.cloud.bigquery.Schema fakeBigQuerySchema;
 
-  @Before
+  @BeforeEach
   public void before() {
     mockSchemaRetriever = mock(SchemaRetriever.class);
     mockSchemaConverter =
@@ -94,12 +96,19 @@ public class SchemaManagerTest {
     TableInfo tableInfo = schemaManager
         .constructTableInfo(tableId, fakeBigQuerySchema, testDoc, true);
 
-    assertEquals("Kafka doc does not match BigQuery table description",
-        testDoc, tableInfo.getDescription());
-    Assert.assertNull("Timestamp partition field name is not null",
-        ((StandardTableDefinition) tableInfo.getDefinition()).getTimePartitioning().getField());
-    Assert.assertNull("Partition expiration is not null",
-        ((StandardTableDefinition) tableInfo.getDefinition()).getTimePartitioning().getExpirationMs());
+    assertEquals(
+        testDoc,
+        tableInfo.getDescription(),
+        "Kafka doc does not match BigQuery table description"
+    );
+    assertNull(
+        ((StandardTableDefinition) tableInfo.getDefinition()).getTimePartitioning().getField(),
+        "Timestamp partition field name is not null"
+    );
+    assertNull(
+        ((StandardTableDefinition) tableInfo.getDefinition()).getTimePartitioning().getExpirationMs(),
+        "Partition expiration is not null"
+    );
   }
 
   @Test
@@ -115,16 +124,23 @@ public class SchemaManagerTest {
     TableInfo tableInfo = schemaManager
         .constructTableInfo(tableId, fakeBigQuerySchema, testDoc, true);
 
-    assertEquals("Kafka doc does not match BigQuery table description",
-        testDoc, tableInfo.getDescription());
+    assertEquals(
+        testDoc,
+        tableInfo.getDescription(),
+        "Kafka doc does not match BigQuery table description"
+    );
     StandardTableDefinition definition = tableInfo.getDefinition();
-    Assert.assertNotNull(definition.getTimePartitioning());
-    Assert.assertEquals(TimePartitioning.Type.DAY, definition.getTimePartitioning().getType());
-    Assert.assertEquals("The field name does not match the field name of time partition",
+    assertNotNull(definition.getTimePartitioning());
+    assertEquals(TimePartitioning.Type.DAY, definition.getTimePartitioning().getType());
+    assertEquals(
         testField.get(),
-        definition.getTimePartitioning().getField());
-    Assert.assertNull("Partition expiration is not null",
-        ((StandardTableDefinition) tableInfo.getDefinition()).getTimePartitioning().getExpirationMs());
+        definition.getTimePartitioning().getField(),
+        "The field name does not match the field name of time partition"
+    );
+    assertNull(
+        ((StandardTableDefinition) tableInfo.getDefinition()).getTimePartitioning().getExpirationMs(),
+        "Partition expiration is not null"
+    );
   }
 
   @Test
@@ -139,11 +155,14 @@ public class SchemaManagerTest {
     TableInfo tableInfo = schemaManager
         .constructTableInfo(tableId, fakeBigQuerySchema, testDoc, true);
 
-    Assert.assertEquals("Kafka doc does not match BigQuery table description",
-        testDoc, tableInfo.getDescription());
+    assertEquals(
+        testDoc,
+        tableInfo.getDescription(),
+        "Kafka doc does not match BigQuery table description"
+    );
     StandardTableDefinition definition = tableInfo.getDefinition();
-    Assert.assertNotNull(definition.getTimePartitioning());
-    Assert.assertEquals(TimePartitioning.Type.HOUR, definition.getTimePartitioning().getType());
+    assertNotNull(definition.getTimePartitioning());
+    assertEquals(TimePartitioning.Type.HOUR, definition.getTimePartitioning().getType());
   }
 
   @Test
@@ -158,10 +177,13 @@ public class SchemaManagerTest {
     TableInfo tableInfo = schemaManager
         .constructTableInfo(tableId, fakeBigQuerySchema, testDoc, true);
 
-    Assert.assertEquals("Kafka doc does not match BigQuery table description",
-        testDoc, tableInfo.getDescription());
+    assertEquals(
+        testDoc,
+        tableInfo.getDescription(),
+        "Kafka doc does not match BigQuery table description"
+    );
     StandardTableDefinition definition = tableInfo.getDefinition();
-    Assert.assertNull(definition.getTimePartitioning());
+    assertNull(definition.getTimePartitioning());
   }
 
   @Test
@@ -177,10 +199,15 @@ public class SchemaManagerTest {
     TableInfo tableInfo = schemaManager
         .constructTableInfo(tableId, fakeBigQuerySchema, testDoc, false);
 
-    Assert.assertEquals("Kafka doc does not match BigQuery table description",
-        testDoc, tableInfo.getDescription());
-    Assert.assertNull("The time partitioning object should be null",
-        ((StandardTableDefinition) tableInfo.getDefinition()).getTimePartitioning());
+    assertEquals(
+        testDoc,
+        tableInfo.getDescription(),
+        "Kafka doc does not match BigQuery table description"
+    );
+    assertNull(
+        ((StandardTableDefinition) tableInfo.getDefinition()).getTimePartitioning(),
+        "The time partitioning object should be null"
+    );
   }
 
   @Test
@@ -196,13 +223,18 @@ public class SchemaManagerTest {
     TableInfo tableInfo = schemaManager
         .constructTableInfo(tableId, fakeBigQuerySchema, testDoc, true);
 
-    Assert.assertEquals("Kafka doc does not match BigQuery table description",
-        testDoc, tableInfo.getDescription());
+    assertEquals(
+        testDoc,
+        tableInfo.getDescription(),
+        "Kafka doc does not match BigQuery table description"
+    );
     StandardTableDefinition definition = tableInfo.getDefinition();
-    Assert.assertNotNull(definition.getTimePartitioning());
-    Assert.assertEquals("The field name does not match the field name of time partition",
+    assertNotNull(definition.getTimePartitioning());
+    assertEquals(
         testField.get(),
-        definition.getTimePartitioning().getField());
+        definition.getTimePartitioning().getField(),
+        "The field name does not match the field name of time partition"
+    );
 
     Optional<String> updateField = Optional.of("testUpdateField");
     schemaManager = new SchemaManager(mockSchemaRetriever, mockSchemaConverter,
@@ -212,8 +244,10 @@ public class SchemaManagerTest {
     tableInfo = schemaManager
         .constructTableInfo(tableId, fakeBigQuerySchema, testDoc, false);
     definition = tableInfo.getDefinition();
-    Assert.assertNull("The time partitioning object should be null",
-        ((StandardTableDefinition) tableInfo.getDefinition()).getTimePartitioning());
+    assertNull(
+        ((StandardTableDefinition) tableInfo.getDefinition()).getTimePartitioning(),
+        "The time partitioning object should be null"
+    );
   }
 
   @Test
@@ -229,14 +263,21 @@ public class SchemaManagerTest {
     TableInfo tableInfo = schemaManager
         .constructTableInfo(tableId, fakeBigQuerySchema, testDoc, true);
 
-    Assert.assertEquals("Kafka doc does not match BigQuery table description",
-        testDoc, tableInfo.getDescription());
-    StandardTableDefinition tableDefinition = (StandardTableDefinition) tableInfo.getDefinition();
-    Assert.assertEquals("The partition expiration does not match the expiration in ms",
+    assertEquals(
+        testDoc,
+        tableInfo.getDescription(),
+        "Kafka doc does not match BigQuery table description"
+    );
+    StandardTableDefinition tableDefinition = tableInfo.getDefinition();
+    assertEquals(
         testExpirationMs.get(),
-        tableDefinition.getTimePartitioning().getExpirationMs());
-    Assert.assertNull("Timestamp partition field name is not null",
-        tableDefinition.getTimePartitioning().getField());
+        tableDefinition.getTimePartitioning().getExpirationMs(),
+        "The partition expiration does not match the expiration in ms"
+    );
+    assertNull(
+        tableDefinition.getTimePartitioning().getField(),
+        "Timestamp partition field name is not null"
+    );
   }
 
   @Test
@@ -253,15 +294,22 @@ public class SchemaManagerTest {
     TableInfo tableInfo = schemaManager
         .constructTableInfo(tableId, fakeBigQuerySchema, testDoc, true);
 
-    Assert.assertEquals("Kafka doc does not match BigQuery table description",
-        testDoc, tableInfo.getDescription());
+    assertEquals(
+        testDoc,
+        tableInfo.getDescription(),
+        "Kafka doc does not match BigQuery table description"
+    );
     StandardTableDefinition tableDefinition = (StandardTableDefinition) tableInfo.getDefinition();
-    Assert.assertEquals("The partition expiration does not match the expiration in ms",
+    assertEquals(
         testExpirationMs.get(),
-        tableDefinition.getTimePartitioning().getExpirationMs());
-    Assert.assertEquals("The field name does not match the field name of time partition",
+        tableDefinition.getTimePartitioning().getExpirationMs(),
+        "The partition expiration does not match the expiration in ms"
+    );
+    assertEquals(
         testField.get(),
-        tableDefinition.getTimePartitioning().getField());
+        tableDefinition.getTimePartitioning().getField(),
+        "The field name does not match the field name of time partition"
+    );
   }
 
   @Test
@@ -278,13 +326,18 @@ public class SchemaManagerTest {
     TableInfo tableInfo = schemaManager
         .constructTableInfo(tableId, fakeBigQuerySchema, testDoc, true);
 
-    assertEquals("Kafka doc does not match BigQuery table description",
-        testDoc, tableInfo.getDescription());
+    assertEquals(
+        testDoc,
+        tableInfo.getDescription(),
+        "Kafka doc does not match BigQuery table description"
+    );
     StandardTableDefinition definition = tableInfo.getDefinition();
-    Assert.assertNotNull(definition.getClustering());
-    assertEquals("The field name does not match the field name of time partition",
+    assertNotNull(definition.getClustering());
+    assertEquals(
         testField.get(),
-        definition.getClustering().getFields());
+        definition.getClustering().getFields(),
+        "The field name does not match the field name of time partition"
+    );
   }
 
   @Test
@@ -301,10 +354,16 @@ public class SchemaManagerTest {
     TableInfo tableInfo = schemaManager
         .constructTableInfo(tableId, fakeBigQuerySchema, testDoc, false);
 
-    Assert.assertEquals("Kafka doc does not match BigQuery table description",
-        testDoc, tableInfo.getDescription());
+    assertEquals(
+        testDoc,
+        tableInfo.getDescription(),
+        "Kafka doc does not match BigQuery table description"
+    );
     StandardTableDefinition definition = tableInfo.getDefinition();
-    Assert.assertNull("The clustering object should be null", definition.getClustering());
+    assertNull(
+        definition.getClustering(),
+        "The clustering object should be null"
+    );
   }
 
   @Test
@@ -321,13 +380,18 @@ public class SchemaManagerTest {
     TableInfo tableInfo = schemaManager
         .constructTableInfo(tableId, fakeBigQuerySchema, testDoc, true);
 
-    Assert.assertEquals("Kafka doc does not match BigQuery table description",
-        testDoc, tableInfo.getDescription());
+    assertEquals(
+        testDoc,
+        tableInfo.getDescription(),
+        "Kafka doc does not match BigQuery table description"
+    );
     StandardTableDefinition definition = tableInfo.getDefinition();
-    Assert.assertNotNull(definition.getClustering());
-    Assert.assertEquals("The field name should not match the field name of time partition",
+    assertNotNull(definition.getClustering());
+    assertEquals(
         testField.get(),
-        definition.getClustering().getFields());
+        definition.getClustering().getFields(),
+        "The field name should not match the field name of time partition"
+    );
 
     Optional<List<String>> updateTestField = Optional.of(Arrays.asList("column3", "column4"));
     schemaManager = new SchemaManager(mockSchemaRetriever, mockSchemaConverter,
@@ -337,7 +401,10 @@ public class SchemaManagerTest {
     tableInfo = schemaManager
         .constructTableInfo(tableId, fakeBigQuerySchema, testDoc, false);
     definition = tableInfo.getDefinition();
-    Assert.assertNull("The clustering object should be null", definition.getClustering());
+    assertNull(
+        definition.getClustering(),
+        "The clustering object should be null"
+    );
   }
 
   @Test
@@ -355,7 +422,7 @@ public class SchemaManagerTest {
     testGetAndValidateProposedSchema(schemaManager, existingSchema, relaxedSchema, relaxedSchema);
   }
 
-  @Test(expected = BigQueryConnectException.class)
+  @Test
   public void testDisallowedUpdateWithOnlyRelaxedFields() {
     com.google.cloud.bigquery.Schema existingSchema = com.google.cloud.bigquery.Schema.of(
         Field.newBuilder("f1", LegacySQLTypeName.BOOLEAN).setMode(Field.Mode.REQUIRED).build()
@@ -367,7 +434,10 @@ public class SchemaManagerTest {
 
     SchemaManager schemaManager = createSchemaManager(true, false, false);
 
-    testGetAndValidateProposedSchema(schemaManager, existingSchema, relaxedSchema, null);
+    assertThrows(
+        BigQueryConnectException.class,
+        () -> testGetAndValidateProposedSchema(schemaManager, existingSchema, relaxedSchema, null)
+    );
   }
 
   @Test
@@ -386,7 +456,7 @@ public class SchemaManagerTest {
     testGetAndValidateProposedSchema(schemaManager, existingSchema, expandedSchema, expandedSchema);
   }
 
-  @Test(expected = BigQueryConnectException.class)
+  @Test
   public void testDisallowedUpdateWithOnlyNewFields() {
     com.google.cloud.bigquery.Schema existingSchema = com.google.cloud.bigquery.Schema.of(
         Field.newBuilder("f1", LegacySQLTypeName.BOOLEAN).setMode(Field.Mode.REQUIRED).build()
@@ -399,10 +469,13 @@ public class SchemaManagerTest {
 
     SchemaManager schemaManager = createSchemaManager(false, true, false);
 
-    testGetAndValidateProposedSchema(schemaManager, existingSchema, expandedSchema, null);
+    assertThrows(
+        BigQueryConnectException.class,
+        () -> testGetAndValidateProposedSchema(schemaManager, existingSchema, expandedSchema, null)
+    );
   }
 
-  @Test(expected = BigQueryConnectException.class)
+  @Test
   public void testDisallowedUpdateWithOnlyNewRequiredFields() {
     com.google.cloud.bigquery.Schema existingSchema = com.google.cloud.bigquery.Schema.of(
         Field.newBuilder("f1", LegacySQLTypeName.BOOLEAN).setMode(Field.Mode.REQUIRED).build()
@@ -415,7 +488,10 @@ public class SchemaManagerTest {
 
     SchemaManager schemaManager = createSchemaManager(true, false, false);
 
-    testGetAndValidateProposedSchema(schemaManager, existingSchema, expandedSchema, null);
+    assertThrows(
+        BigQueryConnectException.class,
+        () -> testGetAndValidateProposedSchema(schemaManager, existingSchema, expandedSchema, null)
+    );
   }
 
   @Test
@@ -509,7 +585,7 @@ public class SchemaManagerTest {
     testGetAndValidateProposedSchema(schemaManager, existingSchema, expandedSchema, expectedSchema);
   }
 
-  @Test(expected = BigQueryConnectException.class)
+  @Test
   public void testDisallowedUnionizedUpdateWithNewField() {
     com.google.cloud.bigquery.Schema existingSchema = com.google.cloud.bigquery.Schema.of(
         Field.newBuilder("f1", LegacySQLTypeName.BOOLEAN).setMode(Field.Mode.REQUIRED).build()
@@ -522,10 +598,13 @@ public class SchemaManagerTest {
 
     SchemaManager schemaManager = createSchemaManager(false, true, true);
 
-    testGetAndValidateProposedSchema(schemaManager, existingSchema, expandedSchema, null);
+    assertThrows(
+        BigQueryConnectException.class,
+        () -> testGetAndValidateProposedSchema(schemaManager, existingSchema, expandedSchema, null)
+    );
   }
 
-  @Test(expected = BigQueryConnectException.class)
+  @Test
   public void testDisallowedUnionizedUpdateWithRelaxedField() {
     com.google.cloud.bigquery.Schema existingSchema = com.google.cloud.bigquery.Schema.of(
         Field.newBuilder("f1", LegacySQLTypeName.BOOLEAN).setMode(Field.Mode.REQUIRED).build()
@@ -537,7 +616,10 @@ public class SchemaManagerTest {
 
     SchemaManager schemaManager = createSchemaManager(true, false, true);
 
-    testGetAndValidateProposedSchema(schemaManager, existingSchema, expandedSchema, null);
+    assertThrows(
+        BigQueryConnectException.class,
+        () -> testGetAndValidateProposedSchema(schemaManager, existingSchema, expandedSchema, null)
+    );
   }
 
   @Test
@@ -686,12 +768,15 @@ public class SchemaManagerTest {
         Collections.singletonList(existingSchema), existingSchema, incomingSinkRecords);
   }
 
-  @Test(expected = BigQueryConnectException.class)
+  @Test
   public void testUpdateWithOnlyTombstoneRecordsNoExistingSchema() {
     SchemaManager schemaManager = createSchemaManager(true, false, false);
     List<SinkRecord> incomingSinkRecords = Collections.nCopies(2, recordWithValueSchema(null));
-    testGetAndValidateProposedSchema(
-        schemaManager, null, Collections.singletonList(null), null, incomingSinkRecords);
+    assertThrows(
+        BigQueryConnectException.class,
+        () -> testGetAndValidateProposedSchema(
+            schemaManager, null, Collections.singletonList(null), null, incomingSinkRecords)
+    );
   }
 
   @Test
@@ -719,7 +804,7 @@ public class SchemaManagerTest {
     SchemaManager schemaManager = createSchemaManager(false, true, true);
     SinkRecord tombstone = recordWithValueSchema(null);
     List<SinkRecord> incomingSinkRecords = ImmutableList.of(tombstone);
-    Assert.assertNull(schemaManager.getUnionizedTableDescription(incomingSinkRecords));
+    assertNull(schemaManager.getUnionizedTableDescription(incomingSinkRecords));
   }
 
   @Test
@@ -728,7 +813,7 @@ public class SchemaManagerTest {
     List<SinkRecord> incomingSinkRecords = ImmutableList.of(
         recordWithValueSchema(mockKafkaSchema), recordWithValueSchema(null));
     when(mockKafkaSchema.doc()).thenReturn(testDoc);
-    Assert.assertNotNull(schemaManager.getUnionizedTableDescription(incomingSinkRecords));
+    assertNotNull(schemaManager.getUnionizedTableDescription(incomingSinkRecords));
   }
 
   private SchemaManager createSchemaManager(

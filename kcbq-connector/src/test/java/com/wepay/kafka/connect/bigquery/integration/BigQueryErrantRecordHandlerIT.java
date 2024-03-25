@@ -3,6 +3,7 @@ package com.wepay.kafka.connect.bigquery.integration;
 import static io.confluent.kafka.serializers.AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG;
 import static org.apache.kafka.connect.runtime.ConnectorConfig.KEY_CONVERTER_CLASS_CONFIG;
 import static org.apache.kafka.connect.runtime.ConnectorConfig.VALUE_CONVERTER_CLASS_CONFIG;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.BigQueryException;
@@ -30,10 +31,9 @@ import org.apache.kafka.connect.runtime.ConnectorConfig;
 import org.apache.kafka.connect.runtime.SinkConnectorConfig;
 import org.apache.kafka.connect.storage.Converter;
 import org.apache.kafka.connect.storage.StringConverter;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,7 +49,7 @@ public class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
 
   private org.apache.kafka.connect.data.Schema valueSchema;
 
-  @Before
+  @BeforeEach
   public void setup() throws Exception {
     startConnect();
     bigQuery = newBigQuery();
@@ -66,7 +66,7 @@ public class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
         .build();
   }
 
-  @After
+  @AfterEach
   public void close() throws Exception {
     bigQuery = null;
     stopConnect();
@@ -165,7 +165,7 @@ public class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
         (int) NUM_RECORDS_PRODUCED,
         Duration.ofSeconds(120).toMillis(), dlqTopic);
 
-    Assert.assertEquals(NUM_RECORDS_PRODUCED, records.count());
+    assertEquals(NUM_RECORDS_PRODUCED, records.count());
   }
 
   @Test
@@ -260,7 +260,7 @@ public class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
         recordCount,
         Duration.ofSeconds(180).toMillis(), dlqTopic);
 
-    Assert.assertEquals(recordCount, records.count());
+    assertEquals(recordCount, records.count());
   }
 
 
@@ -353,7 +353,7 @@ public class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
         (int) NUM_RECORDS_PRODUCED,
         Duration.ofSeconds(120).toMillis(), dlqTopic);
 
-    Assert.assertEquals(NUM_RECORDS_PRODUCED, records.count());
+    assertEquals(NUM_RECORDS_PRODUCED, records.count());
   }
 
   private Map<String, String> connectorProps(String topicName, String dlqTopicName) {
@@ -469,7 +469,7 @@ public class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
         recordCount,
         Duration.ofSeconds(duration).toMillis(), dlqTopic);
 
-    Assert.assertEquals(recordCount, records.count());
+    assertEquals(recordCount, records.count());
   }
 
 }

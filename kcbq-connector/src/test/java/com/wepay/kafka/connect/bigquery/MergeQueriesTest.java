@@ -19,7 +19,10 @@
 
 package com.wepay.kafka.connect.bigquery;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyObject;
 import static org.mockito.Mockito.doAnswer;
@@ -49,13 +52,9 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.sink.SinkTaskContext;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.mockito.Mock;
-import org.mockito.junit.MockitoJUnitRunner;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
-@RunWith(MockitoJUnitRunner.class)
 public class MergeQueriesTest {
 
   private static final String KEY = "kafkaKey";
@@ -69,16 +68,11 @@ public class MergeQueriesTest {
 
   private static final SinkRecord TEST_SINK_RECORD = new SinkRecord("test", 0, null, null, null, null, 0);
   private final Time time = new MockTime();
-  @Mock
-  private MergeBatches mergeBatches;
-  @Mock
-  private KcbqThreadPoolExecutor executor;
-  @Mock
-  private BigQuery bigQuery;
-  @Mock
-  private SchemaManager schemaManager;
-  @Mock
-  private SinkTaskContext context;
+  private MergeBatches mergeBatches = mock(MergeBatches.class);
+  private final KcbqThreadPoolExecutor executor = mock(KcbqThreadPoolExecutor.class);
+  private final BigQuery bigQuery = mock(BigQuery.class);
+  private final SchemaManager schemaManager = mock(SchemaManager.class);
+  private final SinkTaskContext context = mock(SinkTaskContext.class);
 
   private static Schema constructIntermediateTable() {
     List<Field> fields = new ArrayList<>();
@@ -126,7 +120,7 @@ public class MergeQueriesTest {
     return Schema.of(fields);
   }
 
-  @Before
+  @BeforeEach
   public void setUp() {
     when(schemaManager.cachedSchema(INTERMEDIATE_TABLE)).thenReturn(INTERMEDIATE_TABLE_SCHEMA);
   }
@@ -430,8 +424,7 @@ public class MergeQueriesTest {
     verify(bigQuery, times(3)).query(anyObject());
   }
 
-
-  @Test(expected = BigQueryConnectException.class)
+  @Test
   public void testBigQueryRetryExceeded() throws InterruptedException {
     // Arrange
     mergeBatches.addToBatch(TEST_SINK_RECORD, INTERMEDIATE_TABLE, new HashMap<>());
@@ -451,11 +444,11 @@ public class MergeQueriesTest {
     }).when(executor).execute(any());
     MergeQueries mergeQueries = mergeQueries(false, true, true);
 
-    // Act
-    mergeQueries.mergeFlush(INTERMEDIATE_TABLE);
-
-    //Assert
-    latch.await();
+    assertThrows(
+        BigQueryConnectException.class,
+        () -> mergeQueries.mergeFlush(INTERMEDIATE_TABLE)
+    );
+    assertNotEquals(0, latch.getCount());
   }
 
   private String table(TableId table) {

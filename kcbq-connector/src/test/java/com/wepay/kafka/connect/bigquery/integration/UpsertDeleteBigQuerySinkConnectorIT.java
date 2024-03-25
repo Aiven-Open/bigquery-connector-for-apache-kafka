@@ -21,12 +21,13 @@ package com.wepay.kafka.connect.bigquery.integration;
 
 import static org.apache.kafka.connect.runtime.ConnectorConfig.KEY_CONVERTER_CLASS_CONFIG;
 import static org.apache.kafka.connect.runtime.ConnectorConfig.VALUE_CONVERTER_CLASS_CONFIG;
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.google.cloud.bigquery.BigQuery;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.integration.utils.TableClearer;
 import com.wepay.kafka.connect.bigquery.retrieve.IdentitySchemaRetriever;
+import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -44,34 +45,38 @@ import org.apache.kafka.connect.json.JsonConverterConfig;
 import org.apache.kafka.connect.runtime.ConnectorConfig;
 import org.apache.kafka.connect.runtime.SinkConnectorConfig;
 import org.apache.kafka.connect.storage.Converter;
-import org.apache.kafka.test.IntegrationTest;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Ignore;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-@Category(IntegrationTest.class)
+@Tag("integration")
 public class UpsertDeleteBigQuerySinkConnectorIT extends BaseConnectorIT {
 
   private static final Logger logger = LoggerFactory.getLogger(UpsertDeleteBigQuerySinkConnectorIT.class);
 
-  private static final String CONNECTOR_NAME = "kcbq-sink-connector";
   private static final long NUM_RECORDS_PRODUCED = 8;
   private static final int TASKS_MAX = 1;
   private static final String KAFKA_FIELD_NAME = "kafkaKey";
 
+  private String connectorName;
   private BigQuery bigQuery;
 
-  @Before
-  public void setup() {
+  @BeforeEach
+  public void setup(TestInfo testInfo) {
+    String testMethod = testInfo.getTestMethod()
+        .map(Method::getName)
+        .orElseThrow(() -> new AssertionError("Test method not found"));
+    connectorName = "kcbq-sink-connector-" + testMethod;
     bigQuery = newBigQuery();
     startConnect();
   }
 
-  @After
+  @AfterEach
   public void close() {
     bigQuery = null;
     stopConnect();
@@ -130,10 +135,10 @@ public class UpsertDeleteBigQuerySinkConnectorIT extends BaseConnectorIT {
     props.putAll(upsertDeleteProps(true, false, 2));
 
     // start a sink connector
-    connect.configureConnector(CONNECTOR_NAME, props);
+    connect.configureConnector(connectorName, props);
 
     // wait for tasks to spin up
-    waitForConnectorToStart(CONNECTOR_NAME, TASKS_MAX);
+    waitForConnectorToStart(connectorName, TASKS_MAX);
 
     // Instantiate the converters we'll use to send records to the connector
     Converter keyConverter = converter(true);
@@ -150,7 +155,7 @@ public class UpsertDeleteBigQuerySinkConnectorIT extends BaseConnectorIT {
     }
 
     // wait for tasks to write to BigQuery and commit offsets for their records
-    waitForCommittedRecords(CONNECTOR_NAME, topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
+    waitForCommittedRecords(connectorName, topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
 
     List<List<Object>> allRows = readAllRows(bigQuery, table, KAFKA_FIELD_NAME + ".k1");
     List<List<Object>> expectedRows = LongStream.range(0, NUM_RECORDS_PRODUCED / 2)
@@ -185,10 +190,10 @@ public class UpsertDeleteBigQuerySinkConnectorIT extends BaseConnectorIT {
     props.putAll(upsertDeleteProps(false, true, 2));
 
     // start a sink connector
-    connect.configureConnector(CONNECTOR_NAME, props);
+    connect.configureConnector(connectorName, props);
 
     // wait for tasks to spin up
-    waitForConnectorToStart(CONNECTOR_NAME, TASKS_MAX);
+    waitForConnectorToStart(connectorName, TASKS_MAX);
 
     // Instantiate the converters we'll use to send records to the connector
     Converter keyConverter = converter(true);
@@ -206,7 +211,7 @@ public class UpsertDeleteBigQuerySinkConnectorIT extends BaseConnectorIT {
     }
 
     // wait for tasks to write to BigQuery and commit offsets for their records
-    waitForCommittedRecords(CONNECTOR_NAME, topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
+    waitForCommittedRecords(connectorName, topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
 
     // Since we have multiple rows per key, order by key and the f3 field (which should be
     // monotonically increasing in insertion order)
@@ -244,10 +249,10 @@ public class UpsertDeleteBigQuerySinkConnectorIT extends BaseConnectorIT {
     props.putAll(upsertDeleteProps(true, true, 2));
 
     // start a sink connector
-    connect.configureConnector(CONNECTOR_NAME, props);
+    connect.configureConnector(connectorName, props);
 
     // wait for tasks to spin up
-    waitForConnectorToStart(CONNECTOR_NAME, TASKS_MAX);
+    waitForConnectorToStart(connectorName, TASKS_MAX);
 
     // Instantiate the converters we'll use to send records to the connector
     Converter keyConverter = converter(true);
@@ -265,7 +270,7 @@ public class UpsertDeleteBigQuerySinkConnectorIT extends BaseConnectorIT {
     }
 
     // wait for tasks to write to BigQuery and commit offsets for their records
-    waitForCommittedRecords(CONNECTOR_NAME, topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
+    waitForCommittedRecords(connectorName, topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
 
     // Since we have multiple rows per key, order by key and the f3 field (which should be
     // monotonically increasing in insertion order)
@@ -282,7 +287,7 @@ public class UpsertDeleteBigQuerySinkConnectorIT extends BaseConnectorIT {
   }
 
   @Test
-  @Ignore("Skipped during regular testing; comment-out annotation to run")
+  @Disabled("Skipped during regular testing; comment-out annotation to run")
   public void testUpsertDeleteHighThroughput() throws Throwable {
     final long numRecords = 1_000_000L;
     final int numPartitions = 10;
@@ -343,14 +348,14 @@ public class UpsertDeleteBigQuerySinkConnectorIT extends BaseConnectorIT {
     logger.info("Pre-population complete; creating connector");
     long start = System.currentTimeMillis();
     // start a sink connector
-    connect.configureConnector(CONNECTOR_NAME, props);
+    connect.configureConnector(connectorName, props);
 
     // wait for tasks to spin up
-    waitForConnectorToStart(CONNECTOR_NAME, tasksMax);
+    waitForConnectorToStart(connectorName, tasksMax);
 
     // wait for tasks to write to BigQuery and commit offsets for their records
     waitForCommittedRecords(
-        CONNECTOR_NAME, Collections.singleton(topic), numRecords, tasksMax, TimeUnit.MINUTES.toMillis(10));
+        connectorName, Collections.singleton(topic), numRecords, tasksMax, TimeUnit.MINUTES.toMillis(10));
     long time = System.currentTimeMillis() - start;
     logger.info("All records have been read and committed by the connector; "
         + "total time from start to finish: {} seconds", time / 1000.0);

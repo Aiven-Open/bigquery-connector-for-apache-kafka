@@ -21,8 +21,8 @@ package com.wepay.kafka.connect.bigquery.config;
 
 import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.ENABLE_BATCH_CONFIG;
 import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.GCS_BUCKET_NAME_CONFIG;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -31,16 +31,11 @@ import com.google.cloud.storage.Bucket;
 import com.google.cloud.storage.Storage;
 import java.util.Collections;
 import java.util.Optional;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.mockito.Mock;
-import org.mockito.junit.MockitoJUnitRunner;
+import org.junit.jupiter.api.Test;
 
-@RunWith(MockitoJUnitRunner.class)
 public class GcsBucketValidatorTest {
 
-  @Mock
-  private Storage gcs;
+  private final Storage gcs = mock(Storage.class);
 
   @Test
   public void testNullBatchLoadingSkipsValidation() {

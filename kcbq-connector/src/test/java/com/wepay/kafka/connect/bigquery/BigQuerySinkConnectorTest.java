@@ -19,9 +19,9 @@
 
 package com.wepay.kafka.connect.bigquery;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 
 import com.wepay.kafka.connect.bigquery.api.SchemaRetriever;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkTaskConfig;
@@ -30,13 +30,13 @@ import java.util.List;
 import java.util.Map;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.sink.SinkRecord;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 
 public class BigQuerySinkConnectorTest {
   private static SinkPropertiesFactory propertiesFactory;
 
-  @BeforeClass
+  @BeforeAll
   public static void initializePropertiesFactory() {
     propertiesFactory = new SinkPropertiesFactory();
   }
@@ -61,22 +61,22 @@ public class BigQuerySinkConnectorTest {
       for (int j = 0; j < i; j++) {
         expectedProperties.put(BigQuerySinkTaskConfig.TASK_ID_CONFIG, Integer.toString(j));
         assertEquals(
-            "Connector properties should match task configs",
             expectedProperties,
-            taskConfigs.get(j)
+            taskConfigs.get(j),
+            "Connector properties should match task configs"
         );
         assertNotSame(
-            "Properties should not be referentially equal to task config",
             properties,
-            taskConfigs.get(j)
+            taskConfigs.get(j),
+            "Properties should not be referentially equal to task config"
         );
         // A little overboard, sure, but since it's only in the ballpark of 10,000 iterations this
         // should be fine
         for (int k = j + 1; k < i; k++) {
           assertNotSame(
-              "Task configs should not be referentially equal to each other",
               taskConfigs.get(j),
-              taskConfigs.get(k)
+              taskConfigs.get(k),
+              "Task configs should not be referentially equal to each other"
           );
         }
       }

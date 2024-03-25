@@ -21,7 +21,7 @@ package com.wepay.kafka.connect.bigquery.integration;
 
 import static com.wepay.kafka.connect.bigquery.integration.BaseConnectorIT.boxByteArray;
 import static io.confluent.kafka.serializers.AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG;
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.integration.utils.BucketClearer;
@@ -34,7 +34,6 @@ import io.confluent.kafka.formatter.AvroMessageReader;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -52,18 +51,17 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.connect.runtime.ConnectorConfig;
 import org.apache.kafka.connect.runtime.SinkConnectorConfig;
-import org.apache.kafka.test.IntegrationTest;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Named;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
-@Category(IntegrationTest.class)
-@RunWith(Parameterized.class)
+@Tag("integration")
 public class BigQuerySinkConnectorIT {
 
   private static final String TEST_CASE_PREFIX = "kcbq_test_";
@@ -87,10 +85,8 @@ public class BigQuerySinkConnectorIT {
     this.connectorName = "bigquery-connector-" + testCase;
   }
 
-  @Parameterized.Parameters
-  public static Iterable<Object[]> testCases() {
-    Collection<Object[]> result = new ArrayList<>();
-
+  public static List<Arguments> testArguments() {
+    List<Arguments> result = new ArrayList<>();
     List<List<Object>> expectedGcsLoadRows = new ArrayList<>();
     expectedGcsLoadRows.add(Arrays.asList(
         1L,
@@ -125,14 +121,14 @@ public class BigQuerySinkConnectorIT {
         "nineteen",
         boxByteArray(new byte[]{0x0, 0xf, 0x1E, 0x2D, 0x3C, 0x4B, 0x5A, 0x69, 0x78})
     ));
-    result.add(new Object[]{"gcs-load", expectedGcsLoadRows});
+    result.add(Arguments.arguments(Named.named("gcs-load", expectedGcsLoadRows)));
 
     List<List<Object>> expectedNullsRows = new ArrayList<>();
     expectedNullsRows.add(Arrays.asList(1L, "Required string", null, 42L, false));
     expectedNullsRows.add(Arrays.asList(2L, "Required string", "Optional string", 89L, null));
     expectedNullsRows.add(Arrays.asList(3L, "Required string", null, null, true));
     expectedNullsRows.add(Arrays.asList(4L, "Required string", "Optional string", null, null));
-    result.add(new Object[]{"nulls", expectedNullsRows});
+    result.add(Arguments.arguments(Named.named("nulls", expectedNullsRows)));
 
     List<List<Object>> expectedMatryoshkaRows = new ArrayList<>();
     expectedMatryoshkaRows.add(Arrays.asList(
@@ -149,7 +145,7 @@ public class BigQuerySinkConnectorIT {
             "-42"
         )
     ));
-    result.add(new Object[]{"matryoshka-dolls", expectedMatryoshkaRows});
+    result.add(Arguments.arguments(Named.named("matryoshka-dolls", expectedMatryoshkaRows)));
 
     List<List<Object>> expectedPrimitivesRows = new ArrayList<>();
     expectedPrimitivesRows.add(Arrays.asList(
@@ -163,18 +159,18 @@ public class BigQuerySinkConnectorIT {
         "forty-two",
         boxByteArray(new byte[]{0x0, 0xf, 0x1E, 0x2D, 0x3C, 0x4B, 0x5A, 0x69, 0x78})
     ));
-    result.add(new Object[]{"primitives", expectedPrimitivesRows});
+    result.add(Arguments.arguments(Named.named("primitives", expectedPrimitivesRows)));
 
     List<List<Object>> expectedLogicalTypesRows = new ArrayList<>();
     expectedLogicalTypesRows.add(Arrays.asList(1L, 0L, 0L));
     expectedLogicalTypesRows.add(Arrays.asList(2L, 42000000000L, 362880000000L));
     expectedLogicalTypesRows.add(Arrays.asList(3L, 1468275102000000L, 1468195200000L));
-    result.add(new Object[]{"logical-types", expectedLogicalTypesRows});
+    result.add(Arguments.arguments(Named.named("logical-types", expectedLogicalTypesRows)));
 
     return result;
   }
 
-  @BeforeClass
+  @BeforeAll
   public static void globalSetup() throws Exception {
     testBase = new BaseConnectorIT() {
     };
@@ -195,7 +191,7 @@ public class BigQuerySinkConnectorIT {
     );
   }
 
-  @AfterClass
+  @AfterAll
   public static void globalCleanup() throws Exception {
     if (schemaRegistry != null) {
       schemaRegistry.stop();
@@ -203,7 +199,7 @@ public class BigQuerySinkConnectorIT {
     testBase.stopConnect();
   }
 
-  @Before
+  @BeforeEach
   public void setup() {
     TableClearer.clearTables(testBase.newBigQuery(), testBase.dataset(), table);
 
@@ -215,12 +211,13 @@ public class BigQuerySinkConnectorIT {
     numRecordsProduced = 0;
   }
 
-  @After
+  @AfterEach
   public void cleanup() {
     testBase.connect.deleteConnector(connectorName);
   }
 
-  @Test
+  @ParameterizedTest
+  @MethodSource
   public void runTestCase() throws Exception {
     final int tasksMax = 1;
 

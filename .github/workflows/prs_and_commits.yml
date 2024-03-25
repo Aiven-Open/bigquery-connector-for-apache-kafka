@@ -27,9 +27,9 @@ jobs:
           java-version: 8
           cache: maven
       - name: Build (Maven)
-        run: mvn --batch-mode clean package -DskipTests
+        run: mvn -P ci --batch-mode clean package -DskipTests
       - name: Unit tests (Maven)
-        run: mvn --batch-mode test
+        run: mvn -P ci --batch-mode test
       - name: Integration tests (Maven)
         env:
           # Necessary for client builder integration tests that run with
@@ -44,7 +44,7 @@ jobs:
         run: |
           echo "$CREDENTIALS_JSON" > /tmp/creds.json
           export KCBQ_TEST_TABLE_SUFFIX=_$(date +%s)_$RANDOM
-          mvn -Dskip.unit.tests=true verify
+          mvn -P ci -Dskip.unit.tests=true verify
       - name: Upload integration test results (Maven)
         if: always()
         uses: actions/upload-artifact@v4

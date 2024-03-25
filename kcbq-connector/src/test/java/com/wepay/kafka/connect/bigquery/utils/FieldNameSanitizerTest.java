@@ -19,19 +19,19 @@
 
 package com.wepay.kafka.connect.bigquery.utils;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 public class FieldNameSanitizerTest {
   private Map<String, Object> testMap;
 
-  @Before
+  @BeforeEach
   public void setUp() {
     testMap = new HashMap<String, Object>() {{
       put("A.1", new HashMap<String, Object>() {{

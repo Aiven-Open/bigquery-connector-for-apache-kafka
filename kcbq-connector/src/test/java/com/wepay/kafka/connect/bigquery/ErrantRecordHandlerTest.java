@@ -1,10 +1,12 @@
 package com.wepay.kafka.connect.bigquery;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import com.google.cloud.bigquery.BigQueryError;
 import java.util.ArrayList;
 import java.util.List;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class ErrantRecordHandlerTest {
 
@@ -17,7 +19,7 @@ public class ErrantRecordHandlerTest {
     // should allow sending records to dlq for bigquery reason:invalid (present in
     // allowedBigQueryErrorReason list)
     boolean expected = errantRecordHandler.isErrorReasonAllowed(bqErrorList);
-    Assert.assertTrue(expected);
+    assertTrue(expected);
   }
 
   @Test
@@ -29,6 +31,6 @@ public class ErrantRecordHandlerTest {
     // Should not allow sending records to dlq for reason not present in
     // allowedBigQueryErrorReason list
     boolean expected = errantRecordHandler.isErrorReasonAllowed(bqErrorList);
-    Assert.assertFalse(expected);
+    assertFalse(expected);
   }
 }

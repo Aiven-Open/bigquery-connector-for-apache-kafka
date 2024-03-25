@@ -19,24 +19,23 @@
 
 package com.wepay.kafka.connect.bigquery.integration.utils;
 
-import org.junit.rules.TestWatcher;
-import org.junit.runner.Description;
+import org.junit.jupiter.api.extension.AfterEachCallback;
+import org.junit.jupiter.api.extension.BeforeEachCallback;
+import org.junit.jupiter.api.extension.ExtensionContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class TestCaseLogger extends TestWatcher {
+public class TestCaseLogger implements BeforeEachCallback, AfterEachCallback {
   private static final Logger logger = LoggerFactory.getLogger(TestCaseLogger.class);
 
   @Override
-  protected void starting(Description description) {
-    super.starting(description);
-    logger.info("Starting test {}", description.getMethodName());
+  public void beforeEach(ExtensionContext extensionContext) throws Exception {
+    logger.info("Starting test {}", extensionContext.getDisplayName());
   }
 
   @Override
-  protected void finished(Description description) {
-    super.finished(description);
-    logger.info("Finished test {}", description.getMethodName());
+  public void afterEach(ExtensionContext extensionContext) throws Exception {
+    logger.info("Finished test {}", extensionContext.getDisplayName());
   }
 
 }

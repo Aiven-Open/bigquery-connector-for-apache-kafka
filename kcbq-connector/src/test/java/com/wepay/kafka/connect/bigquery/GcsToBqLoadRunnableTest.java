@@ -19,15 +19,15 @@
 
 package com.wepay.kafka.connect.bigquery;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.mock;
 
 import com.google.cloud.bigquery.TableId;
 import com.google.cloud.storage.Blob;
 import java.util.Collections;
 import java.util.Map;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 public class GcsToBqLoadRunnableTest {

@@ -19,8 +19,8 @@
 
 package com.wepay.kafka.connect.bigquery.convert;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.google.cloud.bigquery.Field;
 import com.google.cloud.bigquery.LegacySQLTypeName;
@@ -32,13 +32,17 @@ import org.apache.kafka.connect.data.Decimal;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Timestamp;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class BigQuerySchemaConverterTest {
 
-  @Test(expected = ConversionConnectException.class)
+  @Test
   public void testTopLevelSchema() {
-    new BigQuerySchemaConverter(false).convertSchema(Schema.BOOLEAN_SCHEMA);
+    BigQuerySchemaConverter converter = new BigQuerySchemaConverter(false);
+    assertThrows(
+        ConversionConnectException.class,
+        () -> converter.convertSchema(Schema.BOOLEAN_SCHEMA)
+    );
   }
 
   @Test
@@ -488,7 +492,7 @@ public class BigQuerySchemaConverterTest {
     assertEquals(bigQueryExpectedSchema, bigQueryTestSchema);
   }
 
-  @Test(expected = ConversionConnectException.class)
+  @Test
   public void testBadTimestamp() {
     final String fieldName = "Timestamp";
 
@@ -497,7 +501,11 @@ public class BigQuerySchemaConverterTest {
         .field(fieldName, SchemaBuilder.bool().name(Timestamp.LOGICAL_NAME))
         .build();
 
-    new BigQuerySchemaConverter(false).convertSchema(kafkaConnectTestSchema);
+    BigQuerySchemaConverter converter = new BigQuerySchemaConverter(false);
+    assertThrows(
+        ConversionConnectException.class,
+        () -> converter.convertSchema(kafkaConnectTestSchema)
+    );
   }
 
   @Test
@@ -524,7 +532,7 @@ public class BigQuerySchemaConverterTest {
     assertEquals(bigQueryExpectedSchema, bigQueryTestSchema);
   }
 
-  @Test(expected = ConversionConnectException.class)
+  @Test
   public void testBadDate() {
     final String fieldName = "Date";
 
@@ -533,7 +541,11 @@ public class BigQuerySchemaConverterTest {
         .field(fieldName, SchemaBuilder.int64().name(Date.LOGICAL_NAME))
         .build();
 
-    new BigQuerySchemaConverter(false).convertSchema(kafkaConnectTestSchema);
+    BigQuerySchemaConverter converter = new BigQuerySchemaConverter(false);
+    assertThrows(
+        ConversionConnectException.class,
+        () -> converter.convertSchema(kafkaConnectTestSchema)
+    );
   }
 
   @Test
@@ -560,7 +572,7 @@ public class BigQuerySchemaConverterTest {
     assertEquals(bigQueryExpectedSchema, bigQueryTestSchema);
   }
 
-  @Test(expected = ConversionConnectException.class)
+  @Test
   public void testBadDecimal() {
     final String fieldName = "Decimal";
 
@@ -569,7 +581,11 @@ public class BigQuerySchemaConverterTest {
         .field(fieldName, SchemaBuilder.bool().name(Decimal.LOGICAL_NAME))
         .build();
 
-    new BigQuerySchemaConverter(false).convertSchema(kafkaConnectTestSchema);
+    BigQuerySchemaConverter converter = new BigQuerySchemaConverter(false);
+    assertThrows(
+        ConversionConnectException.class,
+        () -> converter.convertSchema(kafkaConnectTestSchema)
+    );
   }
 
   @Test

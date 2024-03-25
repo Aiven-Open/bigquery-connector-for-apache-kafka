@@ -37,15 +37,16 @@
         <com.google.guava.version>32.0.1-jre</com.google.guava.version>
         <com.google.re2j.version>1.7</com.google.re2j.version>
         <com.google.auto.value.version>1.10.2</com.google.auto.value.version>
-        <confluent.version>6.0.10</confluent.version>
+        <confluent.version>7.6.0</confluent.version>
         <debezium.version>0.6.2</debezium.version>
-        <jackson.version>2.13.5</jackson.version>
+        <jackson.version>2.14.2</jackson.version>
+        <jetty.version>9.4.53.v20231009</jetty.version>
         <kafka.version>3.6.1</kafka.version>
         <kafka.scala.version>2.12</kafka.scala.version>
         <slf4j.version>1.7.26</slf4j.version>
         <caffeine.version>2.8.6</caffeine.version>
 
-        <junit.version>4.13</junit.version>
+        <junit.version>5.10.2</junit.version>
         <mockito.version>3.2.4</mockito.version>
 
         <buildnumber.plugin.version>1.4</buildnumber.plugin.version>
@@ -181,16 +182,46 @@
                 <version>${jackson.version}</version>
                 <scope>test</scope>
             </dependency>
+            <!--
+                Same for Jetty: Kafka Connect and Schema Registry both rely on it; pin to a single
+                version
+            -->
+            <dependency>
+                <groupId>org.eclipse.jetty</groupId>
+                <artifactId>jetty-server</artifactId>
+                <version>${jetty.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.eclipse.jetty</groupId>
+                <artifactId>jetty-servlet</artifactId>
+                <version>${jetty.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.eclipse.jetty</groupId>
+                <artifactId>jetty-servlets</artifactId>
+                <version>${jetty.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.eclipse.jetty</groupId>
+                <artifactId>jetty-client</artifactId>
+                <version>${jetty.version}</version>
+                <scope>test</scope>
+            </dependency>
+
             <dependency>
             <groupId>com.google.auto.value</groupId>
             <artifactId>auto-value</artifactId>
             <version>${com.google.auto.value.version}</version>
             </dependency>
             <dependency>
-                <groupId>junit</groupId>
-                <artifactId>junit</artifactId>
+                <groupId>org.junit</groupId>
+                <artifactId>junit-bom</artifactId>
                 <version>${junit.version}</version>
-                <scope>test</scope>
+                <type>pom</type>
+                <scope>import</scope>
             </dependency>
             <dependency>
                 <groupId>org.mockito</groupId>
@@ -334,9 +365,6 @@ under the License.
                         <exclude>LICENSE.md</exclude>
                         <exclude>*.log</exclude>
                         <exclude>config/checkstyle/google_checks.xml</exclude>
-
-                        <!-- Automatically added by Jenkins during CI/CD builds -->
-                        <exclude>.ci/*</exclude>
                     </excludes>
                 </configuration>
             </plugin>
@@ -357,7 +385,7 @@ under the License.
                     <artifactId>maven-surefire-plugin</artifactId>
                     <version>${surefire.plugin.version}</version>
                     <configuration>
-                        <excludedGroups>org.apache.kafka.test.IntegrationTest</excludedGroups>
+                        <excludedGroups>integration</excludedGroups>
                         <skip>${skip.unit.tests}</skip>
                     </configuration>
                 </plugin>
@@ -373,10 +401,7 @@ under the License.
                                 <goal>verify</goal>
                             </goals>
                             <configuration>
-                                <groups>org.apache.kafka.test.IntegrationTest</groups>
-                                <redirectTestOutputToFile>true</redirectTestOutputToFile>
-                                <parallel>classes</parallel>
-                                <useUnlimitedThreads>true</useUnlimitedThreads>
+                                <groups>integration</groups>
                             </configuration>
                         </execution>
                     </executions>
@@ -423,4 +448,25 @@ under the License.
             </plugins>
         </pluginManagement>
     </build>
+
+    <profiles>
+        <profile>
+            <id>ci</id>
+            <build>
+                <pluginManagement>
+                    <plugins>
+                        <plugin>
+                            <groupId>org.apache.maven.plugins</groupId>
+                            <artifactId>maven-failsafe-plugin</artifactId>
+                            <configuration>
+                                <redirectTestOutputToFile>true</redirectTestOutputToFile>
+                                <parallel>classes</parallel>
+                                <useUnlimitedThreads>true</useUnlimitedThreads>
+                            </configuration>
+                        </plugin>
+                    </plugins>
+                </pluginManagement>
+            </build>
+        </profile>
+    </profiles>
 </project>

@@ -19,10 +19,11 @@
 
 package com.wepay.kafka.connect.bigquery.utils;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
 import com.google.cloud.bigquery.TableId;
 import java.time.LocalDate;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class PartitionedTableIdTest {
 
@@ -33,13 +34,13 @@ public class PartitionedTableIdTest {
 
     final PartitionedTableId tableId = new PartitionedTableId.Builder(dataset, table).build();
 
-    Assert.assertEquals(dataset, tableId.getDataset());
-    Assert.assertEquals(table, tableId.getBaseTableName());
-    Assert.assertEquals(table, tableId.getFullTableName());
+    assertEquals(dataset, tableId.getDataset());
+    assertEquals(table, tableId.getBaseTableName());
+    assertEquals(table, tableId.getFullTableName());
 
     TableId expectedTableId = TableId.of(dataset, table);
-    Assert.assertEquals(expectedTableId, tableId.getBaseTableId());
-    Assert.assertEquals(expectedTableId, tableId.getFullTableId());
+    assertEquals(expectedTableId, tableId.getBaseTableId());
+    assertEquals(expectedTableId, tableId.getFullTableId());
   }
 
   @Test
@@ -51,13 +52,13 @@ public class PartitionedTableIdTest {
 
     final PartitionedTableId partitionedTableId = new PartitionedTableId.Builder(tableId).build();
 
-    Assert.assertEquals(project, partitionedTableId.getProject());
-    Assert.assertEquals(dataset, partitionedTableId.getDataset());
-    Assert.assertEquals(table, partitionedTableId.getBaseTableName());
-    Assert.assertEquals(table, partitionedTableId.getFullTableName());
+    assertEquals(project, partitionedTableId.getProject());
+    assertEquals(dataset, partitionedTableId.getDataset());
+    assertEquals(table, partitionedTableId.getBaseTableName());
+    assertEquals(table, partitionedTableId.getFullTableName());
 
-    Assert.assertEquals(tableId, partitionedTableId.getBaseTableId());
-    Assert.assertEquals(tableId, partitionedTableId.getFullTableId());
+    assertEquals(tableId, partitionedTableId.getBaseTableId());
+    assertEquals(tableId, partitionedTableId.getFullTableId());
   }
 
   @Test
@@ -71,15 +72,15 @@ public class PartitionedTableIdTest {
 
     final String expectedPartition = "20160921";
 
-    Assert.assertEquals(dataset, partitionedTableId.getDataset());
-    Assert.assertEquals(table, partitionedTableId.getBaseTableName());
-    Assert.assertEquals(table + "$" + expectedPartition, partitionedTableId.getFullTableName());
+    assertEquals(dataset, partitionedTableId.getDataset());
+    assertEquals(table, partitionedTableId.getBaseTableName());
+    assertEquals(table + "$" + expectedPartition, partitionedTableId.getFullTableName());
 
     final TableId expectedBaseTableId = TableId.of(dataset, table);
     final TableId expectedFullTableId = TableId.of(dataset, table + "$" + expectedPartition);
 
-    Assert.assertEquals(expectedBaseTableId, partitionedTableId.getBaseTableId());
-    Assert.assertEquals(expectedFullTableId, partitionedTableId.getFullTableId());
+    assertEquals(expectedBaseTableId, partitionedTableId.getBaseTableId());
+    assertEquals(expectedFullTableId, partitionedTableId.getFullTableId());
   }
 
   @Test
@@ -94,14 +95,14 @@ public class PartitionedTableIdTest {
 
     final String expectedPartition = "20171026";
 
-    Assert.assertEquals(dataset, partitionedTableId.getDataset());
-    Assert.assertEquals(table, partitionedTableId.getBaseTableName());
-    Assert.assertEquals(table + "$" + expectedPartition, partitionedTableId.getFullTableName());
+    assertEquals(dataset, partitionedTableId.getDataset());
+    assertEquals(table, partitionedTableId.getBaseTableName());
+    assertEquals(table + "$" + expectedPartition, partitionedTableId.getFullTableName());
 
     final TableId expectedBaseTableId = TableId.of(dataset, table);
     final TableId expectedFullTableId = TableId.of(dataset, table + "$" + expectedPartition);
 
-    Assert.assertEquals(expectedBaseTableId, partitionedTableId.getBaseTableId());
-    Assert.assertEquals(expectedFullTableId, partitionedTableId.getFullTableId());
+    assertEquals(expectedBaseTableId, partitionedTableId.getBaseTableId());
+    assertEquals(expectedFullTableId, partitionedTableId.getFullTableId());
   }
 }

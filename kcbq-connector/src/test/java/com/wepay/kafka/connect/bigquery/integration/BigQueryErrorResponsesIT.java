@@ -21,9 +21,9 @@ package com.wepay.kafka.connect.bigquery.integration;
 
 import static com.google.cloud.bigquery.InsertAllRequest.RowToInsert;
 import static com.wepay.kafka.connect.bigquery.utils.TableNameUtils.table;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.BigQueryError;
@@ -49,8 +49,8 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 import org.apache.kafka.test.TestUtils;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -60,7 +60,7 @@ public class BigQueryErrorResponsesIT extends BaseConnectorIT {
 
   private BigQuery bigQuery;
 
-  @Before
+  @BeforeEach
   public void setup() {
     bigQuery = newBigQuery();
   }
@@ -70,13 +70,14 @@ public class BigQueryErrorResponsesIT extends BaseConnectorIT {
     TableId table = TableId.of(dataset(), suffixedAndSanitizedTable("nonexistent table"));
     TableClearer.clearTables(bigQuery, dataset(), table.getTable());
 
-    try {
-      bigQuery.insertAll(InsertAllRequest.of(table, RowToInsert.of(Collections.singletonMap("f1", "v1"))));
-      fail("Should have failed to write to nonexistent table");
-    } catch (BigQueryException e) {
-      logger.debug("Nonexistent table write error", e);
-      assertTrue(BigQueryErrorResponses.isNonExistentTableError(e));
-    }
+    BigQueryException e = assertThrows(
+        BigQueryException.class,
+        () -> bigQuery.insertAll(InsertAllRequest.of(table, RowToInsert.of(Collections.singletonMap("f1", "v1")))),
+        "Should have failed to write to nonexistent table"
+    );
+
+    logger.debug("Nonexistent table write error", e);
+    assertTrue(BigQueryErrorResponses.isNonExistentTableError(e));
   }
 
   @Test
@@ -147,13 +148,14 @@ public class BigQueryErrorResponsesIT extends BaseConnectorIT {
     TableId table = TableId.of(dataset(), suffixedAndSanitizedTable("missing schema"));
     createOrAssertSchemaMatches(table, Schema.of());
 
-    try {
-      bigQuery.insertAll(InsertAllRequest.of(table, RowToInsert.of(Collections.singletonMap("f1", "v1"))));
-      fail("Should have failed to write to table with no schema");
-    } catch (BigQueryException e) {
-      logger.debug("Table missing schema write error", e);
-      assertTrue(BigQueryErrorResponses.isTableMissingSchemaError(e));
-    }
+    BigQueryException e = assertThrows(
+        BigQueryException.class,
+        () -> bigQuery.insertAll(InsertAllRequest.of(table, RowToInsert.of(Collections.singletonMap("f1", "v1")))),
+        "Should have failed to write to table with no schema"
+    );
+
+    logger.debug("Table missing schema write error", e);
+    assertTrue(BigQueryErrorResponses.isTableMissingSchemaError(e));
   }
 
   @Test
@@ -221,13 +223,15 @@ public class BigQueryErrorResponsesIT extends BaseConnectorIT {
     char[] chars = new char[10 * 1024 * 1024];
     Arrays.fill(chars, '*');
     String columnValue = new String(chars);
-    try {
-      bigQuery.insertAll(InsertAllRequest.of(table, RowToInsert.of(Collections.singletonMap("f1", columnValue))));
-      fail("Should have failed to write to table with 11MB request");
-    } catch (BigQueryException e) {
-      logger.debug("Large request payload write error", e);
-      assertTrue(BigQueryErrorResponses.isRequestTooLargeError(e));
-    }
+
+    BigQueryException e = assertThrows(
+        BigQueryException.class,
+        () -> bigQuery.insertAll(InsertAllRequest.of(table, RowToInsert.of(Collections.singletonMap("f1", columnValue)))),
+        "Should have failed to write to table with 11MB request"
+    );
+
+    logger.debug("Large request payload write error", e);
+    assertTrue(BigQueryErrorResponses.isRequestTooLargeError(e));
   }
 
   @Test
@@ -242,13 +246,15 @@ public class BigQueryErrorResponsesIT extends BaseConnectorIT {
         .mapToObj(i -> Collections.singletonMap("f1", i))
         .map(RowToInsert::of)
         .collect(Collectors.toList());
-    try {
-      bigQuery.insertAll(InsertAllRequest.of(table, rows));
-      fail("Should have failed to write to table with 100,000 rows");
-    } catch (BigQueryException e) {
-      logger.debug("Too many rows write error", e);
-      assertTrue(BigQueryErrorResponses.isTooManyRowsError(e));
-    }
+
+    BigQueryException e = assertThrows(
+        BigQueryException.class,
+        () -> bigQuery.insertAll(InsertAllRequest.of(table, rows)),
+        "Should have failed to write to table with 100,000 rows"
+    );
+
+    logger.debug("Too many rows write error", e);
+    assertTrue(BigQueryErrorResponses.isTooManyRowsError(e));
   }
 
   // Some tables can't be deleted, recreated, and written to without getting a temporary error from BigQuery,
@@ -261,9 +267,9 @@ public class BigQueryErrorResponsesIT extends BaseConnectorIT {
       bigQuery.create(TableInfo.newBuilder(tableId, StandardTableDefinition.of(schema)).build());
     } else {
       assertEquals(
-          String.format("Testing %s should be created automatically by tests; please delete the table and re-run this test", table(tableId)),
           schema,
-          table.getDefinition().getSchema()
+          table.getDefinition().getSchema(),
+          String.format("Testing %s should be created automatically by tests; please delete the table and re-run this test", table(tableId))
       );
     }
   }

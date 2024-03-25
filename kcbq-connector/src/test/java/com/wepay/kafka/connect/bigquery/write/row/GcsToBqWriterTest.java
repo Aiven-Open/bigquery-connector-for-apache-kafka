@@ -19,6 +19,7 @@
 
 package com.wepay.kafka.connect.bigquery.write.row;
 
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -50,9 +51,8 @@ import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.sink.SinkTaskContext;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 
 public class GcsToBqWriterTest {
 
@@ -63,7 +63,7 @@ public class GcsToBqWriterTest {
 
   private final Time time = new MockTime();
 
-  @BeforeClass
+  @BeforeAll
   public static void initializePropertiesFactory() {
     propertiesFactory = new SinkPropertiesFactory();
   }
@@ -175,12 +175,11 @@ public class GcsToBqWriterTest {
     testTask.start(properties);
     testTask.put(
         Collections.singletonList(spoofSinkRecord(topic, 0, 0, "some_field", "some_value")));
-    try {
-      testTask.flush(Collections.emptyMap());
-      Assert.fail("expected testTask.flush to fail.");
-    } catch (ConnectException ex) {
-      verify(storage, times(4)).create((BlobInfo) anyObject(), (byte[]) anyObject());
-    }
+    assertThrows(
+        ConnectException.class,
+        () -> testTask.flush(Collections.emptyMap())
+    );
+    verify(storage, times(4)).create((BlobInfo) anyObject(), (byte[]) anyObject());
   }
 
   private void expectTable(BigQuery mockBigQuery) {
