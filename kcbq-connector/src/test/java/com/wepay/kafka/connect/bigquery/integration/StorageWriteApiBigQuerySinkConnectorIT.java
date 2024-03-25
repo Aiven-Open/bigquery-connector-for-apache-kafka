@@ -684,7 +684,6 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
 
     // send prepared records
     schemaRegistry.produceRecordsWithKey(keyConverter, valueConverter, records, topic);
-
   }
 
   private void initialiseAvroConverters() {
