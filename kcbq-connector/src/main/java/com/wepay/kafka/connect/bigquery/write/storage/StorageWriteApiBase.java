@@ -219,15 +219,15 @@ public abstract class StorageWriteApiBase {
       String errorMessage = String.format("Failed to write rows on table %s due to %s", tableName, message);
       retryHandler.setMostRecentException(new BigQueryStorageWriteApiConnectException(errorMessage, e));
 
-      if (shouldHandleSchemaMismatch(e)) {
+      if (BigQueryStorageWriteApiErrorResponses.isStreamClosed(message)) {
+        writer.refresh();
+      } else if (shouldHandleSchemaMismatch(e)) {
         logger.warn("Sent records schema does not match with table schema, will attempt to update schema");
         retryHandler.attemptTableOperation(schemaManager::updateSchema);
       } else if (BigQueryStorageWriteApiErrorResponses.isMessageTooLargeError(message)) {
         throw new BatchTooLargeException(errorMessage);
       } else if (BigQueryStorageWriteApiErrorResponses.isMalformedRequest(message)) {
         throw new MalformedRowsException(getRowErrorMapping(e));
-      } else if (BigQueryStorageWriteApiErrorResponses.isStreamClosed(message)) {
-        writer.refresh();
       } else if (BigQueryStorageWriteApiErrorResponses.isTableMissing(message) && getAutoCreateTables()) {
         retryHandler.attemptTableOperation(schemaManager::createTable);
       } else if (!BigQueryStorageWriteApiErrorResponses.isRetriableError(e.getMessage())
