@@ -19,9 +19,9 @@
 
 package com.wepay.kafka.connect.bigquery.config;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.fail;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import com.google.common.collect.ImmutableMap;
 import java.util.Arrays;
@@ -32,7 +32,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 import org.apache.kafka.common.config.ConfigValue;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class MultiPropertyValidatorTest {
 

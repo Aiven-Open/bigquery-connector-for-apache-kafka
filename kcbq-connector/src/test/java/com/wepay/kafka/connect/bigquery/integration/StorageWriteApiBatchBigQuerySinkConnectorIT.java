@@ -2,10 +2,9 @@ package com.wepay.kafka.connect.bigquery.integration;
 
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import java.util.Map;
-import org.apache.kafka.test.IntegrationTest;
-import org.junit.experimental.categories.Category;
+import org.junit.jupiter.api.Tag;
 
-@Category(IntegrationTest.class)
+@Tag("integration")
 public class StorageWriteApiBatchBigQuerySinkConnectorIT extends StorageWriteApiBigQuerySinkConnectorIT {
 
   @Override
@@ -14,6 +13,11 @@ public class StorageWriteApiBatchBigQuerySinkConnectorIT extends StorageWriteApi
     result.put(BigQuerySinkConfig.ENABLE_BATCH_MODE_CONFIG, "true");
     result.put(BigQuerySinkConfig.COMMIT_INTERVAL_SEC_CONFIG, "15");
     return result;
+  }
+
+  @Override
+  protected String topic(String basename) {
+    return super.topic(basename + "-batch-mode");
   }
 
 }

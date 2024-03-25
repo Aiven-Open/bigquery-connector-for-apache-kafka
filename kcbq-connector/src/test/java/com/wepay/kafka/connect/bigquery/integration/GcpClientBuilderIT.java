@@ -1,6 +1,6 @@
 package com.wepay.kafka.connect.bigquery.integration;
 
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.DatasetId;
@@ -20,21 +20,20 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import org.apache.kafka.test.IntegrationTest;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-@Category(IntegrationTest.class)
+@Tag("integration")
 public class GcpClientBuilderIT extends BaseConnectorIT {
 
   private static final Logger logger = LoggerFactory.getLogger(GcpClientBuilderIT.class);
 
   private TableId tableId;
 
-  @Before
+  @BeforeEach
   public void setup() throws Exception {
     BigQuery bigQuery = newBigQuery();
     tableId = TableId.of(project(), dataset(), "authenticate-storage-api");

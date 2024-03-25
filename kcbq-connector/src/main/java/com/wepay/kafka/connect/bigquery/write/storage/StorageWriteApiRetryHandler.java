@@ -110,6 +110,7 @@ public class StorageWriteApiRetryHandler {
       if (BigQueryErrorResponses.isRateLimitExceededError(exception)) {
         // Can happen if several tasks try to create a table all at once; should be fine
         logger.info("Table appears to have been created by a different task");
+        setAdditionalRetriesAndWait();
         return;
       }
       throw new BigQueryStorageWriteApiConnectException(

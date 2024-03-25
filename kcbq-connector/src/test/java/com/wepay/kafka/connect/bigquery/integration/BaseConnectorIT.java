@@ -33,8 +33,8 @@ import static com.google.cloud.bigquery.LegacySQLTypeName.TIMESTAMP;
 import static org.apache.kafka.connect.runtime.ConnectorConfig.CONNECTOR_CLASS_CONFIG;
 import static org.apache.kafka.connect.runtime.ConnectorConfig.TASKS_MAX_CONFIG;
 import static org.apache.kafka.test.TestUtils.waitForCondition;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.Field;
@@ -46,6 +46,7 @@ import com.google.cloud.bigquery.Table;
 import com.google.cloud.bigquery.TableResult;
 import com.wepay.kafka.connect.bigquery.GcpClientBuilder;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
+import com.wepay.kafka.connect.bigquery.integration.utils.TestCaseLogger;
 import com.wepay.kafka.connect.bigquery.utils.FieldNameSanitizer;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
@@ -73,13 +74,14 @@ import org.apache.kafka.connect.runtime.AbstractStatus;
 import org.apache.kafka.connect.runtime.WorkerConfig;
 import org.apache.kafka.connect.runtime.rest.entities.ConnectorStateInfo;
 import org.apache.kafka.connect.util.clusters.EmbeddedConnectCluster;
-import org.apache.kafka.test.IntegrationTest;
 import org.apache.kafka.test.NoRetryException;
-import org.junit.experimental.categories.Category;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-@Category(IntegrationTest.class)
+@Tag("integration")
+@ExtendWith(TestCaseLogger.class)
 public abstract class BaseConnectorIT {
   protected static final long OFFSET_COMMIT_INTERVAL_MS = TimeUnit.SECONDS.toMillis(10);
   protected static final long COMMIT_MAX_DURATION_MS = TimeUnit.MINUTES.toMillis(5);
@@ -93,6 +95,7 @@ public abstract class BaseConnectorIT {
   private static final String GCS_BUCKET_ENV_VAR = "KCBQ_TEST_BUCKET";
   private static final String GCS_FOLDER_ENV_VAR = "KCBQ_TEST_FOLDER";
   private static final String TEST_NAMESPACE_ENV_VAR = "KCBQ_TEST_TABLE_SUFFIX";
+
   protected EmbeddedConnectCluster connect;
   private Admin kafkaAdminClient;
 
@@ -111,6 +114,9 @@ public abstract class BaseConnectorIT {
     // Allow per-connector consumer configuration for throughput testing
     workerProps.put(
         WorkerConfig.CONNECTOR_CLIENT_POLICY_CLASS_CONFIG, "All");
+    // Some external plugin dependencies don't yet have service loader manifests
+    workerProps.put(
+        WorkerConfig.PLUGIN_DISCOVERY_CONFIG, "HYBRID_WARN");
 
     Properties brokerProps = new Properties();
     brokerProps.put(KafkaConfig.MessageMaxBytesProp(), 10 * 1024 * 1024);
@@ -189,8 +195,9 @@ public abstract class BaseConnectorIT {
             // Check to make sure the connector is still running. If not, fail fast
             try {
               assertTrue(
-                  "Connector or one of its tasks failed during testing",
-                  assertConnectorAndTasksRunning(connector, numTasks).orElse(false));
+                  assertConnectorAndTasksRunning(connector, numTasks).orElse(false),
+                  "Connector or one of its tasks failed during testing"
+              );
             } catch (AssertionError e) {
               throw new NoRetryException(e);
             }

@@ -19,9 +19,9 @@
 
 package com.wepay.kafka.connect.bigquery.write.row;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThrows;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Mockito.mock;
@@ -58,8 +58,8 @@ import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.sink.SinkTaskContext;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 @SuppressWarnings("unchecked")
@@ -70,7 +70,7 @@ public class BigQueryWriterTest {
 
   private final Time time = new MockTime();
 
-  @BeforeClass
+  @BeforeAll
   public static void initializePropertiesFactory() {
     propertiesFactory = new SinkPropertiesFactory();
   }
@@ -166,7 +166,7 @@ public class BigQueryWriterTest {
     verify(bigQuery, times(2)).insertAll(anyObject());
   }
 
-  @Test(expected = BigQueryConnectException.class)
+  @Test
   public void testNonAutoCreateTables() {
     final String topic = "test_topic";
     final String dataset = "scratch";
@@ -205,7 +205,10 @@ public class BigQueryWriterTest {
     testTask.start(properties);
     testTask.put(
         Collections.singletonList(spoofSinkRecord(topic, 0, 0, "some_field", "some_value")));
-    testTask.flush(Collections.emptyMap());
+    assertThrows(
+        BigQueryConnectException.class,
+        () -> testTask.flush(Collections.emptyMap())
+    );
   }
 
   @Test

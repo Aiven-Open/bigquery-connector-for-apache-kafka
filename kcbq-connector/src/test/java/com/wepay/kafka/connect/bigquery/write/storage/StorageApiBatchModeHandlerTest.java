@@ -1,5 +1,6 @@
 package com.wepay.kafka.connect.bigquery.write.storage;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -15,9 +16,8 @@ import java.util.List;
 import java.util.Map;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 public class StorageApiBatchModeHandlerTest {
   StorageWriteApiBatchApplicationStream mockedStreamApi = mock(StorageWriteApiBatchApplicationStream.class);
@@ -29,7 +29,7 @@ public class StorageApiBatchModeHandlerTest {
   );
   List<ConvertedRecord> rows = new ArrayList<>();
 
-  @Before
+  @BeforeEach
   public void setup() {
     when(mockedConfig.getString(BigQuerySinkTaskConfig.PROJECT_CONFIG)).thenReturn("p");
     when(mockedConfig.getString(BigQuerySinkTaskConfig.DEFAULT_DATASET_CONFIG)).thenReturn("d1");
@@ -52,7 +52,7 @@ public class StorageApiBatchModeHandlerTest {
     String actualStreamName = batchModeHandler.updateOffsetsOnStream(
         TableName.of("p", "d1", "topic1").toString(), rows);
 
-    Assert.assertEquals("s1_app_stream", actualStreamName);
+    assertEquals("s1_app_stream", actualStreamName);
     verify(mockedStreamApi, times(1))
         .updateOffsetsOnStream("projects/p/datasets/d1/tables/topic1", rows);
   }

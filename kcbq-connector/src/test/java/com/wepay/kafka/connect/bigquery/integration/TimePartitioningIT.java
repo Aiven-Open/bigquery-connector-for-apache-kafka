@@ -25,8 +25,8 @@ import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkTaskConfig.BIG
 import static org.apache.kafka.connect.runtime.ConnectorConfig.KEY_CONVERTER_CLASS_CONFIG;
 import static org.apache.kafka.connect.runtime.ConnectorConfig.VALUE_CONVERTER_CLASS_CONFIG;
 import static org.apache.kafka.test.TestUtils.waitForCondition;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.QueryJobConfiguration;
@@ -36,13 +36,14 @@ import com.google.cloud.bigquery.TableResult;
 import com.google.cloud.bigquery.TimePartitioning;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.integration.utils.TableClearer;
+import com.wepay.kafka.connect.bigquery.integration.utils.TestCaseLogger;
 import com.wepay.kafka.connect.bigquery.retrieve.IdentitySchemaRetriever;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerConfig;
@@ -56,20 +57,20 @@ import org.apache.kafka.connect.json.JsonConverter;
 import org.apache.kafka.connect.json.JsonConverterConfig;
 import org.apache.kafka.connect.runtime.SinkConnectorConfig;
 import org.apache.kafka.connect.storage.Converter;
-import org.apache.kafka.test.IntegrationTest;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-@Category(IntegrationTest.class)
-@RunWith(Parameterized.class)
+@Tag("integration")
+@ExtendWith(TestCaseLogger.class)
 public class TimePartitioningIT {
 
   private static final Logger logger = LoggerFactory.getLogger(TimePartitioningIT.class);
@@ -78,54 +79,35 @@ public class TimePartitioningIT {
   private static final int TASKS_MAX = 1;
 
   private static BaseConnectorIT testBase;
-  private final TimePartitioning.Type partitioningType;
-  private final boolean usePartitionDecorator;
-  private final boolean messageTimePartitioning;
-  private final int testCase;
-  private final long testStartTime;
-  private final String connectorName;
   private BigQuery bigQuery;
+  private String connectorName;
 
-  public TimePartitioningIT(
-      TimePartitioning.Type partitioningType,
-      boolean usePartitionDecorator,
-      boolean messageTimePartitioning,
-      int testCase
-  ) {
-    this.partitioningType = partitioningType;
-    this.usePartitionDecorator = usePartitionDecorator;
-    this.messageTimePartitioning = messageTimePartitioning;
-    this.testCase = testCase;
-    this.testStartTime = System.currentTimeMillis();
-    this.connectorName = "kcbq-time-partitioning-test-" + testCase;
-  }
-
-  @Parameterized.Parameters(name = "{index}: partitioningType: {0}, usePartitionDecorator: {1}, messageTimePartitioning: {2}")
-  public static Iterable<Object[]> data() {
+  public static Stream<Arguments> testArguments() {
     int testCase = 0;
-    return Arrays.asList(
-        new Object[]{TimePartitioning.Type.HOUR, false, false, testCase++},
-        new Object[]{TimePartitioning.Type.DAY, true, true, testCase++},
-        new Object[]{TimePartitioning.Type.DAY, true, false, testCase++},
-        new Object[]{TimePartitioning.Type.DAY, false, false, testCase++},
-        new Object[]{TimePartitioning.Type.MONTH, false, false, testCase++},
-        new Object[]{TimePartitioning.Type.YEAR, false, false, testCase}
+    return Stream.of(
+        Arguments.of(TimePartitioning.Type.HOUR, false, false, testCase++),
+        Arguments.of(TimePartitioning.Type.DAY, true, true, testCase++),
+        Arguments.of(TimePartitioning.Type.DAY, true, false, testCase++),
+        Arguments.of(TimePartitioning.Type.DAY, false, false, testCase++),
+        Arguments.of(TimePartitioning.Type.MONTH, false, false, testCase++),
+        Arguments.of(TimePartitioning.Type.YEAR, false, false, testCase)
     );
   }
 
-  @BeforeClass
+  @BeforeAll
   public static void globalSetup() {
     testBase = new BaseConnectorIT() {
     };
     BigQuery bigQuery = testBase.newBigQuery();
-    data().forEach(args -> {
-      int testCase = (int) args[3];
+    testArguments().forEach(args -> {
+
+      int testCase = (int) args.get()[3];
       TableClearer.clearTables(bigQuery, testBase.dataset(), table(testCase));
     });
     testBase.startConnect();
   }
 
-  @AfterClass
+  @AfterAll
   public static void globalCleanup() {
     testBase.stopConnect();
   }
@@ -134,18 +116,22 @@ public class TimePartitioningIT {
     return testBase.suffixedAndSanitizedTable("test-time-partitioning-" + testCase);
   }
 
-  @Before
+  @BeforeEach
   public void setup() {
     bigQuery = testBase.newBigQuery();
   }
 
-  @After
+  @AfterEach
   public void close() {
     bigQuery = null;
     testBase.connect.deleteConnector(connectorName);
   }
 
-  private Map<String, String> partitioningProps() {
+  private Map<String, String> partitioningProps(
+      TimePartitioning.Type partitioningType,
+      boolean usePartitionDecorator,
+      boolean messageTimePartitioning
+  ) {
     Map<String, String> result = new HashMap<>();
 
     // use the JSON converter with schemas enabled
@@ -159,8 +145,17 @@ public class TimePartitioningIT {
     return result;
   }
 
-  @Test
-  public void testTimePartitioning() throws Throwable {
+  @ParameterizedTest
+  @MethodSource("testArguments")
+  public void testTimePartitioning(
+      TimePartitioning.Type partitioningType,
+      boolean usePartitionDecorator,
+      boolean messageTimePartitioning,
+      int testCase
+  ) throws Throwable {
+    this.connectorName = "kcbq-time-partitioning-test-" + testCase;
+    final long testStartTime = System.currentTimeMillis();
+
     // create topic in Kafka
     final String topic = testBase.suffixedTableOrTopic("test-time-partitioning-" + testCase);
     testBase.connect.kafka().createTopic(topic);
@@ -173,7 +168,7 @@ public class TimePartitioningIT {
     props.put(BigQuerySinkConfig.SCHEMA_RETRIEVER_CONFIG, IdentitySchemaRetriever.class.getName());
     props.put(BigQuerySinkConfig.TABLE_CREATE_CONFIG, "true");
 
-    props.putAll(partitioningProps());
+    props.putAll(partitioningProps(partitioningType, usePartitionDecorator, messageTimePartitioning));
 
     // start a sink connector
     testBase.connect.configureConnector(connectorName, props);
@@ -195,7 +190,8 @@ public class TimePartitioningIT {
     for (int i = 0; i < NUM_RECORDS_PRODUCED; i++) {
       String kafkaValue = value(valueConverter, topic, i);
       logger.debug("Sending message with value '{}' to topic '{}'", kafkaValue, topic);
-      ProducerRecord<Void, String> kafkaRecord = new ProducerRecord<>(topic, null, timestamp((i % 3) - 1), null, kafkaValue);
+      long timestamp = timestamp(partitioningType, testStartTime, (i % 3) - 1);
+      ProducerRecord<Void, String> kafkaRecord = new ProducerRecord<>(topic, null, timestamp, null, kafkaValue);
       try {
         valueProducer.send(kafkaRecord).get(30, TimeUnit.SECONDS);
       } catch (Exception e) {
@@ -241,7 +237,7 @@ public class TimePartitioningIT {
     // Verify that at least one record landed in each of the targeted partitions
     if (usePartitionDecorator && messageTimePartitioning) {
       for (int i = -1; i < 2; i++) {
-        long partitionTime = timestamp(i);
+        long partitionTime = timestamp(partitioningType, testStartTime, i);
         TableResult tableResult = bigQuery.query(QueryJobConfiguration.of(String.format(
             "SELECT * FROM `%s`.`%s` WHERE _PARTITIONTIME = TIMESTAMP_TRUNC(TIMESTAMP_MILLIS(%d), %s)",
             testBase.dataset(),
@@ -250,8 +246,8 @@ public class TimePartitioningIT {
             partitioningType.toString()
         )));
         assertTrue(
-            "Should have seen at least one row in partition corresponding to timestamp " + partitionTime,
-            tableResult.getValues().iterator().hasNext()
+            tableResult.getValues().iterator().hasNext(),
+            "Should have seen at least one row in partition corresponding to timestamp " + partitionTime
         );
       }
     }
@@ -287,7 +283,7 @@ public class TimePartitioningIT {
    * @param shiftAmount how many partitions forward/backward to shift the timestamp by,
    *                    relative to the partition corresponding to the start of the test
    */
-  private long timestamp(long shiftAmount) {
+  private long timestamp(TimePartitioning.Type partitioningType, long testStartTime, long shiftAmount) {
     long partitionDelta;
     switch (partitioningType) {
       case HOUR:

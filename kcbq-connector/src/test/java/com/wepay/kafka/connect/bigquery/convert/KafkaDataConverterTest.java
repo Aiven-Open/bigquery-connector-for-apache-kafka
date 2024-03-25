@@ -20,16 +20,16 @@
 package com.wepay.kafka.connect.bigquery.convert;
 
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.cloud.bigquery.Field;
 import com.google.cloud.bigquery.LegacySQLTypeName;
 import java.util.HashMap;
 import java.util.Map;
 import org.apache.kafka.connect.sink.SinkRecord;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 public class KafkaDataConverterTest {
 
@@ -43,7 +43,7 @@ public class KafkaDataConverterTest {
   private static final long kafkaDataOffsetValue = 1337;
   Map<String, Object> expectedKafkaDataFields = new HashMap<>();
 
-  @Before
+  @BeforeEach
   public void setup() {
     expectedKafkaDataFields.put(kafkaDataTopicName, kafkaDataTopicValue);
     expectedKafkaDataFields.put(kafkaDataPartitionName, kafkaDataPartitionValue);

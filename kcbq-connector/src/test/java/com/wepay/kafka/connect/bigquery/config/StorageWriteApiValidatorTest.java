@@ -10,14 +10,14 @@ import static com.wepay.kafka.connect.bigquery.config.StorageWriteApiValidator.d
 import static com.wepay.kafka.connect.bigquery.config.StorageWriteApiValidator.legacyBatchNotSupportedError;
 import static com.wepay.kafka.connect.bigquery.config.StorageWriteApiValidator.newBatchNotSupportedError;
 import static com.wepay.kafka.connect.bigquery.config.StorageWriteApiValidator.upsertNotSupportedError;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
 import java.util.Optional;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class StorageWriteApiValidatorTest {
 

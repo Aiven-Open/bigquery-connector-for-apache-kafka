@@ -1,8 +1,9 @@
 package com.wepay.kafka.connect.bigquery.write.storage;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.any;
@@ -40,9 +41,8 @@ import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.sink.ErrantRecordReporter;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.json.JSONObject;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 public class StorageWriteApiBatchApplicationStreamTest {
@@ -96,7 +96,7 @@ public class StorageWriteApiBatchApplicationStreamTest {
   ));
   MockTime time = new MockTime();
 
-  @Before
+  @BeforeEach
   public void setup() throws InterruptedException, Descriptors.DescriptorValidationException, IOException {
     mockedStream.tableLocks = new ConcurrentHashMap<>();
     mockedStream.streamLocks = new ConcurrentHashMap<>();
@@ -276,13 +276,16 @@ public class StorageWriteApiBatchApplicationStreamTest {
     verifyAllStreamCalls();
   }
 
-  @Test(expected = BigQueryStorageWriteApiConnectException.class)
+  @Test
   public void testHasSchemaUpdatesNotConfigured() throws Exception {
     initialiseStreams();
     when(mockedResponse.get()).thenThrow(schemaException);
     when(mockedStream.canAttemptSchemaUpdate()).thenReturn(false);
 
-    mockedStream.initializeAndWriteRecords(mockedTable1, mockedRows, mockedStreamName1);
+    assertThrows(
+        BigQueryStorageWriteApiConnectException.class,
+        () -> mockedStream.initializeAndWriteRecords(mockedTable1, mockedRows, mockedStreamName1)
+    );
 
     verify(mockedSchemaManager, times(0)).updateSchema(any(), any());
   }
@@ -327,11 +330,14 @@ public class StorageWriteApiBatchApplicationStreamTest {
     verifyDLQ(mockedRows);
   }
 
-  @Test(expected = BigQueryStorageWriteApiConnectException.class)
+  @Test
   public void testSendSomeToDLQ() throws Exception {
     initialiseStreams();
     when(mockedResponse.get()).thenThrow(badRecordsException).thenReturn(successResponse);
-    verifyDLQ(rows);
+    assertThrows(
+        BigQueryStorageWriteApiConnectException.class,
+        () -> verifyDLQ(rows)
+    );
   }
 
   @Test
@@ -350,9 +356,9 @@ public class StorageWriteApiBatchApplicationStreamTest {
 
     verify(mockedErrantRecordHandler, times(1))
         .reportErrantRecords(captorRecord.capture());
-    Assert.assertTrue(captorRecord.getValue().containsKey(mockedSinkRecord));
+    assertTrue(captorRecord.getValue().containsKey(mockedSinkRecord));
     assertEquals("f0 field is unknown", captorRecord.getValue().get(mockedSinkRecord).getMessage());
-    Assert.assertEquals(1, captorRecord.getValue().size());
+    assertEquals(1, captorRecord.getValue().size());
     verify(mockedApplicationStream1, times(1)).increaseCompletedCalls();
   }
 

@@ -1,10 +1,10 @@
 package com.wepay.kafka.connect.bigquery.integration;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.BigQueryException;
@@ -20,8 +20,8 @@ import com.wepay.kafka.connect.bigquery.write.storage.StreamState;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 import org.apache.kafka.connect.errors.ConnectException;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -35,7 +35,7 @@ public class ApplicationStreamIT extends BaseConnectorIT {
   BigQueryWriteSettings writeSettings;
   private BigQuery bigQuery;
 
-  @Before
+  @BeforeEach
   public void setup() throws IOException, InterruptedException {
     bigQuery = newBigQuery();
     createTable();

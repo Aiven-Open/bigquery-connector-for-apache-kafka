@@ -19,10 +19,10 @@
 
 package com.wepay.kafka.connect.bigquery;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertThrows;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Mockito.mock;
@@ -71,10 +71,10 @@ import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.errors.RetriableException;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.sink.SinkTaskContext;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 public class BigQuerySinkTaskTest {
@@ -87,7 +87,7 @@ public class BigQuerySinkTaskTest {
 
   private final Time time = new MockTime();
 
-  @BeforeClass
+  @BeforeAll
   public static void initializePropertiesFactory() {
     propertiesFactory = new SinkTaskPropertiesFactory();
   }
@@ -198,13 +198,13 @@ public class BigQuerySinkTaskTest {
     return spoofSinkRecord(topic, "sink task test row");
   }
 
-  @Before
+  @BeforeEach
   public void setUp() {
     MergeBatches.setStreamingBufferAvailabilityWait(0);
     spoofedRecordOffset.set(0);
   }
 
-  @After
+  @AfterEach
   public void cleanUp() {
     MergeBatches.resetStreamingBufferAvailabilityWait();
   }
@@ -298,7 +298,6 @@ public class BigQuerySinkTaskTest {
 
     verify(storage, times(repeats)).create(blobInfo.capture(), (byte[]) anyObject());
     assertEquals(repeats, blobInfo.getAllValues().stream().map(info -> info.getBlobId().getName()).collect(Collectors.toSet()).size());
-
   }
 
   @Test
@@ -543,7 +542,7 @@ public class BigQuerySinkTaskTest {
   }
 
   // Make sure a connect exception is thrown when the message has no timestamp type
-  @Test(expected = ConnectException.class)
+  @Test
   public void testPutWhenPartitioningOnMessageTimeWhenNoTimestampType() {
     final String topic = "test-topic";
 
@@ -580,8 +579,11 @@ public class BigQuerySinkTaskTest {
     testTask.initialize(sinkTaskContext);
     testTask.start(properties);
 
-    testTask.put(Collections.singletonList(spoofSinkRecord(topic, "value", "message text",
-        TimestampType.NO_TIMESTAMP_TYPE, null)));
+    assertThrows(
+        ConnectException.class,
+        () -> testTask.put(Collections.singletonList(spoofSinkRecord(topic, "value", "message text",
+          TimestampType.NO_TIMESTAMP_TYPE, null)))
+    );
   }
 
   @Test
@@ -660,13 +662,19 @@ public class BigQuerySinkTaskTest {
         spoofSinkRecord(topic, key, "4761", null, null, TimestampType.NO_TIMESTAMP_TYPE, null)
     ));
 
-    assertTrue("Merge queries should be executed", executedMerges.await(5, TimeUnit.SECONDS));
-    assertTrue("Batch clears should be executed", executedBatchClears.await(1, TimeUnit.SECONDS));
+    assertTrue(
+        executedMerges.await(5, TimeUnit.SECONDS),
+        "Merge queries should be executed"
+    );
+    assertTrue(
+        executedBatchClears.await(1, TimeUnit.SECONDS),
+        "Batch clears should be executed"
+    );
   }
 
   // Throw an exception on the first put, and assert the Exception will be exposed in subsequent
   // put call.
-  @Test(expected = BigQueryConnectException.class, timeout = 30000L)
+  @Test
   public void testSimplePutException() throws InterruptedException {
     final String topic = "test-topic";
     Map<String, String> properties = propertiesFactory.getProperties();
@@ -702,15 +710,16 @@ public class BigQuerySinkTaskTest {
     testTask.start(properties);
 
     testTask.put(Collections.singletonList(spoofSinkRecord(topic)));
-    try {
-      while (true) {
-        Thread.sleep(100);
-        testTask.put(Collections.emptyList());
-      }
-    } catch (Exception e) {
-      assertTrue(e.getCause().getCause().getMessage().contains(error));
-      throw e;
-    }
+    BigQueryConnectException e = assertThrows(
+        BigQueryConnectException.class,
+        () -> {
+          // Try for at most 30 seconds to get the task to throw an error
+          for (long startTime = System.currentTimeMillis(); System.currentTimeMillis() < startTime + 30_000; Thread.sleep(100)) {
+            testTask.put(Collections.emptyList());
+          }
+        }
+    );
+    assertTrue(e.getCause().getCause().getMessage().contains(error));
   }
 
   @Test
@@ -770,21 +779,24 @@ public class BigQuerySinkTaskTest {
 
     testTask.put(Collections.singletonList(spoofSinkRecord("t")));
     assertThrows(
-        "first call to flush should fail",
         Exception.class,
-        () -> testTask.flush(Collections.emptyMap()));
+        () -> testTask.flush(Collections.emptyMap()),
+        "first call to flush should fail"
+    );
     assertThrows(
-        "second call to flush should fail",
         Exception.class,
-        () -> testTask.flush(Collections.emptyMap()));
+        () -> testTask.flush(Collections.emptyMap()),
+        "second call to flush should fail"
+    );
     testTask.stop();
     assertThrows(
-        "third call to flush (after task stop) should fail",
         Exception.class,
-        () -> testTask.flush(Collections.emptyMap()));
+        () -> testTask.flush(Collections.emptyMap()),
+        "third call to flush (after task stop) should fail"
+    );
   }
 
-  @Test(expected = RetriableException.class)
+  @Test
   public void testBigQueryReadTimeout() {
     final String topic = "test_topic";
     final String dataset = "scratch";
@@ -817,8 +829,10 @@ public class BigQuerySinkTaskTest {
     );
     testTask.initialize(sinkTaskContext);
     testTask.start(properties);
-    testTask.put(Collections.singletonList(spoofSinkRecord(topic)));
-    testTask.flush(Collections.emptyMap());
+    assertThrows(
+        RetriableException.class,
+        () -> testTask.put(Collections.singletonList(spoofSinkRecord(topic)))
+    );
   }
 
   @Test
@@ -920,7 +934,7 @@ public class BigQuerySinkTaskTest {
     verify(bigQuery, times(3)).insertAll(anyObject());
   }
 
-  @Test(expected = BigQueryConnectException.class)
+  @Test
   public void testBigQueryRetryExceeded() {
     final String topic = "test_topic";
     final String dataset = "scratch";
@@ -962,11 +976,14 @@ public class BigQuerySinkTaskTest {
     testTask.initialize(sinkTaskContext);
     testTask.start(properties);
     testTask.put(Collections.singletonList(spoofSinkRecord(topic)));
-    testTask.flush(Collections.emptyMap());
+    assertThrows(
+        BigQueryConnectException.class,
+        () -> testTask.flush(Collections.emptyMap())
+    );
   }
 
   // Make sure that an InterruptedException is properly translated into a ConnectException
-  @Test(expected = ConnectException.class)
+  @Test
   public void testInterruptedException() {
     final String topic = "test_topic";
     final String dataset = "scratch";
@@ -1008,10 +1025,13 @@ public class BigQuerySinkTaskTest {
 
     testTask.put(Collections.singletonList(spoofSinkRecord(topic)));
     Thread.currentThread().interrupt();
-    testTask.flush(Collections.emptyMap());
+    assertThrows(
+        ConnectException.class,
+        () -> testTask.flush(Collections.emptyMap())
+    );
   }
 
-  @Test(expected = ConnectException.class)
+  @Test
   public void testTimePartitioningIncompatibleWithDecoratorSyntax() {
     final String topic = "t1";
     final String dataset = "d";
@@ -1047,7 +1067,10 @@ public class BigQuerySinkTaskTest {
     testTask.initialize(sinkTaskContext);
     testTask.start(properties);
 
-    testTask.put(Collections.singleton(spoofSinkRecord(topic, "f1", "v1", TimestampType.CREATE_TIME, 1L)));
+    assertThrows(
+        ConnectException.class,
+        () -> testTask.put(Collections.singleton(spoofSinkRecord(topic, "f1", "v1", TimestampType.CREATE_TIME, 1L)))
+    );
   }
 
   @Test
@@ -1057,7 +1080,7 @@ public class BigQuerySinkTaskTest {
 
   // Existing tasks should succeed upon stop is called. New tasks should be rejected once task is
   // stopped.
-  @Test(expected = RejectedExecutionException.class)
+  @Test
   public void testStop() {
     final String topic = "test_topic";
     final String dataset = "scratch";
@@ -1100,6 +1123,9 @@ public class BigQuerySinkTaskTest {
     assertEquals(0, testTask.getTaskThreadsActiveCount());
     verify(bigQuery, times(1)).insertAll(any(InsertAllRequest.class));
 
-    testTask.put(Collections.singletonList(spoofSinkRecord(topic)));
+    assertThrows(
+        RejectedExecutionException.class,
+        () -> testTask.put(Collections.singletonList(spoofSinkRecord(topic)))
+    );
   }
 }

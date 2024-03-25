@@ -19,7 +19,8 @@
 
 package com.wepay.kafka.connect.bigquery.convert;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.google.protobuf.ByteString;
 import com.wepay.kafka.connect.bigquery.api.KafkaSchemaRecordType;
@@ -36,8 +37,7 @@ import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.sink.SinkRecord;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class BigQueryRecordConverterTest {
 
@@ -52,10 +52,14 @@ public class BigQueryRecordConverterTest {
     return new SinkRecord(null, 0, null, null, schema, struct, 0);
   }
 
-  @Test(expected = ConversionConnectException.class)
+  @Test
   public void testTopLevelRecord() {
     SinkRecord kafkaConnectRecord = spoofSinkRecord(Schema.BOOLEAN_SCHEMA, false, false);
-    new BigQueryRecordConverter(SHOULD_CONVERT_DOUBLE, SHOULD_CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER, USE_STORAGE_WRITE_API_CONFIG).convertRecord(kafkaConnectRecord, KafkaSchemaRecordType.VALUE);
+    BigQueryRecordConverter converter = new BigQueryRecordConverter(SHOULD_CONVERT_DOUBLE, SHOULD_CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER, USE_STORAGE_WRITE_API_CONFIG);
+    assertThrows(
+        ConversionConnectException.class,
+        () -> converter.convertRecord(kafkaConnectRecord, KafkaSchemaRecordType.VALUE)
+    );
   }
 
   @Test
@@ -710,7 +714,7 @@ public class BigQueryRecordConverterTest {
     assertEquals(kafkaConnectMap, convertedMap);
   }
 
-  @Test(expected = ConversionConnectException.class)
+  @Test
   public void testInvalidMapSchemaless() {
     Map kafkaConnectMap = new HashMap<Object, Object>() {{
       put("f1", "f2");
@@ -727,27 +731,30 @@ public class BigQueryRecordConverterTest {
     }};
 
     SinkRecord kafkaConnectRecord = spoofSinkRecord(null, kafkaConnectMap, false);
-    Map<String, Object> convertedMap =
-        new BigQueryRecordConverter(SHOULD_CONVERT_DOUBLE, SHOULD_CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER, USE_STORAGE_WRITE_API_CONFIG).convertRecord(kafkaConnectRecord, KafkaSchemaRecordType.VALUE);
+    BigQueryRecordConverter converter = new BigQueryRecordConverter(SHOULD_CONVERT_DOUBLE, SHOULD_CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER, USE_STORAGE_WRITE_API_CONFIG);
+    assertThrows(
+        ConversionConnectException.class,
+        () -> converter.convertRecord(kafkaConnectRecord, KafkaSchemaRecordType.VALUE)
+    );
   }
 
   @Test
   public void testInvalidMapSchemalessNullValue() {
-    Map kafkaConnectMap = new HashMap<Object, Object>() {{
+    Map<Object, Object> kafkaConnectMap = new HashMap<Object, Object>() {{
       put("f1", "abc");
       put("f2", "abc");
       put("f3", null);
     }};
 
     SinkRecord kafkaConnectRecord = spoofSinkRecord(null, kafkaConnectMap, true);
-    Map<String, Object> stringObjectMap = new BigQueryRecordConverter(SHOULD_CONVERT_DOUBLE, SHOULD_CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER, USE_STORAGE_WRITE_API_CONFIG).convertRecord(kafkaConnectRecord, KafkaSchemaRecordType.KEY);
-    Assert.assertEquals(kafkaConnectMap, stringObjectMap
-    );
+    BigQueryRecordConverter converter = new BigQueryRecordConverter(SHOULD_CONVERT_DOUBLE, SHOULD_CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER, USE_STORAGE_WRITE_API_CONFIG);
+    Map<String, Object> stringObjectMap = converter.convertRecord(kafkaConnectRecord, KafkaSchemaRecordType.KEY);
+    assertEquals(kafkaConnectMap, stringObjectMap);
   }
 
   @Test
   public void testInvalidMapSchemalessNestedMapNullValue() {
-    Map kafkaConnectMap = new HashMap<Object, Object>() {{
+    Map<Object, Object> kafkaConnectMap = new HashMap<Object, Object>() {{
       put("f1", "abc");
       put("f2", "abc");
       put("f3", new HashMap<Object, Object>() {{
@@ -757,14 +764,15 @@ public class BigQueryRecordConverterTest {
     }};
 
     SinkRecord kafkaConnectRecord = spoofSinkRecord(null, kafkaConnectMap, true);
-    Map<String, Object> stringObjectMap = new BigQueryRecordConverter(SHOULD_CONVERT_DOUBLE, SHOULD_CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER, USE_STORAGE_WRITE_API_CONFIG)
-        .convertRecord(kafkaConnectRecord, KafkaSchemaRecordType.KEY);
-    Assert.assertEquals(kafkaConnectMap, stringObjectMap);
+    BigQueryRecordConverter converter = new BigQueryRecordConverter(SHOULD_CONVERT_DOUBLE, SHOULD_CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER, USE_STORAGE_WRITE_API_CONFIG);
+    Map<String, Object> stringObjectMap = converter.convertRecord(kafkaConnectRecord, KafkaSchemaRecordType.KEY);
+    assertEquals(kafkaConnectMap, stringObjectMap);
   }
 
   @Test
+  @SuppressWarnings("unchecked")
   public void testMapSchemalessConvertDouble() {
-    Map kafkaConnectMap = new HashMap<Object, Object>() {{
+    Map<Object, Object> kafkaConnectMap = new HashMap<Object, Object>() {{
       put("f1", Double.POSITIVE_INFINITY);
       put("f3",
           new HashMap<Object, Object>() {{
@@ -782,15 +790,16 @@ public class BigQueryRecordConverterTest {
     Map<String, Object> convertedMap =
         new BigQueryRecordConverter(SHOULD_CONVERT_DOUBLE, SHOULD_CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER, USE_STORAGE_WRITE_API_CONFIG).convertRecord(kafkaConnectRecord, KafkaSchemaRecordType.KEY);
     assertEquals(convertedMap.get("f1"), Double.MAX_VALUE);
-    assertEquals(((Map) (convertedMap.get("f3"))).get("f4"), Double.MAX_VALUE);
-    assertEquals(((ArrayList) ((Map) (convertedMap.get("f3"))).get("f6")).get(1), Double.MAX_VALUE);
+    assertEquals(((Map<Object, Object>) (convertedMap.get("f3"))).get("f4"), Double.MAX_VALUE);
+    assertEquals(((ArrayList<Object>) ((Map<Object, Object>) (convertedMap.get("f3"))).get("f6")).get(1), Double.MAX_VALUE);
   }
 
   @Test
+  @SuppressWarnings("unchecked")
   public void testMapSchemalessConvertBytes() {
     byte[] helloWorld = "helloWorld".getBytes();
     ByteBuffer helloWorldBuffer = ByteBuffer.wrap(helloWorld);
-    Map kafkaConnectMap = new HashMap<Object, Object>() {{
+    Map<Object, Object> kafkaConnectMap = new HashMap<Object, Object>() {{
       put("f1", helloWorldBuffer);
       put("f3",
           new HashMap<Object, Object>() {{
@@ -808,6 +817,6 @@ public class BigQueryRecordConverterTest {
     Map<String, Object> convertedMap =
         new BigQueryRecordConverter(SHOULD_CONVERT_DOUBLE, SHOULD_CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER, USE_STORAGE_WRITE_API_CONFIG).convertRecord(kafkaConnectRecord, KafkaSchemaRecordType.VALUE);
     assertEquals(convertedMap.get("f1"), Base64.getEncoder().encodeToString(helloWorld));
-    assertEquals(((Map) (convertedMap.get("f3"))).get("f4"), Base64.getEncoder().encodeToString(helloWorld));
+    assertEquals(((Map<Object, Object>) (convertedMap.get("f3"))).get("f4"), Base64.getEncoder().encodeToString(helloWorld));
   }
 }
