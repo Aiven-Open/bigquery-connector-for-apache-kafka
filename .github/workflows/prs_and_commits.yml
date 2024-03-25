@@ -26,9 +26,9 @@
 name: Pull request checks
 on:
   pull_request:
-    branches: [ master, storage-write-api, storage-write-api-cleanup ]
+    branches: [ master ]
   push:
-    branches: [ master, storage-write-api, storage-write-api-cleanup ]
+    branches: [ master ]
 
 # Disallow concurrent runs for the same PR by cancelling in-progress runs
 # when new commits are pushed
