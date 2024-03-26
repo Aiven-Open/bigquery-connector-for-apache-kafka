@@ -67,6 +67,8 @@ public class BigQuerySinkConfig extends AbstractConfig {
   public static final String DEPRECATED_DOC = "(DEPRECATED)";
   public static final String GCS_LOAD_DEPRECATION_NOTICE =
       "GCS batch loading has been deprecated and will be removed in a future major release.";
+  public static final String DECORATOR_SYNTAX_DEPRECATION_NOTICE =
+      "Use of partition decorator syntax has been deprecated and will be removed in a future release.";
 
   // Values taken from https://github.com/apache/kafka/blob/1.1.1/connect/runtime/src/main/java/org/apache/kafka/connect/runtime/SinkConnectorConfig.java#L33
   public static final String TOPICS_CONFIG = SinkConnector.TOPICS_CONFIG;
@@ -562,6 +564,14 @@ public class BigQuerySinkConfig extends AbstractConfig {
           ENABLE_BATCH_CONFIG
       );
     }
+
+    if (getBoolean(BIGQUERY_PARTITION_DECORATOR_CONFIG)) {
+      logger.warn(
+          DECORATOR_SYNTAX_DEPRECATION_NOTICE
+            + " To disable this feature, set the {} property to false in the connector configuration",
+          BIGQUERY_PARTITION_DECORATOR_CONFIG
+      );
+    }
   }
 
   /**
@@ -793,13 +803,13 @@ public class BigQuerySinkConfig extends AbstractConfig {
             BIGQUERY_MESSAGE_TIME_PARTITIONING_CONFIG_TYPE,
             BIGQUERY_MESSAGE_TIME_PARTITIONING_DEFAULT,
             BIGQUERY_MESSAGE_TIME_PARTITIONING_IMPORTANCE,
-            BIGQUERY_MESSAGE_TIME_PARTITIONING_DOC
+            deprecatedPartitionSyntaxDoc(BIGQUERY_MESSAGE_TIME_PARTITIONING_DOC)
         ).define(
             BIGQUERY_PARTITION_DECORATOR_CONFIG,
             BIGQUERY_PARTITION_DECORATOR_CONFIG_TYPE,
             BIGQUERY_PARTITION_DECORATOR_DEFAULT,
             BIGQUERY_PARTITION_DECORATOR_IMPORTANCE,
-            BIGQUERY_PARTITION_DECORATOR_DOC
+            deprecatedPartitionSyntaxDoc(BIGQUERY_PARTITION_DECORATOR_DOC)
         ).define(
             BIGQUERY_TIMESTAMP_PARTITION_FIELD_NAME_CONFIG,
             BIGQUERY_TIMESTAMP_PARTITION_FIELD_NAME_TYPE,
@@ -1127,7 +1137,15 @@ public class BigQuerySinkConfig extends AbstractConfig {
   }
 
   private static String deprecatedGcsLoadDoc(String doc) {
-    return DEPRECATED_DOC + " " + doc + " Warning: " + GCS_LOAD_DEPRECATION_NOTICE;
+    return deprecatedDoc(doc, GCS_LOAD_DEPRECATION_NOTICE);
+  }
+
+  public static String deprecatedPartitionSyntaxDoc(String doc) {
+    return deprecatedDoc(doc, DECORATOR_SYNTAX_DEPRECATION_NOTICE);
+  }
+
+  private static String deprecatedDoc(String doc, String notice) {
+    return DEPRECATED_DOC + " " + doc + " Warning: " + notice;
   }
 
 }
