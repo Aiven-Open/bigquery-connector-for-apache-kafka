@@ -68,6 +68,7 @@ jobs:
 
       - name: Build
         run: |
+          mvn install -DskipTests
           mvn -f kcbq-connector clean package assembly:single@release-artifacts -DskipTests
 
           export tar_file=$(ls ./kcbq-connector/target/ | grep tar)
