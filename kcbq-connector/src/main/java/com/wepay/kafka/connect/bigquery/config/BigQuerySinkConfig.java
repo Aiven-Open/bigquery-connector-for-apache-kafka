@@ -340,7 +340,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
   private static final ConfigDef.Type USE_STORAGE_WRITE_API_TYPE = ConfigDef.Type.BOOLEAN;
   private static final ConfigDef.Importance USE_STORAGE_WRITE_API_IMPORTANCE = ConfigDef.Importance.MEDIUM;
   private static final String USE_STORAGE_WRITE_API_DOC =
-      "Use Google's New Storage Write API for data streaming. Not available for upsert/delete mode";
+      "(Beta feature: use with caution) Use Google's New Storage Write API for data streaming. Not available for upsert/delete mode";
   private static final ConfigDef.Type ENABLE_BATCH_MODE_TYPE = ConfigDef.Type.BOOLEAN;
   private static final ConfigDef.Importance ENABLE_BATCH_MODE_IMPORTANCE = ConfigDef.Importance.LOW;
   private static final String ENABLE_BATCH_MODE_DOC = "Use Google's New Storage Write API with batch mode";
