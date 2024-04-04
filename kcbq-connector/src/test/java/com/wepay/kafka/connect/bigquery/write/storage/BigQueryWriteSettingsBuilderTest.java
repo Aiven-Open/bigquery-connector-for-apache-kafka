@@ -24,6 +24,7 @@
 package com.wepay.kafka.connect.bigquery.write.storage;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.cloud.bigquery.storage.v1.BigQueryWriteSettings;
 import com.wepay.kafka.connect.bigquery.GcpClientBuilder;
@@ -47,6 +48,7 @@ public class BigQueryWriteSettingsBuilderTest {
         .build();
 
     assertEquals(actualSettings.getQuotaProjectId(), "abcd");
+    assertTrue(actualSettings.getHeaderProvider().getHeaders().get("user-agent").contains("Aiven"));
   }
 
 }

@@ -32,6 +32,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class GcsBuilderTest {
 
@@ -47,6 +48,7 @@ public class GcsBuilderTest {
         .build();
 
     assertEquals(actualSettings.getOptions().getProjectId(), "abcd");
+    assertTrue(actualSettings.getOptions().getMergedHeaderProvider(HashMap::new).getHeaders().get("user-agent").contains("Aiven"));
   }
 
 }
