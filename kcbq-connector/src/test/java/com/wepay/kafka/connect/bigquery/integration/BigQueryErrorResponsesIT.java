@@ -148,6 +148,20 @@ public class BigQueryErrorResponsesIT extends BaseConnectorIT {
   }
 
   @Test
+  public void testWriteToNonExistentDataset() {
+    TableId table = TableId.of("nonexistent dataset", suffixedAndSanitizedTable("nonexistent table"));
+
+    BigQueryException e = assertThrows(
+            BigQueryException.class,
+            () -> bigQuery.insertAll(InsertAllRequest.of(table, RowToInsert.of(Collections.singletonMap("f1", "v1")))),
+            "Should have failed to write to nonexistent dataset (and table)"
+    );
+
+    logger.debug("Nonexistent dataset (and table) write error", e);
+    assertTrue(BigQueryErrorResponses.isNonExistentDatasetError(e));
+  }
+
+  @Test
   public void testWriteToTableWithoutSchema() {
     TableId table = TableId.of(dataset(), suffixedAndSanitizedTable("missing schema"));
     createOrAssertSchemaMatches(table, Schema.of());

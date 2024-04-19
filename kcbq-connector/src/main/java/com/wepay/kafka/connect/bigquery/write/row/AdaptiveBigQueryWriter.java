@@ -108,6 +108,10 @@ public class AdaptiveBigQueryWriter extends BigQueryWriter {
       // Should only perform one table creation attempt.
       if (BigQueryErrorResponses.isNonExistentTableError(exception) && autoCreateTables) {
         attemptTableCreate(tableId.getBaseTableId(), new ArrayList<>(rows.keySet()));
+      } else if (BigQueryErrorResponses.isNonExistentDatasetError(exception)) {
+        // this might happen from time to time even though the dataset exists
+        // no-op, we want to keep retrying the insert
+        logger.debug("insertion failed", exception);
       } else if (BigQueryErrorResponses.isTableMissingSchemaError(exception)) {
         attemptSchemaUpdate(tableId, new ArrayList<>(rows.keySet()));
       } else {
@@ -128,6 +132,7 @@ public class AdaptiveBigQueryWriter extends BigQueryWriter {
           writeResponse = bigQuery.insertAll(request);
         } catch (BigQueryException exception) {
           if ((BigQueryErrorResponses.isNonExistentTableError(exception) && autoCreateTables)
+              || BigQueryErrorResponses.isNonExistentDatasetError(exception)
               || BigQueryErrorResponses.isTableMissingSchemaError(exception)
           ) {
             // no-op, we want to keep retrying the insert

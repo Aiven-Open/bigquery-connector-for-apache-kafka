@@ -63,6 +63,15 @@ public class BigQueryErrorResponses {
         && (message.startsWith("Not found: Table ") || message.contains("Table is deleted: "));
   }
 
+  public static boolean isNonExistentDatasetError(BigQueryException exception) {
+    String message = message(exception.getError());
+    // If a dataset does not exist, it will raise a BigQueryException that the input is notFound
+    // Referring to Google Cloud Error Codes Doc: https://cloud.google.com/bigquery/docs/error-messages?hl=en
+    return NOT_FOUND_CODE == exception.getCode()
+        && NOT_FOUND_REASON.equals(exception.getReason())
+        && (message.startsWith("Not found: Dataset ") || message.contains("Dataset is deleted: "));
+  }
+
   public static boolean isTableMissingSchemaError(BigQueryException exception) {
     // If a table is missing a schema, it will raise a BigQueryException that the input is invalid
     // For more information about BigQueryExceptions, see: https://cloud.google.com/bigquery/troubleshooting-errors
