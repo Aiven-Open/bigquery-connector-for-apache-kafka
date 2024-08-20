@@ -326,4 +326,53 @@ public class BigQuerySinkConfigTest {
         () -> new BigQuerySinkConfig(badConfigProperties)
     );
   }
+
+  @Test
+  public void testValidKafkaKeyFieldName() {
+    Map<String, String> configProperties = propertiesFactory.getProperties();
+
+    configProperties.put(
+        BigQuerySinkConfig.KAFKA_KEY_FIELD_NAME_CONFIG,
+        "key"
+    );
+
+    BigQuerySinkConfig config = new BigQuerySinkConfig(configProperties);
+    assertEquals(Optional.of("key"), config.getKafkaKeyFieldName());
+  }
+
+  @Test
+  public void testEmptyKafkaKeyFieldName() {
+    Map<String, String> configProperties = propertiesFactory.getProperties();
+
+    configProperties.put(
+        BigQuerySinkConfig.KAFKA_KEY_FIELD_NAME_CONFIG,
+        ""
+    );
+
+    BigQuerySinkConfig config = new BigQuerySinkConfig(configProperties);
+    assertEquals(Optional.of(""), config.getKafkaKeyFieldName());
+  }
+
+  @Test
+  public void testBlankKafkaKeyFieldName() {
+    Map<String, String> configProperties = propertiesFactory.getProperties();
+
+    configProperties.put(
+        BigQuerySinkConfig.KAFKA_KEY_FIELD_NAME_CONFIG,
+        " \t "
+    );
+
+    BigQuerySinkConfig config = new BigQuerySinkConfig(configProperties);
+    assertEquals(Optional.of(""), config.getKafkaKeyFieldName());
+  }
+
+  @Test
+  public void testNoKafkaKeyFieldName() {
+    Map<String, String> configProperties = propertiesFactory.getProperties();
+
+    configProperties.remove(BigQuerySinkConfig.KAFKA_KEY_FIELD_NAME_CONFIG);
+
+    BigQuerySinkConfig config = new BigQuerySinkConfig(configProperties);
+    assertEquals(Optional.empty(), config.getKafkaKeyFieldName());
+  }
 }
