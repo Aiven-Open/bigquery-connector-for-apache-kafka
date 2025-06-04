@@ -44,6 +44,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.Objects;
+import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -67,10 +68,50 @@ public abstract class GcpClientBuilder<ClientT> {
   private boolean useStorageWriteApi = false;
 
   public GcpClientBuilder<ClientT> withConfig(BigQuerySinkConfig config) {
-    return withProject(config.getString(PROJECT_CONFIG))
+    String project = config.getString(PROJECT_CONFIG);
+    if (config.getBoolean(BigQuerySinkConfig.USE_PROJECT_FROM_CREDENTIALS_CONFIG)) {
+      String projectFromCreds = extractProjectId(config.getKeySource(), config.getKey());
+      if (projectFromCreds != null && !projectFromCreds.isEmpty()) {
+        project = projectFromCreds;
+      }
+    }
+    return withProject(project)
         .withKeySource(config.getKeySource())
         .withKey(config.getKey())
         .withWriterApi(config.getBoolean(USE_STORAGE_WRITE_API_CONFIG));
+  }
+
+  private String extractProjectId(KeySource keySource, String key) {
+    try {
+      switch (keySource) {
+        case JSON:
+          if (key != null) {
+            return new org.json.JSONObject(key).optString("project_id", null);
+          }
+          break;
+        case FILE:
+          if (key != null) {
+            String content = java.nio.file.Files.readString(java.nio.file.Paths.get(key));
+            return new org.json.JSONObject(content).optString("project_id", null);
+          }
+          break;
+        case APPLICATION_DEFAULT:
+          try {
+            GoogleCredentials credentials = GoogleCredentials.getApplicationDefault();
+            if (credentials instanceof com.google.auth.oauth2.ServiceAccountCredentials) {
+              return ((com.google.auth.oauth2.ServiceAccountCredentials) credentials).getProjectId();
+            }
+          } catch (IOException e) {
+            logger.warn("Failed to read application default credentials for project id: {}", e.getMessage());
+          }
+          break;
+        default:
+          break;
+      }
+    } catch (Exception e) {
+      logger.warn("Failed to extract project id from credentials: {}", e.getMessage());
+    }
+    return null;
   }
 
   public GcpClientBuilder<ClientT> withProject(String project) {
