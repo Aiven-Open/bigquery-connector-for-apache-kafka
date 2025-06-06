@@ -24,6 +24,7 @@
 package com.wepay.kafka.connect.bigquery;
 
 import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.PROJECT_CONFIG;
+import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.USE_PROJECT_FROM_CREDS_CONFIG;
 import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG;
 
 import com.google.api.gax.core.FixedCredentialsProvider;
@@ -44,7 +45,6 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.Objects;
-import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -66,52 +66,15 @@ public abstract class GcpClientBuilder<ClientT> {
   private String key = null;
 
   private boolean useStorageWriteApi = false;
+  protected boolean useProjectFromCreds = false;
 
   public GcpClientBuilder<ClientT> withConfig(BigQuerySinkConfig config) {
     String project = config.getString(PROJECT_CONFIG);
-    if (config.getBoolean(BigQuerySinkConfig.USE_PROJECT_FROM_CREDENTIALS_CONFIG)) {
-      String projectFromCreds = extractProjectId(config.getKeySource(), config.getKey());
-      if (projectFromCreds != null && !projectFromCreds.isEmpty()) {
-        project = projectFromCreds;
-      }
-    }
     return withProject(project)
         .withKeySource(config.getKeySource())
         .withKey(config.getKey())
-        .withWriterApi(config.getBoolean(USE_STORAGE_WRITE_API_CONFIG));
-  }
-
-  private String extractProjectId(KeySource keySource, String key) {
-    try {
-      switch (keySource) {
-        case JSON:
-          if (key != null) {
-            return new org.json.JSONObject(key).optString("project_id", null);
-          }
-          break;
-        case FILE:
-          if (key != null) {
-            String content = java.nio.file.Files.readString(java.nio.file.Paths.get(key));
-            return new org.json.JSONObject(content).optString("project_id", null);
-          }
-          break;
-        case APPLICATION_DEFAULT:
-          try {
-            GoogleCredentials credentials = GoogleCredentials.getApplicationDefault();
-            if (credentials instanceof com.google.auth.oauth2.ServiceAccountCredentials) {
-              return ((com.google.auth.oauth2.ServiceAccountCredentials) credentials).getProjectId();
-            }
-          } catch (IOException e) {
-            logger.warn("Failed to read application default credentials for project id: {}", e.getMessage());
-          }
-          break;
-        default:
-          break;
-      }
-    } catch (Exception e) {
-      logger.warn("Failed to extract project id from credentials: {}", e.getMessage());
-    }
-    return null;
+        .withWriterApi(config.getBoolean(USE_STORAGE_WRITE_API_CONFIG))
+        .withProjectFromCreds(config.getBoolean(USE_PROJECT_FROM_CREDS_CONFIG));
   }
 
   public GcpClientBuilder<ClientT> withProject(String project) {
@@ -124,6 +87,11 @@ public abstract class GcpClientBuilder<ClientT> {
     this.useStorageWriteApi = useStorageWriteApi;
     return this;
   }
+
+  public GcpClientBuilder<ClientT> withProjectFromCreds(Boolean useProjectFromCreds) {
+    this.useProjectFromCreds = useProjectFromCreds;
+    return this;
+  }  
 
   public GcpClientBuilder<ClientT> withKeySource(KeySource keySource) {
     Objects.requireNonNull(keySource, "Key cannot be null");
@@ -190,8 +158,20 @@ public abstract class GcpClientBuilder<ClientT> {
   public static class BigQueryBuilder extends GcpClientBuilder<BigQuery> {
     @Override
     protected BigQuery doBuild(String project, GoogleCredentials credentials) {
+      String projectId = project;
+      if (useProjectFromCreds && credentials != null) {
+        String credProject = null;
+        if (credentials instanceof com.google.auth.oauth2.ServiceAccountCredentials) {
+          credProject = ((com.google.auth.oauth2.ServiceAccountCredentials) credentials).getProjectId();
+        }
+
+        if (credProject != null && !credProject.isEmpty()) {
+          projectId = credProject;
+        }
+      }
+
       BigQueryOptions.Builder builder = BigQueryOptions.newBuilder()
-          .setProjectId(project);
+          .setProjectId(projectId);
 
       if (credentials != null) {
         builder.setCredentials(credentials);
@@ -206,8 +186,20 @@ public abstract class GcpClientBuilder<ClientT> {
   public static class GcsBuilder extends GcpClientBuilder<Storage> {
     @Override
     protected Storage doBuild(String project, GoogleCredentials credentials) {
+      String projectId = project;
+      if (useProjectFromCreds && credentials != null) {
+        String credProject = null;
+        if (credentials instanceof com.google.auth.oauth2.ServiceAccountCredentials) {
+          credProject = ((com.google.auth.oauth2.ServiceAccountCredentials) credentials).getProjectId();
+        }
+
+        if (credProject != null && !credProject.isEmpty()) {
+          projectId = credProject;
+        }
+      }
+
       StorageOptions.Builder builder = StorageOptions.newBuilder()
-          .setProjectId(project);
+          .setProjectId(projectId);
 
       if (credentials != null) {
         builder.setCredentials(credentials);
@@ -226,8 +218,20 @@ public abstract class GcpClientBuilder<ClientT> {
 
     @Override
     protected BigQueryWriteSettings doBuild(String project, GoogleCredentials credentials) {
+      String projectId = project;
+      if (useProjectFromCreds && credentials != null) {
+        String credProject = null;
+        if (credentials instanceof com.google.auth.oauth2.ServiceAccountCredentials) {
+          credProject = ((com.google.auth.oauth2.ServiceAccountCredentials) credentials).getProjectId();
+        }
+
+        if (credProject != null && !credProject.isEmpty()) {
+          projectId = credProject;
+        }
+      }
+
       BigQueryWriteSettings.Builder builder = BigQueryWriteSettings.newBuilder()
-          .setQuotaProjectId(project);
+          .setQuotaProjectId(projectId);
 
       if (credentials != null) {
         builder.setCredentialsProvider(FixedCredentialsProvider.create(credentials));

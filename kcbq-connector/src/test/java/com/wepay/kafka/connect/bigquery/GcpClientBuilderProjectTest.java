@@ -1,6 +1,6 @@
-import com.wepay.kafka.connect.bigquery.GcpClientBuilder;
+package com.wepay.kafka.connect.bigquery;
+
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
-import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -8,39 +8,155 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class GcpClientBuilderProjectTest {
 
-  private String getProject(GcpClientBuilder<?> builder) throws Exception {
-    Field f = GcpClientBuilder.class.getDeclaredField("project");
-    f.setAccessible(true);
-    return (String) f.get(builder);
+  private static String resourcePath(String name) {
+    return GcpClientBuilderProjectTest.class.getClassLoader()
+        .getResource("credentials/" + name).getPath();
   }
 
   @Test
-  public void testProjectFromCredentials() throws Exception {
+  public void testProjectFromCredentialsFlagTrue() throws Exception {
     Map<String, String> properties = new HashMap<>();
     properties.put(BigQuerySinkConfig.PROJECT_CONFIG, "config_project");
-    properties.put(BigQuerySinkConfig.KEY_SOURCE_CONFIG, GcpClientBuilder.KeySource.JSON.name());
-    properties.put(BigQuerySinkConfig.KEYFILE_CONFIG, "{\"project_id\":\"cred_project\"}");
+    properties.put(BigQuerySinkConfig.KEY_SOURCE_CONFIG, GcpClientBuilder.KeySource.FILE.name());
+    properties.put(BigQuerySinkConfig.KEYFILE_CONFIG, resourcePath("dummy_service_account.json"));
     properties.put(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG, "dataset");
-    properties.put(BigQuerySinkConfig.USE_PROJECT_FROM_CREDENTIALS_CONFIG, "true");
+    properties.put(BigQuerySinkConfig.USE_PROJECT_FROM_CREDS_CONFIG, "true");
     BigQuerySinkConfig config = new BigQuerySinkConfig(properties);
 
     GcpClientBuilder.BigQueryBuilder builder = new GcpClientBuilder.BigQueryBuilder();
     builder.withConfig(config);
-    assertEquals("cred_project", getProject(builder));
+
+    assertEquals("cred_project", builder.build().getOptions().getProjectId());
   }
 
   @Test
-  public void testFallbackToConfigProject() throws Exception {
+  public void testConfigProjectWhenCredsMissing() throws Exception {
     Map<String, String> properties = new HashMap<>();
     properties.put(BigQuerySinkConfig.PROJECT_CONFIG, "config_project");
-    properties.put(BigQuerySinkConfig.KEY_SOURCE_CONFIG, GcpClientBuilder.KeySource.JSON.name());
-    properties.put(BigQuerySinkConfig.KEYFILE_CONFIG, "{}");
+    properties.put(BigQuerySinkConfig.KEY_SOURCE_CONFIG, GcpClientBuilder.KeySource.FILE.name());
+    properties.put(BigQuerySinkConfig.KEYFILE_CONFIG, resourcePath("dummy_service_account_no_project.json"));
     properties.put(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG, "dataset");
-    properties.put(BigQuerySinkConfig.USE_PROJECT_FROM_CREDENTIALS_CONFIG, "true");
+    properties.put(BigQuerySinkConfig.USE_PROJECT_FROM_CREDS_CONFIG, "true");
     BigQuerySinkConfig config = new BigQuerySinkConfig(properties);
 
     GcpClientBuilder.BigQueryBuilder builder = new GcpClientBuilder.BigQueryBuilder();
     builder.withConfig(config);
-    assertEquals("config_project", getProject(builder));
+
+    assertEquals("config_project", builder.build().getOptions().getProjectId());
+  }
+
+  @Test
+  public void testConfigProjectWhenFlagFalse() throws Exception {
+    Map<String, String> properties = new HashMap<>();
+    properties.put(BigQuerySinkConfig.PROJECT_CONFIG, "config_project");
+    properties.put(BigQuerySinkConfig.KEY_SOURCE_CONFIG, GcpClientBuilder.KeySource.FILE.name());
+    properties.put(BigQuerySinkConfig.KEYFILE_CONFIG, resourcePath("dummy_service_account.json"));
+    properties.put(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG, "dataset");
+    properties.put(BigQuerySinkConfig.USE_PROJECT_FROM_CREDS_CONFIG, "false");
+    BigQuerySinkConfig config = new BigQuerySinkConfig(properties);
+
+    GcpClientBuilder.BigQueryBuilder builder = new GcpClientBuilder.BigQueryBuilder();
+    builder.withConfig(config);
+
+    assertEquals("config_project", builder.build().getOptions().getProjectId());
+  }
+
+  @Test
+  public void testStorageProjectFromCredentialsFlagTrue() throws Exception {
+    Map<String, String> properties = new HashMap<>();
+    properties.put(BigQuerySinkConfig.PROJECT_CONFIG, "config_project");
+    properties.put(BigQuerySinkConfig.KEY_SOURCE_CONFIG, GcpClientBuilder.KeySource.FILE.name());
+    properties.put(BigQuerySinkConfig.KEYFILE_CONFIG, resourcePath("dummy_service_account.json"));
+    properties.put(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG, "dataset");
+    properties.put(BigQuerySinkConfig.USE_PROJECT_FROM_CREDS_CONFIG, "true");
+    BigQuerySinkConfig config = new BigQuerySinkConfig(properties);
+
+    GcpClientBuilder.GcsBuilder builder = new GcpClientBuilder.GcsBuilder();
+    builder.withConfig(config);
+
+    assertEquals("cred_project", builder.build().getOptions().getProjectId());
+  }
+
+  @Test
+  public void testStorageConfigProjectWhenCredsMissing() throws Exception {
+    Map<String, String> properties = new HashMap<>();
+    properties.put(BigQuerySinkConfig.PROJECT_CONFIG, "config_project");
+    properties.put(BigQuerySinkConfig.KEY_SOURCE_CONFIG, GcpClientBuilder.KeySource.FILE.name());
+    properties.put(BigQuerySinkConfig.KEYFILE_CONFIG, resourcePath("dummy_service_account_no_project.json"));
+    properties.put(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG, "dataset");
+    properties.put(BigQuerySinkConfig.USE_PROJECT_FROM_CREDS_CONFIG, "true");
+    BigQuerySinkConfig config = new BigQuerySinkConfig(properties);
+
+    GcpClientBuilder.GcsBuilder builder = new GcpClientBuilder.GcsBuilder();
+    builder.withConfig(config);
+
+    assertEquals("config_project", builder.build().getOptions().getProjectId());
+  }
+
+  @Test
+  public void testStorageConfigProjectWhenFlagFalse() throws Exception {
+    Map<String, String> properties = new HashMap<>();
+    properties.put(BigQuerySinkConfig.PROJECT_CONFIG, "config_project");
+    properties.put(BigQuerySinkConfig.KEY_SOURCE_CONFIG, GcpClientBuilder.KeySource.FILE.name());
+    properties.put(BigQuerySinkConfig.KEYFILE_CONFIG, resourcePath("dummy_service_account.json"));
+    properties.put(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG, "dataset");
+    properties.put(BigQuerySinkConfig.USE_PROJECT_FROM_CREDS_CONFIG, "false");
+    BigQuerySinkConfig config = new BigQuerySinkConfig(properties);
+
+    GcpClientBuilder.GcsBuilder builder = new GcpClientBuilder.GcsBuilder();
+    builder.withConfig(config);
+
+    assertEquals("config_project", builder.build().getOptions().getProjectId());
+  }
+
+  @Test
+  public void testWriteSettingsProjectFromCredentialsFlagTrue() throws Exception {
+    Map<String, String> properties = new HashMap<>();
+    properties.put(BigQuerySinkConfig.PROJECT_CONFIG, "config_project");
+    properties.put(BigQuerySinkConfig.KEY_SOURCE_CONFIG, GcpClientBuilder.KeySource.FILE.name());
+    properties.put(BigQuerySinkConfig.KEYFILE_CONFIG, resourcePath("dummy_service_account.json"));
+    properties.put(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG, "dataset");
+    properties.put(BigQuerySinkConfig.USE_PROJECT_FROM_CREDS_CONFIG, "true");
+    BigQuerySinkConfig config = new BigQuerySinkConfig(properties);
+
+    GcpClientBuilder.BigQueryWriteSettingsBuilder builder =
+        new GcpClientBuilder.BigQueryWriteSettingsBuilder();
+    builder.withConfig(config);
+
+    assertEquals("cred_project", builder.build().getQuotaProjectId());
+  }
+
+  @Test
+  public void testWriteSettingsConfigProjectWhenCredsMissing() throws Exception {
+    Map<String, String> properties = new HashMap<>();
+    properties.put(BigQuerySinkConfig.PROJECT_CONFIG, "config_project");
+    properties.put(BigQuerySinkConfig.KEY_SOURCE_CONFIG, GcpClientBuilder.KeySource.FILE.name());
+    properties.put(BigQuerySinkConfig.KEYFILE_CONFIG, resourcePath("dummy_service_account_no_project.json"));
+    properties.put(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG, "dataset");
+    properties.put(BigQuerySinkConfig.USE_PROJECT_FROM_CREDS_CONFIG, "true");
+    BigQuerySinkConfig config = new BigQuerySinkConfig(properties);
+
+    GcpClientBuilder.BigQueryWriteSettingsBuilder builder =
+        new GcpClientBuilder.BigQueryWriteSettingsBuilder();
+    builder.withConfig(config);
+
+    assertEquals("config_project", builder.build().getQuotaProjectId());
+  }
+
+  @Test
+  public void testWriteSettingsConfigProjectWhenFlagFalse() throws Exception {
+    Map<String, String> properties = new HashMap<>();
+    properties.put(BigQuerySinkConfig.PROJECT_CONFIG, "config_project");
+    properties.put(BigQuerySinkConfig.KEY_SOURCE_CONFIG, GcpClientBuilder.KeySource.FILE.name());
+    properties.put(BigQuerySinkConfig.KEYFILE_CONFIG, resourcePath("dummy_service_account.json"));
+    properties.put(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG, "dataset");
+    properties.put(BigQuerySinkConfig.USE_PROJECT_FROM_CREDS_CONFIG, "false");
+    BigQuerySinkConfig config = new BigQuerySinkConfig(properties);
+
+    GcpClientBuilder.BigQueryWriteSettingsBuilder builder =
+        new GcpClientBuilder.BigQueryWriteSettingsBuilder();
+    builder.withConfig(config);
+
+    assertEquals("config_project", builder.build().getQuotaProjectId());
   }
 }
