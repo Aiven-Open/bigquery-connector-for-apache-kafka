@@ -346,8 +346,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
   private static final ConfigDef.Type USE_PROJECT_FROM_CREDS_TYPE = ConfigDef.Type.BOOLEAN;
   private static final ConfigDef.Importance USE_PROJECT_FROM_CREDS_IMPORTANCE = ConfigDef.Importance.MEDIUM;
   private static final String USE_PROJECT_FROM_CREDS_DOC =
-      "Use the project_id from the service account credentials when available."
-          + " Falls back to the \"project\" configuration when none is present.";
+      "Use the quotaProjectId from the credentials when available.";
   private static final ConfigDef.Type ENABLE_BATCH_MODE_TYPE = ConfigDef.Type.BOOLEAN;
   private static final ConfigDef.Importance ENABLE_BATCH_MODE_IMPORTANCE = ConfigDef.Importance.LOW;
   private static final String ENABLE_BATCH_MODE_DOC = "Use Google's New Storage Write API with batch mode";

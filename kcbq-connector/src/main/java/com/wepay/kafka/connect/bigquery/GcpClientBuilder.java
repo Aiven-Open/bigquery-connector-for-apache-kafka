@@ -158,20 +158,12 @@ public abstract class GcpClientBuilder<ClientT> {
   public static class BigQueryBuilder extends GcpClientBuilder<BigQuery> {
     @Override
     protected BigQuery doBuild(String project, GoogleCredentials credentials) {
-      String projectId = project;
-      if (useProjectFromCreds && credentials != null) {
-        String credProject = null;
-        if (credentials instanceof com.google.auth.oauth2.ServiceAccountCredentials) {
-          credProject = ((com.google.auth.oauth2.ServiceAccountCredentials) credentials).getProjectId();
-        }
-
-        if (credProject != null && !credProject.isEmpty()) {
-          projectId = credProject;
-        }
+      BigQueryOptions.Builder builder;
+      if (useProjectFromCreds) {
+        builder = BigQueryOptions.newBuilder();
+      } else {
+        builder = BigQueryOptions.newBuilder().setProjectId(project);
       }
-
-      BigQueryOptions.Builder builder = BigQueryOptions.newBuilder()
-          .setProjectId(projectId);
 
       if (credentials != null) {
         builder.setCredentials(credentials);
@@ -186,20 +178,12 @@ public abstract class GcpClientBuilder<ClientT> {
   public static class GcsBuilder extends GcpClientBuilder<Storage> {
     @Override
     protected Storage doBuild(String project, GoogleCredentials credentials) {
-      String projectId = project;
-      if (useProjectFromCreds && credentials != null) {
-        String credProject = null;
-        if (credentials instanceof com.google.auth.oauth2.ServiceAccountCredentials) {
-          credProject = ((com.google.auth.oauth2.ServiceAccountCredentials) credentials).getProjectId();
-        }
-
-        if (credProject != null && !credProject.isEmpty()) {
-          projectId = credProject;
-        }
+      StorageOptions.Builder builder;
+      if (useProjectFromCreds) {
+        builder = StorageOptions.newBuilder();
+      } else {
+        builder = StorageOptions.newBuilder().setProjectId(project);
       }
-
-      StorageOptions.Builder builder = StorageOptions.newBuilder()
-          .setProjectId(projectId);
 
       if (credentials != null) {
         builder.setCredentials(credentials);
@@ -218,20 +202,12 @@ public abstract class GcpClientBuilder<ClientT> {
 
     @Override
     protected BigQueryWriteSettings doBuild(String project, GoogleCredentials credentials) {
-      String projectId = project;
-      if (useProjectFromCreds && credentials != null) {
-        String credProject = null;
-        if (credentials instanceof com.google.auth.oauth2.ServiceAccountCredentials) {
-          credProject = ((com.google.auth.oauth2.ServiceAccountCredentials) credentials).getProjectId();
-        }
-
-        if (credProject != null && !credProject.isEmpty()) {
-          projectId = credProject;
-        }
+      BigQueryWriteSettings.Builder builder;
+      if (useProjectFromCreds) {
+        builder = BigQueryWriteSettings.newBuilder().setQuotaProjectId(credentials.getQuotaProjectId());
+      } else {
+        builder = BigQueryWriteSettings.newBuilder().setQuotaProjectId(project);
       }
-
-      BigQueryWriteSettings.Builder builder = BigQueryWriteSettings.newBuilder()
-          .setQuotaProjectId(projectId);
 
       if (credentials != null) {
         builder.setCredentialsProvider(FixedCredentialsProvider.create(credentials));
