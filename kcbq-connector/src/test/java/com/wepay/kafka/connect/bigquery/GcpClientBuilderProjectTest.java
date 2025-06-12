@@ -1,4 +1,5 @@
 package com.wepay.kafka.connect.bigquery;
+import com.wepay.kafka.connect.bigquery.GcpClientBuilder;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.google.auth.oauth2.AccessToken;
 import com.google.auth.oauth2.GoogleCredentials;
@@ -32,7 +33,7 @@ public class GcpClientBuilderProjectTest {
 
   private static String getQuotaProject(GcpClientBuilder<?> builder) {
     try {
-      java.lang.reflect.Field f = builder.getClass().getDeclaredField("creds");
+      java.lang.reflect.Field f = TestGcpClientBuilder.class.getDeclaredField("creds");
       f.setAccessible(true);
       GoogleCredentials creds = (GoogleCredentials) f.get(builder);
       return creds == null ? null : creds.getQuotaProjectId();
@@ -41,51 +42,64 @@ public class GcpClientBuilderProjectTest {
     }
   }
 
-  private static class TestBigQueryBuilder extends GcpClientBuilder.BigQueryBuilder {
+  private abstract static class TestGcpClientBuilder<ClientT> extends GcpClientBuilder<ClientT> { // IS THAT REQUIRED???
     private final GoogleCredentials creds;
 
+    TestGcpClientBuilder(GoogleCredentials creds) {
+      this.creds = creds;
+    }
+
+    @Override
+    public TestGcpClientBuilder<ClientT> withConfig(BigQuerySinkConfig config) {
+      super.withConfig(config);
+      return this;
+    }
+
+    @Override
+    public ClientT build() {
+      if (useProjectFromCreds) {
+        return doBuild(getQuotaProject(this), creds);
+      }
+      return doBuild(getProject(this), creds);
+    }
+  }
+
+  private static class TestBigQueryBuilder extends TestGcpClientBuilder<BigQuery> {
     TestBigQueryBuilder(GoogleCredentials creds) {
-      this.creds = creds;
+      super(creds);
     }
 
     @Override
-    public BigQuery build() {
-      if (this.useProjectFromCreds) {
-        return doBuild(getQuotaProject(this), creds);
-      }
-      return doBuild(getProject(this), creds);
+    protected BigQuery doBuild(String project, GoogleCredentials credentials) {
+      GcpClientBuilder.BigQueryBuilder delegate = new GcpClientBuilder.BigQueryBuilder();
+      delegate.useProjectFromCreds = this.useProjectFromCreds; // THIS SHOULD BE ENOUGH?
+      return delegate.doBuild(project, credentials);
     }
   }
 
-  private static class TestGcsBuilder extends GcpClientBuilder.GcsBuilder {
-    private final GoogleCredentials creds;
-
+  private static class TestGcsBuilder extends TestGcpClientBuilder<Storage> {
     TestGcsBuilder(GoogleCredentials creds) {
-      this.creds = creds;
+      super(creds);
     }
 
     @Override
-    public Storage build() {
-      if (this.useProjectFromCreds) {
-        return doBuild(getQuotaProject(this), creds);
-      }
-      return doBuild(getProject(this), creds);
+    protected Storage doBuild(String project, GoogleCredentials credentials) {
+      GcpClientBuilder.GcsBuilder delegate = new GcpClientBuilder.GcsBuilder();
+      delegate.useProjectFromCreds = this.useProjectFromCreds;
+      return delegate.doBuild(project, credentials);
     }
   }
 
-  private static class TestWriteSettingsBuilder extends GcpClientBuilder.BigQueryWriteSettingsBuilder {
-    private final GoogleCredentials creds;
-
+  private static class TestWriteSettingsBuilder extends TestGcpClientBuilder<BigQueryWriteSettings> {
     TestWriteSettingsBuilder(GoogleCredentials creds) {
-      this.creds = creds;
+      super(creds);
     }
 
     @Override
-    public BigQueryWriteSettings build() {
-      if (this.useProjectFromCreds) {
-        return doBuild(getQuotaProject(this), creds);
-      }
-      return doBuild(getProject(this), creds);
+    protected BigQueryWriteSettings doBuild(String project, GoogleCredentials credentials) {
+      GcpClientBuilder.BigQueryWriteSettingsBuilder delegate = new GcpClientBuilder.BigQueryWriteSettingsBuilder();
+      delegate.useProjectFromCreds = this.useProjectFromCreds;
+      return delegate.doBuild(project, credentials);
     }
   }
 
@@ -111,7 +125,6 @@ public class GcpClientBuilderProjectTest {
 
     assertEquals("cred_project", result.getOptions().getQuotaProjectId());
   }
-
 
   @Test
   public void testConfigProjectWhenFlagFalse() throws Exception {
