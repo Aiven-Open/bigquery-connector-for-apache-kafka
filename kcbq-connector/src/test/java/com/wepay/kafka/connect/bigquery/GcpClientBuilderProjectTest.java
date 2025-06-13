@@ -57,7 +57,7 @@ public class GcpClientBuilderProjectTest {
 
     @Override
     public ClientT build() {
-      if (useProjectFromCreds) {
+      if (useCredentialsProjectId) {
         return doBuild(getQuotaProject(this), creds);
       }
       return doBuild(getProject(this), creds);
@@ -72,7 +72,7 @@ public class GcpClientBuilderProjectTest {
     @Override
     protected BigQuery doBuild(String project, GoogleCredentials credentials) {
       GcpClientBuilder.BigQueryBuilder delegate = new GcpClientBuilder.BigQueryBuilder();
-      delegate.useProjectFromCreds = this.useProjectFromCreds; // THIS SHOULD BE ENOUGH?
+      delegate.useCredentialsProjectId = this.useCredentialsProjectId; // THIS SHOULD BE ENOUGH?
       return delegate.doBuild(project, credentials);
     }
   }
@@ -85,7 +85,7 @@ public class GcpClientBuilderProjectTest {
     @Override
     protected Storage doBuild(String project, GoogleCredentials credentials) {
       GcpClientBuilder.GcsBuilder delegate = new GcpClientBuilder.GcsBuilder();
-      delegate.useProjectFromCreds = this.useProjectFromCreds;
+      delegate.useCredentialsProjectId = this.useCredentialsProjectId;
       return delegate.doBuild(project, credentials);
     }
   }
@@ -98,7 +98,7 @@ public class GcpClientBuilderProjectTest {
     @Override
     protected BigQueryWriteSettings doBuild(String project, GoogleCredentials credentials) {
       GcpClientBuilder.BigQueryWriteSettingsBuilder delegate = new GcpClientBuilder.BigQueryWriteSettingsBuilder();
-      delegate.useProjectFromCreds = this.useProjectFromCreds;
+      delegate.useCredentialsProjectId = this.useCredentialsProjectId;
       return delegate.doBuild(project, credentials);
     }
   }
@@ -109,7 +109,7 @@ public class GcpClientBuilderProjectTest {
     when(config.getString(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG)).thenReturn("dataset");
     when(config.getKeySource()).thenReturn(GcpClientBuilder.KeySource.FILE);
     when(config.getKey()).thenReturn("unused");
-    when(config.getBoolean(BigQuerySinkConfig.USE_PROJECT_FROM_CREDS_CONFIG)).thenReturn(flag);
+    when(config.getBoolean(BigQuerySinkConfig.USE_CREDENTIALS_PROJECT_ID_CONFIG)).thenReturn(flag);
     when(config.getBoolean(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG)).thenReturn(false);
     return config;
   }

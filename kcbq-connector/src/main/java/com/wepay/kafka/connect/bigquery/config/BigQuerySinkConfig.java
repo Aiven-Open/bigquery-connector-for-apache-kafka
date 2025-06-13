@@ -114,8 +114,8 @@ public class BigQuerySinkConfig extends AbstractConfig {
   public static final boolean UPSERT_ENABLED_DEFAULT = false;
   public static final String USE_STORAGE_WRITE_API_CONFIG = "useStorageWriteApi";
   public static final boolean USE_STORAGE_WRITE_API_DEFAULT = false;
-  public static final String USE_PROJECT_FROM_CREDS_CONFIG = "useProjectFromCreds";
-  public static final boolean USE_PROJECT_FROM_CREDS_DEFAULT = false;
+  public static final String USE_CREDENTIALS_PROJECT_ID_CONFIG = "useCredentialsProjectId";
+  public static final boolean USE_CREDENTIALS_PROJECT_ID_DEFAULT = false;
   public static final String ENABLE_BATCH_MODE_CONFIG = "enableBatchMode";
   public static final boolean ENABLE_BATCH_MODE_DEFAULT = false;
   public static final String COMMIT_INTERVAL_SEC_CONFIG = "commitInterval";
@@ -343,9 +343,9 @@ public class BigQuerySinkConfig extends AbstractConfig {
   private static final ConfigDef.Importance USE_STORAGE_WRITE_API_IMPORTANCE = ConfigDef.Importance.MEDIUM;
   private static final String USE_STORAGE_WRITE_API_DOC =
       "(Beta feature: use with caution) Use Google's New Storage Write API for data streaming. Not available for upsert/delete mode";
-  private static final ConfigDef.Type USE_PROJECT_FROM_CREDS_TYPE = ConfigDef.Type.BOOLEAN;
-  private static final ConfigDef.Importance USE_PROJECT_FROM_CREDS_IMPORTANCE = ConfigDef.Importance.MEDIUM;
-  private static final String USE_PROJECT_FROM_CREDS_DOC =
+  private static final ConfigDef.Type USE_CREDENTIALS_PROJECT_ID_TYPE = ConfigDef.Type.BOOLEAN;
+  private static final ConfigDef.Importance USE_CREDENTIALS_PROJECT_ID_IMPORTANCE = ConfigDef.Importance.MEDIUM;
+  private static final String USE_CREDENTIALS_PROJECT_ID_DOC =
       "Use the quotaProjectId from the credentials when available.";
   private static final ConfigDef.Type ENABLE_BATCH_MODE_TYPE = ConfigDef.Type.BOOLEAN;
   private static final ConfigDef.Importance ENABLE_BATCH_MODE_IMPORTANCE = ConfigDef.Importance.LOW;
@@ -841,11 +841,11 @@ public class BigQuerySinkConfig extends AbstractConfig {
             USE_STORAGE_WRITE_API_IMPORTANCE,
             USE_STORAGE_WRITE_API_DOC
         ).define(
-            USE_PROJECT_FROM_CREDS_CONFIG,
-            USE_PROJECT_FROM_CREDS_TYPE,
-            USE_PROJECT_FROM_CREDS_DEFAULT,
-            USE_PROJECT_FROM_CREDS_IMPORTANCE,
-            USE_PROJECT_FROM_CREDS_DOC       
+            USE_CREDENTIALS_PROJECT_ID_CONFIG,
+            USE_CREDENTIALS_PROJECT_ID_TYPE,
+            USE_CREDENTIALS_PROJECT_ID_DEFAULT,
+            USE_CREDENTIALS_PROJECT_ID_IMPORTANCE,
+            USE_CREDENTIALS_PROJECT_ID_DOC       
         ).define(
             ENABLE_BATCH_MODE_CONFIG,
             ENABLE_BATCH_MODE_TYPE,
