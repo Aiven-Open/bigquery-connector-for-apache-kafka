@@ -113,7 +113,9 @@ public abstract class GcpClientBuilder<ClientT> {
     }
 
     Objects.requireNonNull(keySource, "Key source must be defined to build a GCP client");
-    Objects.requireNonNull(project, "Project must be defined to build a GCP client");
+    if (!useProjectFromCreds) {
+      Objects.requireNonNull(project, "Project must be defined to build a GCP client");
+    }    
 
     InputStream credentialsStream;
     switch (keySource) {
