@@ -69,6 +69,7 @@
 
         <main.dir>${project.basedir}</main.dir>
         <skip.unit.tests>${maven.test.skip}</skip.unit.tests>
+        <awaitility.version>4.2.1</awaitility.version>
     </properties>
 
     <name>kafka-connect-bigquery-parent</name>
@@ -149,6 +150,12 @@
 
     <dependencyManagement>
         <dependencies>
+            <dependency>
+                <groupId>org.awaitility</groupId>
+                <artifactId>awaitility</artifactId>
+                <version>${awaitility.version}</version>
+                <scope>test</scope>
+            </dependency>
             <dependency>
                 <groupId>com.google.cloud</groupId>
                 <artifactId>libraries-bom</artifactId>
