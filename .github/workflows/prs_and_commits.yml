@@ -51,6 +51,13 @@ jobs:
           cache: maven
       - name: Build (Maven)
         run: mvn -P ci  -ntp --batch-mode clean package
+      - name: Upload logs on fail
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+            name: failure_logs
+            path: "**/target/surefire-reports/**"
+            retention-days: 1
       - name: Integration tests (Maven)
         env:
           # Necessary for client builder integration tests that run with
@@ -70,5 +77,5 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          path: kcbq-connector/target/failsafe-reports/*
+          path: "**/target/failsafe-reports/**"
           name: integration-test-results
