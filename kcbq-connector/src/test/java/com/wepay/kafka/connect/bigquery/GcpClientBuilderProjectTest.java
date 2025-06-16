@@ -1,10 +1,12 @@
 package com.wepay.kafka.connect.bigquery;
 import com.wepay.kafka.connect.bigquery.GcpClientBuilder;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
-import com.google.auth.oauth2.AccessToken;
 import com.google.auth.oauth2.GoogleCredentials;
+import com.google.auth.oauth2.ServiceAccountCredentials;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.NoSuchAlgorithmException;
 import com.google.cloud.bigquery.BigQuery;
-import com.google.cloud.bigquery.storage.v1.BigQueryWriteSettings;
 import com.google.cloud.storage.Storage;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -12,13 +14,22 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class GcpClientBuilderProjectTest {
+  private static GoogleCredentials creds(String projectId) throws NoSuchAlgorithmException {
+    KeyPairGenerator gen = KeyPairGenerator.getInstance("RSA");
+    gen.initialize(1024);
+    KeyPair pair = gen.generateKeyPair();
 
-  private static GoogleCredentials creds(String quotaProject) {
-    GoogleCredentials base = GoogleCredentials.create(new AccessToken("token", null));
-    if (quotaProject != null) {
-      base = base.createWithQuotaProject(quotaProject);
+    ServiceAccountCredentials.Builder builder = ServiceAccountCredentials.newBuilder()
+        .setClientId("dummy-client")
+        .setClientEmail("dummy@example.com")
+        .setPrivateKey(pair.getPrivate())
+        .setPrivateKeyId("dummy-key");
+
+    if (projectId != null) {
+      builder.setProjectId(projectId);
     }
-    return base;
+
+    return builder.build();
   }
 
   private static String getProject(GcpClientBuilder<?> builder) {
@@ -31,18 +42,7 @@ public class GcpClientBuilderProjectTest {
     }
   }
 
-  private static String getQuotaProject(GcpClientBuilder<?> builder) {
-    try {
-      java.lang.reflect.Field f = TestGcpClientBuilder.class.getDeclaredField("creds");
-      f.setAccessible(true);
-      GoogleCredentials creds = (GoogleCredentials) f.get(builder);
-      return creds == null ? null : creds.getQuotaProjectId();
-    } catch (Exception e) {
-      throw new RuntimeException(e);
-    }
-  }
-
-  private abstract static class TestGcpClientBuilder<ClientT> extends GcpClientBuilder<ClientT> { // IS THAT REQUIRED???
+  private abstract static class TestGcpClientBuilder<ClientT> extends GcpClientBuilder<ClientT> {
     private final GoogleCredentials creds;
 
     TestGcpClientBuilder(GoogleCredentials creds) {
@@ -57,9 +57,6 @@ public class GcpClientBuilderProjectTest {
 
     @Override
     public ClientT build() {
-      if (useCredentialsProjectId) {
-        return doBuild(getQuotaProject(this), creds);
-      }
       return doBuild(getProject(this), creds);
     }
   }
@@ -72,7 +69,7 @@ public class GcpClientBuilderProjectTest {
     @Override
     protected BigQuery doBuild(String project, GoogleCredentials credentials) {
       GcpClientBuilder.BigQueryBuilder delegate = new GcpClientBuilder.BigQueryBuilder();
-      delegate.useCredentialsProjectId = this.useCredentialsProjectId; // THIS SHOULD BE ENOUGH?
+      delegate.useCredentialsProjectId = this.useCredentialsProjectId;
       return delegate.doBuild(project, credentials);
     }
   }
@@ -85,19 +82,6 @@ public class GcpClientBuilderProjectTest {
     @Override
     protected Storage doBuild(String project, GoogleCredentials credentials) {
       GcpClientBuilder.GcsBuilder delegate = new GcpClientBuilder.GcsBuilder();
-      delegate.useCredentialsProjectId = this.useCredentialsProjectId;
-      return delegate.doBuild(project, credentials);
-    }
-  }
-
-  private static class TestWriteSettingsBuilder extends TestGcpClientBuilder<BigQueryWriteSettings> {
-    TestWriteSettingsBuilder(GoogleCredentials creds) {
-      super(creds);
-    }
-
-    @Override
-    protected BigQueryWriteSettings doBuild(String project, GoogleCredentials credentials) {
-      GcpClientBuilder.BigQueryWriteSettingsBuilder delegate = new GcpClientBuilder.BigQueryWriteSettingsBuilder();
       delegate.useCredentialsProjectId = this.useCredentialsProjectId;
       return delegate.doBuild(project, credentials);
     }
@@ -123,7 +107,7 @@ public class GcpClientBuilderProjectTest {
         .withConfig(config)
         .build();
 
-    assertEquals("cred_project", result.getOptions().getQuotaProjectId());
+    assertEquals("cred_project", result.getOptions().getProjectId());
   }
 
   @Test
@@ -147,7 +131,7 @@ public class GcpClientBuilderProjectTest {
         .withConfig(config)
         .build();
 
-    assertEquals("cred_project", result.getOptions().getQuotaProjectId());
+    assertEquals("cred_project", result.getOptions().getProjectId());
   }
 
   @Test
@@ -160,29 +144,5 @@ public class GcpClientBuilderProjectTest {
         .build();
 
     assertEquals("config_project", result.getOptions().getProjectId());
-  }
-
-  @Test
-  public void testWriteSettingsProjectFromCredentialsFlagTrue() throws Exception {
-    BigQuerySinkConfig config = baseConfig(true);
-    GoogleCredentials creds = creds("cred_project");
-
-    BigQueryWriteSettings result = new TestWriteSettingsBuilder(creds)
-        .withConfig(config)
-        .build();
-
-    assertEquals("cred_project", result.getQuotaProjectId());
-  }
-
-  @Test
-  public void testWriteSettingsConfigProjectWhenFlagFalse() throws Exception {
-    BigQuerySinkConfig config = baseConfig(false);
-    GoogleCredentials creds = creds("cred_project");
-
-    BigQueryWriteSettings result = new TestWriteSettingsBuilder(creds)
-        .withConfig(config)
-        .build();
-
-    assertEquals("config_project", result.getQuotaProjectId());
   }
 }
