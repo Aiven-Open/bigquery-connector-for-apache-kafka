@@ -199,13 +199,9 @@ public abstract class GcpClientBuilder<ClientT> {
 
     @Override
     protected BigQueryWriteSettings doBuild(String project, GoogleCredentials credentials) {
-      BigQueryWriteSettings.Builder builder = BigQueryWriteSettings.newBuilder();
-      if (useCredentialsProjectId) {
-        builder = builder.setQuotaProjectId(credentials.getQuotaProjectId());
-      } else {
-        builder = builder.setQuotaProjectId(project);
-      }
-
+      BigQueryWriteSettings.Builder builder = BigQueryWriteSettings.newBuilder()
+          .setQuotaProjectId(project);
+      
       if (credentials != null) {
         builder.setCredentialsProvider(FixedCredentialsProvider.create(credentials));
       } else {
