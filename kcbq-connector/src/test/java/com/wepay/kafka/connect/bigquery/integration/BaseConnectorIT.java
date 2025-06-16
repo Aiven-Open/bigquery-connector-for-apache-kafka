@@ -172,11 +172,16 @@ public abstract class BaseConnectorIT {
   }
 
   protected BigQuery newBigQuery() {
-    return new GcpClientBuilder.BigQueryBuilder()
-        .withKey(keyFile())
-        .withKeySource(GcpClientBuilder.KeySource.valueOf(keySource()))
-        .withProject(project())
-        .build();
+    try {
+      return new GcpClientBuilder.BigQueryBuilder()
+              .withKey(keyFile())
+              .withKeySource(GcpClientBuilder.KeySource.valueOf(keySource()))
+              .withProject(project())
+              .build();
+    } catch (RuntimeException e) {
+      LoggerFactory.getLogger(BaseConnectorIT.class).error("query error", e);
+      throw e;
+    }
   }
 
   protected void waitForCommittedRecords(
