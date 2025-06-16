@@ -23,7 +23,6 @@
 
 package com.wepay.kafka.connect.bigquery;
 
-import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -58,7 +57,6 @@ import com.wepay.kafka.connect.bigquery.write.batch.MergeBatches;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageApiBatchModeHandler;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiDefaultStream;
 import java.net.SocketTimeoutException;
-import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -1123,11 +1121,10 @@ public class BigQuerySinkTaskTest {
     testTask.initialize(sinkTaskContext);
     testTask.start(properties);
     testTask.put(Collections.singletonList(spoofSinkRecord(topic)));
-    await().atMost(Duration.ofSeconds(5)).untilAsserted( () -> assertEquals(1, testTask.getTaskThreadsActiveCount()));
-//    assertEquals(1, testTask.getTaskThreadsActiveCount());
+
+    assertEquals(1, testTask.getTaskThreadsActiveCount());
     testTask.stop();
-    await().atMost(Duration.ofSeconds(5)).untilAsserted( () -> assertEquals(0, testTask.getTaskThreadsActiveCount()));
-//    assertEquals(0, testTask.getTaskThreadsActiveCount());
+    assertEquals(0, testTask.getTaskThreadsActiveCount());
     verify(bigQuery, times(1)).insertAll(any(InsertAllRequest.class));
 
     assertThrows(
