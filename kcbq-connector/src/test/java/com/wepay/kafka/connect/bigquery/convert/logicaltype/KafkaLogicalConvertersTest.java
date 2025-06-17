@@ -64,11 +64,44 @@ public class KafkaLogicalConvertersTest {
 
     BigDecimal bigDecimal = new BigDecimal("3.14159");
 
-    BigDecimal convertedDecimal = converter.convert(bigDecimal);
+    Object convertedDecimal = converter.convert(bigDecimal);
 
     // expecting no-op
     assertEquals(bigDecimal, convertedDecimal);
   }
+
+  @Test
+  public void testDecimalConversionAsString() {
+    DecimalConverter converter = new DecimalConverter(true);
+
+    assertEquals(LegacySQLTypeName.STRING, converter.getBqSchemaType());
+
+    converter.checkEncodingType(Schema.Type.STRING);
+
+    String decimalString = "3.14159";
+
+    Object convertedDecimal = converter.convert(decimalString);
+
+    // expecting no-op
+    assertEquals(decimalString, convertedDecimal);
+  }
+
+  @Test
+  public void testDecimalConversionAsBytes() {
+    DecimalConverter converter = new DecimalConverter(false);
+
+    assertEquals(LegacySQLTypeName.FLOAT, converter.getBqSchemaType());
+
+    converter.checkEncodingType(Schema.Type.BYTES);
+
+    BigDecimal decimal = new BigDecimal("3.14159");
+
+    Object convertedDecimal = converter.convert(decimal);
+
+    // expecting no-op
+    assertEquals(decimal, convertedDecimal);
+  }
+
 
   @Test
   public void testTimestampConversion() {

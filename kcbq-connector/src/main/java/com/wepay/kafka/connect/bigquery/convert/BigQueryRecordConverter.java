@@ -71,6 +71,14 @@ public class BigQueryRecordConverter implements RecordConverter<Map<String, Obje
   public BigQueryRecordConverter(boolean shouldConvertDoubleSpecial,
                                  boolean shouldConvertDebeziumTimestampToInteger,
                                  boolean useStorageWriteApi) {
+    this(shouldConvertDoubleSpecial, shouldConvertDebeziumTimestampToInteger, useStorageWriteApi, false);
+  }
+
+  public BigQueryRecordConverter(boolean shouldConvertDoubleSpecial,
+                                 boolean shouldConvertDebeziumTimestampToInteger,
+                                 boolean useStorageWriteApi,
+                                 boolean decimalAsString) {
+    KafkaLogicalConverters.registerDecimalConverter(decimalAsString);
     this.shouldConvertSpecialDouble = shouldConvertDoubleSpecial;
     this.shouldConvertDebeziumTimestampToInteger = shouldConvertDebeziumTimestampToInteger;
     this.useStorageWriteApi = useStorageWriteApi;

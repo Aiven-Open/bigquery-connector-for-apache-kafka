@@ -30,6 +30,7 @@ import com.google.cloud.bigquery.Field;
 import com.google.cloud.bigquery.LegacySQLTypeName;
 import com.wepay.kafka.connect.bigquery.exception.ConversionConnectException;
 import com.wepay.kafka.connect.bigquery.utils.FieldNameSanitizer;
+import com.wepay.kafka.connect.bigquery.convert.logicaltype.KafkaLogicalConverters;
 import io.confluent.connect.avro.AvroData;
 import org.apache.kafka.connect.data.Date;
 import org.apache.kafka.connect.data.Decimal;
@@ -553,7 +554,36 @@ public class BigQuerySchemaConverterTest {
   }
 
   @Test
-  public void testDecimal() {
+  public void testDecimalAsString() {
+    final String fieldName = "Decimal";
+
+    com.google.cloud.bigquery.Schema bigQueryExpectedSchema =
+        com.google.cloud.bigquery.Schema.of(
+            com.google.cloud.bigquery.Field.newBuilder(
+                fieldName,
+                LegacySQLTypeName.STRING
+            ).setMode(
+                com.google.cloud.bigquery.Field.Mode.REQUIRED
+            ).build()
+        );
+
+    Schema kafkaConnectTestSchema = SchemaBuilder
+        .struct()
+        .field(fieldName,
+            SchemaBuilder.string()
+                .name(Decimal.LOGICAL_NAME)
+                .parameter(Decimal.SCALE_FIELD, "0")
+                .build())
+        .build();
+
+    com.google.cloud.bigquery.Schema bigQueryTestSchema =
+        new BigQuerySchemaConverter(false, false, true).convertSchema(kafkaConnectTestSchema);
+    assertEquals(bigQueryExpectedSchema, bigQueryTestSchema);
+  }
+
+  @Test
+  public void testDecimalAsBytes() {
+    KafkaLogicalConverters.registerDecimalConverter(false);
     final String fieldName = "Decimal";
 
     com.google.cloud.bigquery.Schema bigQueryExpectedSchema =
@@ -572,7 +602,7 @@ public class BigQuerySchemaConverterTest {
         .build();
 
     com.google.cloud.bigquery.Schema bigQueryTestSchema =
-        new BigQuerySchemaConverter(false).convertSchema(kafkaConnectTestSchema);
+        new BigQuerySchemaConverter(false, false, false).convertSchema(kafkaConnectTestSchema);
     assertEquals(bigQueryExpectedSchema, bigQueryTestSchema);
   }
 

@@ -63,23 +63,44 @@ public class KafkaLogicalConverters {
   }
 
   /**
-   * Class for converting Kafka decimal logical types to Bigquery floating points.
+   * Class for manage the conversion of Kafka decimal's type.
+   * If isString flag is True, the class will convert Kafka decimal logical types
+   * to Bigquery string
+   * If isString flag is False, the class will convert Kafka decimal logical types
+   * to BigQuery floating points.
    */
   public static class DecimalConverter extends LogicalTypeConverter {
+    private final boolean isString;
+
     /**
      * Create a new DecimalConverter.
      */
     public DecimalConverter() {
+      this(false);
+    }
+
+    public DecimalConverter(boolean isString) {
       super(Decimal.LOGICAL_NAME,
-          Schema.Type.BYTES,
-          LegacySQLTypeName.FLOAT);
+          isString ? Schema.Type.STRING : Schema.Type.BYTES,
+          isString ? LegacySQLTypeName.STRING : LegacySQLTypeName.FLOAT);
+      this.isString = isString;
+    }
+
+    public static void registerDecimalConverter(boolean isString) {
+      LogicalConverterRegistry.register(Decimal.LOGICAL_NAME, new DecimalConverter(isString));
     }
 
     @Override
-    public BigDecimal convert(Object kafkaConnectObject) {
-      // cast to get ClassCastException
+    public Object convert(Object kafkaConnectObject) {
+      if (isString) {
+        return (String) kafkaConnectObject;
+      }
       return (BigDecimal) kafkaConnectObject;
     }
+  }
+
+  public static void registerDecimalConverter(boolean isString) {
+    LogicalConverterRegistry.register(Decimal.LOGICAL_NAME, new DecimalConverter(isString));
   }
 
   /**

@@ -99,6 +99,13 @@ public class BigQuerySinkConfig extends AbstractConfig {
   public static final String CONVERT_DOUBLE_SPECIAL_VALUES_DOC =
       "Should +Infinity be converted to Double.MAX_VALUE and -Infinity and NaN be "
           + "converted to Double.MIN_VALUE so they can make it to BigQuery";
+  public static final String DECIMAL_AS_STRING_CONFIG = "decimalAsString";
+  public static final ConfigDef.Type DECIMAL_AS_STRING_TYPE = ConfigDef.Type.BOOLEAN;
+  public static final Boolean DECIMAL_AS_STRING_DEFAULT = false;
+  public static final ConfigDef.Importance DECIMAL_AS_STRING_IMPORTANCE = ConfigDef.Importance.LOW;
+  public static final String DECIMAL_AS_STRING_DOC =
+      "When true, decimal logical types are saved as STRING instead of FLOAT, "
+          + "ensuring no precision loss if upstream connectors use string encoding.";          
   public static final String ALL_BQ_FIELDS_NULLABLE_CONFIG = "allBQFieldsNullable";
   public static final String TABLE_CREATE_CONFIG = "autoCreateTables";
   public static final boolean TABLE_CREATE_DEFAULT = true;
@@ -675,6 +682,12 @@ public class BigQuerySinkConfig extends AbstractConfig {
             CONVERT_DOUBLE_SPECIAL_VALUES_IMPORTANCE,
             CONVERT_DOUBLE_SPECIAL_VALUES_DOC
         ).define(
+            DECIMAL_AS_STRING_CONFIG,
+            DECIMAL_AS_STRING_TYPE,
+            DECIMAL_AS_STRING_DEFAULT,
+            DECIMAL_AS_STRING_IMPORTANCE,
+            DECIMAL_AS_STRING_DOC
+        ).define(
             TABLE_CREATE_CONFIG,
             TABLE_CREATE_TYPE,
             TABLE_CREATE_DEFAULT,
@@ -939,7 +952,8 @@ public class BigQuerySinkConfig extends AbstractConfig {
   public SchemaConverter<Schema> getSchemaConverter() {
     return new BigQuerySchemaConverter(
         getBoolean(ALL_BQ_FIELDS_NULLABLE_CONFIG),
-        getBoolean(SANITIZE_FIELD_NAME_CONFIG));
+        getBoolean(SANITIZE_FIELD_NAME_CONFIG),
+        getBoolean(DECIMAL_AS_STRING_CONFIG));        
   }
 
   /**
@@ -951,8 +965,9 @@ public class BigQuerySinkConfig extends AbstractConfig {
     return new BigQueryRecordConverter(
         getBoolean(CONVERT_DOUBLE_SPECIAL_VALUES_CONFIG),
         getBoolean(CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_CONFIG),
-        getBoolean(USE_STORAGE_WRITE_API_CONFIG)
-    );
+        getBoolean(USE_STORAGE_WRITE_API_CONFIG),
+        getBoolean(DECIMAL_AS_STRING_CONFIG)
+        );
   }
 
   /**

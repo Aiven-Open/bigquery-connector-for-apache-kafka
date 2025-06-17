@@ -89,12 +89,19 @@ public class BigQuerySchemaConverter implements SchemaConverter<com.google.cloud
 
   // visible for testing
   BigQuerySchemaConverter(boolean allFieldsNullable) {
-    this(allFieldsNullable, false);
+    this(allFieldsNullable, false, false);
   }
 
   public BigQuerySchemaConverter(boolean allFieldsNullable, boolean sanitizeFieldNames) {
+    this(allFieldsNullable, sanitizeFieldNames, false);
+  }
+
+  public BigQuerySchemaConverter(boolean allFieldsNullable,
+                                  boolean sanitizeFieldNames,
+                                  boolean decimalAsString) {
     this.allFieldsNullable = allFieldsNullable;
     this.sanitizeFieldNames = sanitizeFieldNames;
+    KafkaLogicalConverters.registerDecimalConverter(decimalAsString);
   }
 
   /**
