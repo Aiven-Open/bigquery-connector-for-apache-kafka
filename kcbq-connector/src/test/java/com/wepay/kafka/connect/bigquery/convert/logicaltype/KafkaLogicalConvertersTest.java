@@ -82,7 +82,6 @@ public class KafkaLogicalConvertersTest {
 
     Object convertedDecimal = converter.convert(decimalString);
 
-    // expecting no-op
     assertEquals(decimalString, convertedDecimal);
   }
 
@@ -98,7 +97,6 @@ public class KafkaLogicalConvertersTest {
 
     Object convertedDecimal = converter.convert(decimal);
 
-    // expecting no-op
     assertEquals(decimal, convertedDecimal);
   }
 
