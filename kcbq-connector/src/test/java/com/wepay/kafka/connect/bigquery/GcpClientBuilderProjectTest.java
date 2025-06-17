@@ -29,14 +29,17 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
 import com.google.cloud.bigquery.BigQuery;
+import com.google.cloud.bigquery.storage.v1.BigQueryWriteSettings;
 import com.google.cloud.storage.Storage;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 public class GcpClientBuilderProjectTest {
-  private static GoogleCredentials creds(String projectId) throws NoSuchAlgorithmException {
+
+  private static GoogleCredentials creds(String projectId, String quotaProject) throws NoSuchAlgorithmException {
     KeyPairGenerator gen = KeyPairGenerator.getInstance("RSA");
     gen.initialize(1024);
     KeyPair pair = gen.generateKeyPair();
@@ -50,6 +53,9 @@ public class GcpClientBuilderProjectTest {
     if (projectId != null) {
       builder.setProjectId(projectId);
     }
+    if (quotaProject != null) {
+      builder.setQuotaProjectId(quotaProject);
+    }
 
     return builder.build();
   }
@@ -59,6 +65,17 @@ public class GcpClientBuilderProjectTest {
       java.lang.reflect.Field f = GcpClientBuilder.class.getDeclaredField("project");
       f.setAccessible(true);
       return (String) f.get(builder);
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  private static String getQuotaProject(GcpClientBuilder<?> builder) {
+    try {
+      java.lang.reflect.Field f = TestGcpClientBuilder.class.getDeclaredField("creds");
+      f.setAccessible(true);
+      GoogleCredentials creds = (GoogleCredentials) f.get(builder);
+      return creds == null ? null : creds.getQuotaProjectId();
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
@@ -79,6 +96,9 @@ public class GcpClientBuilderProjectTest {
 
     @Override
     public ClientT build() {
+      if (useCredentialsProjectId) {
+        return doBuild(getQuotaProject(this), creds);
+      }
       return doBuild(getProject(this), creds);
     }
   }
@@ -109,11 +129,27 @@ public class GcpClientBuilderProjectTest {
     }
   }
 
+  private static class TestWriteSettingsBuilder extends TestGcpClientBuilder<BigQueryWriteSettings> {
+    TestWriteSettingsBuilder(GoogleCredentials creds) {
+      super(creds);
+    }
+
+    @Override
+    protected BigQueryWriteSettings doBuild(String project, GoogleCredentials credentials) {
+      GcpClientBuilder.BigQueryWriteSettingsBuilder delegate = new GcpClientBuilder.BigQueryWriteSettingsBuilder();
+      delegate.useCredentialsProjectId = this.useCredentialsProjectId;
+      if (!this.useCredentialsProjectId) {
+        return delegate.doBuild(project, credentials);
+      }
+      return delegate.doBuild(credentials.getQuotaProjectId(), credentials);
+    }
+  }
+
   private static BigQuerySinkConfig baseConfig(boolean flag) {
     BigQuerySinkConfig config = mock(BigQuerySinkConfig.class);
     when(config.getString(BigQuerySinkConfig.PROJECT_CONFIG)).thenReturn("config_project");
     when(config.getString(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG)).thenReturn("dataset");
-    when(config.getKeySource()).thenReturn(GcpClientBuilder.KeySource.FILE);
+    when(config.getKeySource()).thenReturn(GcpClientBuilder.KeySource.JSON);
     when(config.getKey()).thenReturn("unused");
     when(config.getBoolean(BigQuerySinkConfig.USE_CREDENTIALS_PROJECT_ID_CONFIG)).thenReturn(flag);
     when(config.getBoolean(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG)).thenReturn(false);
@@ -123,7 +159,7 @@ public class GcpClientBuilderProjectTest {
   @Test
   public void testProjectFromCredentialsFlagTrue() throws Exception {
     BigQuerySinkConfig config = baseConfig(true);
-    GoogleCredentials creds = creds("cred_project");
+    GoogleCredentials creds = creds("cred_project", "cred_quota_project");
 
     BigQuery result = new TestBigQueryBuilder(creds)
         .withConfig(config)
@@ -135,7 +171,7 @@ public class GcpClientBuilderProjectTest {
   @Test
   public void testConfigProjectWhenFlagFalse() throws Exception {
     BigQuerySinkConfig config = baseConfig(false);
-    GoogleCredentials creds = creds("cred_project");
+    GoogleCredentials creds = creds("cred_project", "cred_quota_project");
 
     BigQuery result = new TestBigQueryBuilder(creds)
         .withConfig(config)
@@ -147,7 +183,7 @@ public class GcpClientBuilderProjectTest {
   @Test
   public void testStorageProjectFromCredentialsFlagTrue() throws Exception {
     BigQuerySinkConfig config = baseConfig(true);
-    GoogleCredentials creds = creds("cred_project");
+    GoogleCredentials creds = creds("cred_project", "cred_quota_project");
 
     Storage result = new TestGcsBuilder(creds)
         .withConfig(config)
@@ -159,12 +195,36 @@ public class GcpClientBuilderProjectTest {
   @Test
   public void testStorageConfigProjectWhenFlagFalse() throws Exception {
     BigQuerySinkConfig config = baseConfig(false);
-    GoogleCredentials creds = creds("cred_project");
+    GoogleCredentials creds = creds("cred_project", "cred_quota_project");
 
     Storage result = new TestGcsBuilder(creds)
         .withConfig(config)
         .build();
 
     assertEquals("config_project", result.getOptions().getProjectId());
+  }
+
+  @Test
+  public void testWriteSettingsProjectFromCredentialsFlagTrue() throws Exception {
+    BigQuerySinkConfig config = baseConfig(true);
+    GoogleCredentials creds = creds("cred_project", "cred_quota_project");
+
+    BigQueryWriteSettings result = new TestWriteSettingsBuilder(creds)
+        .withConfig(config)
+        .build();
+
+    assertNotEquals("config_project", result.getQuotaProjectId());
+  }
+
+  @Test
+  public void testWriteSettingsConfigProjectWhenFlagFalse() throws Exception {
+    BigQuerySinkConfig config = baseConfig(false);
+    GoogleCredentials creds = creds("cred_project", "cred_quota_project");
+
+    BigQueryWriteSettings result = new TestWriteSettingsBuilder(creds)
+        .withConfig(config)
+        .build();
+
+    assertEquals("config_project", result.getQuotaProjectId());
   }
 }
