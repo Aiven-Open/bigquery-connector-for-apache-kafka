@@ -241,9 +241,6 @@ public class DebeziumLogicalConverters {
 
     @Override
     public BigDecimal convert(Object kafkaConnectObject) {
-      // VariableScaleDecimal exposes a toLogical method that accepts only the
-      // Struct value. The schema is unused here but maintained in the method
-      // signature for compatibility with other converters.
       return VariableScaleDecimal.toLogical((Struct) kafkaConnectObject);
     }
   }
