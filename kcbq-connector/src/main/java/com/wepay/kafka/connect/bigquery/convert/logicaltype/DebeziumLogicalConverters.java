@@ -24,18 +24,21 @@
 package com.wepay.kafka.connect.bigquery.convert.logicaltype;
 
 import com.google.cloud.bigquery.LegacySQLTypeName;
+import io.debezium.data.VariableScaleDecimal;
 import io.debezium.time.Date;
 import io.debezium.time.MicroTime;
 import io.debezium.time.MicroTimestamp;
 import io.debezium.time.Time;
 import io.debezium.time.Timestamp;
 import io.debezium.time.ZonedTimestamp;
+import java.math.BigDecimal;
 import java.text.SimpleDateFormat;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.TemporalAccessor;
 import java.util.concurrent.TimeUnit;
 import org.apache.kafka.connect.data.Schema;
+import org.apache.kafka.connect.data.Struct;
 
 /**
  * Class containing all the Debezium logical type converters.
@@ -46,12 +49,31 @@ public class DebeziumLogicalConverters {
   private static final int MICROS_IN_MILLI = 1000;
 
   static {
+    registerConverters(false);
+  }
+
+  /** Register all default Debezium converters and optionally the
+   * VariableScaleDecimal converter.
+   *
+   * @param convertDebeziumTimestampToInteger whether the decimal converter should be registered
+   */
+  public static void registerConverters(boolean convertDebeziumTimestampToInteger) {
     LogicalConverterRegistry.register(Date.SCHEMA_NAME, new DateConverter());
     LogicalConverterRegistry.register(MicroTime.SCHEMA_NAME, new MicroTimeConverter());
     LogicalConverterRegistry.register(MicroTimestamp.SCHEMA_NAME, new MicroTimestampConverter());
     LogicalConverterRegistry.register(Time.SCHEMA_NAME, new TimeConverter());
     LogicalConverterRegistry.register(ZonedTimestamp.SCHEMA_NAME, new ZonedTimestampConverter());
     LogicalConverterRegistry.register(Timestamp.SCHEMA_NAME, new TimestampConverter());
+    if (convertDebeziumTimestampToInteger) {
+      registerVariableScaleDecimalConverter();
+    }
+  }
+
+  /** Register the converter for Debezium VariableScaleDecimal logical type. */
+  public static void registerVariableScaleDecimalConverter() {
+    LogicalConverterRegistry.register(
+        VariableScaleDecimal.LOGICAL_NAME,
+        new VariableScaleDecimalConverter());
   }
 
   /**
@@ -201,6 +223,28 @@ public class DebeziumLogicalConverters {
               .append(DateTimeFormatter.ISO_TIME)
               .toFormatter();
       return bqZonedTimestampFormat.format(parsedTime);
+    }
+  }
+
+  /**
+   * Class for converting Debezium variable scale decimals to BigQuery NUMERIC.
+   */
+  public static class VariableScaleDecimalConverter extends LogicalTypeConverter {
+    /**
+     * Create a new VariableScaleDecimalConverter.
+     */
+    public VariableScaleDecimalConverter() {
+      super(VariableScaleDecimal.LOGICAL_NAME,
+          Schema.Type.STRUCT,
+          LegacySQLTypeName.NUMERIC);
+    }
+
+    @Override
+    public BigDecimal convert(Object kafkaConnectObject) {
+      // VariableScaleDecimal exposes a toLogical method that accepts only the
+      // Struct value. The schema is unused here but maintained in the method
+      // signature for compatibility with other converters.
+      return VariableScaleDecimal.toLogical((Struct) kafkaConnectObject);
     }
   }
 }

@@ -101,4 +101,17 @@ public abstract class LogicalTypeConverter {
    */
   public abstract Object convert(Object kafkaConnectObject);
 
+  /**
+   * Convert the given KafkaConnect Record Object using the provided Schema.
+   * Default implementation delegates to {@link #convert(Object)} for backward
+   * compatibility.
+   *
+   * @param kafkaConnectSchema the schema of the value
+   * @param kafkaConnectObject the value to convert
+   * @return the converted Object
+   */
+  public Object convert(Schema kafkaConnectSchema, Object kafkaConnectObject) {
+    return convert(kafkaConnectObject);
+  }
+
 }

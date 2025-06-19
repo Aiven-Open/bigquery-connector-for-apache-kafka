@@ -625,6 +625,38 @@ public class BigQueryRecordConverterTest {
   }
 
   @Test
+  public void testDebeziumVariableScaleDecimal() {
+    final String fieldName = "DebeziumDecimal";
+    java.math.BigDecimal decimal = new java.math.BigDecimal("12.34");
+
+    Map<String, Object> bigQueryExpectedRecord = new HashMap<>();
+    bigQueryExpectedRecord.put(fieldName, decimal);
+
+    Schema variableDecimalSchema = SchemaBuilder.struct()
+        .name(io.debezium.data.VariableScaleDecimal.LOGICAL_NAME)
+        .field("scale", Schema.INT32_SCHEMA)
+        .field("value", Schema.BYTES_SCHEMA)
+        .build();
+
+    Struct decimalStruct = new Struct(variableDecimalSchema)
+        .put("scale", 2)
+        .put("value", decimal.unscaledValue().toByteArray());
+
+    Schema kafkaConnectSchema = SchemaBuilder
+        .struct()
+        .field(fieldName, variableDecimalSchema)
+        .build();
+
+    Struct kafkaConnectStruct = new Struct(kafkaConnectSchema);
+    kafkaConnectStruct.put(fieldName, decimalStruct);
+    SinkRecord kafkaConnectRecord = spoofSinkRecord(kafkaConnectSchema, kafkaConnectStruct, false);
+
+    Map<String, Object> bigQueryTestRecord =
+        new BigQueryRecordConverter(SHOULD_CONVERT_DOUBLE, SHOULD_CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER, USE_STORAGE_WRITE_API_CONFIG, true).convertRecord(kafkaConnectRecord, KafkaSchemaRecordType.VALUE);
+    assertEquals(bigQueryExpectedRecord, bigQueryTestRecord);
+  }
+
+  @Test
   public void testKafkaLogicalType() {
     final String fieldName = "KafkaDate";
     final Date fieldDate = new Date(1488406838808L);
