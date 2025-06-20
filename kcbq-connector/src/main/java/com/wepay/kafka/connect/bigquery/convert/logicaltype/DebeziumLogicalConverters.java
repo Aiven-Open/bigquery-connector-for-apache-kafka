@@ -56,16 +56,16 @@ public class DebeziumLogicalConverters {
   /** Register all default Debezium converters and optionally the
    * VariableScaleDecimal converter.
    *
-   * @param convertDebeziumTimestampToInteger whether the decimal converter should be registered
+   * @param convertVariableScaleDecimal whether the decimal converter should be registered
    */
-  public static void registerConverters(boolean convertDebeziumTimestampToInteger) {
+  public static void registerConverters(boolean convertVariableScaleDecimal) {
     LogicalConverterRegistry.register(Date.SCHEMA_NAME, new DateConverter());
     LogicalConverterRegistry.register(MicroTime.SCHEMA_NAME, new MicroTimeConverter());
     LogicalConverterRegistry.register(MicroTimestamp.SCHEMA_NAME, new MicroTimestampConverter());
     LogicalConverterRegistry.register(Time.SCHEMA_NAME, new TimeConverter());
     LogicalConverterRegistry.register(ZonedTimestamp.SCHEMA_NAME, new ZonedTimestampConverter());
     LogicalConverterRegistry.register(Timestamp.SCHEMA_NAME, new TimestampConverter());
-    if (convertDebeziumTimestampToInteger) {
+    if (convertVariableScaleDecimal) {
       registerVariableScaleDecimalConverter();
     }
   }
