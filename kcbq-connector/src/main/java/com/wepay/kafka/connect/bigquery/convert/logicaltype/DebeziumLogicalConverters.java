@@ -24,6 +24,7 @@
 package com.wepay.kafka.connect.bigquery.convert.logicaltype;
 
 import com.google.cloud.bigquery.LegacySQLTypeName;
+import com.wepay.kafka.connect.bigquery.exception.ConversionConnectException;
 import io.debezium.data.VariableScaleDecimal;
 import io.debezium.time.Date;
 import io.debezium.time.MicroTime;
@@ -241,7 +242,14 @@ public class DebeziumLogicalConverters {
 
     @Override
     public BigDecimal convert(Object kafkaConnectObject) {
-      return VariableScaleDecimal.toLogical((Struct) kafkaConnectObject);
+      return toLogical((Struct) kafkaConnectObject);
+    }
+
+    private static BigDecimal toLogical(Struct value) {
+      if (value == null) {
+        return null;
+      }
+      return VariableScaleDecimal.toLogical(value);
     }
   }
 }

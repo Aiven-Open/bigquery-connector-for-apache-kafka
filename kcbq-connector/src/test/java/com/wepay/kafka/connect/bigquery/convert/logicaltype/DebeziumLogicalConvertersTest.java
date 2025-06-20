@@ -24,6 +24,7 @@
 package com.wepay.kafka.connect.bigquery.convert.logicaltype;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 import com.google.cloud.bigquery.LegacySQLTypeName;
 import com.wepay.kafka.connect.bigquery.convert.logicaltype.DebeziumLogicalConverters.DateConverter;
@@ -154,5 +155,22 @@ public class DebeziumLogicalConvertersTest {
 
     java.math.BigDecimal converted = (java.math.BigDecimal) converter.convert(struct);
     assertEquals(new java.math.BigDecimal("123.456"), converted);
+  }
+
+  @Test
+  public void testVariableScaleDecimalConversionNullValue() {
+    DebeziumLogicalConverters.VariableScaleDecimalConverter converter =
+        new DebeziumLogicalConverters.VariableScaleDecimalConverter();
+
+    Schema schema = SchemaBuilder.struct()
+        .name(io.debezium.data.VariableScaleDecimal.LOGICAL_NAME)
+        .field("scale", Schema.INT32_SCHEMA)
+        .field("value", Schema.BYTES_SCHEMA)
+        .build();
+
+    converter.checkEncodingType(Schema.Type.STRUCT);
+
+    java.math.BigDecimal converted = (java.math.BigDecimal) converter.convert(schema, null);
+    assertNull(converted);
   }
 }
