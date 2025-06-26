@@ -67,17 +67,19 @@ jobs:
           # Necessary for client builder integration tests that run with
           # default application credentials
           CREDENTIALS_JSON: ${{ secrets.GCP_CREDENTIALS }}
-          GOOGLE_APPLICATION_CREDENTIALS: /tmp/creds.json
-          KCBQ_TEST_KEYFILE:    /tmp/creds.json
+          GOOGLE_APPLICATION_CREDENTIALS: ${PWD}/.creds.json
+          KCBQ_TEST_KEYFILE:    ${PWD}/.creds.json
           KCBQ_TEST_KEY_SOURCE: FILE
           KCBQ_TEST_PROJECT:    ${{ secrets.KCBQ_TEST_PROJECT }}
           KCBQ_TEST_DATASET:    ${{ secrets.KCBQ_TEST_DATASET }}
           KCBQ_TEST_BUCKET:     ${{ secrets.KCBQ_TEST_BUCKET }}
         run: |
           export
-          printf "$CREDENTIALS_JSON" > /tmp/creds.json
+          printf "$CREDENTIALS_JSON" > ${PWD}/.creds.json
           printf "LOOOK -> $CREDENTIALS_JSON"
-          cat /tmp/creds.json
+          echo "CAT vv"
+          cat ${GOOGLE_APPLICATION_CREDENTIALS}
+          echo "CAT ^^"
           export KCBQ_TEST_TABLE_SUFFIX=_$(date +%s)_$RANDOM
           mvn -P ci -Dskip.unit.tests=true verify
       - name: Upload integration test results (Maven)
@@ -90,6 +92,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          path: /tmp/creds.json
+          path: ${PWD}/.creds.json
           name: temp_file
 
