@@ -51,7 +51,7 @@ jobs:
           cache: maven
       - name: License header check
         run: |
-          mvn license:remove license:format
+          mvn -ntp license:remove license:format
           if [[ -n $(git status -s) ]]; then
             echo 1>&2 'Some files do not have the correct license header:'
             git diff --name-only 1>&2
@@ -74,8 +74,9 @@ jobs:
           KCBQ_TEST_DATASET:    ${{ secrets.KCBQ_TEST_DATASET }}
           KCBQ_TEST_BUCKET:     ${{ secrets.KCBQ_TEST_BUCKET }}
         run: |
-          echo "$CREDENTIALS_JSON"
           echo "$CREDENTIALS_JSON" > /tmp/creds.json
+          printf "LOOOK -> $CREDENTIALS_JSON"
+          cat /tmp/creds.json
           export KCBQ_TEST_TABLE_SUFFIX=_$(date +%s)_$RANDOM
           mvn -P ci -Dskip.unit.tests=true verify
       - name: Upload integration test results (Maven)
