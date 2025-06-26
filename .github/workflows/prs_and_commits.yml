@@ -59,7 +59,7 @@ jobs:
             exit 1
           fi
       - name: Build (Maven)
-        run: mvn -P ci --batch-mode clean package -DskipTests
+        run: mvn -P ci -ntp --batch-mode clean package -DskipTests
       - name: Unit tests (Maven)
         run: mvn -P ci --batch-mode test
       - name: Integration tests (Maven)
@@ -74,6 +74,7 @@ jobs:
           KCBQ_TEST_DATASET:    ${{ secrets.KCBQ_TEST_DATASET }}
           KCBQ_TEST_BUCKET:     ${{ secrets.KCBQ_TEST_BUCKET }}
         run: |
+          echo "$CREDENTIALS_JSON"
           echo "$CREDENTIALS_JSON" > /tmp/creds.json
           export KCBQ_TEST_TABLE_SUFFIX=_$(date +%s)_$RANDOM
           mvn -P ci -Dskip.unit.tests=true verify
