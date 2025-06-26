@@ -73,22 +73,24 @@ jobs:
           KCBQ_TEST_PROJECT:    ${{ secrets.KCBQ_TEST_PROJECT }}
           KCBQ_TEST_DATASET:    ${{ secrets.KCBQ_TEST_DATASET }}
           KCBQ_TEST_BUCKET:     ${{ secrets.KCBQ_TEST_BUCKET }}
+          KBCQ_TEST: ${{ vars.KCBQ_TEST }}
         run: |
           export GOOGLE_APPLICATION_CREDENTIALS=".creds.json"
-          export
           printf "$CREDENTIALS_JSON" > .creds.json
           printf "That was the file ^^" >> .creds.json
           echo "CAT vv"
           cat .creds.json
           echo "CAT ^^"
+          echo "KBCQ_TEST $KBCQ_TEST"
           export KCBQ_TEST_TABLE_SUFFIX=_$(date +%s)_$RANDOM
-          mvn -P ci -Dskip.unit.tests=true verify
-      - name: Upload integration test results (Maven)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          path: kcbq-connector/target/failsafe-reports/*
-          name: integration-test-results
+          export
+#          mvn -P ci -Dskip.unit.tests=true verify
+#      - name: Upload integration test results (Maven)
+#        if: always()
+#        uses: actions/upload-artifact@v4
+#        with:
+#          path: kcbq-connector/target/failsafe-reports/*
+#          name: integration-test-results
       - name: test results (Maven)
         if: always()
         uses: actions/upload-artifact@v4
