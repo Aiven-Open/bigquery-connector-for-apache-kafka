@@ -67,18 +67,18 @@ jobs:
           # Necessary for client builder integration tests that run with
           # default application credentials
           CREDENTIALS_JSON: ${{ secrets.GCP_CREDENTIALS }}
-          GOOGLE_APPLICATION_CREDENTIALS: "${GITHUB_WORKSPACE}/.creds.json"
-          KCBQ_TEST_KEYFILE:    "${GITHUB_WORKSPACE}/.creds.json"
+          GOOGLE_APPLICATION_CREDENTIALS: $GITHUB_WORKSPACE/.creds.json
+          KCBQ_TEST_KEYFILE:    $GITHUB_WORKSPACE/.creds.json
           KCBQ_TEST_KEY_SOURCE: FILE
           KCBQ_TEST_PROJECT:    ${{ secrets.KCBQ_TEST_PROJECT }}
           KCBQ_TEST_DATASET:    ${{ secrets.KCBQ_TEST_DATASET }}
           KCBQ_TEST_BUCKET:     ${{ secrets.KCBQ_TEST_BUCKET }}
         run: |
           export
-          printf "$CREDENTIALS_JSON" > ${GITHUB_WORKSPACE}/.creds.json
+          printf "$CREDENTIALS_JSON" > $GITHUB_WORKSPACE/.creds.json
           printf "LOOOK -> $CREDENTIALS_JSON"
           echo "CAT vv"
-          cat ${GOOGLE_APPLICATION_CREDENTIALS}
+          cat $GOOGLE_APPLICATION_CREDENTIALS
           echo "CAT ^^"
           export KCBQ_TEST_TABLE_SUFFIX=_$(date +%s)_$RANDOM
           mvn -P ci -Dskip.unit.tests=true verify
