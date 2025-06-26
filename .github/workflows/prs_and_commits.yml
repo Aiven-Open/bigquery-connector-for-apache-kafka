@@ -74,7 +74,8 @@ jobs:
           KCBQ_TEST_DATASET:    ${{ secrets.KCBQ_TEST_DATASET }}
           KCBQ_TEST_BUCKET:     ${{ secrets.KCBQ_TEST_BUCKET }}
         run: |
-          echo "$CREDENTIALS_JSON" > /tmp/creds.json
+          export
+          printf "$CREDENTIALS_JSON" > /tmp/creds.json
           printf "LOOOK -> $CREDENTIALS_JSON"
           cat /tmp/creds.json
           export KCBQ_TEST_TABLE_SUFFIX=_$(date +%s)_$RANDOM
