@@ -29,6 +29,9 @@ on:
     branches: [ main ]
   push:
     branches: [ main ]
+  workflow_dispatch:
+    branches: [ main ]
+    
 
 # Disallow concurrent runs for the same PR by cancelling in-progress runs
 # when new commits are pushed
