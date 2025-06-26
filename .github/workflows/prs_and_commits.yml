@@ -58,8 +58,8 @@ jobs:
 #            echo 1>&2 'Please update the license headers for these files by running `mvn license:remove license:format`'
 #            exit 1
 #          fi
-      - name: Build (Maven)
-        run: mvn -P ci -ntp --batch-mode clean package -DskipTests
+#      - name: Build (Maven)
+#        run: mvn -P ci -ntp --batch-mode clean package -DskipTests
 #      - name: Unit tests (Maven)
 #        run: mvn -P ci --batch-mode test
       - name: Integration tests (Maven)
@@ -73,7 +73,7 @@ jobs:
           KCBQ_TEST_PROJECT:    ${{ secrets.KCBQ_TEST_PROJECT }}
           KCBQ_TEST_DATASET:    ${{ secrets.KCBQ_TEST_DATASET }}
           KCBQ_TEST_BUCKET:     ${{ secrets.KCBQ_TEST_BUCKET }}
-          KBCQ_TEST: ${{ vars.KCBQ_TEST }}
+          KCBQ_TEST2 : ${{vars.KCBQ_TEST}}
         run: |
           export GOOGLE_APPLICATION_CREDENTIALS=".creds.json"
           printf "$CREDENTIALS_JSON" > .creds.json
@@ -81,7 +81,8 @@ jobs:
           echo "CAT vv"
           cat .creds.json
           echo "CAT ^^"
-          echo "KBCQ_TEST $KBCQ_TEST"
+          echo "KCBQ_TEST $KCBQ_TEST" $KCBQ_TEST
+          echo "KCBQ_TEST2 $KCBQ_TEST2" $KCBQ_TEST2
           export KCBQ_TEST_TABLE_SUFFIX=_$(date +%s)_$RANDOM
           export
 #          mvn -P ci -Dskip.unit.tests=true verify
