@@ -67,8 +67,8 @@ jobs:
           # Necessary for client builder integration tests that run with
           # default application credentials
           CREDENTIALS_JSON: ${{ secrets.GCP_CREDENTIALS }}
-          GOOGLE_APPLICATION_CREDENTIALS: ${GITHUB_WORKSPACE}/.creds.json
-          KCBQ_TEST_KEYFILE:    ${GITHUB_WORKSPACE}/.creds.json
+          GOOGLE_APPLICATION_CREDENTIALS: "${GITHUB_WORKSPACE}/.creds.json"
+          KCBQ_TEST_KEYFILE:    "${GITHUB_WORKSPACE}/.creds.json"
           KCBQ_TEST_KEY_SOURCE: FILE
           KCBQ_TEST_PROJECT:    ${{ secrets.KCBQ_TEST_PROJECT }}
           KCBQ_TEST_DATASET:    ${{ secrets.KCBQ_TEST_DATASET }}
