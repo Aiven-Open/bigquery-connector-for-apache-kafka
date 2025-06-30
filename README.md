@@ -60,4 +60,4 @@ KCBQ_TEST_BUCKET - the bucket to use for the tests
 
 KCBQ_TEST_DATASET - the data set to use for the tests.
 
-KBCQ_TEST_PROJECT - the project o use for the tests.
+KBCQ_TEST_PROJECT - the project to use for the tests.
