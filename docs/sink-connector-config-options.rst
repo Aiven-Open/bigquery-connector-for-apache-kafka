@@ -160,6 +160,13 @@ BigQuery Sink Connector Configuration Options
   * Default: false
   * Importance: medium
 
+``useProjectFromCreds``
+  Use the ``quotaProjectId`` from the Google credentials.
+
+  * Type: boolean
+  * Default: false
+  * Importance: low
+
 ``allBQFieldsNullable``
   If true, no fields in any produced BigQuery schema will be REQUIRED. All non-nullable avro fields will be translated as NULLABLE (or REPEATED, if arrays).
 
