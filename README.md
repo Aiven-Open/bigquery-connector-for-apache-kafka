@@ -48,3 +48,16 @@ Releases are available in the GitHub release tab.
   [Apache Kafka]: http://kafka.apache.org
   [Google BigQuery]: https://cloud.google.com/bigquery/
   [Kafka]: http://kafka.apache.org
+  
+## Integration test setup
+
+In order to execute the integration tests a clone of this repository must be made and the following 
+properties added to the repository secrets
+
+GCP_CREDENTIALS - this should be the contents of a json file that you download when you create GCP account key.
+
+KCBQ_TEST_BUCKET - the bucket to use for the tests
+
+KCBQ_TEST_DATASET - the data set to use for the tests.
+
+KBCQ_TEST_PROJECT - the project to use for the tests.
