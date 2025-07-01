@@ -143,7 +143,7 @@ public class GcsToBqWriter {
         lookupSuccess = true;
       } catch (BigQueryException exception) {
         lookupException = exception;
-        logger.warn("Table lookup failed for {}, attempting retry", tableId.getTable());
+        logger.warn("Table lookup failed for {}, attempting retry. {}", tableId.getTable(), exception);
       }
       lookupAttempts++;
     }
