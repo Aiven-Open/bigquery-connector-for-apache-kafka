@@ -67,7 +67,6 @@ public class GcsToBqWriter {
   private int retries;
   private long retryWaitMs;
   private boolean autoCreateTables;
-  private final int getTableMaxRetries;
 
 
   /**
@@ -85,7 +84,6 @@ public class GcsToBqWriter {
                        int retries,
                        long retryWaitMs,
                        boolean autoCreateTables,
-                         int getTableMaxRetries,
                        Time time) {
     this.storage = storage;
     this.bigQuery = bigQuery;
@@ -95,7 +93,7 @@ public class GcsToBqWriter {
     this.retries = retries;
     this.retryWaitMs = retryWaitMs;
     this.autoCreateTables = autoCreateTables;
-    this.getTableMaxRetries = getTableMaxRetries;
+    this.retries = retries;
 
   }
 
@@ -137,8 +135,8 @@ public class GcsToBqWriter {
     int lookupAttempts = 0;
     boolean lookupSuccess = false;
     BigQueryException lookupException = null;
-    while (!lookupSuccess && lookupAttempts < getTableMaxRetries) {
-      if (lookupAttempts > 0) {
+    while (!lookupSuccess && lookupAttempts <= retries) {
+      if (lookupAttempts >= 0) {
         waitRandomTime();
       }
       try {

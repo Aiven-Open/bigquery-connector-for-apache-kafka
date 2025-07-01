@@ -515,7 +515,6 @@ public class BigQuerySinkTask extends SinkTask {
         retry,
         retryWait,
         autoCreateTables,
-        config.getInt(BigQuerySinkConfig.GET_TABLE_MAX_RETRIES_CONFIG),
         time);
   }
 

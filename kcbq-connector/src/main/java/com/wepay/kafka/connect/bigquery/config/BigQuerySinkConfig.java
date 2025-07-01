@@ -511,13 +511,6 @@ public class BigQuerySinkConfig extends AbstractConfig {
   private static final ConfigDef.Validator MAX_RETRIES_VALIDATOR = ConfigDef.Range.atLeast(1);
   private static final ConfigDef.Importance MAX_RETRIES_IMPORTANCE = ConfigDef.Importance.MEDIUM;
   private static final String MAX_RETRIES_DOC = "The maximum number of times to retry on retriable errors before failing the task.";
-  public static final String GET_TABLE_MAX_RETRIES_CONFIG = "getTableMaxRetries";
-  private static final ConfigDef.Type GET_TABLE_MAX_RETRIES_TYPE = ConfigDef.Type.INT;
-  private static final int GET_TABLE_MAX_RETRIES_DEFAULT = 1;
-  private static final ConfigDef.Validator GET_TABLE_MAX_RETRIES_VALIDATOR = ConfigDef.Range.atLeast(1);
-  private static final ConfigDef.Importance GET_TABLE_MAX_RETRIES_IMPORTANCE = ConfigDef.Importance.MEDIUM;
-  private static final String GET_TABLE_MAX_RETRIES_DOC =
-      "The maximum number of retry attempts when verifying table existence in BigQuery.";  
   private static final ConfigDef.Type ENABLE_RETRIES_TYPE = ConfigDef.Type.BOOLEAN;
   private static final ConfigDef.Importance ENABLE_RETRIES_IMPORTANCE = ConfigDef.Importance.MEDIUM;
   private static final List<MultiPropertyValidator<BigQuerySinkConfig>> MULTI_PROPERTY_VALIDATIONS = new ArrayList<>();
@@ -860,14 +853,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
             MAX_RETRIES_DEFAULT,
             MAX_RETRIES_VALIDATOR,
             MAX_RETRIES_IMPORTANCE,
-            MAX_RETRIES_DOC
-        ).define(
-            GET_TABLE_MAX_RETRIES_CONFIG,
-            GET_TABLE_MAX_RETRIES_TYPE,
-            GET_TABLE_MAX_RETRIES_DEFAULT,
-            GET_TABLE_MAX_RETRIES_VALIDATOR,
-            GET_TABLE_MAX_RETRIES_IMPORTANCE,
-            GET_TABLE_MAX_RETRIES_DOC            
+            MAX_RETRIES_DOC           
         ).defineInternal(
             ENABLE_RETRIES_CONFIG,
             ENABLE_RETRIES_TYPE,
