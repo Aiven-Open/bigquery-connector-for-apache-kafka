@@ -27,8 +27,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyObject;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Mockito.mock;
@@ -269,7 +267,7 @@ public class BigQuerySinkTaskTest {
 
     BigQuery bigQuery = mock(BigQuery.class);
     Table mockTable = mock(Table.class);
-    when(bigQuery.getTable(any(TableId.class))).thenReturn(mockTable);
+    when(bigQuery.getTable(any())).thenReturn(mockTable);
 
     Storage storage = mock(Storage.class);
 
