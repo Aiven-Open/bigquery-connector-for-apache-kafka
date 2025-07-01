@@ -311,7 +311,7 @@ public class BigQuerySinkConfigTest {
         () -> new BigQuerySinkConfig(badConfigProperties)
     );
   }
-  
+
   @Test
   public void testInvalidCommitInterval() {
     Map<String, String> badConfigProperties = propertiesFactory.getProperties();

@@ -853,7 +853,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
             MAX_RETRIES_DEFAULT,
             MAX_RETRIES_VALIDATOR,
             MAX_RETRIES_IMPORTANCE,
-            MAX_RETRIES_DOC           
+            MAX_RETRIES_DOC
         ).defineInternal(
             ENABLE_RETRIES_CONFIG,
             ENABLE_RETRIES_TYPE,

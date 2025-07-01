@@ -68,7 +68,6 @@ public class GcsToBqWriter {
   private long retryWaitMs;
   private boolean autoCreateTables;
 
-
   /**
    * Initializes a batch GCS writer with a full list of rows to write.
    *
@@ -94,7 +93,6 @@ public class GcsToBqWriter {
     this.retryWaitMs = retryWaitMs;
     this.autoCreateTables = autoCreateTables;
     this.retries = retries;
-
   }
 
   private static Map<String, String> getMetadata(TableId tableId) {
