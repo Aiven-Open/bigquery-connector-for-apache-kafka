@@ -24,8 +24,6 @@
 package com.wepay.kafka.connect.bigquery.write.row;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyObject;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -190,7 +188,7 @@ public class GcsToBqWriterTest {
 
   private void expectTable(BigQuery mockBigQuery) {
     Table mockTable = mock(Table.class);
-    when(mockBigQuery.getTable(any(TableId.class))).thenReturn(mockTable);
+    when(mockBigQuery.getTable(anyObject())).thenReturn(mockTable);
   }
 
   /**
