@@ -313,6 +313,21 @@ public class BigQuerySinkConfigTest {
   }
 
   @Test
+  public void testInvalidGetTableMaxRetries() {
+    Map<String, String> badConfigProperties = propertiesFactory.getProperties();
+
+    badConfigProperties.put(
+        BigQuerySinkConfig.GET_TABLE_MAX_RETRIES_CONFIG,
+        "0"
+    );
+
+    assertThrows(
+        ConfigException.class,
+        () -> new BigQuerySinkConfig(badConfigProperties)
+    );
+  }
+  
+  @Test
   public void testInvalidCommitInterval() {
     Map<String, String> badConfigProperties = propertiesFactory.getProperties();
 

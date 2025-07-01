@@ -26,6 +26,7 @@ package com.wepay.kafka.connect.bigquery.write.row;
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.BigQueryException;
 import com.google.cloud.bigquery.InsertAllRequest.RowToInsert;
+import com.google.cloud.bigquery.Table;
 import com.google.cloud.bigquery.TableId;
 import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
@@ -66,6 +67,8 @@ public class GcsToBqWriter {
   private int retries;
   private long retryWaitMs;
   private boolean autoCreateTables;
+  private final int getTableMaxRetries;
+
 
   /**
    * Initializes a batch GCS writer with a full list of rows to write.
@@ -82,6 +85,7 @@ public class GcsToBqWriter {
                        int retries,
                        long retryWaitMs,
                        boolean autoCreateTables,
+                         int getTableMaxRetries,
                        Time time) {
     this.storage = storage;
     this.bigQuery = bigQuery;
@@ -91,6 +95,8 @@ public class GcsToBqWriter {
     this.retries = retries;
     this.retryWaitMs = retryWaitMs;
     this.autoCreateTables = autoCreateTables;
+    this.getTableMaxRetries = getTableMaxRetries;
+
   }
 
   private static Map<String, String> getMetadata(TableId tableId) {
@@ -128,8 +134,27 @@ public class GcsToBqWriter {
 
     // Check if the table specified exists
     // This error shouldn't be thrown. All tables should be created by the connector at startup
-    if (autoCreateTables && bigQuery.getTable(tableId) == null) {
-      attemptTableCreate(tableId, new ArrayList<>(rows.keySet()));
+    int lookupAttempts = 0;
+    boolean lookupSuccess = false;
+    BigQueryException lookupException = null;
+    while (!lookupSuccess && lookupAttempts < getTableMaxRetries) {
+      if (lookupAttempts > 0) {
+        waitRandomTime();
+      }
+      try {
+        Table table = bigQuery.getTable(tableId);
+        if (autoCreateTables && table == null) {
+          attemptTableCreate(tableId, new ArrayList<>(rows.keySet()));
+        }
+        lookupSuccess = true;
+      } catch (BigQueryException exception) {
+        lookupException = exception;
+        logger.warn("Table lookup failed for {}, attempting retry", tableId.getTable());
+      }
+      lookupAttempts++;
+    }
+    if (!lookupSuccess) {
+      throw new BigQueryConnectException("Failed to lookup table " + tableId, lookupException);
     }
 
     int attemptCount = 0;
