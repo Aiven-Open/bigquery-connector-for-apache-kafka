@@ -26,7 +26,6 @@ package com.wepay.kafka.connect.bigquery.write.row;
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.BigQueryException;
 import com.google.cloud.bigquery.InsertAllRequest.RowToInsert;
-import com.google.cloud.bigquery.Table;
 import com.google.cloud.bigquery.TableId;
 import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
@@ -138,8 +137,7 @@ public class GcsToBqWriter {
         waitRandomTime();
       }
       try {
-        Table table = bigQuery.getTable(tableId);
-        if (autoCreateTables && table == null) {
+        if (autoCreateTables && bigQuery.getTable(tableId) == null) {
           attemptTableCreate(tableId, new ArrayList<>(rows.keySet()));
         }
         lookupSuccess = true;
