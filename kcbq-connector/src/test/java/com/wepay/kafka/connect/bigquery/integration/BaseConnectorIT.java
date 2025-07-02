@@ -396,13 +396,17 @@ public abstract class BaseConnectorIT {
   }
 
   protected String keyFile() {
+    String result;
     if (GcpClientBuilder.KeySource.APPLICATION_DEFAULT.name().equalsIgnoreCase(keySource())) {
       // Key file is optional for most tests when using application default credentials
-      return readEnvVar(KEYFILE_ENV_VAR, "");
+      result = readEnvVar(KEYFILE_ENV_VAR, "");
     } else {
       // Key file is required
-      return readEnvVar(KEYFILE_ENV_VAR);
+      result = readEnvVar(KEYFILE_ENV_VAR);
     }
+    logger.info("Using key file with length of: " + result.length());
+    logger.info("Using key file hash of: " + result.hashCode());
+    return result;
   }
 
   protected String project() {
