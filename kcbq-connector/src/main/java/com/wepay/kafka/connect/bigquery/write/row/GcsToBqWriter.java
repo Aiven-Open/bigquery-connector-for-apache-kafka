@@ -132,13 +132,13 @@ public class GcsToBqWriter {
     boolean lookupSuccess = bigQuery.getTable(tableId) != null;
     BigQueryException lookupException = null;
 
-    while (autoCreateTables && !lookupSuccess && lookupAttempts <= retries) {
+    if (autoCreateTables && !lookupSuccess) {
       schemaManager.createTable(tableId, new ArrayList<>(rows.keySet()));
-      lookupSuccess = bigQuery.getTable(tableId) != null;
-      if (!lookupSuccess && lookupAttempts >= 0) {
+      while (!lookupSuccess && lookupAttempts <= retries) {
         waitRandomTime();
+        lookupSuccess = bigQuery.getTable(tableId) != null;
+        lookupAttempts++;
       }
-      lookupAttempts++;
     }
     if (!lookupSuccess) {
       throw new BigQueryConnectException("Failed to lookup table " + tableId, lookupException);
