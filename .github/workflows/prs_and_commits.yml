@@ -62,6 +62,14 @@ jobs:
         run: mvn -P ci --batch-mode clean package -DskipTests
       - name: Unit tests (Maven)
         run: mvn -P ci --batch-mode test
+      - name: "upload build failure reports"
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: unit-test-results
+          path: |
+            **/target/checkstyle-reports/**
+          retention-days: 1
       - name: Integration tests (Maven)
         env:
           # Necessary for client builder integration tests that run with
@@ -81,5 +89,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          path: kcbq-connector/target/failsafe-reports/*
+          path: |
+            **/target/failsafe-reports/*
           name: integration-test-results
+          retention-days: 3
