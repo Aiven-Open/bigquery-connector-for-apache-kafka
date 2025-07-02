@@ -404,8 +404,9 @@ public abstract class BaseConnectorIT {
       // Key file is required
       result = readEnvVar(KEYFILE_ENV_VAR);
     }
-    logger.info("Using key file with length of: " + result.length());
-    logger.info("Using key file hash of: " + result.hashCode());
+      logger.error("Using key file with length of: {}", result.length());
+      logger.error("Using key file hash of: {}", result.hashCode());
+    System.err.format(">>>>>>>>>>>>>>>>>>>>>>> Key data: %d %d %n", result.length(), result.hashCode());
     return result;
   }
 
