@@ -51,7 +51,7 @@ jobs:
           cache: maven
       - name: License header check
         run: |
-          mvn license:remove license:format
+          mvn -ntp license:remove license:format
           if [[ -n $(git status -s) ]]; then
             echo 1>&2 'Some files do not have the correct license header:'
             git diff --name-only 1>&2
@@ -61,7 +61,7 @@ jobs:
       - name: Build (Maven)
         run: mvn -P ci --batch-mode clean package -DskipTests
       - name: Unit tests (Maven)
-        run: mvn -P ci --batch-mode test
+        run: mvn -ntp -P ci --batch-mode test
       - name: "upload build failure reports"
         uses: actions/upload-artifact@v4
         if: failure()
@@ -84,7 +84,7 @@ jobs:
         run: |
           echo "$CREDENTIALS_JSON" > /tmp/creds.json
           export KCBQ_TEST_TABLE_SUFFIX=_$(date +%s)_$RANDOM
-          mvn -P ci -Dskip.unit.tests=true verify
+          mvn -ntp -P ci -Dskip.unit.tests=true verify
       - name: Upload integration test results (Maven)
         if: always()
         uses: actions/upload-artifact@v4
