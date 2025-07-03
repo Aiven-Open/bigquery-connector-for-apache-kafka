@@ -70,6 +70,10 @@ jobs:
           path: |
             **/target/*-reports/**
           retention-days: 1
+      - name: Dump GitHub context
+        env:
+          GITHUB_CONTEXT: ${{ toJson(github) }}
+        run: echo "$GITHUB_CONTEXT"
       - name: Integration tests (Maven)
         env:
           # Necessary for client builder integration tests that run with
