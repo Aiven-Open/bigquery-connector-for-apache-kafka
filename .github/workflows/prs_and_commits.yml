@@ -43,17 +43,19 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
-      - name: Dump GitHub context
+      - name: Test Secret Setup
         env:
-          GITHUB_CONTEXT: ${{ toJson(github) }}
-        run: echo "$GITHUB_CONTEXT"
-      - name: Test
-        env:
-          TEST_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GCP_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS }}
+          KCBQ_TEST_PROJECT: ${{ secrets.KCBQ_TEST_PROJECT }}
+          KCBQ_TEST_DATASET: ${{ secrets.KCBQ_TEST_DATASET }}
+          KCBQ_TEST_BUCKET: ${{ secrets.KCBQ_TEST_BUCKET }}
         run: |
-          echo ${#TEST_GITHUB_TOKEN}
-          echo ${#GCP_CREDENTIALS}
+          echo "${#GCP_CREDENTIALS} *  ${#KCBQ_TEST_PROJECT} * ${#KCBQ_TEST_DATASET} * ${#KCBQ_TEST_BUCKET}"
+          echo "${#GCP_CREDENTIALS} *  ${#KCBQ_TEST_PROJECT} * ${#KCBQ_TEST_DATASET} * ${#KCBQ_TEST_BUCKET}" | bc >> $secret_total
+          if [[ $(secret_total) -eq 0 ]]; then
+            echo 1>&2 "Not all secrets are set in your clone of this repository.  Please set them and retry"
+            exit 1
+          fi
 #      - name: Set up JDK 17
 #        uses: actions/setup-java@v4
 #        with:
