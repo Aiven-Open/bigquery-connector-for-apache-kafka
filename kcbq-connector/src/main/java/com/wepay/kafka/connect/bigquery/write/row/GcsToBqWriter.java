@@ -133,6 +133,7 @@ public class GcsToBqWriter {
     BigQueryException lookupException = null;
 
     if (autoCreateTables && !lookupSuccess) {
+      logger.info("Table {} was not found. Creating the table automatically.", tableId);
       schemaManager.createTable(tableId, new ArrayList<>(rows.keySet()));
       while (!lookupSuccess && lookupAttempts <= retries) {
         waitRandomTime();
