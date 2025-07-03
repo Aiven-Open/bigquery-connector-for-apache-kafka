@@ -84,7 +84,7 @@ jobs:
             echo 1>&2 "Not all secrets are set in your clone of this repository.  Please set them and retry"
           fi
       - name: Integration tests (Maven)
-        if: ${{SECRET_TOTAL}}
+        if: ${{ENV.SECRET_TOTAL}}
         env:
           # Necessary for client builder integration tests that run with
           # default application credentials
