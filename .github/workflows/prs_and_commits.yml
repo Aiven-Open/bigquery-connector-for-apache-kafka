@@ -68,15 +68,8 @@ jobs:
         with:
           name: unit-test-results
           path: |
-            **/target/checkstyle-reports/**
+            **/target/*-reports/**
           retention-days: 1
-      - name: "Test for secrets"
-        env:
-          super_secret: ${{ secrets.GCP_CREDENTIALS }}
-        if: ${{ env.super_secret  == '' }}
-        run: | 
-            echo "echo the secret \"GCP_CREDENTIALS\" has not been made; echo please go to \"settings \> secrets \> actions\" to create it"
-            exit 1
       - name: Integration tests (Maven)
         env:
           # Necessary for client builder integration tests that run with
