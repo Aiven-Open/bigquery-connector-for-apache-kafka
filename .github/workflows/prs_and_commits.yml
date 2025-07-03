@@ -51,8 +51,10 @@ jobs:
           KCBQ_TEST_BUCKET: ${{ secrets.KCBQ_TEST_BUCKET }}
         run: |
           echo "${#GCP_CREDENTIALS} *  ${#KCBQ_TEST_PROJECT} * ${#KCBQ_TEST_DATASET} * ${#KCBQ_TEST_BUCKET}"
-          echo "${#GCP_CREDENTIALS} *  ${#KCBQ_TEST_PROJECT} * ${#KCBQ_TEST_DATASET} * ${#KCBQ_TEST_BUCKET}" | bc >> $secret_total
-          if [[ $(secret_total) -eq 0 ]]; then
+          echo SECRET_TOTAL=`echo "${#GCP_CREDENTIALS} *  ${#KCBQ_TEST_PROJECT} * ${#KCBQ_TEST_DATASET} * ${#KCBQ_TEST_BUCKET}" | bc` >> $GITHUB_ENV
+      - name: "Test Secrets"
+        run:
+          if [[ $(SECRET_TOTAL) -eq 0 ]]; then
             echo 1>&2 "Not all secrets are set in your clone of this repository.  Please set them and retry"
             exit 1
           fi
