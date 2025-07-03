@@ -60,7 +60,7 @@ public class BigQuerySchemaConverter implements SchemaConverter<com.google.cloud
 
   static {
     // force registration
-    DebeziumLogicalConverters.registerConverters(false);
+    new DebeziumLogicalConverters();
     new KafkaLogicalConverters();
 
     PRIMITIVE_TYPE_MAP = new HashMap<>();
