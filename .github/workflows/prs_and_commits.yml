@@ -54,7 +54,10 @@ jobs:
           echo SECRET_TOTAL=`echo "${#GCP_CREDENTIALS} *  ${#KCBQ_TEST_PROJECT} * ${#KCBQ_TEST_DATASET} * ${#KCBQ_TEST_BUCKET}" | bc` >> $GITHUB_ENV
       - name: "Test Secrets"
         run:
-          if [[ $(SECRET_TOTAL) -eq 0 ]]; then
+          echo A $SECRET_TOTAL
+          echo B ${SECRET_TOTAL}
+          echo C ${{ SECRET_TOTAL }}
+          if [[ $SECRET_TOTAL -eq 0 ]]; then
             echo 1>&2 "Not all secrets are set in your clone of this repository.  Please set them and retry"
             exit 1
           fi
