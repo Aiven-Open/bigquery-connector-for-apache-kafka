@@ -24,7 +24,6 @@
 package com.wepay.kafka.connect.bigquery.convert.logicaltype;
 
 import com.google.cloud.bigquery.LegacySQLTypeName;
-import com.wepay.kafka.connect.bigquery.exception.ConversionConnectException;
 import io.debezium.data.VariableScaleDecimal;
 import io.debezium.time.Date;
 import io.debezium.time.MicroTime;
