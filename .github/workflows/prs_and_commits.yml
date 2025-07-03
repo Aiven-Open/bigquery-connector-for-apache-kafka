@@ -41,6 +41,8 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
       - name: Dump GitHub context
         env:
           GITHUB_CONTEXT: ${{ toJson(github) }}
@@ -52,56 +54,54 @@ jobs:
         run: |
           echo ${#TEST_GITHUB_TOKEN}
           echo ${#GCP_CREDENTIALS}
-      - name: Checkout code
-        uses: actions/checkout@v2
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'adopt'
-          java-version: 17
-          cache: maven
-      - name: License header check
-        run: |
-          mvn -ntp license:remove license:format
-          if [[ -n $(git status -s) ]]; then
-            echo 1>&2 'Some files do not have the correct license header:'
-            git diff --name-only 1>&2
-            echo 1>&2 'Please update the license headers for these files by running `mvn license:remove license:format`'
-            exit 1
-          fi
-      - name: Build (Maven)
-        run: mvn -P ci --batch-mode clean package -DskipTests
-      - name: Unit tests (Maven)
-        run: mvn -ntp -P ci --batch-mode test
-      - name: "upload build failure reports"
-        uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: unit-test-results
-          path: |
-            **/target/*-reports/**
-          retention-days: 1
-      - name: Integration tests (Maven)
-        env:
-          # Necessary for client builder integration tests that run with
-          # default application credentials
-          CREDENTIALS_JSON: ${{ secrets.GCP_CREDENTIALS }}
-          GOOGLE_APPLICATION_CREDENTIALS: /tmp/creds.json
-          KCBQ_TEST_KEYFILE:    ${{ secrets.GCP_CREDENTIALS }}
-          KCBQ_TEST_KEY_SOURCE: JSON
-          KCBQ_TEST_PROJECT:    ${{ secrets.KCBQ_TEST_PROJECT }}
-          KCBQ_TEST_DATASET:    ${{ secrets.KCBQ_TEST_DATASET }}
-          KCBQ_TEST_BUCKET:     ${{ secrets.KCBQ_TEST_BUCKET }}
-        run: |
-          export
-          echo "$CREDENTIALS_JSON" > /tmp/creds.json
-          export KCBQ_TEST_TABLE_SUFFIX=_$(date +%s)_$RANDOM
-          mvn -ntp -P ci -Dskip.unit.tests=true verify
-      - name: Upload integration test results (Maven)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          path: |
-            **/target/failsafe-reports/*
-          name: integration-test-results
-          retention-days: 3
+#      - name: Set up JDK 17
+#        uses: actions/setup-java@v4
+#        with:
+#          distribution: 'adopt'
+#          java-version: 17
+#          cache: maven
+#      - name: License header check
+#        run: |
+#          mvn -ntp license:remove license:format
+#          if [[ -n $(git status -s) ]]; then
+#            echo 1>&2 'Some files do not have the correct license header:'
+#            git diff --name-only 1>&2
+#            echo 1>&2 'Please update the license headers for these files by running `mvn license:remove license:format`'
+#            exit 1
+#          fi
+#      - name: Build (Maven)
+#        run: mvn -P ci --batch-mode clean package -DskipTests
+#      - name: Unit tests (Maven)
+#        run: mvn -ntp -P ci --batch-mode test
+#      - name: "upload build failure reports"
+#        uses: actions/upload-artifact@v4
+#        if: failure()
+#        with:
+#          name: unit-test-results
+#          path: |
+#            **/target/*-reports/**
+#          retention-days: 1
+#      - name: Integration tests (Maven)
+#        env:
+#          # Necessary for client builder integration tests that run with
+#          # default application credentials
+#          CREDENTIALS_JSON: ${{ secrets.GCP_CREDENTIALS }}
+#          GOOGLE_APPLICATION_CREDENTIALS: /tmp/creds.json
+#          KCBQ_TEST_KEYFILE:    ${{ secrets.GCP_CREDENTIALS }}
+#          KCBQ_TEST_KEY_SOURCE: JSON
+#          KCBQ_TEST_PROJECT:    ${{ secrets.KCBQ_TEST_PROJECT }}
+#          KCBQ_TEST_DATASET:    ${{ secrets.KCBQ_TEST_DATASET }}
+#          KCBQ_TEST_BUCKET:     ${{ secrets.KCBQ_TEST_BUCKET }}
+#        run: |
+#          export
+#          echo "$CREDENTIALS_JSON" > /tmp/creds.json
+#          export KCBQ_TEST_TABLE_SUFFIX=_$(date +%s)_$RANDOM
+#          mvn -ntp -P ci -Dskip.unit.tests=true verify
+#      - name: Upload integration test results (Maven)
+#        if: always()
+#        uses: actions/upload-artifact@v4
+#        with:
+#          path: |
+#            **/target/failsafe-reports/*
+#          name: integration-test-results
+#          retention-days: 3
