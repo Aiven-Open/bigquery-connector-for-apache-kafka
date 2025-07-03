@@ -68,13 +68,12 @@ jobs:
           # default application credentials
           CREDENTIALS_JSON: ${{ secrets.GCP_CREDENTIALS }}
           GOOGLE_APPLICATION_CREDENTIALS: /tmp/creds.json
-          KCBQ_TEST_KEYFILE:    ${{ secrets.GCP_CREDENTIALS }}
+          KCBQ_TEST_KEYFILE:    /tmp/creds.json
           KCBQ_TEST_KEY_SOURCE: JSON
           KCBQ_TEST_PROJECT:    ${{ secrets.KCBQ_TEST_PROJECT }}
           KCBQ_TEST_DATASET:    ${{ secrets.KCBQ_TEST_DATASET }}
           KCBQ_TEST_BUCKET:     ${{ secrets.KCBQ_TEST_BUCKET }}
         run: |
-          export
           echo "$CREDENTIALS_JSON" > /tmp/creds.json
           export KCBQ_TEST_TABLE_SUFFIX=_$(date +%s)_$RANDOM
           mvn -ntp -P ci -Dskip.unit.tests=true verify
