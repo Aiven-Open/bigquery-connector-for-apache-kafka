@@ -85,4 +85,4 @@ jobs:
           path: |
             **/target/failsafe-reports/*
           name: integration-test-results
-          retention-days: 3
+          retention-days: 1
