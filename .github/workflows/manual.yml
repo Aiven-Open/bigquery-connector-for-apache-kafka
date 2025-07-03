@@ -69,7 +69,7 @@ jobs:
           CREDENTIALS_JSON: ${{ secrets.GCP_CREDENTIALS }}
           GOOGLE_APPLICATION_CREDENTIALS: /tmp/creds.json
           KCBQ_TEST_KEYFILE:    /tmp/creds.json
-          KCBQ_TEST_KEY_SOURCE: JSON
+          KCBQ_TEST_KEY_SOURCE: FILE
           KCBQ_TEST_PROJECT:    ${{ secrets.KCBQ_TEST_PROJECT }}
           KCBQ_TEST_DATASET:    ${{ secrets.KCBQ_TEST_DATASET }}
           KCBQ_TEST_BUCKET:     ${{ secrets.KCBQ_TEST_BUCKET }}
