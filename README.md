@@ -51,13 +51,26 @@ Releases are available in the GitHub release tab.
   
 ## Integration test setup
 
-In order to execute the integration tests a clone of this repository must be made and the following 
-properties added to the repository secrets
+In order to execute the integration specific environment variables must be set.
 
-GCP_CREDENTIALS - this should be the contents of a json file that you download when you create GCP account key.
+### Local configuration
+
+GOOGLE_APPLICATION_CREDENTIALS - the path to a json file that was download when the GCP account key was created..
+
+KCBQ_TEST_BUCKET - the name of the bucket to use for testing,
+
+KCBQ_TEST_DATASET - the name of the dataset to use for testing,
+
+KCBQ_TEST_KEYFILE - same as the GOOGLE_APPLICATION_CREDENTIALS
+
+KCBQ_TEST_PROJECT - the name of the project to use. 
+
+### Github configuration
+
+GCP_CREDENTIALS - the contents of a json file that was download when the GCP account key was created.
 
 KCBQ_TEST_BUCKET - the bucket to use for the tests
 
 KCBQ_TEST_DATASET - the data set to use for the tests.
 
-KBCQ_TEST_PROJECT - the project to use for the tests.
+KCBQ_TEST_PROJECT - the project to use for the tests.

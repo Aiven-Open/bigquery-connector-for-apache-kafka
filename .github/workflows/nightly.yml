@@ -23,12 +23,16 @@
 
 # Workflow to check pull requests and new commits to main branches
 # This checks the source in the state as if after the merge.
-name: Pull request checks
+name: Manual build
 on:
-  pull_request:
-    branches: [ main ]
-  push:
-    branches: [ main ]
+  schedule: ## run GMT 1:17 hours
+    - cron: '17 1 * * *'
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
 
 # Disallow concurrent runs for the same PR by cancelling in-progress runs
 # when new commits are pushed
@@ -37,36 +41,5 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
-    name: Build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'adopt'
-          java-version: 17
-          cache: maven
-      - name: License header check
-        run: |
-          mvn -ntp license:remove license:format
-          if [[ -n $(git status -s) ]]; then
-            echo 1>&2 'Some files do not have the correct license header:'
-            git diff --name-only 1>&2
-            echo 1>&2 'Please update the license headers for these files by running `mvn license:remove license:format`'
-            exit 1
-          fi
-      - name: Build (Maven)
-        run: mvn -ntp -P ci --batch-mode clean package -DskipTests
-      - name: Unit tests (Maven)
-        run: mvn -ntp -P ci --batch-mode test
-      - name: "upload build failure reports"
-        uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: unit-test-results
-          path: |
-            **/target/*-reports/**
-          retention-days: 1
+  call-workflow-2-in-local-repo:
+    uses: ./.github/workflows/manual.yml
