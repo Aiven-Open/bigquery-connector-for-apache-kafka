@@ -154,11 +154,18 @@ BigQuery Sink Connector Configuration Options
   * Importance: medium
 
 ``useStorageWriteApi``
-  Use Google's New Storage Write API for data streaming. Not available for upsert/delete mode
+  (Beta feature: use with caution) Use Google's New Storage Write API for data streaming. Not available for upsert/delete mode
 
   * Type: boolean
   * Default: false
   * Importance: medium
+
+``useProjectFromCreds``
+  Use the ``quotaProjectId`` from the Google credentials.
+
+  * Type: boolean
+  * Default: false
+  * Importance: low
 
 ``allBQFieldsNullable``
   If true, no fields in any produced BigQuery schema will be REQUIRED. All non-nullable avro fields will be translated as NULLABLE (or REPEATED, if arrays).
@@ -187,7 +194,7 @@ BigQuery Sink Connector Configuration Options
 
   * Type: list
   * Default: null
-  * Valid Values: com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig$$Lambda/0x000000d8014d0440@325a48a1
+  * Valid Values: com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig$$Lambda/0x000000f001235108@5d9f3e38
   * Importance: low
 
 ``commitInterval``
@@ -273,7 +280,7 @@ BigQuery Sink Connector Configuration Options
 
   * Type: long
   * Default: null
-  * Valid Values: com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig$$Lambda/0x000000d8014d0890@7f1de728
+  * Valid Values: com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig$$Lambda/0x000000f001235558@16147134
   * Importance: low
 
 ``timestampPartitionFieldName``
@@ -289,7 +296,7 @@ BigQuery Sink Connector Configuration Options
 
   * Type: string
   * Default: ""
-  * Valid Values: com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig$$Lambda/0x000000d8014cf200@7dad73ea
+  * Valid Values: com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig$$Lambda/0x000000f001234000@69a3b76d
   * Importance: low
 
 ``upsertEnabled``
@@ -324,7 +331,7 @@ Common
 
   * Type: string
   * Default: DAY
-  * Valid Values: com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig$$Lambda/0x000000d8014d75e8@4065faf5
+  * Valid Values: com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig$$Lambda/0x000000f001239e90@356a0fbe
   * Importance: low
 
 

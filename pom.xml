@@ -28,7 +28,7 @@
 
     <groupId>com.wepay.kcbq</groupId>
     <artifactId>kcbq-parent</artifactId>
-    <version>2.7.0-SNAPSHOT</version>
+    <version>2.6.1-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <modules>
@@ -53,15 +53,11 @@
         <junit.version>5.10.2</junit.version>
         <mockito.version>3.2.4</mockito.version>
 
-        <assembly.plugin.version>3.7.0</assembly.plugin.version>
-        <buildnumber.plugin.version>1.4</buildnumber.plugin.version>
+        <assembly.plugin.version>3.7.1</assembly.plugin.version>
         <checkstyle.plugin.version>3.3.1</checkstyle.plugin.version>
         <compiler.plugin.version>3.8.1</compiler.plugin.version>
         <exec.plugin.version>3.2.0</exec.plugin.version>
-        <google.cloud.bom.version>26.14.0</google.cloud.bom.version>
-        <kafka.connect.plugin.version>0.11.1</kafka.connect.plugin.version>
-        <release.plugin.version>2.5.3</release.plugin.version>
-        <site.plugin.version>3.7.1</site.plugin.version>
+        <google.cloud.bom.version>26.33.0</google.cloud.bom.version>
         <surefire.plugin.version>3.0.0-M4</surefire.plugin.version>
 
         <main.dir>${project.basedir}</main.dir>
@@ -327,16 +323,6 @@
     <build>
         <plugins>
             <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-release-plugin</artifactId>
-                <version>${release.plugin.version}</version>
-                <configuration>
-                    <autoVersionSubmodules>true</autoVersionSubmodules>
-                    <remoteTagging>false</remoteTagging>
-                    <tagNameFormat>v@{project.version}</tagNameFormat>
-                </configuration>
-            </plugin>
-            <plugin>
                 <groupId>com.mycila</groupId>
                 <artifactId>license-maven-plugin</artifactId>
                 <version>3.0</version>
@@ -439,20 +425,6 @@ under the License.
                             </goals>
                         </execution>
                     </executions>
-                </plugin>
-                <!--
-                    Override the default version for the site plugin to fix ClassNotFoundExceptions
-                    being thrown during build, as suggested by https://stackoverflow.com/a/51099913
-                -->
-                <plugin>
-                    <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-site-plugin</artifactId>
-                    <version>${site.plugin.version}</version>
-                </plugin>
-                <plugin>
-                    <groupId>io.confluent</groupId>
-                    <artifactId>kafka-connect-maven-plugin</artifactId>
-                    <version>${kafka.connect.plugin.version}</version>
                 </plugin>
                 <plugin>
                     <groupId>org.codehaus.mojo</groupId>

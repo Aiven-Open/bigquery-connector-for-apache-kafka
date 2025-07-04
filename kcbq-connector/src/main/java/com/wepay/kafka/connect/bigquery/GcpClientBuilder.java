@@ -24,6 +24,7 @@
 package com.wepay.kafka.connect.bigquery;
 
 import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.PROJECT_CONFIG;
+import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.USE_CREDENTIALS_PROJECT_ID_CONFIG;
 import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG;
 
 import com.google.api.gax.core.FixedCredentialsProvider;
@@ -65,12 +66,14 @@ public abstract class GcpClientBuilder<ClientT> {
   private String key = null;
 
   private boolean useStorageWriteApi = false;
+  protected boolean useCredentialsProjectId = false;
 
   public GcpClientBuilder<ClientT> withConfig(BigQuerySinkConfig config) {
     return withProject(config.getString(PROJECT_CONFIG))
-        .withKeySource(config.getKeySource())
-        .withKey(config.getKey())
-        .withWriterApi(config.getBoolean(USE_STORAGE_WRITE_API_CONFIG));
+    .withKeySource(config.getKeySource())
+    .withKey(config.getKey())
+    .withWriterApi(config.getBoolean(USE_STORAGE_WRITE_API_CONFIG))
+    .withProjectFromCreds(config.getBoolean(USE_CREDENTIALS_PROJECT_ID_CONFIG));
   }
 
   public GcpClientBuilder<ClientT> withProject(String project) {
@@ -83,6 +86,11 @@ public abstract class GcpClientBuilder<ClientT> {
     this.useStorageWriteApi = useStorageWriteApi;
     return this;
   }
+
+  public GcpClientBuilder<ClientT> withProjectFromCreds(Boolean useCredentialsProjectId) {
+    this.useCredentialsProjectId = useCredentialsProjectId;
+    return this;
+  }  
 
   public GcpClientBuilder<ClientT> withKeySource(KeySource keySource) {
     Objects.requireNonNull(keySource, "Key cannot be null");
@@ -105,7 +113,9 @@ public abstract class GcpClientBuilder<ClientT> {
     }
 
     Objects.requireNonNull(keySource, "Key source must be defined to build a GCP client");
-    Objects.requireNonNull(project, "Project must be defined to build a GCP client");
+    if (!useCredentialsProjectId) {
+      Objects.requireNonNull(project, "Project must be defined to build a GCP client");
+    }    
 
     InputStream credentialsStream;
     switch (keySource) {
@@ -149,8 +159,10 @@ public abstract class GcpClientBuilder<ClientT> {
   public static class BigQueryBuilder extends GcpClientBuilder<BigQuery> {
     @Override
     protected BigQuery doBuild(String project, GoogleCredentials credentials) {
-      BigQueryOptions.Builder builder = BigQueryOptions.newBuilder()
-          .setProjectId(project);
+      BigQueryOptions.Builder builder = BigQueryOptions.newBuilder();
+      if (!useCredentialsProjectId) {
+        builder = builder.setProjectId(project);
+      }
 
       if (credentials != null) {
         builder.setCredentials(credentials);
@@ -165,8 +177,10 @@ public abstract class GcpClientBuilder<ClientT> {
   public static class GcsBuilder extends GcpClientBuilder<Storage> {
     @Override
     protected Storage doBuild(String project, GoogleCredentials credentials) {
-      StorageOptions.Builder builder = StorageOptions.newBuilder()
-          .setProjectId(project);
+      StorageOptions.Builder builder = StorageOptions.newBuilder();
+      if (!useCredentialsProjectId) {
+        builder = builder.setProjectId(project);
+      }
 
       if (credentials != null) {
         builder.setCredentials(credentials);
@@ -185,8 +199,10 @@ public abstract class GcpClientBuilder<ClientT> {
 
     @Override
     protected BigQueryWriteSettings doBuild(String project, GoogleCredentials credentials) {
-      BigQueryWriteSettings.Builder builder = BigQueryWriteSettings.newBuilder()
-          .setQuotaProjectId(project);
+      BigQueryWriteSettings.Builder builder = BigQueryWriteSettings.newBuilder();
+      if (!useCredentialsProjectId) {
+        builder.setQuotaProjectId(project);
+      }
 
       if (credentials != null) {
         builder.setCredentialsProvider(FixedCredentialsProvider.create(credentials));
