@@ -128,8 +128,21 @@ public class GcsToBqWriter {
 
     // Check if the table specified exists
     // This error shouldn't be thrown. All tables should be created by the connector at startup
-    if (autoCreateTables && bigQuery.getTable(tableId) == null) {
-      attemptTableCreate(tableId, new ArrayList<>(rows.keySet()));
+    int lookupAttempts = 0;
+    boolean lookupSuccess = bigQuery.getTable(tableId) != null;
+    BigQueryException lookupException = null;
+
+    if (autoCreateTables && !lookupSuccess) {
+      logger.info("Table {} was not found. Creating the table automatically.", tableId);
+      schemaManager.createTable(tableId, new ArrayList<>(rows.keySet()));
+      while (!lookupSuccess && lookupAttempts <= retries) {
+        waitRandomTime();
+        lookupSuccess = bigQuery.getTable(tableId) != null;
+        lookupAttempts++;
+      }
+    }
+    if (!lookupSuccess) {
+      throw new BigQueryConnectException("Failed to lookup table " + tableId, lookupException);
     }
 
     int attemptCount = 0;
@@ -200,13 +213,4 @@ public class GcsToBqWriter {
     time.sleep(retryWaitMs + random.nextInt(WAIT_MAX_JITTER));
   }
 
-  private void attemptTableCreate(TableId tableId, List<SinkRecord> records) {
-    try {
-      logger.info("Table {} does not exist, auto-creating table ", tableId);
-      schemaManager.createTable(tableId, records);
-    } catch (BigQueryException exception) {
-      throw new BigQueryConnectException(
-          "Failed to create table " + tableId, exception);
-    }
-  }
 }
