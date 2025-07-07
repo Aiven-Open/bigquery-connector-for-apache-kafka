@@ -362,6 +362,7 @@ under the License.
                         <exclude>LICENSE.md</exclude>
                         <exclude>*.log</exclude>
                         <exclude>config/checkstyle/google_checks.xml</exclude>
+                        <exclude>**/VersionInfo.java</exclude>
                     </excludes>
                 </configuration>
             </plugin>
