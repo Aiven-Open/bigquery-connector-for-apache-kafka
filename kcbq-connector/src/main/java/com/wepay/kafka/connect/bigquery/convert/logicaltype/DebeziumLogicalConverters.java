@@ -24,18 +24,21 @@
 package com.wepay.kafka.connect.bigquery.convert.logicaltype;
 
 import com.google.cloud.bigquery.LegacySQLTypeName;
+import io.debezium.data.VariableScaleDecimal;
 import io.debezium.time.Date;
 import io.debezium.time.MicroTime;
 import io.debezium.time.MicroTimestamp;
 import io.debezium.time.Time;
 import io.debezium.time.Timestamp;
 import io.debezium.time.ZonedTimestamp;
+import java.math.BigDecimal;
 import java.text.SimpleDateFormat;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.TemporalAccessor;
 import java.util.concurrent.TimeUnit;
 import org.apache.kafka.connect.data.Schema;
+import org.apache.kafka.connect.data.Struct;
 
 /**
  * Class containing all the Debezium logical type converters.
@@ -52,6 +55,18 @@ public class DebeziumLogicalConverters {
     LogicalConverterRegistry.register(Time.SCHEMA_NAME, new TimeConverter());
     LogicalConverterRegistry.register(ZonedTimestamp.SCHEMA_NAME, new ZonedTimestampConverter());
     LogicalConverterRegistry.register(Timestamp.SCHEMA_NAME, new TimestampConverter());
+  }
+
+  private static boolean decimalConverterRegistered = false;
+  /** Register the Debezium VariableScaleDecimal converter. */
+  
+  public static void registerVariableScaleDecimalConverter() {
+    if (!decimalConverterRegistered) {
+      LogicalConverterRegistry.register(
+          VariableScaleDecimal.LOGICAL_NAME,
+          new VariableScaleDecimalConverter());
+      decimalConverterRegistered = true;
+    }
   }
 
   /**
@@ -201,6 +216,32 @@ public class DebeziumLogicalConverters {
               .append(DateTimeFormatter.ISO_TIME)
               .toFormatter();
       return bqZonedTimestampFormat.format(parsedTime);
+    }
+  }
+
+  /**
+   * Class for converting Debezium variable scale decimals to BigQuery NUMERIC.
+   */
+  public static class VariableScaleDecimalConverter extends LogicalTypeConverter {
+    /**
+     * Create a new VariableScaleDecimalConverter.
+     */
+    public VariableScaleDecimalConverter() {
+      super(VariableScaleDecimal.LOGICAL_NAME,
+          Schema.Type.STRUCT,
+          LegacySQLTypeName.NUMERIC);
+    }
+
+    @Override
+    public BigDecimal convert(Object kafkaConnectObject) {
+      return toLogical((Struct) kafkaConnectObject);
+    }
+
+    private static BigDecimal toLogical(Struct value) {
+      if (value == null) {
+        return null;
+      }
+      return VariableScaleDecimal.toLogical(value);
     }
   }
 }

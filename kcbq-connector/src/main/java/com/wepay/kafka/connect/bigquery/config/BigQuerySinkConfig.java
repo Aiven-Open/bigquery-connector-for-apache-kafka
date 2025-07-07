@@ -31,6 +31,7 @@ import com.wepay.kafka.connect.bigquery.convert.BigQueryRecordConverter;
 import com.wepay.kafka.connect.bigquery.convert.BigQuerySchemaConverter;
 import com.wepay.kafka.connect.bigquery.convert.RecordConverter;
 import com.wepay.kafka.connect.bigquery.convert.SchemaConverter;
+import com.wepay.kafka.connect.bigquery.convert.logicaltype.DebeziumLogicalConverters;
 import com.wepay.kafka.connect.bigquery.retrieve.IdentitySchemaRetriever;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -146,6 +147,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
   public static final String BIGQUERY_TIMESTAMP_PARTITION_FIELD_NAME_CONFIG = "timestampPartitionFieldName";
   public static final String BIGQUERY_CLUSTERING_FIELD_NAMES_CONFIG = "clusteringPartitionFieldNames";
   public static final String CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_CONFIG = "convertDebeziumTimestampToInteger";
+  public static final String CONVERT_DEBEZIUM_DECIMAL_CONFIG = "convertDebeziumVariableScaleDecimal";
   public static final String TIME_PARTITIONING_TYPE_CONFIG = "timePartitioningType";
   public static final String TIME_PARTITIONING_TYPE_DEFAULT = TimePartitioning.Type.DAY.name().toUpperCase();
   public static final String TIME_PARTITIONING_TYPE_NONE = "NONE";
@@ -489,6 +491,10 @@ public class BigQuerySinkConfig extends AbstractConfig {
   private static final Boolean CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_DEFAULT = false;
   private static final ConfigDef.Importance CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_IMPORTANCE =
       ConfigDef.Importance.MEDIUM;
+  private static final ConfigDef.Type CONVERT_DEBEZIUM_DECIMAL_TYPE = ConfigDef.Type.BOOLEAN;
+  private static final Boolean CONVERT_DEBEZIUM_DECIMAL_DEFAULT = false;
+  private static final ConfigDef.Importance CONVERT_DEBEZIUM_DECIMAL_IMPORTANCE =
+      ConfigDef.Importance.LOW;      
   private static final ConfigDef.Type TIME_PARTITIONING_TYPE_TYPE = ConfigDef.Type.STRING;
   private static final ConfigDef.Importance TIME_PARTITIONING_TYPE_IMPORTANCE = ConfigDef.Importance.LOW;
   private static final List<String> TIME_PARTITIONING_TYPES = Stream.concat(
@@ -876,6 +882,11 @@ public class BigQuerySinkConfig extends AbstractConfig {
             CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_TYPE,
             CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_DEFAULT,
             CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_IMPORTANCE
+        ).defineInternal(
+            CONVERT_DEBEZIUM_DECIMAL_CONFIG,
+            CONVERT_DEBEZIUM_DECIMAL_TYPE,
+            CONVERT_DEBEZIUM_DECIMAL_DEFAULT,
+            CONVERT_DEBEZIUM_DECIMAL_IMPORTANCE            
         );
   }
 
@@ -949,6 +960,10 @@ public class BigQuerySinkConfig extends AbstractConfig {
    * @return a {@link SchemaConverter} for BigQuery.
    */
   public SchemaConverter<Schema> getSchemaConverter() {
+    boolean shouldConvertToDebeziumVariableScaleDecimal = getBoolean(CONVERT_DEBEZIUM_DECIMAL_CONFIG);
+    if (shouldConvertToDebeziumVariableScaleDecimal) {
+      DebeziumLogicalConverters.registerVariableScaleDecimalConverter();
+    }
     return new BigQuerySchemaConverter(
         getBoolean(ALL_BQ_FIELDS_NULLABLE_CONFIG),
         getBoolean(SANITIZE_FIELD_NAME_CONFIG));
@@ -960,10 +975,15 @@ public class BigQuerySinkConfig extends AbstractConfig {
    * @return a {@link RecordConverter} for BigQuery.
    */
   public RecordConverter<Map<String, Object>> getRecordConverter() {
+    boolean shouldConvertToDebeziumVariableScaleDecimal = getBoolean(CONVERT_DEBEZIUM_DECIMAL_CONFIG);
+    if (shouldConvertToDebeziumVariableScaleDecimal) {
+      DebeziumLogicalConverters.registerVariableScaleDecimalConverter();
+    }
     return new BigQueryRecordConverter(
         getBoolean(CONVERT_DOUBLE_SPECIAL_VALUES_CONFIG),
         getBoolean(CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_CONFIG),
-        getBoolean(USE_STORAGE_WRITE_API_CONFIG)
+        getBoolean(USE_STORAGE_WRITE_API_CONFIG),
+        shouldConvertToDebeziumVariableScaleDecimal
     );
   }
 
