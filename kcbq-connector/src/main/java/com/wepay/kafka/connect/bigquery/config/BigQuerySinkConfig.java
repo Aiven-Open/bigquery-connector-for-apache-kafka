@@ -949,7 +949,9 @@ public class BigQuerySinkConfig extends AbstractConfig {
    */
   public SchemaConverter<Schema> getSchemaConverter() {
     boolean shouldConvertToDebeziumVariableScaleDecimal = getBoolean(CONVERT_DEBEZIUM_DECIMAL_CONFIG);
-    DebeziumLogicalConverters.registerConverters(shouldConvertToDebeziumVariableScaleDecimal);    
+    if (shouldConvertToDebeziumVariableScaleDecimal) {
+      DebeziumLogicalConverters.registerVariableScaleDecimalConverter();
+    }
     return new BigQuerySchemaConverter(
         getBoolean(ALL_BQ_FIELDS_NULLABLE_CONFIG),
         getBoolean(SANITIZE_FIELD_NAME_CONFIG));
@@ -962,7 +964,9 @@ public class BigQuerySinkConfig extends AbstractConfig {
    */
   public RecordConverter<Map<String, Object>> getRecordConverter() {
     boolean shouldConvertToDebeziumVariableScaleDecimal = getBoolean(CONVERT_DEBEZIUM_DECIMAL_CONFIG);
-    DebeziumLogicalConverters.registerConverters(shouldConvertToDebeziumVariableScaleDecimal);
+    if (shouldConvertToDebeziumVariableScaleDecimal) {
+      DebeziumLogicalConverters.registerVariableScaleDecimalConverter();
+    }
     return new BigQueryRecordConverter(
         getBoolean(CONVERT_DOUBLE_SPECIAL_VALUES_CONFIG),
         getBoolean(CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_CONFIG),

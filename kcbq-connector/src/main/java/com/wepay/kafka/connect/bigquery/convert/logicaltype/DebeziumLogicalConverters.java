@@ -49,31 +49,24 @@ public class DebeziumLogicalConverters {
   private static final int MICROS_IN_MILLI = 1000;
 
   static {
-    registerConverters(false);
-  }
-
-  /** Register all default Debezium converters and optionally the
-   * VariableScaleDecimal converter.
-   *
-   * @param convertVariableScaleDecimal whether the decimal converter should be registered
-   */
-  public static void registerConverters(boolean convertVariableScaleDecimal) {
     LogicalConverterRegistry.register(Date.SCHEMA_NAME, new DateConverter());
     LogicalConverterRegistry.register(MicroTime.SCHEMA_NAME, new MicroTimeConverter());
     LogicalConverterRegistry.register(MicroTimestamp.SCHEMA_NAME, new MicroTimestampConverter());
     LogicalConverterRegistry.register(Time.SCHEMA_NAME, new TimeConverter());
     LogicalConverterRegistry.register(ZonedTimestamp.SCHEMA_NAME, new ZonedTimestampConverter());
     LogicalConverterRegistry.register(Timestamp.SCHEMA_NAME, new TimestampConverter());
-    if (convertVariableScaleDecimal) {
-      registerVariableScaleDecimalConverter();
-    }
   }
 
-  /** Register the converter for Debezium VariableScaleDecimal logical type. */
+  private static boolean decimalConverterRegistered = false;
+  /** Register the Debezium VariableScaleDecimal converter. */
+  
   public static void registerVariableScaleDecimalConverter() {
-    LogicalConverterRegistry.register(
-        VariableScaleDecimal.LOGICAL_NAME,
-        new VariableScaleDecimalConverter());
+    if (!decimalConverterRegistered) {
+      LogicalConverterRegistry.register(
+          VariableScaleDecimal.LOGICAL_NAME,
+          new VariableScaleDecimalConverter());
+      decimalConverterRegistered = true;
+    }
   }
 
   /**

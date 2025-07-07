@@ -581,7 +581,7 @@ public class BigQuerySchemaConverterTest {
   public void testDebeziumVariableScaleDecimal() {
     final String fieldName = "DebeziumDecimal";
 
-    DebeziumLogicalConverters.registerConverters(true);
+    DebeziumLogicalConverters.registerVariableScaleDecimalConverter();
 
     com.google.cloud.bigquery.Schema bigQueryExpectedSchema =
         com.google.cloud.bigquery.Schema.of(

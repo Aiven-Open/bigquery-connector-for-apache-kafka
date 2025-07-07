@@ -170,7 +170,7 @@ public class DebeziumLogicalConvertersTest {
 
     converter.checkEncodingType(Schema.Type.STRUCT);
 
-    java.math.BigDecimal converted = (java.math.BigDecimal) converter.convert(schema, null);
+    java.math.BigDecimal converted = (java.math.BigDecimal) converter.convert(null);
     assertNull(converted);
   }
 }
