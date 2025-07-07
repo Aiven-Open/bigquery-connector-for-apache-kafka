@@ -28,6 +28,8 @@ import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.USE_CRE
 import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG;
 
 import com.google.api.gax.core.FixedCredentialsProvider;
+import com.google.api.gax.rpc.FixedHeaderProvider;
+import com.google.api.gax.rpc.HeaderProvider;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.BigQueryOptions;
@@ -38,6 +40,7 @@ import com.google.common.collect.Lists;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiConnectException;
+import io.aiven.kafka.utils.VersionInfo;
 import java.io.ByteArrayInputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -61,6 +64,10 @@ public abstract class GcpClientBuilder<ClientT> {
       "https://www.googleapis.com/auth/devstorage.read_only",
       "https://www.googleapis.com/auth/devstorage.read_write"
   );
+  private static final String USER_AGENT_HEADER_KEY = "user-agent";
+  private static final String USER_AGENT_HEADER_FORMAT = "Google BigQuery Sink/%s (GPN: %s;)";
+
+  protected HeaderProvider headerProvider = null;
   private String project = null;
   private KeySource keySource = null;
   private String key = null;
@@ -73,7 +80,8 @@ public abstract class GcpClientBuilder<ClientT> {
     .withKeySource(config.getKeySource())
     .withKey(config.getKey())
     .withWriterApi(config.getBoolean(USE_STORAGE_WRITE_API_CONFIG))
-    .withProjectFromCreds(config.getBoolean(USE_CREDENTIALS_PROJECT_ID_CONFIG));
+    .withProjectFromCreds(config.getBoolean(USE_CREDENTIALS_PROJECT_ID_CONFIG))
+    .withUserAgent();
   }
 
   public GcpClientBuilder<ClientT> withProject(String project) {
@@ -100,6 +108,15 @@ public abstract class GcpClientBuilder<ClientT> {
 
   public GcpClientBuilder<ClientT> withKey(String key) {
     this.key = key;
+    return this;
+  }
+
+  public GcpClientBuilder<ClientT> withUserAgent() {
+    VersionInfo versionInfo = new VersionInfo(GcpClientBuilder.class);
+    this.headerProvider = FixedHeaderProvider.create(
+            USER_AGENT_HEADER_KEY,
+            String.format(USER_AGENT_HEADER_FORMAT, versionInfo.getVersion(), versionInfo.getVendor())
+    );
     return this;
   }
 
@@ -160,6 +177,9 @@ public abstract class GcpClientBuilder<ClientT> {
     @Override
     protected BigQuery doBuild(String project, GoogleCredentials credentials) {
       BigQueryOptions.Builder builder = BigQueryOptions.newBuilder();
+      if (headerProvider != null) {
+        builder.setHeaderProvider(headerProvider);
+      }
       if (!useCredentialsProjectId) {
         builder = builder.setProjectId(project);
       }
@@ -178,6 +198,9 @@ public abstract class GcpClientBuilder<ClientT> {
     @Override
     protected Storage doBuild(String project, GoogleCredentials credentials) {
       StorageOptions.Builder builder = StorageOptions.newBuilder();
+      if (headerProvider != null) {
+        builder.setHeaderProvider(headerProvider);
+      }
       if (!useCredentialsProjectId) {
         builder = builder.setProjectId(project);
       }
@@ -200,6 +223,9 @@ public abstract class GcpClientBuilder<ClientT> {
     @Override
     protected BigQueryWriteSettings doBuild(String project, GoogleCredentials credentials) {
       BigQueryWriteSettings.Builder builder = BigQueryWriteSettings.newBuilder();
+      if (headerProvider != null) {
+        builder.setHeaderProvider(headerProvider);
+      }
       if (!useCredentialsProjectId) {
         builder.setQuotaProjectId(project);
       }
@@ -218,5 +244,4 @@ public abstract class GcpClientBuilder<ClientT> {
       }
     }
   }
-
 }

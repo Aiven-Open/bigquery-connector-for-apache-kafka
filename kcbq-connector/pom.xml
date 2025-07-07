@@ -36,7 +36,10 @@
 
     <artifactId>kcbq-connector</artifactId>
     <name>kafka-connect-bigquery</name>
-
+    <organization>
+        <name>Aiven</name>
+        <url>https://www.aiven.io</url>
+    </organization>
     <properties>
         <main.dir>${project.parent.basedir}</main.dir>
     </properties>
@@ -214,6 +217,20 @@
                         <descriptor>src/main/assembly/release-zip.xml</descriptor>
                     </descriptors>
                     <tarLongFileMode>posix</tarLongFileMode>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.4.2</version>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <mainClass>io.aiven.kafka.utils.VersionInfo</mainClass>
+                            <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
+                            <addDefaultSpecificationEntries>true</addDefaultSpecificationEntries>
+                        </manifest>
+                    </archive>
                 </configuration>
             </plugin>
         </plugins>
