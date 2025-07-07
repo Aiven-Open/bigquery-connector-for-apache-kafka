@@ -25,7 +25,7 @@ package com.wepay.kafka.connect.bigquery;
 
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkTaskConfig;
-import com.wepay.kafka.connect.bigquery.utils.Version;
+import io.aiven.kafka.utils.VersionInfo;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -102,7 +102,7 @@ public class BigQuerySinkConnector extends SinkConnector {
 
   @Override
   public String version() {
-    String version = Version.version();
+    String version = new VersionInfo(BigQuerySinkConnector.class).getVersion();
     logger.trace("connector.version() = {}", version);
     return version;
   }

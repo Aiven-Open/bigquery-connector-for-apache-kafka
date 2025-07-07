@@ -50,7 +50,6 @@ import com.wepay.kafka.connect.bigquery.utils.PartitionedTableId;
 import com.wepay.kafka.connect.bigquery.utils.SinkRecordConverter;
 import com.wepay.kafka.connect.bigquery.utils.TableNameUtils;
 import com.wepay.kafka.connect.bigquery.utils.Time;
-import com.wepay.kafka.connect.bigquery.utils.Version;
 import com.wepay.kafka.connect.bigquery.write.batch.GcsBatchTableWriter;
 import com.wepay.kafka.connect.bigquery.write.batch.KcbqThreadPoolExecutor;
 import com.wepay.kafka.connect.bigquery.write.batch.MergeBatches;
@@ -66,6 +65,7 @@ import com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiBase;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiBatchApplicationStream;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiDefaultStream;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiWriter;
+import io.aiven.kafka.utils.VersionInfo;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collection;
@@ -751,7 +751,7 @@ public class BigQuerySinkTask extends SinkTask {
 
   @Override
   public String version() {
-    String version = Version.version();
+    String version = new VersionInfo(BigQuerySinkTask.class).getVersion();
     logger.trace("task.version() = {}", version);
     return version;
   }
