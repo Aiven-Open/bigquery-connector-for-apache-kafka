@@ -76,7 +76,7 @@ public class StorageWriteApiWriterTest {
     StorageApiBatchModeHandler batchModeHandler = mock(StorageApiBatchModeHandler.class);
     SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(mockedConfig, null, null);
     TableWriterBuilder builder = new StorageWriteApiWriter.Builder(
-        mockStreamWriter, null, sinkRecordConverter, batchModeHandler);
+        mockStreamWriter, null, sinkRecordConverter, mockedConfig, batchModeHandler);
     @SuppressWarnings("unchecked")
     ArgumentCaptor<List<ConvertedRecord>> records = ArgumentCaptor.forClass(List.class);
     String expectedKafkaKey = "{\"key\":\"12345\"}";
@@ -126,7 +126,7 @@ public class StorageWriteApiWriterTest {
     ArgumentCaptor<String> streamName = ArgumentCaptor.forClass(String.class);
     String expectedStreamName = tableName.toString() + "_s1";
     TableWriterBuilder builder = new StorageWriteApiWriter.Builder(
-        mockStreamWriter, tableName, sinkRecordConverter, batchModeHandler);
+        mockStreamWriter, tableName, sinkRecordConverter, mockedConfig, batchModeHandler);
 
     Mockito.when(mockedConfig.getKafkaDataFieldName()).thenReturn(Optional.empty());
     Mockito.when(mockedConfig.getKafkaKeyFieldName()).thenReturn(Optional.of("i_am_kafka_key"));
