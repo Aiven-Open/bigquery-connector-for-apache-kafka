@@ -36,11 +36,14 @@ import com.wepay.kafka.connect.bigquery.retrieve.IdentitySchemaRetriever;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -52,11 +55,22 @@ import org.apache.kafka.common.config.ConfigValue;
 import org.apache.kafka.common.config.types.Password;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.sink.SinkConnector;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Base class for connector and task configs; contains properties shared between the two of them.
  */
 public class BigQuerySinkConfig extends AbstractConfig {
+
+  private static final Logger logger = LoggerFactory.getLogger(BigQuerySinkConfig.class);
+
+  public static final String DEPRECATED_DOC = "(DEPRECATED)";
+  public static final String GCS_LOAD_DEPRECATION_NOTICE =
+      "GCS batch loading has been deprecated and will be removed in a future major release.";
+  public static final String DECORATOR_SYNTAX_DEPRECATION_NOTICE =
+      "Use of partition decorator syntax has been deprecated and will be removed in a future release.";
+
   // Values taken from https://github.com/apache/kafka/blob/1.1.1/connect/runtime/src/main/java/org/apache/kafka/connect/runtime/SinkConnectorConfig.java#L33
   public static final String TOPICS_CONFIG = SinkConnector.TOPICS_CONFIG;
   public static final String TOPICS_DEFAULT = "";
@@ -176,7 +190,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
   private static final List<String> ENABLE_BATCH_DEFAULT = Collections.emptyList();
   private static final ConfigDef.Importance ENABLE_BATCH_IMPORTANCE = ConfigDef.Importance.LOW;
   private static final String ENABLE_BATCH_DOC =
-      "Beta Feature; use with caution: The sublist of topics to be batch loaded through GCS";
+      "The sublist of topics to be batch loaded through GCS.";
   private static final ConfigDef.Type BATCH_LOAD_INTERVAL_SEC_TYPE = ConfigDef.Type.INT;
   private static final Integer BATCH_LOAD_INTERVAL_SEC_DEFAULT = 120;
   private static final ConfigDef.Importance BATCH_LOAD_INTERVAL_SEC_IMPORTANCE =
@@ -547,10 +561,29 @@ public class BigQuerySinkConfig extends AbstractConfig {
 
   protected BigQuerySinkConfig(ConfigDef config, Map<String, String> properties) {
     super(config, properties);
+    logDeprecationWarnings();
   }
 
   public BigQuerySinkConfig(Map<String, String> properties) {
     this(getConfig(), properties);
+  }
+
+  private void logDeprecationWarnings() {
+    if (!getList(ENABLE_BATCH_CONFIG).isEmpty()) {
+      logger.warn(
+          GCS_LOAD_DEPRECATION_NOTICE
+              + " To disable this feature, remove the {} property from the connector configuration",
+          ENABLE_BATCH_CONFIG
+      );
+    }
+
+    if (getBoolean(BIGQUERY_PARTITION_DECORATOR_CONFIG)) {
+      logger.warn(
+          DECORATOR_SYNTAX_DEPRECATION_NOTICE
+            + " To disable this feature, set the {} property to false in the connector configuration",
+          BIGQUERY_PARTITION_DECORATOR_CONFIG
+      );
+    }
   }
 
   /**
@@ -585,25 +618,25 @@ public class BigQuerySinkConfig extends AbstractConfig {
             ENABLE_BATCH_TYPE,
             ENABLE_BATCH_DEFAULT,
             ENABLE_BATCH_IMPORTANCE,
-            ENABLE_BATCH_DOC
+            deprecatedGcsLoadDoc(ENABLE_BATCH_DOC)
         ).define(
             BATCH_LOAD_INTERVAL_SEC_CONFIG,
             BATCH_LOAD_INTERVAL_SEC_TYPE,
             BATCH_LOAD_INTERVAL_SEC_DEFAULT,
             BATCH_LOAD_INTERVAL_SEC_IMPORTANCE,
-            BATCH_LOAD_INTERVAL_SEC_DOC
+            deprecatedGcsLoadDoc(BATCH_LOAD_INTERVAL_SEC_DOC)
         ).define(
             GCS_BUCKET_NAME_CONFIG,
             GCS_BUCKET_NAME_TYPE,
             GCS_BUCKET_NAME_DEFAULT,
             GCS_BUCKET_NAME_IMPORTANCE,
-            GCS_BUCKET_NAME_DOC
+            deprecatedGcsLoadDoc(GCS_BUCKET_NAME_DOC)
         ).define(
             GCS_FOLDER_NAME_CONFIG,
             GCS_FOLDER_NAME_TYPE,
             GCS_FOLDER_NAME_DEFAULT,
             GCS_FOLDER_NAME_IMPORTANCE,
-            GCS_FOLDER_NAME_DOC
+            deprecatedGcsLoadDoc(GCS_FOLDER_NAME_DOC)
         ).define(
             PROJECT_CONFIG,
             PROJECT_TYPE,
@@ -697,7 +730,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
             AUTO_CREATE_BUCKET_TYPE,
             AUTO_CREATE_BUCKET_DEFAULT,
             AUTO_CREATE_BUCKET_IMPORTANCE,
-            AUTO_CREATE_BUCKET_DOC
+            deprecatedGcsLoadDoc(AUTO_CREATE_BUCKET_DOC)
         ).define(
             ALLOW_NEW_BIGQUERY_FIELDS_CONFIG,
             ALLOW_NEW_BIGQUERY_FIELDS_TYPE,
@@ -782,13 +815,13 @@ public class BigQuerySinkConfig extends AbstractConfig {
             BIGQUERY_MESSAGE_TIME_PARTITIONING_CONFIG_TYPE,
             BIGQUERY_MESSAGE_TIME_PARTITIONING_DEFAULT,
             BIGQUERY_MESSAGE_TIME_PARTITIONING_IMPORTANCE,
-            BIGQUERY_MESSAGE_TIME_PARTITIONING_DOC
+            deprecatedPartitionSyntaxDoc(BIGQUERY_MESSAGE_TIME_PARTITIONING_DOC)
         ).define(
             BIGQUERY_PARTITION_DECORATOR_CONFIG,
             BIGQUERY_PARTITION_DECORATOR_CONFIG_TYPE,
             BIGQUERY_PARTITION_DECORATOR_DEFAULT,
             BIGQUERY_PARTITION_DECORATOR_IMPORTANCE,
-            BIGQUERY_PARTITION_DECORATOR_DOC
+            deprecatedPartitionSyntaxDoc(BIGQUERY_PARTITION_DECORATOR_DOC)
         ).define(
             BIGQUERY_TIMESTAMP_PARTITION_FIELD_NAME_CONFIG,
             BIGQUERY_TIMESTAMP_PARTITION_FIELD_NAME_TYPE,
@@ -890,18 +923,6 @@ public class BigQuerySinkConfig extends AbstractConfig {
         );
   }
 
-  public static boolean upsertDeleteEnabled(Map<String, String> props) {
-    String upsertStr = props.get(UPSERT_ENABLED_CONFIG);
-    String deleteStr = props.get(DELETE_ENABLED_CONFIG);
-    return Boolean.TRUE.toString().equalsIgnoreCase(upsertStr)
-        || Boolean.TRUE.toString().equalsIgnoreCase(deleteStr);
-  }
-
-  public static boolean gcsBatchLoadingEnabled(Map<String, String> props) {
-    String batchLoadStr = props.get(ENABLE_BATCH_CONFIG);
-    return batchLoadStr != null && !batchLoadStr.isEmpty();
-  }
-
   /**
    * Used in conjunction with {@link com.wepay.kafka.connect.bigquery.BigQuerySinkConnector#validate(Map)} to perform
    * preflight configuration checks. Simple validations that only require a single property value at a time (such as
@@ -945,13 +966,6 @@ public class BigQuerySinkConfig extends AbstractConfig {
       // Should never happen with preflight validation of the key source property
       throw new ConnectException("Invalid key source type: " + rawKeySource);
     }
-  }
-
-  /**
-   * Returns the keyfile
-   */
-  public String getKeyFile() {
-    return Optional.ofNullable(getPassword(KEYFILE_CONFIG)).map(Password::value).orElse(null);
   }
 
   /**
@@ -1152,6 +1166,19 @@ public class BigQuerySinkConfig extends AbstractConfig {
   private static String header(String text) {
     String wrapper = text.replaceAll(".", "=");
     return wrapper + "\n" + text + "\n" + wrapper + "\n";
+  }
+
+  private static String deprecatedGcsLoadDoc(String doc) {
+
+    return deprecatedDoc(doc, GCS_LOAD_DEPRECATION_NOTICE);
+  }
+
+  public static String deprecatedPartitionSyntaxDoc(String doc) {
+    return deprecatedDoc(doc, DECORATOR_SYNTAX_DEPRECATION_NOTICE);
+  }
+
+  private static String deprecatedDoc(String doc, String notice) {
+    return DEPRECATED_DOC + " " + doc + " Warning: " + notice;
   }
 
 }

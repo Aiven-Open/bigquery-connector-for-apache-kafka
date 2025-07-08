@@ -63,12 +63,12 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'adopt'
-          java-version: 8
+          java-version: 17
           cache: maven
 
       - name: Build
         run: |
-          mvn install -DskipTests
+          mvn -ntp install -DskipTests
           mvn -f kcbq-connector clean package assembly:single@release-artifacts -DskipTests
 
           export tar_file=$(ls ./kcbq-connector/target/ | grep tar)

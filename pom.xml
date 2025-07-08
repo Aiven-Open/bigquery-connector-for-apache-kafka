@@ -37,6 +37,8 @@
     </modules>
 
     <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <java.version>8</java.version>
         <com.google.guava.version>32.0.1-jre</com.google.guava.version>
         <com.google.re2j.version>1.7</com.google.re2j.version>
@@ -44,7 +46,7 @@
         <confluent.version>7.6.0</confluent.version>
         <debezium.version>0.6.2</debezium.version>
         <jackson.version>2.14.2</jackson.version>
-        <jetty.version>9.4.53.v20231009</jetty.version>
+        <jetty.version>9.4.56.v20240826</jetty.version>
         <kafka.version>3.6.1</kafka.version>
         <kafka.scala.version>2.12</kafka.scala.version>
         <slf4j.version>1.7.26</slf4j.version>
@@ -360,6 +362,7 @@ under the License.
                         <exclude>LICENSE.md</exclude>
                         <exclude>*.log</exclude>
                         <exclude>config/checkstyle/google_checks.xml</exclude>
+                        <exclude>**/VersionInfo.java</exclude>
                     </excludes>
                 </configuration>
             </plugin>
