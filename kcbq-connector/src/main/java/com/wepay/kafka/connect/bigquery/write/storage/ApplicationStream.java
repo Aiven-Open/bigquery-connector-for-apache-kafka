@@ -23,11 +23,15 @@
 
 package com.wepay.kafka.connect.bigquery.write.storage;
 
+import static com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiBase.CHANGE_TYPE_PSEUDO_COLUMN;
+
 import com.google.cloud.bigquery.storage.v1.BatchCommitWriteStreamsRequest;
 import com.google.cloud.bigquery.storage.v1.BatchCommitWriteStreamsResponse;
 import com.google.cloud.bigquery.storage.v1.BigQueryWriteClient;
 import com.google.cloud.bigquery.storage.v1.JsonStreamWriter;
 import com.google.cloud.bigquery.storage.v1.StorageError;
+import com.google.cloud.bigquery.storage.v1.TableFieldSchema;
+import com.google.cloud.bigquery.storage.v1.TableSchema;
 import com.google.cloud.bigquery.storage.v1.WriteStream;
 import com.google.protobuf.Descriptors;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiConnectException;
@@ -68,14 +72,16 @@ public class ApplicationStream {
    */
   private final AtomicInteger maxCalls;
   private final AtomicLong totalRowsSent;
-  private StreamState currentState = null;
+  private final boolean upsertEnabled;
+  private final List<String> committableStreams;
+  private StreamState currentState;
   private WriteStream stream = null;
   private JsonStreamWriter jsonWriter = null;
-  private List<String> committableStreams;
 
-  public ApplicationStream(String tableName, BigQueryWriteClient client) throws Exception {
-    this.client = client;
+  public ApplicationStream(String tableName, BigQueryWriteClient client, boolean upsertEnabled) throws Exception {
     this.tableName = tableName;
+    this.client = client;
+    this.upsertEnabled = upsertEnabled;
     this.offsetInformation = new HashMap<>();
     this.appendCalls = new AtomicInteger();
     this.maxCalls = new AtomicInteger();
@@ -94,7 +100,21 @@ public class ApplicationStream {
   private void generateStream() throws Descriptors.DescriptorValidationException, IOException, InterruptedException {
     this.stream = client.createWriteStream(
         tableName, WriteStream.newBuilder().setType(WriteStream.Type.PENDING).build());
-    this.jsonWriter = JsonStreamWriter.newBuilder(stream.getName(), client).build();
+    if (upsertEnabled) {
+      TableSchema.Builder writeSchema = this.stream.hasTableSchema()
+          ? this.stream.getTableSchema().toBuilder()
+          : TableSchema.newBuilder();
+      writeSchema.addFields(
+          TableFieldSchema.newBuilder()
+              .setName(CHANGE_TYPE_PSEUDO_COLUMN)
+              .setType(TableFieldSchema.Type.STRING)
+              .setMode(TableFieldSchema.Mode.REQUIRED)
+              .build()
+      );
+      this.jsonWriter = JsonStreamWriter.newBuilder(stream.getName(), writeSchema.build(), client).build();
+    } else {
+      this.jsonWriter = JsonStreamWriter.newBuilder(stream.getName(), client).build();
+    }
     this.committableStreams.add(getStreamName());
   }
 

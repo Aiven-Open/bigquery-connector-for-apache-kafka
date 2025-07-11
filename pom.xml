@@ -60,6 +60,9 @@
         <compiler.plugin.version>3.8.1</compiler.plugin.version>
         <exec.plugin.version>3.2.0</exec.plugin.version>
         <google.cloud.bom.version>26.33.0</google.cloud.bom.version>
+        <kafka.connect.plugin.version>0.11.1</kafka.connect.plugin.version>
+        <release.plugin.version>2.5.3</release.plugin.version>
+        <site.plugin.version>3.7.1</site.plugin.version>
         <surefire.plugin.version>3.0.0-M4</surefire.plugin.version>
 
         <main.dir>${project.basedir}</main.dir>

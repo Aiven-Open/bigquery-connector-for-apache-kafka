@@ -48,6 +48,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.json.JSONArray;
+import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -57,11 +58,18 @@ import org.slf4j.LoggerFactory;
 public abstract class StorageWriteApiBase {
 
   private static final Logger logger = LoggerFactory.getLogger(StorageWriteApiBase.class);
+  // TODO: This should be private
+  protected static final String CHANGE_TYPE_PSEUDO_COLUMN = "_CHANGE_TYPE";
   protected final int retry;
   protected final long retryWait;
   private final boolean autoCreateTables;
   private final BigQueryWriteSettings writeSettings;
   private final boolean attemptSchemaUpdate;
+
+  // TODO: These should be private
+  protected final boolean upsertEnabled;
+  protected final boolean deleteEnabled;
+
   protected SchemaManager schemaManager;
   @VisibleForTesting
   protected Time time;
@@ -81,7 +89,10 @@ public abstract class StorageWriteApiBase {
                                 boolean autoCreateTables,
                                 ErrantRecordHandler errantRecordHandler,
                                 SchemaManager schemaManager,
-                                boolean attemptSchemaUpdate) {
+                                boolean attemptSchemaUpdate,
+                                boolean upsertEnabled,
+                                boolean deleteEnabled
+  ) {
     this.retry = retry;
     this.retryWait = retryWait;
     this.autoCreateTables = autoCreateTables;
@@ -95,6 +106,8 @@ public abstract class StorageWriteApiBase {
       logger.error("Failed to create Big Query Storage Write API write client due to {}", e.getMessage());
       throw new BigQueryStorageWriteApiConnectException("Failed to create Big Query Storage Write API write client", e);
     }
+    this.upsertEnabled = upsertEnabled;
+    this.deleteEnabled = deleteEnabled;
     this.time = Time.SYSTEM;
   }
 
@@ -396,6 +409,12 @@ public abstract class StorageWriteApiBase {
   private JSONArray getJsonRecords(List<ConvertedRecord> rows) {
     JSONArray jsonRecords = new JSONArray();
     for (ConvertedRecord item : rows) {
+      JSONObject converted = item.converted();
+      if (item.original().value() != null && upsertEnabled) {
+        converted.put(CHANGE_TYPE_PSEUDO_COLUMN, "UPSERT");
+      } else if (item.original().value() == null && deleteEnabled) {
+        converted.put(CHANGE_TYPE_PSEUDO_COLUMN, "DELETE");
+      }
       jsonRecords.put(item.converted());
     }
     return jsonRecords;

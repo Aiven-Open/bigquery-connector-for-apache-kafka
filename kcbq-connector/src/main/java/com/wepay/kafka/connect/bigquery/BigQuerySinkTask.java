@@ -295,6 +295,7 @@ public class BigQuerySinkTask extends SinkTask {
                 storageApiWriter,
                 TableNameUtils.tableName(table.getBaseTableId()),
                 recordConverter,
+                config,
                 batchHandler
             );
           } else if (config.getList(BigQuerySinkConfig.ENABLE_BATCH_CONFIG).contains(record.topic())) {
@@ -468,7 +469,8 @@ public class BigQuerySinkTask extends SinkTask {
         allowNewBigQueryFields, allowRequiredFieldRelaxation, allowSchemaUnionization,
         sanitizeFieldNames,
         kafkaKeyFieldName, kafkaDataFieldName,
-        timestampPartitionFieldName, partitionExpiration, clusteringFieldName, timePartitioningType);
+        timestampPartitionFieldName, partitionExpiration, clusteringFieldName, timePartitioningType,
+        useStorageApi);
   }
 
   private BigQueryWriter getBigQueryWriter(ErrantRecordHandler errantRecordHandler) {
@@ -536,11 +538,13 @@ public class BigQuerySinkTask extends SinkTask {
     stopped = false;
     config = new BigQuerySinkTaskConfig(properties);
     autoCreateTables = config.getBoolean(BigQuerySinkConfig.TABLE_CREATE_CONFIG);
-    upsertDelete = config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)
-        || config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG);
-
     useStorageApi = config.getBoolean(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG);
     useStorageApiBatchMode = useStorageApi && config.getBoolean(BigQuerySinkConfig.ENABLE_BATCH_MODE_CONFIG);
+
+    upsertDelete = !useStorageApi && (
+        config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)
+            || config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)
+      );
 
     retry = config.getInt(BigQuerySinkConfig.BIGQUERY_RETRY_CONFIG);
     retryWait = config.getLong(BigQuerySinkConfig.BIGQUERY_RETRY_WAIT_CONFIG);
@@ -620,7 +624,9 @@ public class BigQuerySinkTask extends SinkTask {
             autoCreateTables,
             errantRecordHandler,
             getSchemaManager(),
-            attemptSchemaUpdate
+            attemptSchemaUpdate,
+            config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG),
+            config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)
         );
         storageApiWriter = writer;
 
@@ -640,7 +646,9 @@ public class BigQuerySinkTask extends SinkTask {
             autoCreateTables,
             errantRecordHandler,
             getSchemaManager(),
-            attemptSchemaUpdate
+            attemptSchemaUpdate,
+            config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG),
+            config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)
         );
       }
     }
