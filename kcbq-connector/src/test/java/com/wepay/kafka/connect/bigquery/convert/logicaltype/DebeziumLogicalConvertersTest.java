@@ -24,6 +24,7 @@
 package com.wepay.kafka.connect.bigquery.convert.logicaltype;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 import com.google.cloud.bigquery.LegacySQLTypeName;
 import com.wepay.kafka.connect.bigquery.convert.logicaltype.DebeziumLogicalConverters.DateConverter;
@@ -33,6 +34,8 @@ import com.wepay.kafka.connect.bigquery.convert.logicaltype.DebeziumLogicalConve
 import com.wepay.kafka.connect.bigquery.convert.logicaltype.DebeziumLogicalConverters.TimestampConverter;
 import com.wepay.kafka.connect.bigquery.convert.logicaltype.DebeziumLogicalConverters.ZonedTimestampConverter;
 import org.apache.kafka.connect.data.Schema;
+import org.apache.kafka.connect.data.SchemaBuilder;
+import org.apache.kafka.connect.data.Struct;
 import org.junit.jupiter.api.Test;
 
 public class DebeziumLogicalConvertersTest {
@@ -129,5 +132,45 @@ public class DebeziumLogicalConvertersTest {
 
     String formattedTimestamp = converter.convert("2017-03-01T14:20:38.808-08:00");
     assertEquals("2017-03-01 14:20:38.808-08:00", formattedTimestamp);
+  }
+
+  @Test
+  public void testVariableScaleDecimalConversion() {
+    DebeziumLogicalConverters.VariableScaleDecimalConverter converter =
+        new DebeziumLogicalConverters.VariableScaleDecimalConverter();
+
+    assertEquals(LegacySQLTypeName.NUMERIC, converter.getBqSchemaType());
+
+    Schema schema = SchemaBuilder.struct()
+        .name(io.debezium.data.VariableScaleDecimal.LOGICAL_NAME)
+        .field("scale", Schema.INT32_SCHEMA)
+        .field("value", Schema.BYTES_SCHEMA)
+        .build();
+
+    converter.checkEncodingType(Schema.Type.STRUCT);
+
+    Struct struct = new Struct(schema)
+        .put("scale", 3)
+        .put("value", new java.math.BigDecimal("123.456").unscaledValue().toByteArray());
+
+    java.math.BigDecimal converted = (java.math.BigDecimal) converter.convert(struct);
+    assertEquals(new java.math.BigDecimal("123.456"), converted);
+  }
+
+  @Test
+  public void testVariableScaleDecimalConversionNullValue() {
+    DebeziumLogicalConverters.VariableScaleDecimalConverter converter =
+        new DebeziumLogicalConverters.VariableScaleDecimalConverter();
+
+    Schema schema = SchemaBuilder.struct()
+        .name(io.debezium.data.VariableScaleDecimal.LOGICAL_NAME)
+        .field("scale", Schema.INT32_SCHEMA)
+        .field("value", Schema.BYTES_SCHEMA)
+        .build();
+
+    converter.checkEncodingType(Schema.Type.STRUCT);
+
+    java.math.BigDecimal converted = (java.math.BigDecimal) converter.convert(null);
+    assertNull(converted);
   }
 }

@@ -30,6 +30,7 @@ import com.google.cloud.bigquery.Field;
 import com.google.cloud.bigquery.LegacySQLTypeName;
 import com.wepay.kafka.connect.bigquery.exception.ConversionConnectException;
 import com.wepay.kafka.connect.bigquery.utils.FieldNameSanitizer;
+import com.wepay.kafka.connect.bigquery.convert.logicaltype.DebeziumLogicalConverters;
 import io.confluent.connect.avro.AvroData;
 import org.apache.kafka.connect.data.Date;
 import org.apache.kafka.connect.data.Decimal;
@@ -569,6 +570,38 @@ public class BigQuerySchemaConverterTest {
     Schema kafkaConnectTestSchema = SchemaBuilder
         .struct()
         .field(fieldName, Decimal.schema(0))
+        .build();
+
+    com.google.cloud.bigquery.Schema bigQueryTestSchema =
+        new BigQuerySchemaConverter(false).convertSchema(kafkaConnectTestSchema);
+    assertEquals(bigQueryExpectedSchema, bigQueryTestSchema);
+  }
+
+  @Test
+  public void testDebeziumVariableScaleDecimal() {
+    final String fieldName = "DebeziumDecimal";
+
+    DebeziumLogicalConverters.registerVariableScaleDecimalConverter();
+
+    com.google.cloud.bigquery.Schema bigQueryExpectedSchema =
+        com.google.cloud.bigquery.Schema.of(
+            com.google.cloud.bigquery.Field.newBuilder(
+                fieldName,
+                LegacySQLTypeName.NUMERIC
+            ).setMode(
+                com.google.cloud.bigquery.Field.Mode.REQUIRED
+            ).build()
+        );
+
+    Schema variableDecimalSchema = SchemaBuilder.struct()
+        .name(io.debezium.data.VariableScaleDecimal.LOGICAL_NAME)
+        .field("scale", Schema.INT32_SCHEMA)
+        .field("value", Schema.BYTES_SCHEMA)
+        .build();
+
+    Schema kafkaConnectTestSchema = SchemaBuilder
+        .struct()
+        .field(fieldName, variableDecimalSchema)
         .build();
 
     com.google.cloud.bigquery.Schema bigQueryTestSchema =

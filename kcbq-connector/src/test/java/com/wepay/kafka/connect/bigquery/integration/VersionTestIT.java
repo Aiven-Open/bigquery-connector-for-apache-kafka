@@ -1,3 +1,4 @@
+
 /*
  * Copyright 2024 Copyright 2022 Aiven Oy and
  * bigquery-connector-for-apache-kafka project contributors
@@ -21,28 +22,17 @@
  * under the License.
  */
 
-package com.wepay.kafka.connect.bigquery.utils;
+package com.wepay.kafka.connect.bigquery.integration;
 
-/**
- * Utility class for unifying the version of a project. All other references to version number
- * should come from here.
- */
-public class Version {
-  private static String version = "unknown";
+import io.aiven.kafka.utils.VersionInfo;
+import org.junit.jupiter.api.Test;
 
-  static {
-    String implementationVersion = Version.class.getPackage().getImplementationVersion();
-    if (implementationVersion != null) {
-      version = implementationVersion;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+public class VersionTestIT {
+    @Test
+    void versionTest() throws Exception {
+        VersionInfo versionInfo = new VersionInfo();
+        assertEquals("Aiven", versionInfo.getVendor());
     }
-  }
-
-  /**
-   * The version of the project.
-   *
-   * @return The version of the project, in String format to allow for multiple decimals.
-   */
-  public static String version() {
-    return version;
-  }
 }
