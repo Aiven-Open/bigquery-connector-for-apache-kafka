@@ -62,7 +62,7 @@ jobs:
         run: mvn -ntp -P ci --batch-mode clean package -DskipTests
       - name: Unit tests (Maven)
         run: mvn -ntp -P ci --batch-mode test
-      - name: "upload build failure reports"
+      - name: "Upload build failure reports"
         uses: actions/upload-artifact@v4
         if: failure()
         with:
