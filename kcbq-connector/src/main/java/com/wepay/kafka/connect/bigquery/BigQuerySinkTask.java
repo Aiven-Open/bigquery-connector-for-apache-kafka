@@ -137,8 +137,6 @@ public class BigQuerySinkTask extends SinkTask {
   private boolean autoCreateTables;
   private int retry;
   private long retryWait;
-  private Map<String, PartitionedTableId> topicToPartitionTableId;
-
   private boolean allowNewBigQueryFields;
   private boolean useCredentialsProjectId;
   private boolean allowRequiredFieldRelaxation;
@@ -224,15 +222,6 @@ public class BigQuerySinkTask extends SinkTask {
     return offsets;
   }
 
-  private PartitionedTableId getStorageApiRecordTable(String topic) {
-    return topicToPartitionTableId.computeIfAbsent(topic, topicName -> {
-      String project = config.getString(BigQuerySinkConfig.PROJECT_CONFIG);
-      String[] datasetAndtableName = TableNameUtils.getDataSetAndTableName(config, topicName);
-      return new PartitionedTableId.Builder(TableId.of(project, datasetAndtableName[0], datasetAndtableName[1])).build();
-    });
-
-  }
-
   private PartitionedTableId getRecordTable(SinkRecord record) {
     String[] datasetAndtableName = TableNameUtils.getDataSetAndTableName(config, record.topic());
     String dataset = datasetAndtableName[0];
@@ -295,13 +284,13 @@ public class BigQuerySinkTask extends SinkTask {
 
     for (SinkRecord record : records) {
       if (record.value() != null || config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)) {
-        PartitionedTableId table = useStorageApi ? getStorageApiRecordTable(record.topic()) : getRecordTable(record);
+        PartitionedTableId table = getRecordTable(record);
         if (!tableWriterBuilders.containsKey(table)) {
           TableWriterBuilder tableWriterBuilder;
           if (useStorageApi) {
             tableWriterBuilder = new StorageWriteApiWriter.Builder(
                 storageApiWriter,
-                TableNameUtils.tableName(table.getBaseTableId()),
+                table,
                 recordConverter,
                 batchHandler
             );
@@ -553,8 +542,8 @@ public class BigQuerySinkTask extends SinkTask {
     stopped = false;
     config = new BigQuerySinkTaskConfig(properties);
     autoCreateTables = config.getBoolean(BigQuerySinkConfig.TABLE_CREATE_CONFIG);
-    upsertDelete = config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)
-        || config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG);
+    upsertDelete = !useStorageApi && (config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)
+        || config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG));
 
     useCredentialsProjectId = config.getBoolean(BigQuerySinkConfig.USE_CREDENTIALS_PROJECT_ID_CONFIG);
     useStorageApi = config.getBoolean(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG);
@@ -565,7 +554,6 @@ public class BigQuerySinkTask extends SinkTask {
     allowNewBigQueryFields = config.getBoolean(BigQuerySinkConfig.ALLOW_NEW_BIGQUERY_FIELDS_CONFIG);
     allowRequiredFieldRelaxation = config.getBoolean(BigQuerySinkConfig.ALLOW_BIGQUERY_REQUIRED_FIELD_RELAXATION_CONFIG);
     allowSchemaUnionization = config.getBoolean(BigQuerySinkConfig.ALLOW_SCHEMA_UNIONIZATION_CONFIG);
-    topicToPartitionTableId = new HashMap<>();
     bigQuery = new AtomicReference<>();
     schemaManager = new AtomicReference<>();
 
