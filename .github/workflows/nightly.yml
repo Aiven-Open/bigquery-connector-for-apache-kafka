@@ -23,8 +23,9 @@
 
 # Workflow to check pull requests and new commits to main branches
 # This checks the source in the state as if after the merge.
-name: Manual build
+name: Nightly Build
 on:
+  workflow_dispatch:
   schedule: ## run GMT 1:17 hours
     - cron: '17 1 * * *'
 
@@ -36,9 +37,9 @@ permissions:
 
 # Disallow concurrent runs for the same PR by cancelling in-progress runs
 # when new commits are pushed
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+#concurrency:
+#  group: Manual_Build-${{ github.event.pull_request.number || github.ref }}
+#  cancel-in-progress: true
 
 jobs:
   call-workflow-2-in-local-repo:
