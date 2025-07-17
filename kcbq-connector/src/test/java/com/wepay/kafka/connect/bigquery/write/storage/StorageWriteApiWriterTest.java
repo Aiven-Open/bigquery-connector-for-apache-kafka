@@ -37,7 +37,9 @@ import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkTaskConfig;
 import com.wepay.kafka.connect.bigquery.convert.BigQueryRecordConverter;
 import com.wepay.kafka.connect.bigquery.convert.RecordConverter;
+import com.wepay.kafka.connect.bigquery.utils.PartitionedTableId;
 import com.wepay.kafka.connect.bigquery.utils.SinkRecordConverter;
+import com.wepay.kafka.connect.bigquery.utils.TableNameUtils;
 import com.wepay.kafka.connect.bigquery.write.batch.TableWriterBuilder;
 import java.util.HashSet;
 import java.util.List;
@@ -113,7 +115,8 @@ public class StorageWriteApiWriterTest {
 
   @Test
   public void testBatchLoadStreamName() {
-    TableName tableName = TableName.of("p", "d", "t");
+    PartitionedTableId partitionedTableId = new PartitionedTableId.Builder("d", "t").setProject("p").build();
+    TableName tableName = TableNameUtils.tableName(partitionedTableId.getFullTableId());
     StorageWriteApiBase mockStreamWriter = Mockito.mock(StorageWriteApiBatchApplicationStream.class);
     BigQuerySinkTaskConfig mockedConfig = Mockito.mock(BigQuerySinkTaskConfig.class);
     when(mockedConfig.getBoolean(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG)).thenReturn(true);
@@ -125,7 +128,7 @@ public class StorageWriteApiWriterTest {
     ArgumentCaptor<String> streamName = ArgumentCaptor.forClass(String.class);
     String expectedStreamName = tableName.toString() + "_s1";
     TableWriterBuilder builder = new StorageWriteApiWriter.Builder(
-        mockStreamWriter, tableName, sinkRecordConverter, batchModeHandler);
+            mockStreamWriter, partitionedTableId, sinkRecordConverter, batchModeHandler);
 
     Mockito.when(mockedConfig.getKafkaDataFieldName()).thenReturn(Optional.empty());
     Mockito.when(mockedConfig.getKafkaKeyFieldName()).thenReturn(Optional.of("i_am_kafka_key"));
