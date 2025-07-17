@@ -37,9 +37,9 @@ permissions:
 
 # Disallow concurrent runs for the same PR by cancelling in-progress runs
 # when new commits are pushed
-concurrency:
-  group: Manual_Build-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+#concurrency:
+#  group: Manual_Build-${{ github.event.pull_request.number || github.ref }}
+#  cancel-in-progress: true
 
 jobs:
   call-workflow-2-in-local-repo:
