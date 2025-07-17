@@ -32,6 +32,8 @@ import com.google.protobuf.Descriptors;
 import com.wepay.kafka.connect.bigquery.ErrantRecordHandler;
 import com.wepay.kafka.connect.bigquery.SchemaManager;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiConnectException;
+import com.wepay.kafka.connect.bigquery.utils.PartitionedTableId;
+import com.wepay.kafka.connect.bigquery.utils.TableNameUtils;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -117,10 +119,11 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiBase {
 
   @Override
   protected StreamWriter streamWriter(
-      TableName tableName,
+      PartitionedTableId table,
       String streamName,
       List<ConvertedRecord> records
   ) {
+    TableName tableName = TableNameUtils.tableName(table.getBaseTableId());
     ApplicationStream applicationStream = this.streams.get(tableName.toString()).get(streamName);
     applicationStream.increaseAppendCall();
     return new BatchStreamWriter(applicationStream, tableName, streamName);
@@ -234,7 +237,7 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiBase {
   @VisibleForTesting
   ApplicationStream createApplicationStream(String tableName, List<ConvertedRecord> rows) {
     StorageWriteApiRetryHandler retryHandler = new StorageWriteApiRetryHandler(
-        TableName.parse(tableName), rows != null ? getSinkRecords(rows) : null, retry, retryWait, time);
+        TableNameUtils.tableId(TableName.parse(tableName)), rows != null ? getSinkRecords(rows) : null, retry, retryWait, time);
     do {
       try {
         return new ApplicationStream(tableName, getWriteClient());

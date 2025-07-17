@@ -36,6 +36,8 @@ import com.wepay.kafka.connect.bigquery.ErrantRecordHandler;
 import com.wepay.kafka.connect.bigquery.SchemaManager;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiConnectException;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiErrorResponses;
+import com.wepay.kafka.connect.bigquery.utils.PartitionedTableId;
+import com.wepay.kafka.connect.bigquery.utils.TableNameUtils;
 import com.wepay.kafka.connect.bigquery.utils.Time;
 import com.wepay.kafka.connect.bigquery.write.RecordBatches;
 import java.io.IOException;
@@ -101,7 +103,7 @@ public abstract class StorageWriteApiBase {
   public abstract void preShutdown();
 
   protected abstract StreamWriter streamWriter(
-      TableName tableName,
+      PartitionedTableId table,
       String streamName,
       List<ConvertedRecord> records
   );
@@ -117,17 +119,18 @@ public abstract class StorageWriteApiBase {
   /**
    * Handles required initialization steps and goes to append records to table
    *
-   * @param tableName  The table to write data to
+   * @param table      The table to write data to
    * @param rows       List of pre- and post-conversion records.
    *                   Converted JSONObjects would be sent to api.
    *                   Pre-conversion sink records are required for DLQ routing
    * @param streamName The stream to use to write table to table.
    */
-  public void initializeAndWriteRecords(TableName tableName, List<ConvertedRecord> rows, String streamName) {
-    StorageWriteApiRetryHandler retryHandler = new StorageWriteApiRetryHandler(tableName, getSinkRecords(rows), retry, retryWait, time);
+  public void initializeAndWriteRecords(PartitionedTableId table, List<ConvertedRecord> rows, String streamName) {
+    TableName tableName = TableNameUtils.tableName(table.getFullTableId());
+    StorageWriteApiRetryHandler retryHandler = new StorageWriteApiRetryHandler(table.getBaseTableId(), getSinkRecords(rows), retry, retryWait, time);
     logger.debug("Sending {} records to write Api Application stream {}", rows.size(), streamName);
     RecordBatches<ConvertedRecord> batches = new RecordBatches<>(rows);
-    StreamWriter writer = streamWriter(tableName, streamName, rows);
+    StreamWriter writer = streamWriter(table, streamName, rows);
     while (!batches.completed()) {
       List<ConvertedRecord> batch = batches.currentBatch();
 

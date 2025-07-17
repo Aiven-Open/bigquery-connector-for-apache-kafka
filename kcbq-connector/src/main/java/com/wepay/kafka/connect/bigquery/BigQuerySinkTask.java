@@ -137,8 +137,6 @@ public class BigQuerySinkTask extends SinkTask {
   private boolean autoCreateTables;
   private int retry;
   private long retryWait;
-  private Map<String, PartitionedTableId> topicToPartitionTableId;
-
   private boolean allowNewBigQueryFields;
   private boolean allowRequiredFieldRelaxation;
 
@@ -222,19 +220,9 @@ public class BigQuerySinkTask extends SinkTask {
     return offsets;
   }
 
-  private PartitionedTableId getStorageApiRecordTable(String topic) {
-    return topicToPartitionTableId.computeIfAbsent(topic, topicName -> {
-      String project = config.getString(BigQuerySinkConfig.PROJECT_CONFIG);
-      String[] datasetAndtableName = TableNameUtils.getDataSetAndTableName(config, topicName);
-      return new PartitionedTableId.Builder(TableId.of(project, datasetAndtableName[0], datasetAndtableName[1])).build();
-    });
-
-  }
-
   private PartitionedTableId getRecordTable(SinkRecord record) {
-    String[] datasetAndtableName = TableNameUtils.getDataSetAndTableName(config, record.topic());
-    String dataset = datasetAndtableName[0];
-    String tableName = datasetAndtableName[1];
+    String[] datasetAndTable = TableNameUtils.getDataSetAndTableName(config, record.topic());
+    String project = config.getString(BigQuerySinkConfig.PROJECT_CONFIG);
     // TODO: Order of execution of topic/table name modifications =>
     // regex router SMT modifies topic name in sinkrecord.
     // It could be either : separated or not.
@@ -244,7 +232,9 @@ public class BigQuerySinkTask extends SinkTask {
     // we use table name from above to sanitize table name further.
 
 
-    TableId baseTableId = TableId.of(dataset, tableName);
+    TableId baseTableId = (!useStorageApi)
+            ? TableId.of(datasetAndTable[0], datasetAndTable[1])
+            : TableId.of(project, datasetAndTable[0], datasetAndTable[1]);
     if (upsertDelete) {
       TableId intermediateTableId = mergeBatches.intermediateTableFor(baseTableId);
       // If upsert/delete is enabled, we want to stream into a non-partitioned intermediate table
@@ -287,13 +277,13 @@ public class BigQuerySinkTask extends SinkTask {
 
     for (SinkRecord record : records) {
       if (record.value() != null || config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)) {
-        PartitionedTableId table = useStorageApi ? getStorageApiRecordTable(record.topic()) : getRecordTable(record);
+        PartitionedTableId table = getRecordTable(record);
         if (!tableWriterBuilders.containsKey(table)) {
           TableWriterBuilder tableWriterBuilder;
           if (useStorageApi) {
             tableWriterBuilder = new StorageWriteApiWriter.Builder(
                 storageApiWriter,
-                TableNameUtils.tableName(table.getBaseTableId()),
+                table,
                 recordConverter,
                 batchHandler
             );
@@ -536,8 +526,8 @@ public class BigQuerySinkTask extends SinkTask {
     stopped = false;
     config = new BigQuerySinkTaskConfig(properties);
     autoCreateTables = config.getBoolean(BigQuerySinkConfig.TABLE_CREATE_CONFIG);
-    upsertDelete = config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)
-        || config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG);
+    upsertDelete = !useStorageApi && (config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)
+        || config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG));
 
     useStorageApi = config.getBoolean(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG);
     useStorageApiBatchMode = useStorageApi && config.getBoolean(BigQuerySinkConfig.ENABLE_BATCH_MODE_CONFIG);
@@ -546,7 +536,6 @@ public class BigQuerySinkTask extends SinkTask {
     retryWait = config.getLong(BigQuerySinkConfig.BIGQUERY_RETRY_WAIT_CONFIG);
     allowNewBigQueryFields = config.getBoolean(BigQuerySinkConfig.ALLOW_NEW_BIGQUERY_FIELDS_CONFIG);
     allowRequiredFieldRelaxation = config.getBoolean(BigQuerySinkConfig.ALLOW_BIGQUERY_REQUIRED_FIELD_RELAXATION_CONFIG);
-    topicToPartitionTableId = new HashMap<>();
     bigQuery = new AtomicReference<>();
     schemaManager = new AtomicReference<>();
 
