@@ -408,189 +408,6 @@ public class BigQuerySinkTaskTest {
   }
 
   @Test
-  public void testPutWhenPartitioningOnMessageTime() {
-    final String topic = "test-topic";
-
-    Map<String, String> properties = propertiesFactory.getProperties();
-    properties.put(BigQuerySinkConfig.TOPICS_CONFIG, topic);
-    properties.put(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG, "scratch");
-    properties.put(BigQuerySinkConfig.BIGQUERY_MESSAGE_TIME_PARTITIONING_CONFIG, "true");
-
-    BigQuery bigQuery = mock(BigQuery.class);
-    Table mockTable = mock(Table.class);
-    when(bigQuery.getTable(any())).thenReturn(mockTable);
-
-    Storage storage = mock(Storage.class);
-    SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
-    InsertAllResponse insertAllResponse = mock(InsertAllResponse.class);
-
-    when(bigQuery.insertAll(anyObject())).thenReturn(insertAllResponse);
-    when(insertAllResponse.hasErrors()).thenReturn(false);
-
-    SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
-    SchemaManager schemaManager = mock(SchemaManager.class);
-    Map<TableId, Table> cache = new HashMap<>();
-
-    BigQuerySinkTask testTask = new BigQuerySinkTask(
-        bigQuery,
-        schemaRetriever,
-        storage,
-        schemaManager,
-        cache,
-        mockedStorageWriteApiDefaultStream,
-        mockedBatchHandler,
-        time
-    );
-    testTask.initialize(sinkTaskContext);
-    testTask.start(properties);
-
-    testTask.put(Collections.singletonList(spoofSinkRecord(topic, "value", "message text",
-        TimestampType.CREATE_TIME, 1509007584334L)));
-    testTask.flush(Collections.emptyMap());
-    ArgumentCaptor<InsertAllRequest> argument = ArgumentCaptor.forClass(InsertAllRequest.class);
-
-    verify(bigQuery, times(1)).insertAll(argument.capture());
-    assertEquals("test-topic$20171026", argument.getValue().getTable().getTable());
-  }
-
-  @Test
-  public void testPutWhenPartitioningIsSetToTrue() {
-    final String topic = "test-topic";
-
-    Map<String, String> properties = propertiesFactory.getProperties();
-    properties.put(BigQuerySinkConfig.TOPICS_CONFIG, topic);
-    properties.put(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG, "scratch");
-    properties.put(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG, "true");
-    properties.put(BigQuerySinkConfig.BIGQUERY_MESSAGE_TIME_PARTITIONING_CONFIG, "true");
-
-    BigQuery bigQuery = mock(BigQuery.class);
-    Table mockTable = mock(Table.class);
-    when(bigQuery.getTable(any())).thenReturn(mockTable);
-
-    Storage storage = mock(Storage.class);
-    SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
-    InsertAllResponse insertAllResponse = mock(InsertAllResponse.class);
-
-    when(bigQuery.insertAll(anyObject())).thenReturn(insertAllResponse);
-    when(insertAllResponse.hasErrors()).thenReturn(false);
-
-    SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
-    SchemaManager schemaManager = mock(SchemaManager.class);
-    Map<TableId, Table> cache = new HashMap<>();
-
-    BigQuerySinkTask testTask = new BigQuerySinkTask(
-        bigQuery,
-        schemaRetriever,
-        storage,
-        schemaManager,
-        cache,
-        mockedStorageWriteApiDefaultStream,
-        mockedBatchHandler,
-        time
-    );
-    testTask.initialize(sinkTaskContext);
-    testTask.start(properties);
-
-    testTask.put(Collections.singletonList(spoofSinkRecord(topic, "value", "message text",
-        TimestampType.CREATE_TIME, 1509007584334L)));
-    testTask.flush(Collections.emptyMap());
-    ArgumentCaptor<InsertAllRequest> argument = ArgumentCaptor.forClass(InsertAllRequest.class);
-
-    verify(bigQuery, times(1)).insertAll(argument.capture());
-    assertEquals("test-topic$20171026", argument.getValue().getTable().getTable());
-  }
-
-  @Test
-  public void testPutWhenPartitioningIsSetToFalse() {
-    final String topic = "test-topic";
-
-    Map<String, String> properties = propertiesFactory.getProperties();
-    properties.put(BigQuerySinkConfig.TOPICS_CONFIG, topic);
-    properties.put(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG, "scratch");
-    properties.put(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG, "false");
-
-    BigQuery bigQuery = mock(BigQuery.class);
-    Table mockTable = mock(Table.class);
-    when(bigQuery.getTable(any())).thenReturn(mockTable);
-
-    Storage storage = mock(Storage.class);
-    SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
-    InsertAllResponse insertAllResponse = mock(InsertAllResponse.class);
-
-    when(bigQuery.insertAll(anyObject())).thenReturn(insertAllResponse);
-    when(insertAllResponse.hasErrors()).thenReturn(false);
-
-    SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
-    SchemaManager schemaManager = mock(SchemaManager.class);
-    Map<TableId, Table> cache = new HashMap<>();
-
-    BigQuerySinkTask testTask = new BigQuerySinkTask(
-        bigQuery,
-        schemaRetriever,
-        storage,
-        schemaManager,
-        cache,
-        mockedStorageWriteApiDefaultStream,
-        mockedBatchHandler,
-        time
-    );
-    testTask.initialize(sinkTaskContext);
-    testTask.start(properties);
-    testTask.put(Collections.singletonList(spoofSinkRecord(topic, "value", "message text",
-        TimestampType.CREATE_TIME, 1509007584334L)));
-    testTask.flush(Collections.emptyMap());
-    ArgumentCaptor<InsertAllRequest> argument = ArgumentCaptor.forClass(InsertAllRequest.class);
-
-    verify(bigQuery, times(1)).insertAll(argument.capture());
-    assertEquals("test-topic", argument.getValue().getTable().getTable());
-  }
-
-  // Make sure a connect exception is thrown when the message has no timestamp type
-  @Test
-  public void testPutWhenPartitioningOnMessageTimeWhenNoTimestampType() {
-    final String topic = "test-topic";
-
-    Map<String, String> properties = propertiesFactory.getProperties();
-    properties.put(BigQuerySinkConfig.TOPICS_CONFIG, topic);
-    properties.put(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG, "scratch");
-    properties.put(BigQuerySinkConfig.BIGQUERY_MESSAGE_TIME_PARTITIONING_CONFIG, "true");
-
-    BigQuery bigQuery = mock(BigQuery.class);
-    Table mockTable = mock(Table.class);
-    when(bigQuery.getTable(any())).thenReturn(mockTable);
-
-    Storage storage = mock(Storage.class);
-    SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
-    InsertAllResponse insertAllResponse = mock(InsertAllResponse.class);
-
-    when(bigQuery.insertAll(anyObject())).thenReturn(insertAllResponse);
-    when(insertAllResponse.hasErrors()).thenReturn(false);
-
-    SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
-    SchemaManager schemaManager = mock(SchemaManager.class);
-    Map<TableId, Table> cache = new HashMap<>();
-
-    BigQuerySinkTask testTask = new BigQuerySinkTask(
-        bigQuery,
-        schemaRetriever,
-        storage,
-        schemaManager,
-        cache,
-        mockedStorageWriteApiDefaultStream,
-        mockedBatchHandler,
-        time
-    );
-    testTask.initialize(sinkTaskContext);
-    testTask.start(properties);
-
-    assertThrows(
-        ConnectException.class,
-        () -> testTask.put(Collections.singletonList(spoofSinkRecord(topic, "value", "message text",
-          TimestampType.NO_TIMESTAMP_TYPE, null)))
-    );
-  }
-
-  @Test
   public void testPutWithUpsertDelete() throws Exception {
     final String topic = "test-topic";
     final String key = "kafkaKey";
@@ -1046,15 +863,17 @@ public class BigQuerySinkTaskTest {
     properties.put(BigQuerySinkConfig.TOPICS_CONFIG, topic);
     properties.put(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG, dataset);
 
+    Storage storage = mock(Storage.class);
+    BigQuery bigQuery = mock(BigQuery.class);
+
+    TableId tableId = TableId.of(dataset, topic);
     StandardTableDefinition mockTableDefinition = mock(StandardTableDefinition.class);
     when(mockTableDefinition.getTimePartitioning()).thenReturn(TimePartitioning.of(TimePartitioning.Type.HOUR));
     Table table = mock(Table.class);
     when(table.getDefinition()).thenReturn(mockTableDefinition);
+    when(bigQuery.getTable(tableId)).thenReturn(table);
     Map<TableId, Table> tableCache = new HashMap<>();
     tableCache.put(TableId.of(dataset, topic), table);
-
-    Storage storage = mock(Storage.class);
-    BigQuery bigQuery = mock(BigQuery.class);
 
     BigQuerySinkTask testTask = new BigQuerySinkTask(
         bigQuery,
