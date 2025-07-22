@@ -43,4 +43,7 @@ public class StorageWriteApiBatchBigQuerySinkConnectorIT extends StorageWriteApi
     return super.topic(basename + "-batch-mode");
   }
 
-}
+  @Override
+  protected boolean isBatchMode() {
+    return true;
+  }}
