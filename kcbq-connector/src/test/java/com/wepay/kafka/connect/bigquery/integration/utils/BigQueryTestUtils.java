@@ -43,14 +43,14 @@ public class BigQueryTestUtils {
       TableId tableId = TableId.of(datasetName, tableName);
 
       TimePartitioning partitioning =
-          TimePartitioning.newBuilder(TimePartitioning.Type.DAY)
-              .build();
+              TimePartitioning.newBuilder(TimePartitioning.Type.DAY)
+                      .build();
 
       StandardTableDefinition tableDefinition =
-          StandardTableDefinition.newBuilder()
-              .setSchema(schema)
-              .setTimePartitioning(partitioning)
-              .build();
+              StandardTableDefinition.newBuilder()
+                      .setSchema(schema)
+                      .setTimePartitioning(partitioning)
+                      .build();
       TableInfo tableInfo = TableInfo.newBuilder(tableId, tableDefinition).build();
 
       bigQuery.create(tableInfo);
