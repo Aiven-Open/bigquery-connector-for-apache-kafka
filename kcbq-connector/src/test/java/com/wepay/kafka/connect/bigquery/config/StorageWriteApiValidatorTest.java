@@ -29,12 +29,8 @@ import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.ENABLE_
 import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.ENABLE_BATCH_MODE_CONFIG;
 import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.UPSERT_ENABLED_CONFIG;
 import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG;
-import static com.wepay.kafka.connect.bigquery.config.StorageWriteApiValidator.deleteNotSupportedError;
-import static com.wepay.kafka.connect.bigquery.config.StorageWriteApiValidator.legacyBatchNotSupportedError;
-import static com.wepay.kafka.connect.bigquery.config.StorageWriteApiValidator.newBatchNotSupportedError;
-import static com.wepay.kafka.connect.bigquery.config.StorageWriteApiValidator.upsertNotSupportedError;
+import static com.wepay.kafka.connect.bigquery.config.StorageWriteApiValidator.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -104,19 +100,20 @@ public class StorageWriteApiValidatorTest {
   }
 
   @Test
-  public void testPartitionDecoratorExplicitlyEnabled() {
+  public void testPartitionDecoratorAndBatchLoadExplicitlyEnabled() {
     BigQuerySinkConfig config = mock(BigQuerySinkConfig.class);
 
     when(config.getBoolean(USE_STORAGE_WRITE_API_CONFIG)).thenReturn(true);
+    when(config.getBoolean(ENABLE_BATCH_MODE_CONFIG)).thenReturn(true);
     when(config.getBoolean(BIGQUERY_PARTITION_DECORATOR_CONFIG)).thenReturn(true);
     // User explicitly requested partition decorator syntax
     when(config.originals()).thenReturn(Collections.singletonMap(BIGQUERY_PARTITION_DECORATOR_CONFIG, "true"));
 
-    assertNotEquals(Optional.empty(), new StorageWriteApiValidator().doValidate(config));
+    assertEquals(Optional.of(partitionDecoratorNewBatchNotSupported), new StorageWriteApiValidator().doValidate(config));
   }
 
   @Test
-  public void testPartitionDecoratorImplicitlyEnabled() {
+  public void testBatchLoadEnabledAndPartitionDecoratorImplicitlyEnabled() {
     BigQuerySinkConfig config = mock(BigQuerySinkConfig.class);
 
     when(config.getBoolean(USE_STORAGE_WRITE_API_CONFIG)).thenReturn(true);

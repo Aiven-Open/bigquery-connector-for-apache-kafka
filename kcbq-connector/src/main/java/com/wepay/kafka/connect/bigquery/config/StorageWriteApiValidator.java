@@ -45,6 +45,8 @@ public class StorageWriteApiValidator extends MultiPropertyValidator<BigQuerySin
       + "enabled. Either disable batch mode or enable Storage Write API";
   public static final String deleteNotSupportedError = "Delete mode is not supported with Storage Write API. Either disable Delete mode "
       + "or disable Storage Write API";
+  public static final String partitionDecoratorNewBatchNotSupported = "Partition decorator syntax is not supported with Storage Write API Batch Load. "
+                  + "It is currently only available when using the Storage Write API default stream.";
   private static final Collection<String> DEPENDENTS = Collections.unmodifiableCollection(Arrays.asList(
       UPSERT_ENABLED_CONFIG, DELETE_ENABLED_CONFIG, ENABLE_BATCH_CONFIG
   ));
@@ -78,12 +80,11 @@ public class StorageWriteApiValidator extends MultiPropertyValidator<BigQuerySin
     } else if (!config.getList(ENABLE_BATCH_CONFIG).isEmpty()) {
       return Optional.of(legacyBatchNotSupportedError);
     } else if (config.originals().containsKey(BIGQUERY_PARTITION_DECORATOR_CONFIG)
-        && config.getBoolean(BIGQUERY_PARTITION_DECORATOR_CONFIG)
+        && config.getBoolean(BIGQUERY_PARTITION_DECORATOR_CONFIG) && config.getBoolean(ENABLE_BATCH_MODE_CONFIG)
     ) {
-      // Only report an error if the user explicitly requested partition decorator syntax;
-      // if they didn't, then we can silently disable it when using the Storage Write API
-      // TODO: Recommend alternatives to users
-      return Optional.of("Partition decorator syntax cannot be used with the Storage Write API");
+      // Only report an error if the user explicitly requested partition decorator syntax and batch load;
+      // if they didn't, then we can silently disable it when using the Storage Write API Batch Load
+      return Optional.of(partitionDecoratorNewBatchNotSupported);
     }
 
     return Optional.empty();
