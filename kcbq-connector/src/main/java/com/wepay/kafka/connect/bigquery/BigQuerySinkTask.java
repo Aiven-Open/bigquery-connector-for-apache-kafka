@@ -27,8 +27,6 @@ import static com.wepay.kafka.connect.bigquery.utils.TableNameUtils.intTable;
 
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.InsertAllRequest.RowToInsert;
-import com.google.cloud.bigquery.Table;
-import com.google.cloud.bigquery.TableId;
 import com.google.cloud.bigquery.TimePartitioning;
 import com.google.cloud.bigquery.storage.v1.BigQueryWriteSettings;
 import com.google.cloud.storage.Bucket;
@@ -156,9 +154,8 @@ public class BigQuerySinkTask extends SinkTask {
    * @see BigQuerySinkTask#BigQuerySinkTask()
    */
   public BigQuerySinkTask(BigQuery testBigQuery, SchemaRetriever schemaRetriever, Storage testGcs,
-                          SchemaManager testSchemaManager, Map<TableId, Table> testCache,
-                          StorageWriteApiBase testStorageWriteApi, StorageApiBatchModeHandler testStorageApiBatchHandler,
-                          Time time) {
+                          SchemaManager testSchemaManager, StorageWriteApiBase testStorageWriteApi,
+                          StorageApiBatchModeHandler testStorageApiBatchHandler, Time time) {
     this.testBigQuery = testBigQuery;
     this.schemaRetriever = schemaRetriever;
     this.testGcs = testGcs;

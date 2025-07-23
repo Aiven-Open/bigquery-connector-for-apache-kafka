@@ -113,14 +113,12 @@ public class GcsToBqWriterTest {
 
     SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
     SchemaManager schemaManager = mock(SchemaManager.class);
-    Map<TableId, Table> cache = new HashMap<>();
 
     BigQuerySinkTask testTask = new BigQuerySinkTask(
         bigQuery,
         schemaRetriever,
         storage,
         schemaManager,
-        cache,
         mockedStorageWriteApiDefaultStream,
         mockedBatchHandler,
         time
@@ -148,7 +146,6 @@ public class GcsToBqWriterTest {
 
     SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
     SchemaManager schemaManager = mock(SchemaManager.class);
-    Map<TableId, Table> cache = new HashMap<>();
 
     when(storage.create((BlobInfo) anyObject(), (byte[]) anyObject()))
         .thenThrow(new StorageException(500, "internal server error")) // throw first time
@@ -159,7 +156,6 @@ public class GcsToBqWriterTest {
         schemaRetriever,
         storage,
         schemaManager,
-        cache,
         mockedStorageWriteApiDefaultStream,
         mockedBatchHandler,
         time
@@ -187,7 +183,6 @@ public class GcsToBqWriterTest {
 
     SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
     SchemaManager schemaManager = mock(SchemaManager.class);
-    Map<TableId, Table> cache = new HashMap<>();
 
     when(storage.create((BlobInfo) anyObject(), (byte[]) anyObject()))
         .thenThrow(new StorageException(500, "internal server error"));
@@ -197,7 +192,6 @@ public class GcsToBqWriterTest {
         schemaRetriever,
         storage,
         schemaManager,
-        cache,
         mockedStorageWriteApiDefaultStream,
         mockedBatchHandler,
         time
