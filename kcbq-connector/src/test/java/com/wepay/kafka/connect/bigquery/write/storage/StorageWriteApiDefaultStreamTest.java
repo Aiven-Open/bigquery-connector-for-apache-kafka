@@ -69,57 +69,57 @@ import org.mockito.ArgumentMatchers;
 public class StorageWriteApiDefaultStreamTest {
 
   private final PartitionedTableId mockedPartitionedTableId = new PartitionedTableId.Builder("dummyDataset", "dummyTable").setProject("dummyProject").build();
+  private final String mockedTableName = TableNameUtils.tableName(mockedPartitionedTableId.getFullTableId()).toString();
   private final JsonStreamWriter mockedStreamWriter = mock(JsonStreamWriter.class);
   private final SinkRecord mockedSinkRecord = new SinkRecord(
-          "abc",
-          0,
-          Schema.BOOLEAN_SCHEMA,
-          null,
-          Schema.BOOLEAN_SCHEMA,
-          null,
-          0);
+      "abc",
+      0,
+      Schema.BOOLEAN_SCHEMA,
+      null,
+      Schema.BOOLEAN_SCHEMA,
+      null,
+      0);
   private final ApiFuture<AppendRowsResponse> mockedResponse = mock(ApiFuture.class);
   private final List<ConvertedRecord> testRows = Collections.singletonList(new ConvertedRecord(mockedSinkRecord, new JSONObject()));
   private final List<ConvertedRecord> testMultiRows = Arrays.asList(
-          new ConvertedRecord(mockedSinkRecord, new JSONObject()),
-          new ConvertedRecord(mockedSinkRecord, new JSONObject()));
+      new ConvertedRecord(mockedSinkRecord, new JSONObject()),
+      new ConvertedRecord(mockedSinkRecord, new JSONObject()));
   private final StorageWriteApiDefaultStream defaultStream = mock(StorageWriteApiDefaultStream.class, CALLS_REAL_METHODS);
   private final String nonRetriableExpectedException = "Failed to write rows on table "
-          + TableNameUtils.tableName(mockedPartitionedTableId.getFullTableId()).toString()
-          + " due to I am non-retriable error";
+          + mockedTableName + " due to I am non-retriable error";
   private final String retriableExpectedException = "Exceeded 0 attempts to write to table "
-          + TableNameUtils.tableName(mockedPartitionedTableId.getFullTableId()).toString() + " ";
+          + mockedTableName + " ";
   private final String malformedrequestExpectedException = "Insertion failed at table dummyTable for following rows:" +
           " \n [row index 0] (Failure reason : f0 field is unknown) ";
   ErrantRecordHandler mockedErrantRecordHandler = mock(ErrantRecordHandler.class);
   ErrantRecordReporter mockedErrantReporter = mock(ErrantRecordReporter.class);
   AppendRowsResponse malformedError = AppendRowsResponse.newBuilder()
-          .setError(
-                  Status.newBuilder()
-                          .setCode(3)
-                          .setMessage("I am an INVALID_ARGUMENT error")
-                          .build()
-          ).addRowErrors(
-                  RowError.newBuilder()
-                          .setIndex(0)
-                          .setMessage("f0 field is unknown")
-                          .build()
-          ).build();
+      .setError(
+          Status.newBuilder()
+              .setCode(3)
+              .setMessage("I am an INVALID_ARGUMENT error")
+              .build()
+      ).addRowErrors(
+          RowError.newBuilder()
+              .setIndex(0)
+              .setMessage("f0 field is unknown")
+              .build()
+      ).build();
   AppendRowsResponse successResponse = AppendRowsResponse.newBuilder()
-          .setAppendResult(AppendRowsResponse.AppendResult.newBuilder().getDefaultInstanceForType()).build();
+      .setAppendResult(AppendRowsResponse.AppendResult.newBuilder().getDefaultInstanceForType()).build();
   Map<Integer, String> errorMapping = new HashMap<>();
   Exceptions.AppendSerializtionError appendSerializationException = new Exceptions.AppendSerializtionError(
-          3,
-          "INVALID_ARGUMENT",
-          "DEFAULT",
-          errorMapping);
+      3,
+      "INVALID_ARGUMENT",
+      "DEFAULT",
+      errorMapping);
   AppendRowsResponse schemaError = AppendRowsResponse.newBuilder()
-          .setUpdatedSchema(TableSchema.newBuilder().build())
-          .build();
+      .setUpdatedSchema(TableSchema.newBuilder().build())
+      .build();
   ExecutionException tableMissingException = new ExecutionException(new StatusRuntimeException(
-          io.grpc.Status
-                  .fromCode(io.grpc.Status.Code.NOT_FOUND)
-                  .withDescription("Not found: table. Table is deleted")
+      io.grpc.Status
+          .fromCode(io.grpc.Status.Code.NOT_FOUND)
+          .withDescription("Not found: table. Table is deleted")
   ));
   SchemaManager mockedSchemaManager = mock(SchemaManager.class);
   MockTime time = new MockTime();
@@ -151,12 +151,12 @@ public class StorageWriteApiDefaultStreamTest {
   @Test
   public void testDefaultStreamNonRetriableError() throws Exception {
     AppendRowsResponse nonRetriableError = AppendRowsResponse.newBuilder()
-            .setError(
-                    Status.newBuilder()
-                            .setCode(0)
-                            .setMessage("I am non-retriable error")
-                            .build()
-            ).build();
+        .setError(
+            Status.newBuilder()
+                .setCode(0)
+                .setMessage("I am non-retriable error")
+                .build()
+        ).build();
 
     when(mockedResponse.get()).thenReturn(nonRetriableError);
 
@@ -166,12 +166,12 @@ public class StorageWriteApiDefaultStreamTest {
   @Test
   public void testDefaultStreamRetriableError() throws Exception {
     AppendRowsResponse retriableError = AppendRowsResponse.newBuilder()
-            .setError(
-                    Status.newBuilder()
-                            .setCode(0)
-                            .setMessage("I am an INTERNAL error")
-                            .build()
-            ).build();
+        .setError(
+            Status.newBuilder()
+                .setCode(0)
+                .setMessage("I am an INTERNAL error")
+                .build()
+        ).build();
 
     when(mockedResponse.get()).thenReturn(retriableError);
 
@@ -188,8 +188,8 @@ public class StorageWriteApiDefaultStreamTest {
   public void testDefaultStreamMalformedRequestErrorSomeToDLQ() throws Exception {
     when(mockedResponse.get()).thenReturn(malformedError).thenReturn(successResponse);
     assertThrows(
-            BigQueryStorageWriteApiConnectException.class,
-            () -> verifyDLQ(testMultiRows)
+        BigQueryStorageWriteApiConnectException.class,
+        () -> verifyDLQ(testMultiRows)
     );
   }
 
@@ -209,8 +209,8 @@ public class StorageWriteApiDefaultStreamTest {
     when(defaultStream.canAttemptSchemaUpdate()).thenReturn(false);
 
     assertThrows(
-            BigQueryStorageWriteApiConnectException.class,
-            () -> defaultStream.initializeAndWriteRecords(mockedPartitionedTableId, testRows, null)
+        BigQueryStorageWriteApiConnectException.class,
+        () -> defaultStream.initializeAndWriteRecords(mockedPartitionedTableId, testRows, null)
     );
     verifyNoInteractions(mockedSchemaManager);
   }
@@ -227,7 +227,7 @@ public class StorageWriteApiDefaultStreamTest {
   @Test
   public void testDefaultStreamRetriableException() throws Exception {
     ExecutionException exception = new ExecutionException(new StatusRuntimeException(
-            io.grpc.Status.fromCode(io.grpc.Status.Code.INTERNAL).withDescription("I am an INTERNAL error")
+        io.grpc.Status.fromCode(io.grpc.Status.Code.INTERNAL).withDescription("I am an INTERNAL error")
     ));
 
     when(mockedResponse.get()).thenThrow(exception);
@@ -245,8 +245,8 @@ public class StorageWriteApiDefaultStreamTest {
   public void testDefaultStreamMalformedRequestExceptionSomeToDLQ() throws Exception {
     when(mockedResponse.get()).thenThrow(appendSerializationException).thenReturn(successResponse);
     assertThrows(
-            BigQueryStorageWriteApiConnectException.class,
-            () -> verifyDLQ(testMultiRows)
+        BigQueryStorageWriteApiConnectException.class,
+        () -> verifyDLQ(testMultiRows)
     );
   }
 
@@ -271,12 +271,12 @@ public class StorageWriteApiDefaultStreamTest {
   @Test
   public void testDefaultStreamClosedException() throws Exception {
     ExecutionException exception = new ExecutionException(
-            new Throwable("Exceptions$StreamWriterClosedException due to FAILED_PRECONDITION"));
+        new Throwable("Exceptions$StreamWriterClosedException due to FAILED_PRECONDITION"));
     when(mockedResponse.get()).thenThrow(exception);
 
     assertThrows(
-            BigQueryStorageWriteApiConnectException.class,
-            () -> defaultStream.initializeAndWriteRecords(mockedPartitionedTableId, testRows, null)
+        BigQueryStorageWriteApiConnectException.class,
+        () -> defaultStream.initializeAndWriteRecords(mockedPartitionedTableId, testRows, null)
     );
   }
 
@@ -290,8 +290,8 @@ public class StorageWriteApiDefaultStreamTest {
 
   private void verifyException(String expectedException) {
     BigQueryStorageWriteApiConnectException e = assertThrows(
-            BigQueryStorageWriteApiConnectException.class,
-            () -> defaultStream.initializeAndWriteRecords(mockedPartitionedTableId, testRows, null)
+        BigQueryStorageWriteApiConnectException.class,
+        () -> defaultStream.initializeAndWriteRecords(mockedPartitionedTableId, testRows, null)
     );
     assertEquals(expectedException, e.getMessage());
   }
@@ -302,7 +302,7 @@ public class StorageWriteApiDefaultStreamTest {
     defaultStream.initializeAndWriteRecords(mockedPartitionedTableId, rows, null);
 
     verify(mockedErrantRecordHandler, times(1))
-            .reportErrantRecords(captorRecord.capture());
+        .reportErrantRecords(captorRecord.capture());
     assertTrue(captorRecord.getValue().containsKey(mockedSinkRecord));
     assertEquals("f0 field is unknown", captorRecord.getValue().get(mockedSinkRecord).getMessage());
     assertEquals(1, captorRecord.getValue().size());
