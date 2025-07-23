@@ -72,15 +72,16 @@ import org.mockito.ArgumentMatchers;
 public class StorageWriteApiDefaultStreamTest {
 
   private final PartitionedTableId mockedPartitionedTableId = new PartitionedTableId.Builder("dummyDataset", "dummyTable").setProject("dummyProject").build();
+  private final String mockedTableName = TableNameUtils.tableName(mockedPartitionedTableId.getFullTableId()).toString();
   private final JsonStreamWriter mockedStreamWriter = mock(JsonStreamWriter.class);
   private final SinkRecord mockedSinkRecord = new SinkRecord(
-      "abc",
-      0,
-      Schema.BOOLEAN_SCHEMA,
-      null,
-      Schema.BOOLEAN_SCHEMA,
-      null,
-      0);
+          "abc",
+          0,
+          Schema.BOOLEAN_SCHEMA,
+          null,
+          Schema.BOOLEAN_SCHEMA,
+          null,
+          0);
   private final ApiFuture<AppendRowsResponse> mockedResponse = mock(ApiFuture.class);
   private final List<ConvertedRecord> testRows = Collections.singletonList(new ConvertedRecord(mockedSinkRecord, new JSONObject()));
   private final List<ConvertedRecord> testMultiRows = Arrays.asList(
@@ -88,9 +89,9 @@ public class StorageWriteApiDefaultStreamTest {
       new ConvertedRecord(mockedSinkRecord, new JSONObject()));
   private final StorageWriteApiDefaultStream defaultStream = mock(StorageWriteApiDefaultStream.class, CALLS_REAL_METHODS);
   private final String baseErrorMessage = "Failed to write rows on table "
-      + TableNameUtils.tableName(mockedPartitionedTableId.getFullTableId()).toString();
+      + mockedTableName;
   private final String retriableExpectedException = "Exceeded 0 attempts to write to table "
-          + TableNameUtils.tableName(mockedPartitionedTableId.getFullTableId()).toString() + " ";
+          + mockedTableName + " ";
   private final String malformedrequestExpectedException = "Insertion failed at table dummyTable for following rows:" +
       " \n [row index 0] (Failure reason : f0 field is unknown) ";
   ErrantRecordHandler mockedErrantRecordHandler = mock(ErrantRecordHandler.class);

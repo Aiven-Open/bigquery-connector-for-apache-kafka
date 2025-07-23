@@ -154,7 +154,7 @@ public abstract class StorageWriteApiBase {
             Map<Integer, String> rowErrorMapping = Collections.singletonMap(
                 0, e.getMessage()
             );
-            batch = maybeHandleDlqRoutingAndFilterRecords(batch, rowErrorMapping, tableName.getTable());
+            batch = maybeHandleDlqRoutingAndFilterRecords(batch, rowErrorMapping, table.getBaseTableId().getTable());
             if (!batch.isEmpty()) {
               retryHandler.maybeRetry("write to table " + tableName);
             }
@@ -165,7 +165,7 @@ public abstract class StorageWriteApiBase {
             logger.debug("Reducing batch size for table {} from {} to {}", tableName, previousSize, batch.size());
           }
         } catch (MalformedRowsException e) {
-          batch = maybeHandleDlqRoutingAndFilterRecords(batch, e.getRowErrorMapping(), tableName.getTable());
+          batch = maybeHandleDlqRoutingAndFilterRecords(batch, e.getRowErrorMapping(), table.getBaseTableId().getTable());
           if (!batch.isEmpty()) {
             // TODO: Does this actually make sense? Should we count this as part of our retry logic?
             //       As long as we're guaranteed that the number of rows in the batch is decreasing, it
