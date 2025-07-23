@@ -59,7 +59,6 @@ import com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiDefaultStre
 import java.net.SocketTimeoutException;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.RejectedExecutionException;
@@ -235,14 +234,12 @@ public class BigQuerySinkTaskTest {
 
     SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
     SchemaManager schemaManager = mock(SchemaManager.class);
-    Map<TableId, Table> cache = new HashMap<>();
 
     BigQuerySinkTask testTask = new BigQuerySinkTask(
         bigQuery,
         schemaRetriever,
         storage,
         schemaManager,
-        cache,
         mockedStorageWriteApiDefaultStream,
         mockedBatchHandler,
         time
@@ -279,14 +276,12 @@ public class BigQuerySinkTaskTest {
 
     SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
     SchemaManager schemaManager = mock(SchemaManager.class);
-    Map<TableId, Table> cache = new HashMap<>();
 
     BigQuerySinkTask testTask = new BigQuerySinkTask(
         bigQuery,
         schemaRetriever,
         storage,
         schemaManager,
-        cache,
         mockedStorageWriteApiDefaultStream,
         mockedBatchHandler,
         time
@@ -325,14 +320,12 @@ public class BigQuerySinkTaskTest {
 
     SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
     SchemaManager schemaManager = mock(SchemaManager.class);
-    Map<TableId, Table> cache = new HashMap<>();
 
     BigQuerySinkTask testTask = new BigQuerySinkTask(
         bigQuery,
         schemaRetriever,
         storage,
         schemaManager,
-        cache,
         mockedStorageWriteApiDefaultStream,
         mockedBatchHandler,
         time
@@ -355,14 +348,12 @@ public class BigQuerySinkTaskTest {
 
     SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
     SchemaManager schemaManager = mock(SchemaManager.class);
-    Map<TableId, Table> cache = new HashMap<>();
 
     BigQuerySinkTask testTask = new BigQuerySinkTask(
         bigQuery,
         schemaRetriever,
         storage,
         schemaManager,
-        cache,
         mockedStorageWriteApiDefaultStream,
         mockedBatchHandler,
         time
@@ -387,14 +378,12 @@ public class BigQuerySinkTaskTest {
 
     SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
     SchemaManager schemaManager = mock(SchemaManager.class);
-    Map<TableId, Table> cache = new HashMap<>();
 
     BigQuerySinkTask testTask = new BigQuerySinkTask(
         bigQuery,
         schemaRetriever,
         storage,
         schemaManager,
-        cache,
         mockedStorageWriteApiDefaultStream,
         mockedBatchHandler,
         time
@@ -431,7 +420,6 @@ public class BigQuerySinkTaskTest {
 
     SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
     SchemaManager schemaManager = mock(SchemaManager.class);
-    Map<TableId, Table> cache = new HashMap<>();
     Field keyField = Field.of(key, LegacySQLTypeName.STRING);
     Field valueField = Field.of(value, LegacySQLTypeName.STRING);
     com.google.cloud.bigquery.Schema intermediateSchema = com.google.cloud.bigquery.Schema.of(
@@ -467,7 +455,6 @@ public class BigQuerySinkTaskTest {
         schemaRetriever,
         storage,
         schemaManager,
-        cache,
         mockedStorageWriteApiDefaultStream,
         mockedBatchHandler,
         time
@@ -515,14 +502,12 @@ public class BigQuerySinkTaskTest {
 
     SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
     SchemaManager schemaManager = mock(SchemaManager.class);
-    Map<TableId, Table> cache = new HashMap<>();
 
     BigQuerySinkTask testTask = new BigQuerySinkTask(
         bigQuery,
         schemaRetriever,
         storage,
         schemaManager,
-        cache,
         mockedStorageWriteApiDefaultStream,
         mockedBatchHandler,
         time
@@ -551,7 +536,6 @@ public class BigQuerySinkTaskTest {
 
     SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
     SchemaManager schemaManager = mock(SchemaManager.class);
-    Map<TableId, Table> cache = new HashMap<>();
 
     SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
     BigQuerySinkTask testTask = new BigQuerySinkTask(
@@ -559,7 +543,6 @@ public class BigQuerySinkTaskTest {
         schemaRetriever,
         storage,
         schemaManager,
-        cache,
         mockedStorageWriteApiDefaultStream,
         mockedBatchHandler,
         time
@@ -582,7 +565,6 @@ public class BigQuerySinkTaskTest {
 
     SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
     SchemaManager schemaManager = mock(SchemaManager.class);
-    Map<TableId, Table> cache = new HashMap<>();
 
     SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
     BigQuerySinkTask testTask = new BigQuerySinkTask(
@@ -590,7 +572,6 @@ public class BigQuerySinkTaskTest {
         schemaRetriever,
         storage,
         schemaManager,
-        cache,
         mockedStorageWriteApiDefaultStream,
         mockedBatchHandler,
         time
@@ -636,14 +617,12 @@ public class BigQuerySinkTaskTest {
 
     SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
     SchemaManager schemaManager = mock(SchemaManager.class);
-    Map<TableId, Table> cache = new HashMap<>();
 
     BigQuerySinkTask testTask = new BigQuerySinkTask(
         bigQuery,
         schemaRetriever,
         storage,
         schemaManager,
-        cache,
         mockedStorageWriteApiDefaultStream,
         mockedBatchHandler,
         time
@@ -685,14 +664,12 @@ public class BigQuerySinkTaskTest {
 
     SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
     SchemaManager schemaManager = mock(SchemaManager.class);
-    Map<TableId, Table> cache = new HashMap<>();
 
     BigQuerySinkTask testTask = new BigQuerySinkTask(
         bigQuery,
         schemaRetriever,
         storage,
         schemaManager,
-        cache,
         mockedStorageWriteApiDefaultStream,
         mockedBatchHandler,
         time
@@ -735,14 +712,12 @@ public class BigQuerySinkTaskTest {
 
     SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
     SchemaManager schemaManager = mock(SchemaManager.class);
-    Map<TableId, Table> cache = new HashMap<>();
 
     BigQuerySinkTask testTask = new BigQuerySinkTask(
         bigQuery,
         schemaRetriever,
         storage,
         schemaManager,
-        cache,
         mockedStorageWriteApiDefaultStream,
         mockedBatchHandler,
         time
@@ -782,14 +757,12 @@ public class BigQuerySinkTaskTest {
 
     SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
     SchemaManager schemaManager = mock(SchemaManager.class);
-    Map<TableId, Table> cache = new HashMap<>();
 
     BigQuerySinkTask testTask = new BigQuerySinkTask(
         bigQuery,
         schemaRetriever,
         storage,
         schemaManager,
-        cache,
         mockedStorageWriteApiDefaultStream,
         mockedBatchHandler,
         time
@@ -825,7 +798,6 @@ public class BigQuerySinkTaskTest {
 
     SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
     SchemaManager schemaManager = mock(SchemaManager.class);
-    Map<TableId, Table> cache = new HashMap<>();
 
     SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
     BigQuerySinkTask testTask = new BigQuerySinkTask(
@@ -833,7 +805,6 @@ public class BigQuerySinkTaskTest {
         schemaRetriever,
         storage,
         schemaManager,
-        cache,
         mockedStorageWriteApiDefaultStream,
         mockedBatchHandler,
         time
@@ -872,15 +843,12 @@ public class BigQuerySinkTaskTest {
     Table table = mock(Table.class);
     when(table.getDefinition()).thenReturn(mockTableDefinition);
     when(bigQuery.getTable(tableId)).thenReturn(table);
-    Map<TableId, Table> tableCache = new HashMap<>();
-    tableCache.put(TableId.of(dataset, topic), table);
 
     BigQuerySinkTask testTask = new BigQuerySinkTask(
         bigQuery,
         null,
         storage,
         null,
-        tableCache,
         mockedStorageWriteApiDefaultStream,
         mockedBatchHandler,
         time
@@ -924,7 +892,6 @@ public class BigQuerySinkTaskTest {
 
     SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
     SchemaManager schemaManager = mock(SchemaManager.class);
-    Map<TableId, Table> cache = new HashMap<>();
 
     Storage storage = mock(Storage.class);
     BigQuerySinkTask testTask = new BigQuerySinkTask(
@@ -932,7 +899,6 @@ public class BigQuerySinkTaskTest {
         schemaRetriever,
         storage,
         schemaManager,
-        cache,
         mockedStorageWriteApiDefaultStream,
         mockedBatchHandler,
         time
