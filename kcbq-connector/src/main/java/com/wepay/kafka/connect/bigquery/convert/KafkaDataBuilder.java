@@ -29,11 +29,15 @@ import com.google.cloud.bigquery.LegacySQLTypeName;
 import java.util.HashMap;
 import java.util.Map;
 import org.apache.kafka.connect.sink.SinkRecord;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Helper class to construct schema and record for Kafka Data Field.
  */
 public class KafkaDataBuilder {
+
+  private static final Logger logger = LoggerFactory.getLogger(KafkaDataBuilder.class);
 
   public static final String KAFKA_DATA_TOPIC_FIELD_NAME = "topic";
   public static final String KAFKA_DATA_PARTITION_FIELD_NAME = "partition";
@@ -60,6 +64,36 @@ public class KafkaDataBuilder {
         .setMode(com.google.cloud.bigquery.Field.Mode.NULLABLE).build();
   }
 
+  private static String tryGetOriginalTopic(SinkRecord kafkaConnectRecord) {
+    try {
+      return kafkaConnectRecord.originalTopic();
+    } catch (NoSuchMethodError e) {
+      logger.warn("This connector doesn't support SMTs that mutate the original topic name. This functionality is "
+              + "available since version 3.6 of Kafka Connect");
+      return kafkaConnectRecord.topic();
+    }
+  }
+
+  private static Integer tryGetOriginalKafkaPartition(SinkRecord kafkaConnectRecord) {
+    try {
+      return kafkaConnectRecord.originalKafkaPartition();
+    } catch (NoSuchMethodError e) {
+      logger.warn("This connector doesn't support SMTs that mutate the original partition. This functionality is "
+              + "available since version 3.6 of Kafka Connect");
+      return kafkaConnectRecord.kafkaPartition();
+    }
+  }
+
+  private static long tryGetOriginalKafkaOffset(SinkRecord kafkaConnectRecord) {
+    try {
+      return kafkaConnectRecord.originalKafkaOffset();
+    } catch (NoSuchMethodError e) {
+      logger.warn("This connector doesn't support SMTs that mutate the original offset. This functionality is "
+              + "available since version 3.6 of Kafka Connect");
+      return kafkaConnectRecord.kafkaOffset();
+    }
+  }
+
   /**
    * Construct a map of Kafka Data record
    *
@@ -68,9 +102,9 @@ public class KafkaDataBuilder {
    */
   public static Map<String, Object> buildKafkaDataRecord(SinkRecord kafkaConnectRecord) {
     HashMap<String, Object> kafkaData = new HashMap<>();
-    kafkaData.put(KAFKA_DATA_TOPIC_FIELD_NAME, kafkaConnectRecord.originalTopic());
-    kafkaData.put(KAFKA_DATA_PARTITION_FIELD_NAME, kafkaConnectRecord.kafkaPartition());
-    kafkaData.put(KAFKA_DATA_OFFSET_FIELD_NAME, kafkaConnectRecord.kafkaOffset());
+    kafkaData.put(KAFKA_DATA_TOPIC_FIELD_NAME, tryGetOriginalTopic(kafkaConnectRecord));
+    kafkaData.put(KAFKA_DATA_PARTITION_FIELD_NAME, tryGetOriginalKafkaPartition(kafkaConnectRecord));
+    kafkaData.put(KAFKA_DATA_OFFSET_FIELD_NAME, tryGetOriginalKafkaOffset(kafkaConnectRecord));
     kafkaData.put(KAFKA_DATA_INSERT_TIME_FIELD_NAME, System.currentTimeMillis() / 1000.0);
     return kafkaData;
   }
