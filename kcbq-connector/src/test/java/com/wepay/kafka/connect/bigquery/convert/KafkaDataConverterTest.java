@@ -45,6 +45,10 @@ public class KafkaDataConverterTest {
   private static final String kafkaDataTopicValue = "testTopic";
   private static final int kafkaDataPartitionValue = 101;
   private static final long kafkaDataOffsetValue = 1337;
+  private static final String kafkaDataMutatedTopicValue = "mutatedTopic";
+  private static final int kafkaDataMutatedPartitionValue = 201;
+  // In 3.6.1, there is no direct way to modify offset via newRecord(), even if SinkRecord itself supports it
+  private static final long kafkaDataMutatedOffsetValue = 456;
   Map<String, Object> expectedKafkaDataFields = new HashMap<>();
 
   @BeforeEach
@@ -62,6 +66,33 @@ public class KafkaDataConverterTest {
     assertTrue(actualKafkaDataFields.containsKey(kafkaDataInsertTimeName));
     assertTrue(actualKafkaDataFields.get(kafkaDataInsertTimeName) instanceof Double);
 
+    actualKafkaDataFields.remove(kafkaDataInsertTimeName);
+
+    assertEquals(expectedKafkaDataFields, actualKafkaDataFields);
+  }
+
+  @Test
+  public void testBuildKafkaDataRecordOnMutatedMetadata() {
+    SinkRecord record = new SinkRecord(
+            kafkaDataTopicValue,
+            kafkaDataPartitionValue,
+            null,
+            null,
+            null,
+            null,
+            kafkaDataOffsetValue
+    );
+    SinkRecord mutatedRecord = record.newRecord(
+            kafkaDataMutatedTopicValue,
+            kafkaDataMutatedPartitionValue,
+            null,
+            null,
+            null,
+            null,
+            null
+    );
+
+    Map<String, Object> actualKafkaDataFields = KafkaDataBuilder.buildKafkaDataRecord(mutatedRecord);
     actualKafkaDataFields.remove(kafkaDataInsertTimeName);
 
     assertEquals(expectedKafkaDataFields, actualKafkaDataFields);
