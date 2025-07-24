@@ -68,7 +68,7 @@ public class KafkaDataBuilder {
    */
   public static Map<String, Object> buildKafkaDataRecord(SinkRecord kafkaConnectRecord) {
     HashMap<String, Object> kafkaData = new HashMap<>();
-    kafkaData.put(KAFKA_DATA_TOPIC_FIELD_NAME, kafkaConnectRecord.topic());
+    kafkaData.put(KAFKA_DATA_TOPIC_FIELD_NAME, kafkaConnectRecord.originalTopic());
     kafkaData.put(KAFKA_DATA_PARTITION_FIELD_NAME, kafkaConnectRecord.kafkaPartition());
     kafkaData.put(KAFKA_DATA_OFFSET_FIELD_NAME, kafkaConnectRecord.kafkaOffset());
     kafkaData.put(KAFKA_DATA_INSERT_TIME_FIELD_NAME, System.currentTimeMillis() / 1000.0);
