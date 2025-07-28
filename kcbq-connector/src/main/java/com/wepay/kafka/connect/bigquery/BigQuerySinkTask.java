@@ -422,11 +422,11 @@ public class BigQuerySinkTask extends SinkTask {
     stopped = false;
     config = new BigQuerySinkTaskConfig(properties);
     autoCreateTables = config.getBoolean(BigQuerySinkConfig.TABLE_CREATE_CONFIG);
-    upsertDelete = config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)
-        || config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG);
 
     useStorageApi = config.getBoolean(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG);
     useStorageApiBatchMode = useStorageApi && config.getBoolean(BigQuerySinkConfig.ENABLE_BATCH_MODE_CONFIG);
+    upsertDelete = !useStorageApi && (config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)
+            || config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG));
 
     retry = config.getInt(BigQuerySinkConfig.BIGQUERY_RETRY_CONFIG);
     retryWait = config.getLong(BigQuerySinkConfig.BIGQUERY_RETRY_WAIT_CONFIG);
@@ -465,7 +465,7 @@ public class BigQuerySinkTask extends SinkTask {
         new MdcContextThreadFactory()
     );
     topicPartitionManager = new TopicPartitionManager();
-    recordTableResolver = new RecordTableResolver(config, mergeBatches, getBigQuery());
+    recordTableResolver = new RecordTableResolver(config, mergeBatches, getBigQuery(), upsertDelete, useStorageApiBatchMode);
 
     if (config.getBoolean(BigQuerySinkTaskConfig.GCS_BQ_TASK_CONFIG)) {
       startGcsToBqLoadTask();

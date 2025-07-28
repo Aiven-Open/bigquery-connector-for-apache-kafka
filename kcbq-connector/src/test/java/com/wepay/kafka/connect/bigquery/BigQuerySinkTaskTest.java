@@ -852,48 +852,6 @@ public class BigQuerySinkTaskTest {
   }
 
   @Test
-  public void testTimePartitioningIncompatibleWithDecoratorSyntax() {
-    final String topic = "t1";
-    final String dataset = "d";
-
-    Map<String, String> properties = propertiesFactory.getProperties();
-    properties.put(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG, "true");
-    properties.put(BigQuerySinkConfig.BIGQUERY_MESSAGE_TIME_PARTITIONING_CONFIG, "true");
-    properties.put(BigQuerySinkConfig.TOPICS_CONFIG, topic);
-    properties.put(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG, dataset);
-    initialize(properties);
-
-    Storage storage = mock(Storage.class);
-    BigQuery bigQuery = mock(BigQuery.class);
-
-    TableId tableId = TableId.of(dataset, topic);
-    StandardTableDefinition mockTableDefinition = mock(StandardTableDefinition.class);
-    when(mockTableDefinition.getTimePartitioning()).thenReturn(TimePartitioning.of(TimePartitioning.Type.HOUR));
-    Table table = mock(Table.class);
-    when(table.getDefinition()).thenReturn(mockTableDefinition);
-    when(bigQuery.getTable(tableId)).thenReturn(table);
-
-    BigQuerySinkTask testTask = new BigQuerySinkTask(
-        bigQuery,
-        null,
-        storage,
-        null,
-        mockedStorageWriteApiDefaultStream,
-        mockedBatchHandler,
-        time
-    );
-
-    SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
-    testTask.initialize(sinkTaskContext);
-    testTask.start(properties);
-
-    assertThrows(
-        ConnectException.class,
-        () -> testTask.put(Collections.singleton(spoofSinkRecord(topic, "f1", "v1", TimestampType.CREATE_TIME, 1L)))
-    );
-  }
-
-  @Test
   public void testVersion() {
     assertNotNull(new BigQuerySinkTask().version());
   }
