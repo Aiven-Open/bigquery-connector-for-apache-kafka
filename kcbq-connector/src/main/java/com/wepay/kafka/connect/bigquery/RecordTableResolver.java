@@ -1,3 +1,26 @@
+/*
+ * Copyright 2024 Copyright 2022 Aiven Oy and
+ * bigquery-connector-for-apache-kafka project contributors
+ *
+ * This software contains code derived from the Confluent BigQuery
+ * Kafka Connector, Copyright Confluent, Inc, which in turn
+ * contains code derived from the WePay BigQuery Kafka Connector,
+ * Copyright WePay, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 package com.wepay.kafka.connect.bigquery;
 
 import com.google.cloud.bigquery.BigQuery;
@@ -31,21 +54,16 @@ class RecordTableResolver {
   private final boolean usePartitionDecorator;
   private final boolean upsertDelete;
   private final boolean useMessageTimeDatePartitioning;
-  private final boolean useStorageApi;
 
-  public RecordTableResolver(BigQuerySinkTaskConfig config, MergeBatches mergeBatches, BigQuery bigQuery) {
+  public RecordTableResolver(BigQuerySinkTaskConfig config, MergeBatches mergeBatches, BigQuery bigQuery,
+                             boolean upsertDelete, boolean useStorageApiBatchMode) {
     this.config = config;
     this.mergeBatches = mergeBatches;
     this.bigQuery = bigQuery;
 
-    this.useMessageTimeDatePartitioning =
-            config.getBoolean(BigQuerySinkConfig.BIGQUERY_MESSAGE_TIME_PARTITIONING_CONFIG);
-    this.usePartitionDecorator =
-            config.getBoolean(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG);
-    this.useStorageApi =
-            config.getBoolean(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG);
-    this.upsertDelete = !useStorageApi && (config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)
-            || config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG));
+    this.upsertDelete = upsertDelete;
+    this.useMessageTimeDatePartitioning = config.getBoolean(BigQuerySinkConfig.BIGQUERY_MESSAGE_TIME_PARTITIONING_CONFIG);
+    this.usePartitionDecorator = !useStorageApiBatchMode && config.getBoolean(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG);
   }
 
   public PartitionedTableId getRecordTable(SinkRecord record) {
@@ -74,9 +92,7 @@ class RecordTableResolver {
     return topicToTableId.computeIfAbsent(topic, topicName -> {
       String[] datasetAndTable = TableNameUtils.getDataSetAndTableName(config, topic);
       String project = config.getString(BigQuerySinkConfig.PROJECT_CONFIG);
-      TableId baseTableId = (!useStorageApi)
-          ? TableId.of(datasetAndTable[0], datasetAndTable[1])
-          : TableId.of(project, datasetAndTable[0], datasetAndTable[1]);
+      TableId baseTableId = TableId.of(project, datasetAndTable[0], datasetAndTable[1]);
 
       if (usePartitionDecorator) {
         validatePartitioningForDecorator(baseTableId);
@@ -90,7 +106,7 @@ class RecordTableResolver {
     StandardTableDefinition definition = retrieveTableDefinition(tableId);
     if (definition == null) {
       // If we could not find table and its definition, ignore.
-      // Table creation will potentially be handled later via SchemaManager
+      // Table creation will potentially be handled later if auto create is enabled
       return;
     }
     TimePartitioning partitioning = definition.getTimePartitioning();
