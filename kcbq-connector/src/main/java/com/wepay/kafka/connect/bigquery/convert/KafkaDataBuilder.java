@@ -26,6 +26,8 @@ package com.wepay.kafka.connect.bigquery.convert;
 
 import com.google.cloud.bigquery.Field;
 import com.google.cloud.bigquery.LegacySQLTypeName;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
 import java.util.HashMap;
 import java.util.Map;
 import org.apache.kafka.connect.sink.SinkRecord;
@@ -43,6 +45,38 @@ public class KafkaDataBuilder {
   public static final String KAFKA_DATA_PARTITION_FIELD_NAME = "partition";
   public static final String KAFKA_DATA_OFFSET_FIELD_NAME = "offset";
   public static final String KAFKA_DATA_INSERT_TIME_FIELD_NAME = "insertTime";
+
+  // This is a marker variable for methods necessary to keep original sink record metadata.
+  // These methods in SinkRecord class are available only since Kafka Connect API version 3.6.
+  private static final boolean KAFKA_CONNECT_API_POST_3_6;
+
+  static {
+    boolean kafkaConnectApiPost36;
+    try {
+      MethodHandles.lookup().findVirtual(
+          SinkRecord.class,
+          "originalTopic",
+          MethodType.methodType(String.class)
+      );
+      MethodHandles.lookup().findVirtual(
+          SinkRecord.class,
+          "originalKafkaPartition",
+          MethodType.methodType(Integer.class)
+      );
+      MethodHandles.lookup().findVirtual(
+          SinkRecord.class,
+          "originalKafkaOffset",
+          MethodType.methodType(long.class)
+      );
+      kafkaConnectApiPost36 = true;
+    } catch (NoSuchMethodException | IllegalAccessException e) {
+      logger.warn("This connector cannot retain original topic/partition/offset fields in SinkRecord. "
+                + "If these fields are mutated in upstream SMTs, they will be lost. "
+                + "Upgrade to Kafka Connect 3.6 to provision reliable metadata into resulting table.", e);
+      kafkaConnectApiPost36 = false;
+    }
+    KAFKA_CONNECT_API_POST_3_6 = kafkaConnectApiPost36;
+  }
 
   /**
    * Construct schema for Kafka Data Field
@@ -65,31 +99,25 @@ public class KafkaDataBuilder {
   }
 
   private static String tryGetOriginalTopic(SinkRecord kafkaConnectRecord) {
-    try {
+    if (KAFKA_CONNECT_API_POST_3_6) {
       return kafkaConnectRecord.originalTopic();
-    } catch (NoSuchMethodError e) {
-      logger.warn("This connector doesn't support SMTs that mutate the original topic name. This functionality is "
-              + "available since version 3.6 of Kafka Connect");
+    } else {
       return kafkaConnectRecord.topic();
     }
   }
 
   private static Integer tryGetOriginalKafkaPartition(SinkRecord kafkaConnectRecord) {
-    try {
+    if (KAFKA_CONNECT_API_POST_3_6) {
       return kafkaConnectRecord.originalKafkaPartition();
-    } catch (NoSuchMethodError e) {
-      logger.warn("This connector doesn't support SMTs that mutate the original partition. This functionality is "
-              + "available since version 3.6 of Kafka Connect");
+    } else {
       return kafkaConnectRecord.kafkaPartition();
     }
   }
 
   private static long tryGetOriginalKafkaOffset(SinkRecord kafkaConnectRecord) {
-    try {
+    if (KAFKA_CONNECT_API_POST_3_6) {
       return kafkaConnectRecord.originalKafkaOffset();
-    } catch (NoSuchMethodError e) {
-      logger.warn("This connector doesn't support SMTs that mutate the original offset. This functionality is "
-              + "available since version 3.6 of Kafka Connect");
+    } else {
       return kafkaConnectRecord.kafkaOffset();
     }
   }
