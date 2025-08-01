@@ -28,6 +28,12 @@ on:
   workflow_dispatch:
   schedule: ## run GMT 1:17 hours
     - cron: '17 1 * * *'
+  workflow_call:
+    secrets:
+      GCP_CREDENTIALS:
+      KCBQ_TEST_PROJECT:
+      KCBQ_TEST_DATASET:
+      KCBQ_TEST_BUCKET:
 
 permissions:
   contents: write
@@ -44,3 +50,8 @@ permissions:
 jobs:
   call-workflow-2-in-local-repo:
     uses: ./.github/workflows/manual.yml
+    secrets:
+      GCP_CREDENTIALS:
+      KCBQ_TEST_PROJECT:
+      KCBQ_TEST_DATASET:
+      KCBQ_TEST_BUCKET:
