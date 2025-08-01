@@ -41,13 +41,14 @@ import com.google.cloud.bigquery.storage.v1.AppendRowsResponse;
 import com.google.cloud.bigquery.storage.v1.Exceptions;
 import com.google.cloud.bigquery.storage.v1.JsonStreamWriter;
 import com.google.cloud.bigquery.storage.v1.RowError;
-import com.google.cloud.bigquery.storage.v1.TableName;
 import com.google.cloud.bigquery.storage.v1.TableSchema;
 import com.google.rpc.Status;
 import com.wepay.kafka.connect.bigquery.ErrantRecordHandler;
 import com.wepay.kafka.connect.bigquery.SchemaManager;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiConnectException;
 import com.wepay.kafka.connect.bigquery.utils.MockTime;
+import com.wepay.kafka.connect.bigquery.utils.PartitionedTableId;
+import com.wepay.kafka.connect.bigquery.utils.TableNameUtils;
 import io.grpc.StatusRuntimeException;
 import java.util.Arrays;
 import java.util.Collections;
@@ -67,7 +68,8 @@ import org.mockito.ArgumentMatchers;
 
 public class StorageWriteApiDefaultStreamTest {
 
-  private final TableName mockedTableName = TableName.of("dummyProject", "dummyDataset", "dummyTable");
+  private final PartitionedTableId mockedPartitionedTableId = new PartitionedTableId.Builder("dummyDataset", "dummyTable").setProject("dummyProject").build();
+  private final String mockedTableName = TableNameUtils.tableName(mockedPartitionedTableId.getFullTableId()).toString();
   private final JsonStreamWriter mockedStreamWriter = mock(JsonStreamWriter.class);
   private final SinkRecord mockedSinkRecord = new SinkRecord(
       "abc",
@@ -84,12 +86,11 @@ public class StorageWriteApiDefaultStreamTest {
       new ConvertedRecord(mockedSinkRecord, new JSONObject()));
   private final StorageWriteApiDefaultStream defaultStream = mock(StorageWriteApiDefaultStream.class, CALLS_REAL_METHODS);
   private final String nonRetriableExpectedException = "Failed to write rows on table "
-      + mockedTableName.toString()
-      + " due to I am non-retriable error";
+          + mockedTableName + " due to I am non-retriable error";
   private final String retriableExpectedException = "Exceeded 0 attempts to write to table "
-      + mockedTableName.toString() + " ";
+          + mockedTableName + " ";
   private final String malformedrequestExpectedException = "Insertion failed at table dummyTable for following rows:" +
-      " \n [row index 0] (Failure reason : f0 field is unknown) ";
+          " \n [row index 0] (Failure reason : f0 field is unknown) ";
   ErrantRecordHandler mockedErrantRecordHandler = mock(ErrantRecordHandler.class);
   ErrantRecordReporter mockedErrantReporter = mock(ErrantRecordReporter.class);
   AppendRowsResponse malformedError = AppendRowsResponse.newBuilder()
@@ -144,7 +145,7 @@ public class StorageWriteApiDefaultStreamTest {
   public void testDefaultStreamNoExceptions() throws Exception {
     when(mockedResponse.get()).thenReturn(successResponse);
 
-    defaultStream.initializeAndWriteRecords(mockedTableName, testRows, null);
+    defaultStream.initializeAndWriteRecords(mockedPartitionedTableId, testRows, null);
   }
 
   @Test
@@ -196,7 +197,7 @@ public class StorageWriteApiDefaultStreamTest {
   public void testHasSchemaUpdates() throws Exception {
     when(mockedResponse.get()).thenReturn(schemaError).thenReturn(successResponse);
 
-    defaultStream.initializeAndWriteRecords(mockedTableName, testRows, null);
+    defaultStream.initializeAndWriteRecords(mockedPartitionedTableId, testRows, null);
 
     verify(mockedSchemaManager, times(1)).updateSchema(any(), any());
 
@@ -209,7 +210,7 @@ public class StorageWriteApiDefaultStreamTest {
 
     assertThrows(
         BigQueryStorageWriteApiConnectException.class,
-        () -> defaultStream.initializeAndWriteRecords(mockedTableName, testRows, null)
+        () -> defaultStream.initializeAndWriteRecords(mockedPartitionedTableId, testRows, null)
     );
     verifyNoInteractions(mockedSchemaManager);
   }
@@ -253,7 +254,7 @@ public class StorageWriteApiDefaultStreamTest {
   public void testDefaultStreamTableMissingException() throws Exception {
     when(mockedResponse.get()).thenThrow(tableMissingException).thenReturn(successResponse);
     when(defaultStream.getAutoCreateTables()).thenReturn(true);
-    defaultStream.initializeAndWriteRecords(mockedTableName, testRows, null);
+    defaultStream.initializeAndWriteRecords(mockedPartitionedTableId, testRows, null);
     verify(mockedSchemaManager, times(1)).createTable(any(), any());
   }
 
@@ -262,7 +263,7 @@ public class StorageWriteApiDefaultStreamTest {
     errorMapping.put(0, "JSONObject does not have the required field f1");
     when(mockedResponse.get()).thenThrow(appendSerializationException).thenReturn(successResponse);
 
-    defaultStream.initializeAndWriteRecords(mockedTableName, testRows, null);
+    defaultStream.initializeAndWriteRecords(mockedPartitionedTableId, testRows, null);
     verify(mockedSchemaManager, times(1)).updateSchema(any(), any());
 
   }
@@ -275,7 +276,7 @@ public class StorageWriteApiDefaultStreamTest {
 
     assertThrows(
         BigQueryStorageWriteApiConnectException.class,
-        () -> defaultStream.initializeAndWriteRecords(mockedTableName, testRows, null)
+        () -> defaultStream.initializeAndWriteRecords(mockedPartitionedTableId, testRows, null)
     );
   }
 
@@ -290,7 +291,7 @@ public class StorageWriteApiDefaultStreamTest {
   private void verifyException(String expectedException) {
     BigQueryStorageWriteApiConnectException e = assertThrows(
         BigQueryStorageWriteApiConnectException.class,
-        () -> defaultStream.initializeAndWriteRecords(mockedTableName, testRows, null)
+        () -> defaultStream.initializeAndWriteRecords(mockedPartitionedTableId, testRows, null)
     );
     assertEquals(expectedException, e.getMessage());
   }
@@ -298,7 +299,7 @@ public class StorageWriteApiDefaultStreamTest {
   private void verifyDLQ(List<ConvertedRecord> rows) {
     ArgumentCaptor<Map<SinkRecord, Throwable>> captorRecord = ArgumentCaptor.forClass(Map.class);
 
-    defaultStream.initializeAndWriteRecords(mockedTableName, rows, null);
+    defaultStream.initializeAndWriteRecords(mockedPartitionedTableId, rows, null);
 
     verify(mockedErrantRecordHandler, times(1))
         .reportErrantRecords(captorRecord.capture());
