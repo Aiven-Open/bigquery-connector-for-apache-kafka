@@ -45,7 +45,6 @@
             <groupId>org.apache.kafka</groupId>
             <artifactId>connect-api</artifactId>
         </dependency>
-
     </dependencies>
 
     <build>
@@ -63,5 +62,5 @@
                 <artifactId>maven-jar-plugin</artifactId>
             </plugin>
 		</plugins>
-		    </build>
+	</build>
 </project>
