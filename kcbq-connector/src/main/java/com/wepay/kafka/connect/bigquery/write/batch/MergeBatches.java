@@ -124,10 +124,19 @@ public class MergeBatches {
     String tableName = FieldNameSanitizer.sanitizeName(
         destinationTable.getTable() + intermediateTableSuffix
     );
-    TableId result = TableId.of(
-        destinationTable.getDataset(),
-        tableName
-    );
+    TableId result;
+    if (destinationTable.getProject() == null) {
+      result = TableId.of(
+          destinationTable.getDataset(),
+          tableName
+      );
+    } else {
+      result = TableId.of(
+          destinationTable.getProject(),
+          destinationTable.getDataset(),
+          tableName
+      );
+    }
 
     batchNumbers.put(result, new AtomicInteger());
     batches.put(result, new ConcurrentHashMap<>());
