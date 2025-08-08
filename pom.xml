@@ -145,7 +145,6 @@
                 <artifactId>kcbq-api</artifactId>
                 <version>${project.version}</version>
             </dependency>
-
             <!-- Provided by the Connect runtime, so scope to provided -->
             <dependency>
                 <groupId>org.apache.kafka</groupId>
@@ -174,21 +173,16 @@
                 <artifactId>guava</artifactId>
                 <version>${com.google.guava.version}</version>
             </dependency>
-
-            <!--
-                Debezium, Google, and Kafka all draw in different versions; pin to a single version
-                here so that the embedded integration tests work
-            -->
+            <!--Debezium, Google, and Kafka all draw in different versions; pin to a single version
+                here so that the embedded integration tests work-->
             <dependency>
                 <groupId>com.fasterxml.jackson.core</groupId>
                 <artifactId>jackson-core</artifactId>
                 <version>${jackson.version}</version>
                 <scope>test</scope>
             </dependency>
-            <!--
-                Same for Jetty: Kafka Connect and Schema Registry both rely on it; pin to a single
-                version
-            -->
+            <!--Same for Jetty: Kafka Connect and Schema Registry both rely on it; pin to a single
+                version-->
             <dependency>
                 <groupId>org.eclipse.jetty</groupId>
                 <artifactId>jetty-server</artifactId>
@@ -369,6 +363,22 @@ under the License.
         </plugins>
         <pluginManagement>
             <plugins>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-jar-plugin</artifactId>
+                    <version>3.4.2</version>
+                    <configuration>
+                        <archive>
+                            <manifest>
+                                <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
+                            </manifest>
+                            <manifestEntries>
+                                <Specification-Vendor>Apache Kafka</Specification-Vendor>
+                                <Specification-Version>${kafka.version}</Specification-Version>
+                            </manifestEntries>
+                        </archive>
+                    </configuration>
+                </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-compiler-plugin</artifactId>
