@@ -26,6 +26,7 @@ package com.wepay.kafka.connect.bigquery.convert;
 import com.google.cloud.bigquery.InsertAllRequest.RowToInsert;
 import com.google.protobuf.ByteString;
 import com.wepay.kafka.connect.bigquery.api.KafkaSchemaRecordType;
+import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.convert.logicaltype.DebeziumLogicalConverters;
 import com.wepay.kafka.connect.bigquery.convert.logicaltype.KafkaLogicalConverters;
 import com.wepay.kafka.connect.bigquery.convert.logicaltype.LogicalConverterRegistry;
@@ -58,12 +59,6 @@ public class BigQueryRecordConverter implements RecordConverter<Map<String, Obje
           Integer.class, Long.class, Float.class, Double.class, String.class)
   );
 
-  static {
-    // force registration
-    DebeziumLogicalConverters.initialize();
-    KafkaLogicalConverters.initialize();
-  }
-
   private final boolean shouldConvertSpecialDouble;
   private final boolean shouldConvertDebeziumTimestampToInteger;
   private final boolean useStorageWriteApi;
@@ -71,16 +66,19 @@ public class BigQueryRecordConverter implements RecordConverter<Map<String, Obje
   public BigQueryRecordConverter(boolean shouldConvertDoubleSpecial,
                                  boolean shouldConvertDebeziumTimestampToInteger,
                                  boolean useStorageWriteApi) {
-    this(shouldConvertDoubleSpecial, shouldConvertDebeziumTimestampToInteger, useStorageWriteApi, false);
+    this.shouldConvertSpecialDouble = shouldConvertDoubleSpecial;
+    this.shouldConvertDebeziumTimestampToInteger = shouldConvertDebeziumTimestampToInteger;
+    this.useStorageWriteApi = useStorageWriteApi;
   }
 
+  /**
+   * @Deprecated should not be used as conversion values are set at during config initialization.
+   */
+  @Deprecated
   public BigQueryRecordConverter(boolean shouldConvertDoubleSpecial,
                                  boolean shouldConvertDebeziumTimestampToInteger,
                                  boolean useStorageWriteApi,
                                  boolean shouldConvertToDebeziumVariableScaleDecimal) {
-    if (shouldConvertToDebeziumVariableScaleDecimal) {
-      DebeziumLogicalConverters.registerVariableScaleDecimalConverter();
-    }
     this.shouldConvertSpecialDouble = shouldConvertDoubleSpecial;
     this.shouldConvertDebeziumTimestampToInteger = shouldConvertDebeziumTimestampToInteger;
     this.useStorageWriteApi = useStorageWriteApi;

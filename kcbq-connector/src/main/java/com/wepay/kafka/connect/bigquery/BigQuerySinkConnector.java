@@ -71,6 +71,7 @@ public class BigQuerySinkConnector extends SinkConnector {
     logger.trace("connector.start()");
     configProperties = properties;
     config = new BigQuerySinkConfig(properties);
+    config.initialize();
   }
 
   @Override

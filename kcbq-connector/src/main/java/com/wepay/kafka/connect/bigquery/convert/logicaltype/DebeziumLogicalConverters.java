@@ -24,6 +24,7 @@
 package com.wepay.kafka.connect.bigquery.convert.logicaltype;
 
 import com.google.cloud.bigquery.LegacySQLTypeName;
+import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import io.debezium.data.VariableScaleDecimal;
 import io.debezium.time.Date;
 import io.debezium.time.MicroTime;
@@ -48,7 +49,12 @@ public class DebeziumLogicalConverters {
   private static final int MICROS_IN_SEC = 1000000;
   private static final int MICROS_IN_MILLI = 1000;
 
-  static {
+  public static void initialize(BigQuerySinkConfig.HandlingMode variableScaleDecimalHandlingMode) {
+    if (!BigQuerySinkConfig.HandlingMode.NONE.equals(variableScaleDecimalHandlingMode)) {
+      LogicalConverterRegistry.registerIfAbsent(
+              VariableScaleDecimal.LOGICAL_NAME,
+              new VariableScaleDecimalConverter(variableScaleDecimalHandlingMode));
+    }
     LogicalConverterRegistry.register(Date.SCHEMA_NAME, new DateConverter());
     LogicalConverterRegistry.register(MicroTime.SCHEMA_NAME, new MicroTimeConverter());
     LogicalConverterRegistry.register(MicroTimestamp.SCHEMA_NAME, new MicroTimestampConverter());
@@ -57,20 +63,15 @@ public class DebeziumLogicalConverters {
     LogicalConverterRegistry.register(Timestamp.SCHEMA_NAME, new TimestampConverter());
   }
 
-  public static void initialize() {
-    // forces static initialization.
-  }
-
   private DebeziumLogicalConverters() {
     // do not instantiate.
   }
 
   /** Register the Debezium VariableScaleDecimal converter. */
-  
-  public static void registerVariableScaleDecimalConverter() {
+  public static void registerVariableScaleDecimalConverter(BigQuerySinkConfig.HandlingMode handlingMode) {
     LogicalConverterRegistry.registerIfAbsent(
             VariableScaleDecimal.LOGICAL_NAME,
-            new VariableScaleDecimalConverter());
+            new VariableScaleDecimalConverter(handlingMode));
   }
 
   /**
@@ -230,10 +231,10 @@ public class DebeziumLogicalConverters {
     /**
      * Create a new VariableScaleDecimalConverter.
      */
-    public VariableScaleDecimalConverter() {
+    public VariableScaleDecimalConverter(BigQuerySinkConfig.HandlingMode handlingMode) {
       super(VariableScaleDecimal.LOGICAL_NAME,
           Schema.Type.STRUCT,
-          LegacySQLTypeName.NUMERIC);
+          handlingMode.sqlTypeName);
     }
 
     @Override

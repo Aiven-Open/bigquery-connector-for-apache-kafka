@@ -27,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 import com.google.cloud.bigquery.LegacySQLTypeName;
+import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.convert.logicaltype.DebeziumLogicalConverters.DateConverter;
 import com.wepay.kafka.connect.bigquery.convert.logicaltype.DebeziumLogicalConverters.MicroTimeConverter;
 import com.wepay.kafka.connect.bigquery.convert.logicaltype.DebeziumLogicalConverters.MicroTimestampConverter;
@@ -137,7 +138,7 @@ public class DebeziumLogicalConvertersTest {
   @Test
   public void testVariableScaleDecimalConversion() {
     DebeziumLogicalConverters.VariableScaleDecimalConverter converter =
-        new DebeziumLogicalConverters.VariableScaleDecimalConverter();
+        new DebeziumLogicalConverters.VariableScaleDecimalConverter(BigQuerySinkConfig.HandlingMode.NUMERIC);
 
     assertEquals(LegacySQLTypeName.NUMERIC, converter.getBqSchemaType());
 
@@ -160,7 +161,7 @@ public class DebeziumLogicalConvertersTest {
   @Test
   public void testVariableScaleDecimalConversionNullValue() {
     DebeziumLogicalConverters.VariableScaleDecimalConverter converter =
-        new DebeziumLogicalConverters.VariableScaleDecimalConverter();
+        new DebeziumLogicalConverters.VariableScaleDecimalConverter(BigQuerySinkConfig.HandlingMode.NUMERIC);
 
     Schema schema = SchemaBuilder.struct()
         .name(io.debezium.data.VariableScaleDecimal.LOGICAL_NAME)

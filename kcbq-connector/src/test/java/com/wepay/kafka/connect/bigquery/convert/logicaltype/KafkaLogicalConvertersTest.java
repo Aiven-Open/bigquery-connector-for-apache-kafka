@@ -27,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.google.cloud.bigquery.LegacySQLTypeName;
+import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.convert.logicaltype.KafkaLogicalConverters.DateConverter;
 import com.wepay.kafka.connect.bigquery.convert.logicaltype.KafkaLogicalConverters.DecimalConverter;
 import com.wepay.kafka.connect.bigquery.convert.logicaltype.KafkaLogicalConverters.TimeConverter;
@@ -56,7 +57,7 @@ public class KafkaLogicalConvertersTest {
 
   @Test
   public void testDecimalConversion() {
-    DecimalConverter converter = new DecimalConverter();
+    DecimalConverter converter = new DecimalConverter(BigQuerySinkConfig.HandlingMode.FLOAT);
 
     assertEquals(LegacySQLTypeName.FLOAT, converter.getBqSchemaType());
 

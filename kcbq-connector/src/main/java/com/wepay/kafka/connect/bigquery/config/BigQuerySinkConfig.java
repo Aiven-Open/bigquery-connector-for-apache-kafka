@@ -23,6 +23,7 @@
 
 package com.wepay.kafka.connect.bigquery.config;
 
+import com.google.cloud.bigquery.LegacySQLTypeName;
 import com.google.cloud.bigquery.Schema;
 import com.google.cloud.bigquery.TimePartitioning;
 import com.wepay.kafka.connect.bigquery.GcpClientBuilder;
@@ -32,18 +33,19 @@ import com.wepay.kafka.connect.bigquery.convert.BigQuerySchemaConverter;
 import com.wepay.kafka.connect.bigquery.convert.RecordConverter;
 import com.wepay.kafka.connect.bigquery.convert.SchemaConverter;
 import com.wepay.kafka.connect.bigquery.convert.logicaltype.DebeziumLogicalConverters;
+import com.wepay.kafka.connect.bigquery.convert.logicaltype.KafkaLogicalConverters;
 import com.wepay.kafka.connect.bigquery.retrieve.IdentitySchemaRetriever;
+import io.debezium.data.VariableScaleDecimal;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -53,6 +55,7 @@ import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.common.config.ConfigValue;
 import org.apache.kafka.common.config.types.Password;
+import org.apache.kafka.connect.data.Decimal;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.sink.SinkConnector;
 import org.slf4j.Logger;
@@ -62,6 +65,13 @@ import org.slf4j.LoggerFactory;
  * Base class for connector and task configs; contains properties shared between the two of them.
  */
 public class BigQuerySinkConfig extends AbstractConfig {
+  public enum HandlingMode {
+    NONE(null), FLOAT(LegacySQLTypeName.FLOAT), NUMERIC(LegacySQLTypeName.NUMERIC), BIGNUMERIC(LegacySQLTypeName.BIGNUMERIC);
+    public final LegacySQLTypeName sqlTypeName;
+    HandlingMode(LegacySQLTypeName legacySqlTypeName) {
+      this.sqlTypeName = legacySqlTypeName;
+    }
+  }
 
   private static final Logger logger = LoggerFactory.getLogger(BigQuerySinkConfig.class);
 
@@ -162,6 +172,23 @@ public class BigQuerySinkConfig extends AbstractConfig {
   public static final String BIGQUERY_CLUSTERING_FIELD_NAMES_CONFIG = "clusteringPartitionFieldNames";
   public static final String CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_CONFIG = "convertDebeziumTimestampToInteger";
   public static final String CONVERT_DEBEZIUM_DECIMAL_CONFIG = "convertDebeziumVariableScaleDecimal";
+
+  public static final String DECIMAL_HANDLING_MODE_CONFIG = "decimalHandlingMode";
+  public static final ConfigDef.Type DECIMAL_HANDLING_MODE_TYPE = ConfigDef.Type.STRING;
+  public static final String DECIMAL_HANDLING_MODE_DEFAULT = HandlingMode.FLOAT.name();
+  public static final ConfigDef.Validator DECIMAL_HANDLING_MODE_VALIDATOR = new HandlingModeValidator();
+  public static final ConfigDef.Importance DECIMAL_HANDLING_MODE_IMPORTANCE = ConfigDef.Importance.MEDIUM;
+  public static final String DECIMAL_HANDLING_MODE_DOC = "Specifies the conversion strategy for "
+          + Decimal.LOGICAL_NAME + "variables.";
+
+  public static final String DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_CONFIG = "variableScaleDecimalHandlingMode";
+  public static final ConfigDef.Type DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_TYPE = ConfigDef.Type.STRING;
+  public static final String DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_DEFAULT = HandlingMode.NONE.name();
+  public static final ConfigDef.Validator DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_VALIDATOR =  new HandlingModeValidator();
+  public static final ConfigDef.Importance DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_IMPORTANCE =  ConfigDef.Importance.MEDIUM;
+  public static final String DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_DOC = "Specifies the conversion strategy for "
+          + VariableScaleDecimal.LOGICAL_NAME + "variables.";
+
   public static final String TIME_PARTITIONING_TYPE_CONFIG = "timePartitioningType";
   public static final String TIME_PARTITIONING_TYPE_DEFAULT = TimePartitioning.Type.DAY.name().toUpperCase();
   public static final String TIME_PARTITIONING_TYPE_NONE = "NONE";
@@ -249,49 +276,57 @@ public class BigQuerySinkConfig extends AbstractConfig {
           + " if not enabled topic names will be used directly as table names";
   private static final ConfigDef.Type TOPIC2TABLE_MAP_TYPE = ConfigDef.Type.STRING;
   private static final ConfigDef.Importance TOPIC2TABLE_MAP_IMPORTANCE = ConfigDef.Importance.LOW;
-  private static final ConfigDef.Validator TOPIC2TABLE_MAP_VALIDATOR = (name, value) -> {
-    String topic2TableMapString = (String) ConfigDef.parseType(name, value, TOPIC2TABLE_MAP_TYPE);
+  private static final ConfigDef.Validator TOPIC2TABLE_MAP_VALIDATOR = new ConfigDef.Validator() {
+    @Override
+    public void ensureValid(String name, Object value) {
+      String topic2TableMapString = (String) ConfigDef.parseType(name, value, TOPIC2TABLE_MAP_TYPE);
 
-    if (topic2TableMapString.isEmpty()) {
-      return;
+      if (topic2TableMapString.isEmpty()) {
+        return;
+      }
+
+      Map<String, String> topic2TableMap = new HashMap<>();
+
+      for (String str : topic2TableMapString.split(",")) {
+        String[] tt = str.split(":");
+
+        if (tt.length != 2) {
+          throw new ConfigException(
+                  name,
+                  topic2TableMapString,
+                  "One of the topic to table mappings has an invalid format."
+          );
+        }
+
+        String topic = tt[0].trim();
+        String table = tt[1].trim();
+
+        if (topic.isEmpty() || table.isEmpty()) {
+          throw new ConfigException(
+                  name,
+                  topic2TableMapString,
+                  "One of the topic to table mappings has an invalid format."
+          );
+        }
+
+        if (topic2TableMap.containsKey(topic)) {
+          throw new ConfigException(
+                  name,
+                  name,
+                  String.format(
+                          "The topic name %s is duplicated. Topic names cannot be duplicated.",
+                          topic
+                  )
+          );
+        }
+
+        topic2TableMap.put(topic, table);
+      }
     }
 
-    Map<String, String> topic2TableMap = new HashMap<>();
-
-    for (String str : topic2TableMapString.split(",")) {
-      String[] tt = str.split(":");
-
-      if (tt.length != 2) {
-        throw new ConfigException(
-            name,
-            topic2TableMapString,
-            "One of the topic to table mappings has an invalid format."
-        );
-      }
-
-      String topic = tt[0].trim();
-      String table = tt[1].trim();
-
-      if (topic.isEmpty() || table.isEmpty()) {
-        throw new ConfigException(
-            name,
-            topic2TableMapString,
-            "One of the topic to table mappings has an invalid format."
-        );
-      }
-
-      if (topic2TableMap.containsKey(topic)) {
-        throw new ConfigException(
-            name,
-            name,
-            String.format(
-                "The topic name %s is duplicated. Topic names cannot be duplicated.",
-                topic
-            )
-        );
-      }
-
-      topic2TableMap.put(topic, table);
+    @Override
+    public String toString() {
+      return "A comma separated list of 'topic:table' mappings.";
     }
   };
   private static final ConfigDef.Type SANITIZE_FIELD_NAME_TYPE = ConfigDef.Type.BOOLEAN;
@@ -593,334 +628,347 @@ public class BigQuerySinkConfig extends AbstractConfig {
    */
   public static ConfigDef getConfig() {
     return new ConfigDef()
-        .define(
-            TOPICS_CONFIG,
-            TOPICS_TYPE,
-            TOPICS_DEFAULT,
-            TOPICS_IMPORTANCE,
-            TOPICS_DOC,
-            TOPICS_GROUP,
-            TOPICS_ORDER_IN_GROUP,
-            TOPICS_WIDTH,
-            TOPICS_DISPLAY)
-        .define(
-            TOPICS_REGEX_CONFIG,
-            TOPICS_REGEX_TYPE,
-            TOPICS_REGEX_DEFAULT,
-            TOPICS_REGEX_IMPORTANCE,
-            TOPICS_REGEX_DOC,
-            TOPICS_REGEX_GROUP,
-            TOPICS_REGEX_ORDER_IN_GROUP,
-            TOPICS_REGEX_WIDTH,
-            TOPICS_REGEX_DISPLAY)
-        .define(
-            ENABLE_BATCH_CONFIG,
-            ENABLE_BATCH_TYPE,
-            ENABLE_BATCH_DEFAULT,
-            ENABLE_BATCH_IMPORTANCE,
-            deprecatedGcsLoadDoc(ENABLE_BATCH_DOC)
-        ).define(
-            BATCH_LOAD_INTERVAL_SEC_CONFIG,
-            BATCH_LOAD_INTERVAL_SEC_TYPE,
-            BATCH_LOAD_INTERVAL_SEC_DEFAULT,
-            BATCH_LOAD_INTERVAL_SEC_IMPORTANCE,
-            deprecatedGcsLoadDoc(BATCH_LOAD_INTERVAL_SEC_DOC)
-        ).define(
-            GCS_BUCKET_NAME_CONFIG,
-            GCS_BUCKET_NAME_TYPE,
-            GCS_BUCKET_NAME_DEFAULT,
-            GCS_BUCKET_NAME_IMPORTANCE,
-            deprecatedGcsLoadDoc(GCS_BUCKET_NAME_DOC)
-        ).define(
-            GCS_FOLDER_NAME_CONFIG,
-            GCS_FOLDER_NAME_TYPE,
-            GCS_FOLDER_NAME_DEFAULT,
-            GCS_FOLDER_NAME_IMPORTANCE,
-            deprecatedGcsLoadDoc(GCS_FOLDER_NAME_DOC)
-        ).define(
-            PROJECT_CONFIG,
-            PROJECT_TYPE,
-            PROJECT_IMPORTANCE,
-            PROJECT_DOC
-        ).define(
-            DEFAULT_DATASET_CONFIG,
-            DEFAULT_DATASET_TYPE,
-            DEFAULT_DATASET_DEFAULT,
-            DEFAULT_DATASET_IMPORTANCE,
-            DEFAULT_DATASET_DOC
-        ).define(
-            SCHEMA_RETRIEVER_CONFIG,
-            SCHEMA_RETRIEVER_TYPE,
-            SCHEMA_RETRIEVER_DEFAULT,
-            SCHEMA_RETRIEVER_IMPORTANCE,
-            SCHEMA_RETRIEVER_DOC
-        ).define(
-            KEYFILE_CONFIG,
-            KEYFILE_TYPE,
-            KEYFILE_DEFAULT,
-            KEYFILE_IMPORTANCE,
-            KEYFILE_DOC
-        ).define(
-            KEY_SOURCE_CONFIG,
-            KEY_SOURCE_TYPE,
-            KEY_SOURCE_DEFAULT,
-            KEY_SOURCE_VALIDATOR,
-            KEY_SOURCE_IMPORTANCE,
-            KEY_SOURCE_DOC
-        ).define(
-            SANITIZE_TOPICS_CONFIG,
-            SANITIZE_TOPICS_TYPE,
-            SANITIZE_TOPICS_DEFAULT,
-            SANITIZE_TOPICS_IMPORTANCE,
-            SANITIZE_TOPICS_DOC
-        ).define(
-            TOPIC2TABLE_MAP_CONFIG,
-            TOPIC2TABLE_MAP_TYPE,
-            TOPIC2TABLE_MAP_DEFAULT,
-            TOPIC2TABLE_MAP_VALIDATOR,
-            TOPIC2TABLE_MAP_IMPORTANCE,
-            TOPIC2TABLE_MAP_DOC
-        ).define(
-            SANITIZE_FIELD_NAME_CONFIG,
-            SANITIZE_FIELD_NAME_TYPE,
-            SANITIZE_FIELD_NAME_DEFAULT,
-            SANITIZE_FIELD_NAME_IMPORTANCE,
-            SANITIZE_FIELD_NAME_DOC
-        ).define(
-            KAFKA_KEY_FIELD_NAME_CONFIG,
-            KAFKA_KEY_FIELD_NAME_TYPE,
-            KAFKA_KEY_FIELD_NAME_DEFAULT,
-            KAFKA_KEY_FIELD_NAME_VALIDATOR,
-            KAFKA_KEY_FIELD_NAME_IMPORTANCE,
-            KAFKA_KEY_FIELD_NAME_DOC
-        ).define(
-            KAFKA_DATA_FIELD_NAME_CONFIG,
-            KAFKA_DATA_FIELD_NAME_TYPE,
-            KAFKA_DATA_FIELD_NAME_DEFAULT,
-            KAFKA_DATA_FIELD_NAME_VALIDATOR,
-            KAFKA_DATA_FIELD_NAME_IMPORTANCE,
-            KAFKA_DATA_FIELD_NAME_DOC
-        ).define(
-            AVRO_DATA_CACHE_SIZE_CONFIG,
-            AVRO_DATA_CACHE_SIZE_TYPE,
-            AVRO_DATA_CACHE_SIZE_DEFAULT,
-            AVRO_DATA_CACHE_SIZE_VALIDATOR,
-            AVRO_DATA_CACHE_SIZE_IMPORTANCE,
-            AVRO_DATA_CACHE_SIZE_DOC
-        ).define(
-            ALL_BQ_FIELDS_NULLABLE_CONFIG,
-            ALL_BQ_FIELDS_NULLABLE_TYPE,
-            ALL_BQ_FIELDS_NULLABLE_DEFAULT,
-            ALL_BQ_FIELDS_NULLABLE_IMPORTANCE,
-            ALL_BQ_FIELDS_NULLABLE_DOC
-        ).define(
-            CONVERT_DOUBLE_SPECIAL_VALUES_CONFIG,
-            CONVERT_DOUBLE_SPECIAL_VALUES_TYPE,
-            CONVERT_DOUBLE_SPECIAL_VALUES_DEFAULT,
-            CONVERT_DOUBLE_SPECIAL_VALUES_IMPORTANCE,
-            CONVERT_DOUBLE_SPECIAL_VALUES_DOC
-        ).define(
-            TABLE_CREATE_CONFIG,
-            TABLE_CREATE_TYPE,
-            TABLE_CREATE_DEFAULT,
-            TABLE_CREATE_IMPORTANCE,
-            TABLE_CREATE_DOC
-        ).define(
-            AUTO_CREATE_BUCKET_CONFIG,
-            AUTO_CREATE_BUCKET_TYPE,
-            AUTO_CREATE_BUCKET_DEFAULT,
-            AUTO_CREATE_BUCKET_IMPORTANCE,
-            deprecatedGcsLoadDoc(AUTO_CREATE_BUCKET_DOC)
-        ).define(
-            ALLOW_NEW_BIGQUERY_FIELDS_CONFIG,
-            ALLOW_NEW_BIGQUERY_FIELDS_TYPE,
-            ALLOW_NEW_BIGQUERY_FIELDS_DEFAULT,
-            ALLOW_NEW_BIGQUERY_FIELDS_IMPORTANCE,
-            ALLOW_NEW_BIGQUERY_FIELDS_DOC
-        ).define(
-            ALLOW_BIGQUERY_REQUIRED_FIELD_RELAXATION_CONFIG,
-            ALLOW_BIGQUERY_REQUIRED_FIELD_RELAXATION_TYPE,
-            ALLOW_BIGQUERY_REQUIRED_FIELD_RELAXATION_DEFAULT,
-            ALLOW_BIGQUERY_REQUIRED_FIELD_RELAXATION_IMPORTANCE,
-            ALLOW_BIGQUERY_REQUIRED_FIELD_RELAXATION_DOC
-        ).define(
-            ALLOW_SCHEMA_UNIONIZATION_CONFIG,
-            ALLOW_SCHEMA_UNIONIZATION_TYPE,
-            ALLOW_SCHEMA_UNIONIZATION_DEFAULT,
-            ALLOW_SCHEMA_UNIONIZATION_IMPORTANCE,
-            ALLOW_SCHEMA_UNIONIZATION_DOC
-        ).define(
-            UPSERT_ENABLED_CONFIG,
-            UPSERT_ENABLED_TYPE,
-            UPSERT_ENABLED_DEFAULT,
-            UPSERT_ENABLED_IMPORTANCE,
-            UPSERT_ENABLED_DOC
-        ).define(
-            DELETE_ENABLED_CONFIG,
-            DELETE_ENABLED_TYPE,
-            DELETE_ENABLED_DEFAULT,
-            DELETE_ENABLED_IMPORTANCE,
-            DELETE_ENABLED_DOC
-        ).define(
-            INTERMEDIATE_TABLE_SUFFIX_CONFIG,
-            INTERMEDIATE_TABLE_SUFFIX_TYPE,
-            INTERMEDIATE_TABLE_SUFFIX_DEFAULT,
-            INTERMEDIATE_TABLE_SUFFIX_VALIDATOR,
-            INTERMEDIATE_TABLE_SUFFIX_IMPORTANCE,
-            INTERMEDIATE_TABLE_SUFFIX_DOC
-        ).define(
-            MERGE_INTERVAL_MS_CONFIG,
-            MERGE_INTERVAL_MS_TYPE,
-            MERGE_INTERVAL_MS_DEFAULT,
-            MERGE_INTERVAL_MS_VALIDATOR,
-            MERGE_INTERVAL_MS_IMPORTANCE,
-            MERGE_INTERVAL_MS_DOC
-        ).define(
-            MERGE_RECORDS_THRESHOLD_CONFIG,
-            MERGE_RECORDS_THRESHOLD_TYPE,
-            MERGE_RECORDS_THRESHOLD_DEFAULT,
-            MERGE_RECORDS_THRESHOLD_VALIDATOR,
-            MERGE_RECORDS_THRESHOLD_IMPORTANCE,
-            MERGE_RECORDS_THRESHOLD_DOC
-        ).define(
-            THREAD_POOL_SIZE_CONFIG,
-            THREAD_POOL_SIZE_TYPE,
-            THREAD_POOL_SIZE_DEFAULT,
-            THREAD_POOL_SIZE_VALIDATOR,
-            THREAD_POOL_SIZE_IMPORTANCE,
-            THREAD_POOL_SIZE_DOC
-        ).define(
-            QUEUE_SIZE_CONFIG,
-            QUEUE_SIZE_TYPE,
-            QUEUE_SIZE_DEFAULT,
-            QUEUE_SIZE_VALIDATOR,
-            QUEUE_SIZE_IMPORTANCE,
-            QUEUE_SIZE_DOC
-        ).define(
-            BIGQUERY_RETRY_CONFIG,
-            BIGQUERY_RETRY_TYPE,
-            BIGQUERY_RETRY_DEFAULT,
-            BIGQUERY_RETRY_VALIDATOR,
-            BIGQUERY_RETRY_IMPORTANCE,
-            BIGQUERY_RETRY_DOC
-        ).define(
-            BIGQUERY_RETRY_WAIT_CONFIG,
-            BIGQUERY_RETRY_WAIT_CONFIG_TYPE,
-            BIGQUERY_RETRY_WAIT_DEFAULT,
-            BIGQUERY_RETRY_WAIT_VALIDATOR,
-            BIGQUERY_RETRY_WAIT_IMPORTANCE,
-            BIGQUERY_RETRY_WAIT_DOC
-        ).define(
-            BIGQUERY_MESSAGE_TIME_PARTITIONING_CONFIG,
-            BIGQUERY_MESSAGE_TIME_PARTITIONING_CONFIG_TYPE,
-            BIGQUERY_MESSAGE_TIME_PARTITIONING_DEFAULT,
-            BIGQUERY_MESSAGE_TIME_PARTITIONING_IMPORTANCE,
-            deprecatedPartitionSyntaxDoc(BIGQUERY_MESSAGE_TIME_PARTITIONING_DOC)
-        ).define(
-            BIGQUERY_PARTITION_DECORATOR_CONFIG,
-            BIGQUERY_PARTITION_DECORATOR_CONFIG_TYPE,
-            BIGQUERY_PARTITION_DECORATOR_DEFAULT,
-            BIGQUERY_PARTITION_DECORATOR_IMPORTANCE,
-            deprecatedPartitionSyntaxDoc(BIGQUERY_PARTITION_DECORATOR_DOC)
-        ).define(
-            BIGQUERY_TIMESTAMP_PARTITION_FIELD_NAME_CONFIG,
-            BIGQUERY_TIMESTAMP_PARTITION_FIELD_NAME_TYPE,
-            BIGQUERY_TIMESTAMP_PARTITION_FIELD_NAME_DEFAULT,
-            BIGQUERY_TIMESTAMP_PARTITION_FIELD_NAME_VALIDATOR,
-            BIGQUERY_TIMESTAMP_PARTITION_FIELD_NAME_IMPORTANCE,
-            BIGQUERY_TIMESTAMP_PARTITION_FIELD_NAME_DOC
-        ).define(
-            BIGQUERY_CLUSTERING_FIELD_NAMES_CONFIG,
-            BIGQUERY_CLUSTERING_FIELD_NAMES_TYPE,
-            BIGQUERY_CLUSTERING_FIELD_NAMES_DEFAULT,
-            BIGQUERY_CLUSTERING_FIELD_NAMES_VALIDATOR,
-            BIGQUERY_CLUSTERING_FIELD_NAMES_IMPORTANCE,
-            BIGQUERY_CLUSTERING_FIELD_NAMES_DOC
-        ).define(
-            TIME_PARTITIONING_TYPE_CONFIG,
-            TIME_PARTITIONING_TYPE_TYPE,
-            TIME_PARTITIONING_TYPE_DEFAULT,
-            (name, value) -> {
-              if (value == null) {
-                return;
-              }
-              String[] validStrings = TIME_PARTITIONING_TYPES.stream().map(String::toLowerCase).toArray(String[]::new);
-              String lowercaseValue = ((String) value).toLowerCase();
-              ConfigDef.ValidString.in(validStrings).ensureValid(name, lowercaseValue);
-            },
-            TIME_PARTITIONING_TYPE_IMPORTANCE,
-            TIME_PARTITIONING_TYPE_DOC,
-            "",
-            -1,
-            ConfigDef.Width.NONE,
-            TIME_PARTITIONING_TYPE_CONFIG,
-            new ConfigDef.Recommender() {
-              @Override
-              public List<Object> validValues(String s, Map<String, Object> map) {
-                // Construct a new list to transform from List<String> to List<Object>
-                return new ArrayList<>(TIME_PARTITIONING_TYPES);
-              }
+            .define(
+                    TOPICS_CONFIG,
+                    TOPICS_TYPE,
+                    TOPICS_DEFAULT,
+                    TOPICS_IMPORTANCE,
+                    TOPICS_DOC,
+                    TOPICS_GROUP,
+                    TOPICS_ORDER_IN_GROUP,
+                    TOPICS_WIDTH,
+                    TOPICS_DISPLAY)
+            .define(
+                    TOPICS_REGEX_CONFIG,
+                    TOPICS_REGEX_TYPE,
+                    TOPICS_REGEX_DEFAULT,
+                    TOPICS_REGEX_IMPORTANCE,
+                    TOPICS_REGEX_DOC,
+                    TOPICS_REGEX_GROUP,
+                    TOPICS_REGEX_ORDER_IN_GROUP,
+                    TOPICS_REGEX_WIDTH,
+                    TOPICS_REGEX_DISPLAY)
+            .define(
+                    ENABLE_BATCH_CONFIG,
+                    ENABLE_BATCH_TYPE,
+                    ENABLE_BATCH_DEFAULT,
+                    ENABLE_BATCH_IMPORTANCE,
+                    deprecatedGcsLoadDoc(ENABLE_BATCH_DOC)
+            ).define(
+                    BATCH_LOAD_INTERVAL_SEC_CONFIG,
+                    BATCH_LOAD_INTERVAL_SEC_TYPE,
+                    BATCH_LOAD_INTERVAL_SEC_DEFAULT,
+                    BATCH_LOAD_INTERVAL_SEC_IMPORTANCE,
+                    deprecatedGcsLoadDoc(BATCH_LOAD_INTERVAL_SEC_DOC)
+            ).define(
+                    GCS_BUCKET_NAME_CONFIG,
+                    GCS_BUCKET_NAME_TYPE,
+                    GCS_BUCKET_NAME_DEFAULT,
+                    GCS_BUCKET_NAME_IMPORTANCE,
+                    deprecatedGcsLoadDoc(GCS_BUCKET_NAME_DOC)
+            ).define(
+                    GCS_FOLDER_NAME_CONFIG,
+                    GCS_FOLDER_NAME_TYPE,
+                    GCS_FOLDER_NAME_DEFAULT,
+                    GCS_FOLDER_NAME_IMPORTANCE,
+                    deprecatedGcsLoadDoc(GCS_FOLDER_NAME_DOC)
+            ).define(
+                    PROJECT_CONFIG,
+                    PROJECT_TYPE,
+                    PROJECT_IMPORTANCE,
+                    PROJECT_DOC
+            ).define(
+                    DEFAULT_DATASET_CONFIG,
+                    DEFAULT_DATASET_TYPE,
+                    DEFAULT_DATASET_DEFAULT,
+                    DEFAULT_DATASET_IMPORTANCE,
+                    DEFAULT_DATASET_DOC
+            ).define(
+                    SCHEMA_RETRIEVER_CONFIG,
+                    SCHEMA_RETRIEVER_TYPE,
+                    SCHEMA_RETRIEVER_DEFAULT,
+                    SCHEMA_RETRIEVER_IMPORTANCE,
+                    SCHEMA_RETRIEVER_DOC
+            ).define(
+                    KEYFILE_CONFIG,
+                    KEYFILE_TYPE,
+                    KEYFILE_DEFAULT,
+                    KEYFILE_IMPORTANCE,
+                    KEYFILE_DOC
+            ).define(
+                    KEY_SOURCE_CONFIG,
+                    KEY_SOURCE_TYPE,
+                    KEY_SOURCE_DEFAULT,
+                    KEY_SOURCE_VALIDATOR,
+                    KEY_SOURCE_IMPORTANCE,
+                    KEY_SOURCE_DOC
+            ).define(
+                    SANITIZE_TOPICS_CONFIG,
+                    SANITIZE_TOPICS_TYPE,
+                    SANITIZE_TOPICS_DEFAULT,
+                    SANITIZE_TOPICS_IMPORTANCE,
+                    SANITIZE_TOPICS_DOC
+            ).define(
+                    TOPIC2TABLE_MAP_CONFIG,
+                    TOPIC2TABLE_MAP_TYPE,
+                    TOPIC2TABLE_MAP_DEFAULT,
+                    TOPIC2TABLE_MAP_VALIDATOR,
+                    TOPIC2TABLE_MAP_IMPORTANCE,
+                    TOPIC2TABLE_MAP_DOC
+            ).define(
+                    SANITIZE_FIELD_NAME_CONFIG,
+                    SANITIZE_FIELD_NAME_TYPE,
+                    SANITIZE_FIELD_NAME_DEFAULT,
+                    SANITIZE_FIELD_NAME_IMPORTANCE,
+                    SANITIZE_FIELD_NAME_DOC
+            ).define(
+                    KAFKA_KEY_FIELD_NAME_CONFIG,
+                    KAFKA_KEY_FIELD_NAME_TYPE,
+                    KAFKA_KEY_FIELD_NAME_DEFAULT,
+                    KAFKA_KEY_FIELD_NAME_VALIDATOR,
+                    KAFKA_KEY_FIELD_NAME_IMPORTANCE,
+                    KAFKA_KEY_FIELD_NAME_DOC
+            ).define(
+                    KAFKA_DATA_FIELD_NAME_CONFIG,
+                    KAFKA_DATA_FIELD_NAME_TYPE,
+                    KAFKA_DATA_FIELD_NAME_DEFAULT,
+                    KAFKA_DATA_FIELD_NAME_VALIDATOR,
+                    KAFKA_DATA_FIELD_NAME_IMPORTANCE,
+                    KAFKA_DATA_FIELD_NAME_DOC
+            ).define(
+                    AVRO_DATA_CACHE_SIZE_CONFIG,
+                    AVRO_DATA_CACHE_SIZE_TYPE,
+                    AVRO_DATA_CACHE_SIZE_DEFAULT,
+                    AVRO_DATA_CACHE_SIZE_VALIDATOR,
+                    AVRO_DATA_CACHE_SIZE_IMPORTANCE,
+                    AVRO_DATA_CACHE_SIZE_DOC
+            ).define(
+                    ALL_BQ_FIELDS_NULLABLE_CONFIG,
+                    ALL_BQ_FIELDS_NULLABLE_TYPE,
+                    ALL_BQ_FIELDS_NULLABLE_DEFAULT,
+                    ALL_BQ_FIELDS_NULLABLE_IMPORTANCE,
+                    ALL_BQ_FIELDS_NULLABLE_DOC
+            ).define(
+                    CONVERT_DOUBLE_SPECIAL_VALUES_CONFIG,
+                    CONVERT_DOUBLE_SPECIAL_VALUES_TYPE,
+                    CONVERT_DOUBLE_SPECIAL_VALUES_DEFAULT,
+                    CONVERT_DOUBLE_SPECIAL_VALUES_IMPORTANCE,
+                    CONVERT_DOUBLE_SPECIAL_VALUES_DOC
+            ).define(
+                    TABLE_CREATE_CONFIG,
+                    TABLE_CREATE_TYPE,
+                    TABLE_CREATE_DEFAULT,
+                    TABLE_CREATE_IMPORTANCE,
+                    TABLE_CREATE_DOC
+            ).define(
+                    AUTO_CREATE_BUCKET_CONFIG,
+                    AUTO_CREATE_BUCKET_TYPE,
+                    AUTO_CREATE_BUCKET_DEFAULT,
+                    AUTO_CREATE_BUCKET_IMPORTANCE,
+                    deprecatedGcsLoadDoc(AUTO_CREATE_BUCKET_DOC)
+            ).define(
+                    ALLOW_NEW_BIGQUERY_FIELDS_CONFIG,
+                    ALLOW_NEW_BIGQUERY_FIELDS_TYPE,
+                    ALLOW_NEW_BIGQUERY_FIELDS_DEFAULT,
+                    ALLOW_NEW_BIGQUERY_FIELDS_IMPORTANCE,
+                    ALLOW_NEW_BIGQUERY_FIELDS_DOC
+            ).define(
+                    ALLOW_BIGQUERY_REQUIRED_FIELD_RELAXATION_CONFIG,
+                    ALLOW_BIGQUERY_REQUIRED_FIELD_RELAXATION_TYPE,
+                    ALLOW_BIGQUERY_REQUIRED_FIELD_RELAXATION_DEFAULT,
+                    ALLOW_BIGQUERY_REQUIRED_FIELD_RELAXATION_IMPORTANCE,
+                    ALLOW_BIGQUERY_REQUIRED_FIELD_RELAXATION_DOC
+            ).define(
+                    ALLOW_SCHEMA_UNIONIZATION_CONFIG,
+                    ALLOW_SCHEMA_UNIONIZATION_TYPE,
+                    ALLOW_SCHEMA_UNIONIZATION_DEFAULT,
+                    ALLOW_SCHEMA_UNIONIZATION_IMPORTANCE,
+                    ALLOW_SCHEMA_UNIONIZATION_DOC
+            ).define(
+                    UPSERT_ENABLED_CONFIG,
+                    UPSERT_ENABLED_TYPE,
+                    UPSERT_ENABLED_DEFAULT,
+                    UPSERT_ENABLED_IMPORTANCE,
+                    UPSERT_ENABLED_DOC
+            ).define(
+                    DELETE_ENABLED_CONFIG,
+                    DELETE_ENABLED_TYPE,
+                    DELETE_ENABLED_DEFAULT,
+                    DELETE_ENABLED_IMPORTANCE,
+                    DELETE_ENABLED_DOC
+            ).define(
+                    INTERMEDIATE_TABLE_SUFFIX_CONFIG,
+                    INTERMEDIATE_TABLE_SUFFIX_TYPE,
+                    INTERMEDIATE_TABLE_SUFFIX_DEFAULT,
+                    INTERMEDIATE_TABLE_SUFFIX_VALIDATOR,
+                    INTERMEDIATE_TABLE_SUFFIX_IMPORTANCE,
+                    INTERMEDIATE_TABLE_SUFFIX_DOC
+            ).define(
+                    MERGE_INTERVAL_MS_CONFIG,
+                    MERGE_INTERVAL_MS_TYPE,
+                    MERGE_INTERVAL_MS_DEFAULT,
+                    MERGE_INTERVAL_MS_VALIDATOR,
+                    MERGE_INTERVAL_MS_IMPORTANCE,
+                    MERGE_INTERVAL_MS_DOC
+            ).define(
+                    MERGE_RECORDS_THRESHOLD_CONFIG,
+                    MERGE_RECORDS_THRESHOLD_TYPE,
+                    MERGE_RECORDS_THRESHOLD_DEFAULT,
+                    MERGE_RECORDS_THRESHOLD_VALIDATOR,
+                    MERGE_RECORDS_THRESHOLD_IMPORTANCE,
+                    MERGE_RECORDS_THRESHOLD_DOC
+            ).define(
+                    THREAD_POOL_SIZE_CONFIG,
+                    THREAD_POOL_SIZE_TYPE,
+                    THREAD_POOL_SIZE_DEFAULT,
+                    THREAD_POOL_SIZE_VALIDATOR,
+                    THREAD_POOL_SIZE_IMPORTANCE,
+                    THREAD_POOL_SIZE_DOC
+            ).define(
+                    QUEUE_SIZE_CONFIG,
+                    QUEUE_SIZE_TYPE,
+                    QUEUE_SIZE_DEFAULT,
+                    QUEUE_SIZE_VALIDATOR,
+                    QUEUE_SIZE_IMPORTANCE,
+                    QUEUE_SIZE_DOC
+            ).define(
+                    BIGQUERY_RETRY_CONFIG,
+                    BIGQUERY_RETRY_TYPE,
+                    BIGQUERY_RETRY_DEFAULT,
+                    BIGQUERY_RETRY_VALIDATOR,
+                    BIGQUERY_RETRY_IMPORTANCE,
+                    BIGQUERY_RETRY_DOC
+            ).define(
+                    BIGQUERY_RETRY_WAIT_CONFIG,
+                    BIGQUERY_RETRY_WAIT_CONFIG_TYPE,
+                    BIGQUERY_RETRY_WAIT_DEFAULT,
+                    BIGQUERY_RETRY_WAIT_VALIDATOR,
+                    BIGQUERY_RETRY_WAIT_IMPORTANCE,
+                    BIGQUERY_RETRY_WAIT_DOC
+            ).define(
+                    BIGQUERY_MESSAGE_TIME_PARTITIONING_CONFIG,
+                    BIGQUERY_MESSAGE_TIME_PARTITIONING_CONFIG_TYPE,
+                    BIGQUERY_MESSAGE_TIME_PARTITIONING_DEFAULT,
+                    BIGQUERY_MESSAGE_TIME_PARTITIONING_IMPORTANCE,
+                    deprecatedPartitionSyntaxDoc(BIGQUERY_MESSAGE_TIME_PARTITIONING_DOC)
+            ).define(
+                    BIGQUERY_PARTITION_DECORATOR_CONFIG,
+                    BIGQUERY_PARTITION_DECORATOR_CONFIG_TYPE,
+                    BIGQUERY_PARTITION_DECORATOR_DEFAULT,
+                    BIGQUERY_PARTITION_DECORATOR_IMPORTANCE,
+                    deprecatedPartitionSyntaxDoc(BIGQUERY_PARTITION_DECORATOR_DOC)
+            ).define(
+                    BIGQUERY_TIMESTAMP_PARTITION_FIELD_NAME_CONFIG,
+                    BIGQUERY_TIMESTAMP_PARTITION_FIELD_NAME_TYPE,
+                    BIGQUERY_TIMESTAMP_PARTITION_FIELD_NAME_DEFAULT,
+                    BIGQUERY_TIMESTAMP_PARTITION_FIELD_NAME_VALIDATOR,
+                    BIGQUERY_TIMESTAMP_PARTITION_FIELD_NAME_IMPORTANCE,
+                    BIGQUERY_TIMESTAMP_PARTITION_FIELD_NAME_DOC
+            ).define(
+                    BIGQUERY_CLUSTERING_FIELD_NAMES_CONFIG,
+                    BIGQUERY_CLUSTERING_FIELD_NAMES_TYPE,
+                    BIGQUERY_CLUSTERING_FIELD_NAMES_DEFAULT,
+                    BIGQUERY_CLUSTERING_FIELD_NAMES_VALIDATOR,
+                    BIGQUERY_CLUSTERING_FIELD_NAMES_IMPORTANCE,
+                    BIGQUERY_CLUSTERING_FIELD_NAMES_DOC
+            ).define(
+                    TIME_PARTITIONING_TYPE_CONFIG,
+                    TIME_PARTITIONING_TYPE_TYPE,
+                    TIME_PARTITIONING_TYPE_DEFAULT,
+                    (name, value) -> {
+                      if (value == null) {
+                        return;
+                      }
+                      String[] validStrings = TIME_PARTITIONING_TYPES.stream().map(String::toLowerCase).toArray(String[]::new);
+                      String lowercaseValue = ((String) value).toLowerCase();
+                      ConfigDef.ValidString.in(validStrings).ensureValid(name, lowercaseValue);
+                    },
+                    TIME_PARTITIONING_TYPE_IMPORTANCE,
+                    TIME_PARTITIONING_TYPE_DOC,
+                    "",
+                    -1,
+                    ConfigDef.Width.NONE,
+                    TIME_PARTITIONING_TYPE_CONFIG,
+                    new ConfigDef.Recommender() {
+                      @Override
+                      public List<Object> validValues(String s, Map<String, Object> map) {
+                        // Construct a new list to transform from List<String> to List<Object>
+                        return new ArrayList<>(TIME_PARTITIONING_TYPES);
+                      }
 
-              @Override
-              public boolean visible(String s, Map<String, Object> map) {
-                return true;
-              }
-            }
-        ).define(
-            BIGQUERY_PARTITION_EXPIRATION_CONFIG,
-            BIGQUERY_PARTITION_EXPIRATION_TYPE,
-            BIGQUERY_PARTITION_EXPIRATION_DEFAULT,
-            BIGQUERY_PARTITION_EXPIRATION_VALIDATOR,
-            BIGQUERY_PARTITION_EXPIRATION_IMPORTANCE,
-            BIGQUERY_PARTITION_EXPIRATION_DOC
-        ).define(
-            USE_STORAGE_WRITE_API_CONFIG,
-            USE_STORAGE_WRITE_API_TYPE,
-            USE_STORAGE_WRITE_API_DEFAULT,
-            USE_STORAGE_WRITE_API_IMPORTANCE,
-            USE_STORAGE_WRITE_API_DOC
-        ).define(
-            USE_CREDENTIALS_PROJECT_ID_CONFIG,
-            USE_CREDENTIALS_PROJECT_ID_TYPE,
-            USE_CREDENTIALS_PROJECT_ID_DEFAULT,
-            USE_CREDENTIALS_PROJECT_ID_IMPORTANCE,
-            USE_CREDENTIALS_PROJECT_ID_DOC       
-        ).define(
-            ENABLE_BATCH_MODE_CONFIG,
-            ENABLE_BATCH_MODE_TYPE,
-            ENABLE_BATCH_MODE_DEFAULT,
-            ENABLE_BATCH_MODE_IMPORTANCE,
-            ENABLE_BATCH_MODE_DOC
-        ).define(
-            COMMIT_INTERVAL_SEC_CONFIG,
-            COMMIT_INTERVAL_SEC_TYPE,
-            COMMIT_INTERVAL_SEC_DEFAULT,
-            COMMIT_INTERVAL_VALIDATOR,
-            COMMIT_INTERVAL_SEC_IMPORTANCE,
-            COMMIT_INTERVAL_SEC_DOC
-        ).define(
-            MAX_RETRIES_CONFIG,
-            MAX_RETRIES_TYPE,
-            MAX_RETRIES_DEFAULT,
-            MAX_RETRIES_VALIDATOR,
-            MAX_RETRIES_IMPORTANCE,
-            MAX_RETRIES_DOC
-        ).defineInternal(
-            ENABLE_RETRIES_CONFIG,
-            ENABLE_RETRIES_TYPE,
-            ENABLE_RETRIES_DEFAULT,
-            ENABLE_RETRIES_IMPORTANCE
-        ).defineInternal(
-            CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_CONFIG,
-            CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_TYPE,
-            CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_DEFAULT,
-            CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_IMPORTANCE
-        ).defineInternal(
-            CONVERT_DEBEZIUM_DECIMAL_CONFIG,
-            CONVERT_DEBEZIUM_DECIMAL_TYPE,
-            CONVERT_DEBEZIUM_DECIMAL_DEFAULT,
-            CONVERT_DEBEZIUM_DECIMAL_IMPORTANCE            
-        );
+                      @Override
+                      public boolean visible(String s, Map<String, Object> map) {
+                        return true;
+                      }
+                    }
+            ).define(
+                    BIGQUERY_PARTITION_EXPIRATION_CONFIG,
+                    BIGQUERY_PARTITION_EXPIRATION_TYPE,
+                    BIGQUERY_PARTITION_EXPIRATION_DEFAULT,
+                    BIGQUERY_PARTITION_EXPIRATION_VALIDATOR,
+                    BIGQUERY_PARTITION_EXPIRATION_IMPORTANCE,
+                    BIGQUERY_PARTITION_EXPIRATION_DOC
+            ).define(
+                    USE_STORAGE_WRITE_API_CONFIG,
+                    USE_STORAGE_WRITE_API_TYPE,
+                    USE_STORAGE_WRITE_API_DEFAULT,
+                    USE_STORAGE_WRITE_API_IMPORTANCE,
+                    USE_STORAGE_WRITE_API_DOC
+            ).define(
+                    USE_CREDENTIALS_PROJECT_ID_CONFIG,
+                    USE_CREDENTIALS_PROJECT_ID_TYPE,
+                    USE_CREDENTIALS_PROJECT_ID_DEFAULT,
+                    USE_CREDENTIALS_PROJECT_ID_IMPORTANCE,
+                    USE_CREDENTIALS_PROJECT_ID_DOC
+            ).define(
+                    ENABLE_BATCH_MODE_CONFIG,
+                    ENABLE_BATCH_MODE_TYPE,
+                    ENABLE_BATCH_MODE_DEFAULT,
+                    ENABLE_BATCH_MODE_IMPORTANCE,
+                    ENABLE_BATCH_MODE_DOC
+            ).define(
+                    COMMIT_INTERVAL_SEC_CONFIG,
+                    COMMIT_INTERVAL_SEC_TYPE,
+                    COMMIT_INTERVAL_SEC_DEFAULT,
+                    COMMIT_INTERVAL_VALIDATOR,
+                    COMMIT_INTERVAL_SEC_IMPORTANCE,
+                    COMMIT_INTERVAL_SEC_DOC
+            ).define(
+                    MAX_RETRIES_CONFIG,
+                    MAX_RETRIES_TYPE,
+                    MAX_RETRIES_DEFAULT,
+                    MAX_RETRIES_VALIDATOR,
+                    MAX_RETRIES_IMPORTANCE,
+                    MAX_RETRIES_DOC
+            ).defineInternal(
+                    ENABLE_RETRIES_CONFIG,
+                    ENABLE_RETRIES_TYPE,
+                    ENABLE_RETRIES_DEFAULT,
+                    ENABLE_RETRIES_IMPORTANCE
+            ).defineInternal(
+                    CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_CONFIG,
+                    CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_TYPE,
+                    CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_DEFAULT,
+                    CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_IMPORTANCE
+            ).defineInternal(
+                    CONVERT_DEBEZIUM_DECIMAL_CONFIG,
+                    CONVERT_DEBEZIUM_DECIMAL_TYPE,
+                    CONVERT_DEBEZIUM_DECIMAL_DEFAULT,
+                    CONVERT_DEBEZIUM_DECIMAL_IMPORTANCE
+            ).define(
+                    DECIMAL_HANDLING_MODE_CONFIG,
+                    DECIMAL_HANDLING_MODE_TYPE,
+                    DECIMAL_HANDLING_MODE_DEFAULT,
+                    DECIMAL_HANDLING_MODE_VALIDATOR,
+                    DECIMAL_HANDLING_MODE_IMPORTANCE,
+                    DECIMAL_HANDLING_MODE_DOC
+            ).define(
+                    DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_CONFIG,
+                    DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_TYPE,
+                    DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_DEFAULT,
+                    DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_VALIDATOR,
+                    DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_IMPORTANCE,
+                    DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_DOC);
   }
 
   /**
@@ -969,15 +1017,27 @@ public class BigQuerySinkConfig extends AbstractConfig {
   }
 
   /**
+   * Initialize the sink config.
+   * This method initializes the converters and is called after the sink config is created but before use.
+   */
+  public void initialize() {
+    HandlingMode variableScaleDecimalMode = HandlingMode.valueOf(getString(DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_CONFIG).toUpperCase(Locale.ROOT));
+    // check for deprecated convert debezium decimal flag
+    if (variableScaleDecimalMode.name().equals(DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_DEFAULT) && getBoolean(CONVERT_DEBEZIUM_DECIMAL_CONFIG)) {
+      variableScaleDecimalMode = HandlingMode.NUMERIC;
+    }
+
+    HandlingMode decimalHandlingMode = HandlingMode.valueOf(getString(DECIMAL_HANDLING_MODE_CONFIG).toUpperCase(Locale.ROOT));
+    DebeziumLogicalConverters.initialize(variableScaleDecimalMode);
+    KafkaLogicalConverters.initialize(decimalHandlingMode);
+  }
+
+  /**
    * Return a new instance of the configured Schema Converter.
    *
    * @return a {@link SchemaConverter} for BigQuery.
    */
   public SchemaConverter<Schema> getSchemaConverter() {
-    boolean shouldConvertToDebeziumVariableScaleDecimal = getBoolean(CONVERT_DEBEZIUM_DECIMAL_CONFIG);
-    if (shouldConvertToDebeziumVariableScaleDecimal) {
-      DebeziumLogicalConverters.registerVariableScaleDecimalConverter();
-    }
     return new BigQuerySchemaConverter(
         getBoolean(ALL_BQ_FIELDS_NULLABLE_CONFIG),
         getBoolean(SANITIZE_FIELD_NAME_CONFIG));
@@ -989,15 +1049,10 @@ public class BigQuerySinkConfig extends AbstractConfig {
    * @return a {@link RecordConverter} for BigQuery.
    */
   public RecordConverter<Map<String, Object>> getRecordConverter() {
-    boolean shouldConvertToDebeziumVariableScaleDecimal = getBoolean(CONVERT_DEBEZIUM_DECIMAL_CONFIG);
-    if (shouldConvertToDebeziumVariableScaleDecimal) {
-      DebeziumLogicalConverters.registerVariableScaleDecimalConverter();
-    }
     return new BigQueryRecordConverter(
         getBoolean(CONVERT_DOUBLE_SPECIAL_VALUES_CONFIG),
         getBoolean(CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_CONFIG),
-        getBoolean(USE_STORAGE_WRITE_API_CONFIG),
-        shouldConvertToDebeziumVariableScaleDecimal
+        getBoolean(USE_STORAGE_WRITE_API_CONFIG)
     );
   }
 
@@ -1181,4 +1236,26 @@ public class BigQuerySinkConfig extends AbstractConfig {
     return DEPRECATED_DOC + " " + doc + " Warning: " + notice;
   }
 
+  private static class HandlingModeValidator implements ConfigDef.Validator {
+    @Override
+    public void ensureValid(String name, Object value) {
+      if (value == null) {
+        return;
+      }
+
+      if (value instanceof String) {
+        try {
+          HandlingMode.valueOf(((String) value).toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+          throw new ConfigException(String.format("Invalid value type for %s (expected one of %s).", name, this));
+        }
+      }
+    }
+
+    // toString is required for proper config documentation.  Must list validation limits.
+    @Override
+    public String toString() {
+      return String.join(", ", Arrays.stream(HandlingMode.values()).map(HandlingMode::toString).toArray(String[]::new));
+    }
+  }
 }

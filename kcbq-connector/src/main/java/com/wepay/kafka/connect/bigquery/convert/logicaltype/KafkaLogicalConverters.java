@@ -24,6 +24,7 @@
 package com.wepay.kafka.connect.bigquery.convert.logicaltype;
 
 import com.google.cloud.bigquery.LegacySQLTypeName;
+import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import java.math.BigDecimal;
 import org.apache.kafka.connect.data.Date;
 import org.apache.kafka.connect.data.Decimal;
@@ -36,15 +37,11 @@ import org.apache.kafka.connect.data.Timestamp;
  */
 public class KafkaLogicalConverters {
 
-  static {
+  public static void initialize(BigQuerySinkConfig.HandlingMode decimalHandlingMode) {
     LogicalConverterRegistry.register(Date.LOGICAL_NAME, new DateConverter());
-    LogicalConverterRegistry.register(Decimal.LOGICAL_NAME, new DecimalConverter());
+    LogicalConverterRegistry.register(Decimal.LOGICAL_NAME, new DecimalConverter(decimalHandlingMode));
     LogicalConverterRegistry.register(Timestamp.LOGICAL_NAME, new TimestampConverter());
     LogicalConverterRegistry.register(Time.LOGICAL_NAME, new TimeConverter());
-  }
-
-  public static void initialize() {
-    // forces static initialization.
   }
 
   private KafkaLogicalConverters() {
@@ -77,10 +74,10 @@ public class KafkaLogicalConverters {
     /**
      * Create a new DecimalConverter.
      */
-    public DecimalConverter() {
+    public DecimalConverter(BigQuerySinkConfig.HandlingMode handlingMode) {
       super(Decimal.LOGICAL_NAME,
           Schema.Type.BYTES,
-          LegacySQLTypeName.FLOAT);
+          handlingMode.sqlTypeName);
     }
 
     @Override

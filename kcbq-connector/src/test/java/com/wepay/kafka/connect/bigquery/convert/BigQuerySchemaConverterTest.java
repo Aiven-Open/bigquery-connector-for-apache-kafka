@@ -28,6 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.google.cloud.bigquery.Field;
 import com.google.cloud.bigquery.LegacySQLTypeName;
+import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.exception.ConversionConnectException;
 import com.wepay.kafka.connect.bigquery.utils.FieldNameSanitizer;
 import com.wepay.kafka.connect.bigquery.convert.logicaltype.DebeziumLogicalConverters;
@@ -581,7 +582,7 @@ public class BigQuerySchemaConverterTest {
   public void testDebeziumVariableScaleDecimal() {
     final String fieldName = "DebeziumDecimal";
 
-    DebeziumLogicalConverters.registerVariableScaleDecimalConverter();
+    DebeziumLogicalConverters.initialize(BigQuerySinkConfig.HandlingMode.NUMERIC);
 
     com.google.cloud.bigquery.Schema bigQueryExpectedSchema =
         com.google.cloud.bigquery.Schema.of(
