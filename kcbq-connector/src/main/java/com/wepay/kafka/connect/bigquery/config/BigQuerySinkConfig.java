@@ -161,7 +161,9 @@ public class BigQuerySinkConfig extends AbstractConfig {
   public static final String BIGQUERY_TIMESTAMP_PARTITION_FIELD_NAME_CONFIG = "timestampPartitionFieldName";
   public static final String BIGQUERY_CLUSTERING_FIELD_NAMES_CONFIG = "clusteringPartitionFieldNames";
   public static final String CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_CONFIG = "convertDebeziumTimestampToInteger";
-  public static final String CONVERT_DEBEZIUM_DECIMAL_CONFIG = "convertDebeziumVariableScaleDecimal";
+  public static final String DECIMAL_HANDLING_MODE_CONFIG = "decimalHandlingMode";
+  public static final String VARIABLE_SCALE_DECIMAL_HANDLING_MODE_CONFIG =
+      "variableScaleDecimalHandlingMode";
   public static final String TIME_PARTITIONING_TYPE_CONFIG = "timePartitioningType";
   public static final String TIME_PARTITIONING_TYPE_DEFAULT = TimePartitioning.Type.DAY.name().toUpperCase();
   public static final String TIME_PARTITIONING_TYPE_NONE = "NONE";
@@ -169,6 +171,25 @@ public class BigQuerySinkConfig extends AbstractConfig {
   public static final String MAX_RETRIES_CONFIG = "max.retries";
   public static final String ENABLE_RETRIES_CONFIG = "enableRetries";
   public static final Boolean ENABLE_RETRIES_DEFAULT = true;
+  public enum DecimalHandlingMode {
+    NONE,
+    FLOAT,
+    NUMERIC,
+    BIGNUMERIC
+  }
+
+  public static final DecimalHandlingMode DECIMAL_HANDLING_MODE_DEFAULT = DecimalHandlingMode.NUMERIC;
+  public static final DecimalHandlingMode VARIABLE_SCALE_DECIMAL_HANDLING_MODE_DEFAULT =
+      DecimalHandlingMode.NUMERIC;
+  public static final ConfigDef.Type DECIMAL_HANDLING_MODE_TYPE = ConfigDef.Type.STRING;
+  public static final ConfigDef.Importance DECIMAL_HANDLING_MODE_IMPORTANCE = ConfigDef.Importance.MEDIUM;
+  public static final String DECIMAL_HANDLING_MODE_DOC =
+      "Handling for org.apache.kafka.connect.data.Decimal fields: none, float, numeric, bignumeric.";
+  public static final ConfigDef.Type VARIABLE_SCALE_DECIMAL_HANDLING_MODE_TYPE = ConfigDef.Type.STRING;
+  public static final ConfigDef.Importance VARIABLE_SCALE_DECIMAL_HANDLING_MODE_IMPORTANCE =
+      ConfigDef.Importance.MEDIUM;
+  public static final String VARIABLE_SCALE_DECIMAL_HANDLING_MODE_DOC =
+      "Handling for io.debezium.data.VariableScaleDecimal fields: none, float, numeric, bignumeric.";  
   private static final ConfigDef.Type TOPICS_TYPE = ConfigDef.Type.LIST;
   private static final ConfigDef.Importance TOPICS_IMPORTANCE = ConfigDef.Importance.HIGH;
   private static final String TOPICS_GROUP = "Common";
@@ -504,11 +525,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
   private static final ConfigDef.Type CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_TYPE = ConfigDef.Type.BOOLEAN;
   private static final Boolean CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_DEFAULT = false;
   private static final ConfigDef.Importance CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_IMPORTANCE =
-      ConfigDef.Importance.MEDIUM;
-  private static final ConfigDef.Type CONVERT_DEBEZIUM_DECIMAL_TYPE = ConfigDef.Type.BOOLEAN;
-  private static final Boolean CONVERT_DEBEZIUM_DECIMAL_DEFAULT = false;
-  private static final ConfigDef.Importance CONVERT_DEBEZIUM_DECIMAL_IMPORTANCE =
-      ConfigDef.Importance.LOW;      
+      ConfigDef.Importance.MEDIUM;   
   private static final ConfigDef.Type TIME_PARTITIONING_TYPE_TYPE = ConfigDef.Type.STRING;
   private static final ConfigDef.Importance TIME_PARTITIONING_TYPE_IMPORTANCE = ConfigDef.Importance.LOW;
   private static final List<String> TIME_PARTITIONING_TYPES = Stream.concat(
@@ -915,11 +932,30 @@ public class BigQuerySinkConfig extends AbstractConfig {
             CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_TYPE,
             CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_DEFAULT,
             CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_IMPORTANCE
-        ).defineInternal(
-            CONVERT_DEBEZIUM_DECIMAL_CONFIG,
-            CONVERT_DEBEZIUM_DECIMAL_TYPE,
-            CONVERT_DEBEZIUM_DECIMAL_DEFAULT,
-            CONVERT_DEBEZIUM_DECIMAL_IMPORTANCE            
+        ).define(
+            DECIMAL_HANDLING_MODE_CONFIG,
+            DECIMAL_HANDLING_MODE_TYPE,
+            DECIMAL_HANDLING_MODE_DEFAULT.name(),
+            (name, value) -> {
+              if (value == null) {
+                return;
+              }
+              DecimalHandlingMode.valueOf(((String) value).toUpperCase());
+            },
+            DECIMAL_HANDLING_MODE_IMPORTANCE,
+            DECIMAL_HANDLING_MODE_DOC
+        ).define(
+            VARIABLE_SCALE_DECIMAL_HANDLING_MODE_CONFIG,
+            VARIABLE_SCALE_DECIMAL_HANDLING_MODE_TYPE,
+            VARIABLE_SCALE_DECIMAL_HANDLING_MODE_DEFAULT.name(),
+            (name, value) -> {
+              if (value == null) {
+                return;
+              }
+              DecimalHandlingMode.valueOf(((String) value).toUpperCase());
+            },
+            VARIABLE_SCALE_DECIMAL_HANDLING_MODE_IMPORTANCE,
+            VARIABLE_SCALE_DECIMAL_HANDLING_MODE_DOC
         );
   }
 
@@ -968,19 +1004,27 @@ public class BigQuerySinkConfig extends AbstractConfig {
     }
   }
 
+  public DecimalHandlingMode getDecimalHandlingMode() {
+    return DecimalHandlingMode.valueOf(
+        getString(DECIMAL_HANDLING_MODE_CONFIG).toUpperCase());
+  }
+
+  public DecimalHandlingMode getVariableScaleDecimalHandlingMode() {
+    return DecimalHandlingMode.valueOf(
+        getString(VARIABLE_SCALE_DECIMAL_HANDLING_MODE_CONFIG).toUpperCase());
+  }
+  
   /**
    * Return a new instance of the configured Schema Converter.
    *
    * @return a {@link SchemaConverter} for BigQuery.
    */
-  public SchemaConverter<Schema> getSchemaConverter() {
-    boolean shouldConvertToDebeziumVariableScaleDecimal = getBoolean(CONVERT_DEBEZIUM_DECIMAL_CONFIG);
-    if (shouldConvertToDebeziumVariableScaleDecimal) {
-      DebeziumLogicalConverters.registerVariableScaleDecimalConverter();
-    }
+  public SchemaConverter<Schema> getSchemaConverter() { /// Update it later
     return new BigQuerySchemaConverter(
         getBoolean(ALL_BQ_FIELDS_NULLABLE_CONFIG),
-        getBoolean(SANITIZE_FIELD_NAME_CONFIG));
+        getBoolean(SANITIZE_FIELD_NAME_CONFIG),
+        getDecimalHandlingMode(),
+        getVariableScaleDecimalHandlingMode());
   }
 
   /**
@@ -989,15 +1033,12 @@ public class BigQuerySinkConfig extends AbstractConfig {
    * @return a {@link RecordConverter} for BigQuery.
    */
   public RecordConverter<Map<String, Object>> getRecordConverter() {
-    boolean shouldConvertToDebeziumVariableScaleDecimal = getBoolean(CONVERT_DEBEZIUM_DECIMAL_CONFIG);
-    if (shouldConvertToDebeziumVariableScaleDecimal) {
-      DebeziumLogicalConverters.registerVariableScaleDecimalConverter();
-    }
     return new BigQueryRecordConverter(
         getBoolean(CONVERT_DOUBLE_SPECIAL_VALUES_CONFIG),
         getBoolean(CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_CONFIG),
         getBoolean(USE_STORAGE_WRITE_API_CONFIG),
-        shouldConvertToDebeziumVariableScaleDecimal
+        getDecimalHandlingMode(),
+        getVariableScaleDecimalHandlingMode()
     );
   }
 
