@@ -35,6 +35,7 @@ public class LogicalConverterRegistry {
 
   /**
    * Registers the logical type name.  Will override existing value if any.
+   *
    * @param logicalTypeName the logical type name to register.
    * @param converter the converter for the name.  May not be {@code null}.
    */
@@ -44,6 +45,7 @@ public class LogicalConverterRegistry {
 
   /**
    * Registers the logical type name if it was not previously registered.
+   *
    * @param logicalTypeName the logical type name to register.
    * @param converter the converter for the name.  May not be {@code null}.
    */
@@ -54,6 +56,7 @@ public class LogicalConverterRegistry {
   /**
    * Unregisters (removes) the logical type name if it was previously registered.  After an {@code unregister} call
    * the result of {@link #isRegisteredLogicalType(String)} is guaranteed to be false.
+   *
    * @param logicalTypeName the logical type name to unregister.
    */
   public static void unregister(String logicalTypeName) {
@@ -64,6 +67,7 @@ public class LogicalConverterRegistry {
 
   /**
    * Gets the converter registered with the logical type name.
+   *
    * @param logicalTypeName the logical type name.
    * @return the LogicalTypeConverter or {@code null} if none is registered.
    */
@@ -73,6 +77,7 @@ public class LogicalConverterRegistry {
 
   /**
    * Determines if a converter is registered with the logical type name.
+   *
    * @param typeName the logical type name.
    * @return }{@code true} if there is a converter registered, {@code false} otherwise.
    */

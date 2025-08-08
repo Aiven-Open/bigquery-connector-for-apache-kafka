@@ -68,9 +68,9 @@ public class DebeziumLogicalConverters {
   /** Register the Debezium VariableScaleDecimal converter. */
   
   public static void registerVariableScaleDecimalConverter() {
-      LogicalConverterRegistry.registerIfAbsent(
-          VariableScaleDecimal.LOGICAL_NAME,
-          new VariableScaleDecimalConverter());
+    LogicalConverterRegistry.registerIfAbsent(
+            VariableScaleDecimal.LOGICAL_NAME,
+            new VariableScaleDecimalConverter());
   }
 
   /**
