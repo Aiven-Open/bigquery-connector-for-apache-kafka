@@ -25,6 +25,7 @@ package com.wepay.kafka.connect.bigquery.convert.logicaltype;
 
 import com.google.cloud.bigquery.LegacySQLTypeName;
 import java.math.BigDecimal;
+import java.util.Map;
 import org.apache.kafka.connect.data.Date;
 import org.apache.kafka.connect.data.Decimal;
 import org.apache.kafka.connect.data.Schema;
@@ -80,13 +81,46 @@ public class KafkaLogicalConverters {
     public DecimalConverter() {
       super(Decimal.LOGICAL_NAME,
           Schema.Type.BYTES,
-          LegacySQLTypeName.FLOAT);
+          LegacySQLTypeName.NUMERIC);
+
     }
 
     @Override
     public BigDecimal convert(Object kafkaConnectObject) {
       // cast to get ClassCastException
       return (BigDecimal) kafkaConnectObject;
+    }
+
+    @Override
+    public com.google.cloud.bigquery.Field.Builder getFieldBuilder(
+        Schema schema, String fieldName) {
+      checkEncodingType(schema.type());
+      Map<String, String> params = schema.parameters();
+      Long precision = null;
+      Long scale = null;
+      if (params != null) {
+        String precisionStr = params.get("connect.decimal.precision");
+        if (precisionStr != null) {
+          precision = Long.valueOf(precisionStr);
+        }
+        String scaleStr = params.get("scale");
+        if (scaleStr != null) {
+          scale = Long.valueOf(scaleStr);
+        }
+      }
+      com.google.cloud.bigquery.LegacySQLTypeName type = LegacySQLTypeName.NUMERIC;
+      if ((precision != null && precision > 38) || (scale != null && scale > 9)) {
+        type = LegacySQLTypeName.BIGNUMERIC;
+      }
+      com.google.cloud.bigquery.Field.Builder builder =
+          com.google.cloud.bigquery.Field.newBuilder(fieldName, type);
+      if (precision != null) {
+        builder.setPrecision(precision);
+      }
+      if (scale != null) {
+        builder.setScale(scale);
+      }
+      return builder;
     }
   }
 

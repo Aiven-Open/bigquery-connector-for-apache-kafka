@@ -29,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import com.google.protobuf.ByteString;
 import com.wepay.kafka.connect.bigquery.api.KafkaSchemaRecordType;
 import com.wepay.kafka.connect.bigquery.exception.ConversionConnectException;
+import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -37,6 +38,8 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
+import org.apache.kafka.connect.data.Decimal;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
@@ -621,6 +624,57 @@ public class BigQueryRecordConverterTest {
 
     bigQueryTestRecord =
         new BigQueryRecordConverter(SHOULD_CONVERT_DOUBLE, SHOULD_CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER, USE_STORAGE_WRITE_API_CONFIG).convertRecord(kafkaConnectRecord, KafkaSchemaRecordType.KEY);
+    assertEquals(bigQueryExpectedRecord, bigQueryTestRecord);
+  }
+
+  @Test
+  public void testKafkaDecimal() {
+    final String fieldName = "Decimal";
+    BigDecimal decimal = new BigDecimal("123.45");
+
+    Map<String, Object> bigQueryExpectedRecord = new HashMap<>();
+    bigQueryExpectedRecord.put(fieldName, decimal);
+
+    Schema kafkaConnectSchema = SchemaBuilder
+        .struct()
+        .field(fieldName, Decimal.schema(2))
+        .build();
+
+    Struct kafkaConnectStruct = new Struct(kafkaConnectSchema);
+    kafkaConnectStruct.put(fieldName, decimal);
+    SinkRecord kafkaConnectRecord = spoofSinkRecord(kafkaConnectSchema, kafkaConnectStruct, false);
+
+    Map<String, Object> bigQueryTestRecord =
+        new BigQueryRecordConverter(SHOULD_CONVERT_DOUBLE, SHOULD_CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER, USE_STORAGE_WRITE_API_CONFIG)
+            .convertRecord(kafkaConnectRecord, KafkaSchemaRecordType.VALUE);
+    assertEquals(bigQueryExpectedRecord, bigQueryTestRecord);
+  }
+
+  @Test
+  public void testKafkaDecimalFloatMode() {
+    final String fieldName = "Decimal";
+    BigDecimal decimal = new BigDecimal("123.45");
+
+    Map<String, Object> bigQueryExpectedRecord = new HashMap<>();
+    bigQueryExpectedRecord.put(fieldName, decimal.doubleValue());
+
+    Schema kafkaConnectSchema = SchemaBuilder
+        .struct()
+        .field(fieldName, Decimal.schema(2))
+        .build();
+
+    Struct kafkaConnectStruct = new Struct(kafkaConnectSchema);
+    kafkaConnectStruct.put(fieldName, decimal);
+    SinkRecord kafkaConnectRecord = spoofSinkRecord(kafkaConnectSchema, kafkaConnectStruct, false);
+
+    Map<String, Object> bigQueryTestRecord =
+        new BigQueryRecordConverter(
+            SHOULD_CONVERT_DOUBLE,
+            SHOULD_CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER,
+            USE_STORAGE_WRITE_API_CONFIG,
+            BigQuerySinkConfig.DecimalHandlingMode.FLOAT,
+            BigQuerySinkConfig.DecimalHandlingMode.NUMERIC)
+            .convertRecord(kafkaConnectRecord, KafkaSchemaRecordType.VALUE);
     assertEquals(bigQueryExpectedRecord, bigQueryTestRecord);
   }
 

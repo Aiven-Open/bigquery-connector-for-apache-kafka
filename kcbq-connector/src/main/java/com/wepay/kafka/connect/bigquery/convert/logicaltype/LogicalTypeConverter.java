@@ -23,6 +23,7 @@
 
 package com.wepay.kafka.connect.bigquery.convert.logicaltype;
 
+import com.google.cloud.bigquery.Field;
 import com.google.cloud.bigquery.LegacySQLTypeName;
 import com.wepay.kafka.connect.bigquery.exception.ConversionConnectException;
 import java.text.SimpleDateFormat;
@@ -91,6 +92,19 @@ public abstract class LogicalTypeConverter {
 
   public LegacySQLTypeName getBqSchemaType() {
     return bqSchemaType;
+  }
+
+  /**
+   * Build a BigQuery field for the given Kafka Connect schema.
+   * Subclasses may override to customize precision, scale, or type.
+   *
+   * @param schema the Kafka Connect schema of the logical field
+   * @param fieldName the name of the field
+   * @return a {@link Field.Builder} initialized for this logical type
+   */
+  public Field.Builder getFieldBuilder(Schema schema, String fieldName) {
+    checkEncodingType(schema.type());
+    return Field.newBuilder(fieldName, bqSchemaType);
   }
 
   /**
