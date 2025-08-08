@@ -140,6 +140,7 @@ public class BigQuerySinkTask extends SinkTask {
   private Map<String, PartitionedTableId> topicToPartitionTableId;
 
   private boolean allowNewBigQueryFields;
+  private boolean useCredentialsProjectId;
   private boolean allowRequiredFieldRelaxation;
 
   /**
@@ -224,9 +225,15 @@ public class BigQuerySinkTask extends SinkTask {
 
   private PartitionedTableId getStorageApiRecordTable(String topic) {
     return topicToPartitionTableId.computeIfAbsent(topic, topicName -> {
-      String project = config.getString(BigQuerySinkConfig.PROJECT_CONFIG);
       String[] datasetAndtableName = TableNameUtils.getDataSetAndTableName(config, topicName);
-      return new PartitionedTableId.Builder(TableId.of(project, datasetAndtableName[0], datasetAndtableName[1])).build();
+      TableId baseTableId;
+      if (useCredentialsProjectId) {
+        baseTableId = TableId.of(datasetAndtableName[0], datasetAndtableName[1]);
+      } else {
+        String project = config.getString(BigQuerySinkConfig.PROJECT_CONFIG);
+        baseTableId = TableId.of(project, datasetAndtableName[0], datasetAndtableName[1]);
+      }
+      return new PartitionedTableId.Builder(baseTableId).build();
     });
 
   }
@@ -244,7 +251,13 @@ public class BigQuerySinkTask extends SinkTask {
     // we use table name from above to sanitize table name further.
 
 
-    TableId baseTableId = TableId.of(dataset, tableName);
+    String project = null;
+    if (!useCredentialsProjectId) {
+      project = config.getString(BigQuerySinkConfig.PROJECT_CONFIG);
+    }
+    TableId baseTableId = project == null
+        ? TableId.of(dataset, tableName)
+        : TableId.of(project, dataset, tableName);
     if (upsertDelete) {
       TableId intermediateTableId = mergeBatches.intermediateTableFor(baseTableId);
       // If upsert/delete is enabled, we want to stream into a non-partitioned intermediate table
@@ -539,6 +552,7 @@ public class BigQuerySinkTask extends SinkTask {
     upsertDelete = config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)
         || config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG);
 
+    useCredentialsProjectId = config.getBoolean(BigQuerySinkConfig.USE_CREDENTIALS_PROJECT_ID_CONFIG);
     useStorageApi = config.getBoolean(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG);
     useStorageApiBatchMode = useStorageApi && config.getBoolean(BigQuerySinkConfig.ENABLE_BATCH_MODE_CONFIG);
 
