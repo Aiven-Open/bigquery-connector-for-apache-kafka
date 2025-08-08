@@ -43,6 +43,14 @@ public class KafkaLogicalConverters {
     LogicalConverterRegistry.register(Time.LOGICAL_NAME, new TimeConverter());
   }
 
+  public static void initialize() {
+    // forces static initialization.
+  }
+
+  private KafkaLogicalConverters() {
+    // do not instantiate.
+  }
+
   /**
    * Class for converting Kafka date logical types to Bigquery dates.
    */

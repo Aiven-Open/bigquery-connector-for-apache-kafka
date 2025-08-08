@@ -60,8 +60,8 @@ public class BigQueryRecordConverter implements RecordConverter<Map<String, Obje
 
   static {
     // force registration
-    new DebeziumLogicalConverters();
-    new KafkaLogicalConverters();
+    DebeziumLogicalConverters.initialize();
+    KafkaLogicalConverters.initialize();
   }
 
   private final boolean shouldConvertSpecialDouble;

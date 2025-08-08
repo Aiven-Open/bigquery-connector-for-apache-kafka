@@ -57,16 +57,20 @@ public class DebeziumLogicalConverters {
     LogicalConverterRegistry.register(Timestamp.SCHEMA_NAME, new TimestampConverter());
   }
 
-  private static boolean decimalConverterRegistered = false;
+  public static void initialize() {
+    // forces static initialization.
+  }
+
+  private DebeziumLogicalConverters() {
+    // do not instantiate.
+  }
+
   /** Register the Debezium VariableScaleDecimal converter. */
   
   public static void registerVariableScaleDecimalConverter() {
-    if (!decimalConverterRegistered) {
-      LogicalConverterRegistry.register(
+      LogicalConverterRegistry.registerIfAbsent(
           VariableScaleDecimal.LOGICAL_NAME,
           new VariableScaleDecimalConverter());
-      decimalConverterRegistered = true;
-    }
   }
 
   /**
