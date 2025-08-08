@@ -25,8 +25,11 @@ package com.wepay.kafka.connect.bigquery;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyObject;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Mockito.mock;
@@ -52,6 +55,7 @@ import com.wepay.kafka.connect.bigquery.api.SchemaRetriever;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
 import com.wepay.kafka.connect.bigquery.utils.MockTime;
+import com.wepay.kafka.connect.bigquery.utils.PartitionedTableId;
 import com.wepay.kafka.connect.bigquery.utils.Time;
 import com.wepay.kafka.connect.bigquery.write.batch.MergeBatches;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageApiBatchModeHandler;
@@ -151,6 +155,62 @@ public class BigQuerySinkTaskTest {
                                            TimestampType timestampType, Long timestamp) {
     return spoofSinkRecord(topic, null, null, field, value, timestampType, timestamp);
   }
+
+  @Test
+  public void testGetRecordTableUsesConfiguredProject() throws Exception {
+    Map<String, String> properties = propertiesFactory.getProperties();
+    properties.put(BigQuerySinkConfig.USE_CREDENTIALS_PROJECT_ID_CONFIG, "false");
+
+    BigQuerySinkTask task = new BigQuerySinkTask(
+        mock(BigQuery.class),
+        mock(SchemaRetriever.class),
+        mock(Storage.class),
+        mock(SchemaManager.class),
+        new HashMap<>(),
+        mockedStorageWriteApiDefaultStream,
+        mockedBatchHandler,
+        time
+    );
+    task.initialize(mock(SinkTaskContext.class));
+    task.start(properties);
+
+    SinkRecord record = spoofSinkRecord("kcbq-test", "field", "value",
+        TimestampType.NO_TIMESTAMP_TYPE, null);
+    java.lang.reflect.Method m = BigQuerySinkTask.class
+        .getDeclaredMethod("getRecordTable", SinkRecord.class);
+    m.setAccessible(true);
+    PartitionedTableId tableId = (PartitionedTableId) m.invoke(task, record);
+
+    assertEquals("test-project", tableId.getProject());
+  }
+
+  @Test
+  public void testGetRecordTableUsesCredentialsProject() throws Exception {
+    Map<String, String> properties = propertiesFactory.getProperties();
+    properties.put(BigQuerySinkConfig.USE_CREDENTIALS_PROJECT_ID_CONFIG, "true");
+
+    BigQuerySinkTask task = new BigQuerySinkTask(
+        mock(BigQuery.class),
+        mock(SchemaRetriever.class),
+        mock(Storage.class),
+        mock(SchemaManager.class),
+        new HashMap<>(),
+        mockedStorageWriteApiDefaultStream,
+        mockedBatchHandler,
+        time
+    );
+    task.initialize(mock(SinkTaskContext.class));
+    task.start(properties);
+
+    SinkRecord record = spoofSinkRecord("kcbq-test", "field", "value",
+        TimestampType.NO_TIMESTAMP_TYPE, null);
+    java.lang.reflect.Method m = BigQuerySinkTask.class
+        .getDeclaredMethod("getRecordTable", SinkRecord.class);
+    m.setAccessible(true);
+    PartitionedTableId tableId = (PartitionedTableId) m.invoke(task, record);
+    assertNull(tableId.getProject());
+  }
+
 
   /**
    * Utility method for spoofing SinkRecords that should be passed to SinkTask.put()
@@ -1051,8 +1111,10 @@ public class BigQuerySinkTaskTest {
     Table table = mock(Table.class);
     when(table.getDefinition()).thenReturn(mockTableDefinition);
     Map<TableId, Table> tableCache = new HashMap<>();
-    tableCache.put(TableId.of(dataset, topic), table);
-
+    tableCache.put(
+        TableId.of(properties.get(BigQuerySinkConfig.PROJECT_CONFIG), dataset, topic),
+        table
+    );
     Storage storage = mock(Storage.class);
     BigQuery bigQuery = mock(BigQuery.class);
 
