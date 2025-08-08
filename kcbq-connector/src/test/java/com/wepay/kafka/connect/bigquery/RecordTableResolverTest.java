@@ -85,6 +85,26 @@ public class RecordTableResolverTest {
     }
 
     @Test
+    public void testGetRecordTableUsesConfiguredProject() {
+        when(mockConfig.getBoolean(BigQuerySinkConfig.USE_CREDENTIALS_PROJECT_ID_CONFIG)).thenReturn(false);
+
+        recordTableResolver = new RecordTableResolver(mockConfig, mockMergeBatches, mockBigQuery, false, false);
+        TableId tableId = recordTableResolver.getRecordTable(mockRecord).getFullTableId();
+
+        assertEquals(PROJECT, tableId.getProject());
+    }
+
+    @Test
+    public void testGetRecordTableUsesCredentialsProject() {
+        when(mockConfig.getBoolean(BigQuerySinkConfig.USE_CREDENTIALS_PROJECT_ID_CONFIG)).thenReturn(true);
+
+        recordTableResolver = new RecordTableResolver(mockConfig, mockMergeBatches, mockBigQuery, false, false);
+        TableId tableId = recordTableResolver.getRecordTable(mockRecord).getFullTableId();
+
+        assertNull(tableId.getProject());
+    }
+
+    @Test
     public void testUpsertDeleteResolvesIntermediateTable() {
         when(mockConfig.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
 
