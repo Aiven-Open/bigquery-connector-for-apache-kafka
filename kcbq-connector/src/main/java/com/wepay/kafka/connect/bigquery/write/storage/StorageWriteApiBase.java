@@ -59,6 +59,8 @@ import org.threeten.bp.Duration;
 public abstract class StorageWriteApiBase {
 
   private static final Logger logger = LoggerFactory.getLogger(StorageWriteApiBase.class);
+  private static final double RETRY_DELAY_MULTIPLIER = 1.1;
+  private static final int MAX_RETRY_DELAY_MINUTES = 1;
   protected final JsonStreamWriterFactory jsonWriterFactory;
   protected final int retry;
   protected final long retryWait;
@@ -305,8 +307,8 @@ public abstract class StorageWriteApiBase {
     RetrySettings retrySettings = RetrySettings.newBuilder()
             .setMaxAttempts(retry)
             .setInitialRetryDelay(Duration.ofMillis(retryWait))
-            .setRetryDelayMultiplier(1.1)
-            .setMaxRetryDelay(Duration.ofMinutes(1))
+            .setRetryDelayMultiplier(RETRY_DELAY_MULTIPLIER)
+            .setMaxRetryDelay(Duration.ofMinutes(MAX_RETRY_DELAY_MINUTES))
             .build();
     return streamOrTableName -> JsonStreamWriter.newBuilder(streamOrTableName, writeClient)
             .setRetrySettings(retrySettings)
