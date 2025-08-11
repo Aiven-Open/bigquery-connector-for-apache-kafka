@@ -54,6 +54,7 @@ public abstract class BigQueryWriter {
   protected final Time time;
   private final int retries;
   private final long retryWaitMs;
+  private final boolean ignoreUnknownFields;
   private final Random random;
   private final ErrantRecordHandler errantRecordHandler;
 
@@ -62,12 +63,15 @@ public abstract class BigQueryWriter {
    *                            or a service unavailable error.
    * @param retryWaitMs         the amount of time to wait in between reattempting a request if BQ returns
    *                            an internal service error or a service unavailable error.
+   * @param ignoreUnknownFields whether to ignore fields in records that are not defined in target BQ table schema
    * @param errantRecordHandler used to handle errant records
    * @param time                used to wait during backoff periods
    */
-  public BigQueryWriter(int retries, long retryWaitMs, ErrantRecordHandler errantRecordHandler, Time time) {
+  public BigQueryWriter(int retries, long retryWaitMs, boolean ignoreUnknownFields,
+                        ErrantRecordHandler errantRecordHandler, Time time) {
     this.retries = retries;
     this.retryWaitMs = retryWaitMs;
+    this.ignoreUnknownFields = ignoreUnknownFields;
 
     this.random = new Random();
     this.errantRecordHandler = errantRecordHandler;
@@ -97,7 +101,7 @@ public abstract class BigQueryWriter {
   protected InsertAllRequest createInsertAllRequest(PartitionedTableId tableId,
                                                     Collection<InsertAllRequest.RowToInsert> rows) {
     return InsertAllRequest.newBuilder(tableId.getFullTableId(), rows)
-        .setIgnoreUnknownValues(false)
+        .setIgnoreUnknownValues(ignoreUnknownFields)
         .setSkipInvalidRows(false)
         .build();
   }
