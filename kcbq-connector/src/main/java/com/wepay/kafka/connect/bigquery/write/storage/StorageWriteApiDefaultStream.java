@@ -104,7 +104,7 @@ public class StorageWriteApiDefaultStream extends StorageWriteApiBase {
       StorageWriteApiRetryHandler retryHandler = new StorageWriteApiRetryHandler(table, getSinkRecords(rows), retry, retryWait, time);
       do {
         try {
-          return JsonStreamWriter.newBuilder(t, getWriteClient()).build();
+          return jsonWriterFactory.create(tableName);
         } catch (Exception e) {
           String baseErrorMessage = String.format(
               "Failed to create Default stream writer on table %s due to %s",

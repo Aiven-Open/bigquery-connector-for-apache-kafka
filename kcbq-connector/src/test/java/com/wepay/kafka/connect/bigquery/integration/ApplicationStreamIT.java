@@ -39,6 +39,7 @@ import com.wepay.kafka.connect.bigquery.GcpClientBuilder;
 import com.wepay.kafka.connect.bigquery.integration.utils.BigQueryTestUtils;
 import com.wepay.kafka.connect.bigquery.utils.TableNameUtils;
 import com.wepay.kafka.connect.bigquery.write.storage.ApplicationStream;
+import com.wepay.kafka.connect.bigquery.write.storage.JsonStreamWriterFactory;
 import com.wepay.kafka.connect.bigquery.write.storage.StreamState;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
@@ -56,6 +57,7 @@ public class ApplicationStreamIT extends BaseConnectorIT {
   String tableNameStr = tableName.toString();
   BigQueryWriteClient client;
   BigQueryWriteSettings writeSettings;
+  JsonStreamWriterFactory jsonWriterFactory;
   private BigQuery bigQuery;
 
   @BeforeEach
@@ -69,11 +71,12 @@ public class ApplicationStreamIT extends BaseConnectorIT {
         .withWriterApi(true)
         .build();
     client = BigQueryWriteClient.create(writeSettings);
+    jsonWriterFactory = getJsonWriterFactory();
   }
 
   @Test
   public void testStreamCreation() throws Exception {
-    ApplicationStream applicationStream = new ApplicationStream(tableNameStr, client);
+    ApplicationStream applicationStream = new ApplicationStream(tableNameStr, client, jsonWriterFactory);
     assertEquals(applicationStream.getCurrentState(), StreamState.CREATED);
     assertNotNull(applicationStream.writer());
     applicationStream.closeStream();
@@ -81,7 +84,7 @@ public class ApplicationStreamIT extends BaseConnectorIT {
 
   @Test
   public void testStreamClose() throws Exception {
-    ApplicationStream applicationStream = new ApplicationStream(tableNameStr, client);
+    ApplicationStream applicationStream = new ApplicationStream(tableNameStr, client, jsonWriterFactory);
     String streamName = applicationStream.writer().getStreamName();
     applicationStream.closeStream();
     assertNotEquals(applicationStream.writer().getStreamName(), streamName);
@@ -89,14 +92,14 @@ public class ApplicationStreamIT extends BaseConnectorIT {
 
   @Test
   public void testApplicationStreamName() throws Exception {
-    ApplicationStream applicationStream = new ApplicationStream(tableNameStr, client);
+    ApplicationStream applicationStream = new ApplicationStream(tableNameStr, client, jsonWriterFactory);
     assertTrue(applicationStream.getStreamName().contains("streams"));
     applicationStream.closeStream();
   }
 
   @Test
   public void testMaxCallCount() throws Exception {
-    ApplicationStream applicationStream = new ApplicationStream(tableNameStr, client);
+    ApplicationStream applicationStream = new ApplicationStream(tableNameStr, client, jsonWriterFactory);
     assertEquals(applicationStream.getCurrentState(), StreamState.CREATED);
     int maxCount = applicationStream.increaseMaxCalls();
     assertEquals(applicationStream.getCurrentState(), StreamState.APPEND);
@@ -106,7 +109,7 @@ public class ApplicationStreamIT extends BaseConnectorIT {
 
   @Test
   public void testCanBeMovedToNonActive() throws Exception {
-    ApplicationStream applicationStream = new ApplicationStream(tableNameStr, client);
+    ApplicationStream applicationStream = new ApplicationStream(tableNameStr, client, jsonWriterFactory);
     assertFalse(applicationStream.canTransitionToNonActive());
     applicationStream.increaseMaxCalls();
     assertTrue(applicationStream.canTransitionToNonActive());
@@ -115,7 +118,7 @@ public class ApplicationStreamIT extends BaseConnectorIT {
 
   @Test
   public void testResetWriter() throws Exception {
-    ApplicationStream applicationStream = new ApplicationStream(tableNameStr, client);
+    ApplicationStream applicationStream = new ApplicationStream(tableNameStr, client, jsonWriterFactory);
     JsonStreamWriter writer = applicationStream.writer();
     applicationStream.closeStream();
     JsonStreamWriter updatedWriter = applicationStream.writer();
@@ -125,7 +128,7 @@ public class ApplicationStreamIT extends BaseConnectorIT {
 
   @Test
   public void testStreamFinalised() throws Exception {
-    ApplicationStream applicationStream = new ApplicationStream(tableNameStr, client);
+    ApplicationStream applicationStream = new ApplicationStream(tableNameStr, client, jsonWriterFactory);
     applicationStream.increaseMaxCalls();
     applicationStream.closeStream();
     applicationStream.writer();
@@ -137,7 +140,7 @@ public class ApplicationStreamIT extends BaseConnectorIT {
 
   @Test
   public void testStreamCommitted() throws Exception {
-    ApplicationStream applicationStream = new ApplicationStream(tableNameStr, client);
+    ApplicationStream applicationStream = new ApplicationStream(tableNameStr, client, jsonWriterFactory);
     applicationStream.increaseMaxCalls();
     applicationStream.closeStream();
     applicationStream.writer();
@@ -163,5 +166,9 @@ public class ApplicationStreamIT extends BaseConnectorIT {
       else
         logger.info("Table {} already exist", table);
     }
+  }
+
+  private JsonStreamWriterFactory getJsonWriterFactory() {
+    return streamOrTableName -> JsonStreamWriter.newBuilder(streamOrTableName, client).build();
   }
 }
