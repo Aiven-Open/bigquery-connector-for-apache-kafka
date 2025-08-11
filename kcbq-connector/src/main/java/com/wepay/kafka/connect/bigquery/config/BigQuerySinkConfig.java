@@ -23,6 +23,7 @@
 
 package com.wepay.kafka.connect.bigquery.config;
 
+import com.google.cloud.bigquery.LegacySQLTypeName;
 import com.google.cloud.bigquery.Schema;
 import com.google.cloud.bigquery.TimePartitioning;
 import com.wepay.kafka.connect.bigquery.GcpClientBuilder;
@@ -31,19 +32,18 @@ import com.wepay.kafka.connect.bigquery.convert.BigQueryRecordConverter;
 import com.wepay.kafka.connect.bigquery.convert.BigQuerySchemaConverter;
 import com.wepay.kafka.connect.bigquery.convert.RecordConverter;
 import com.wepay.kafka.connect.bigquery.convert.SchemaConverter;
-import com.wepay.kafka.connect.bigquery.convert.logicaltype.DebeziumLogicalConverters;
 import com.wepay.kafka.connect.bigquery.retrieve.IdentitySchemaRetriever;
+import io.debezium.data.VariableScaleDecimal;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -53,6 +53,7 @@ import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.common.config.ConfigValue;
 import org.apache.kafka.common.config.types.Password;
+import org.apache.kafka.connect.data.Decimal;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.sink.SinkConnector;
 import org.slf4j.Logger;
@@ -62,6 +63,14 @@ import org.slf4j.LoggerFactory;
  * Base class for connector and task configs; contains properties shared between the two of them.
  */
 public class BigQuerySinkConfig extends AbstractConfig {
+
+  public enum DecimalHandlingMode {
+    RECORD(LegacySQLTypeName.RECORD), FLOAT(LegacySQLTypeName.FLOAT), NUMERIC(LegacySQLTypeName.NUMERIC), BIGNUMERIC(LegacySQLTypeName.BIGNUMERIC);
+    public final LegacySQLTypeName sqlTypeName;
+    DecimalHandlingMode(LegacySQLTypeName legacySqlTypeName) {
+      this.sqlTypeName = legacySqlTypeName;
+    }
+  }
 
   private static final Logger logger = LoggerFactory.getLogger(BigQuerySinkConfig.class);
 
@@ -161,7 +170,28 @@ public class BigQuerySinkConfig extends AbstractConfig {
   public static final String BIGQUERY_TIMESTAMP_PARTITION_FIELD_NAME_CONFIG = "timestampPartitionFieldName";
   public static final String BIGQUERY_CLUSTERING_FIELD_NAMES_CONFIG = "clusteringPartitionFieldNames";
   public static final String CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_CONFIG = "convertDebeziumTimestampToInteger";
+
   public static final String DECIMAL_HANDLING_MODE_CONFIG = "decimalHandlingMode";
+  public static final ConfigDef.Type DECIMAL_HANDLING_MODE_TYPE = ConfigDef.Type.STRING;
+  public static final String DECIMAL_HANDLING_MODE_DEFAULT = DecimalHandlingMode.FLOAT.name();
+  public static final ConfigDef.Validator DECIMAL_HANDLING_MODE_VALIDATOR = new HandlingModeValidator();
+  public static final ConfigDef.Importance DECIMAL_HANDLING_MODE_IMPORTANCE = ConfigDef.Importance.MEDIUM;
+  public static final String DECIMAL_HANDLING_MODE_DOC = "Specifies the conversion strategy for "
+          + Decimal.LOGICAL_NAME + "variables.";
+
+  /**
+   * @deprecated use {@link #DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_CONFIG}=DECIMAL
+   */
+  @Deprecated
+  public static final String CONVERT_DEBEZIUM_DECIMAL_CONFIG = "convertDebeziumVariableScaleDecimal";
+  public static final String DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_CONFIG = "variableScaleDecimalHandlingMode";
+  public static final ConfigDef.Type DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_TYPE = ConfigDef.Type.STRING;
+  public static final String DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_DEFAULT = DecimalHandlingMode.RECORD.name();
+  public static final ConfigDef.Validator DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_VALIDATOR =  new HandlingModeValidator();
+  public static final ConfigDef.Importance DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_IMPORTANCE =  ConfigDef.Importance.MEDIUM;
+  public static final String DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_DOC = "Specifies the conversion strategy for "
+          + VariableScaleDecimal.LOGICAL_NAME + "variables.";
+
   public static final String VARIABLE_SCALE_DECIMAL_HANDLING_MODE_CONFIG =
       "variableScaleDecimalHandlingMode";
   public static final String TIME_PARTITIONING_TYPE_CONFIG = "timePartitioningType";
@@ -171,20 +201,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
   public static final String MAX_RETRIES_CONFIG = "max.retries";
   public static final String ENABLE_RETRIES_CONFIG = "enableRetries";
   public static final Boolean ENABLE_RETRIES_DEFAULT = true;
-  public enum DecimalHandlingMode {
-    NONE,
-    FLOAT,
-    NUMERIC,
-    BIGNUMERIC
-  }
 
-  public static final DecimalHandlingMode DECIMAL_HANDLING_MODE_DEFAULT = DecimalHandlingMode.NUMERIC;
-  public static final DecimalHandlingMode VARIABLE_SCALE_DECIMAL_HANDLING_MODE_DEFAULT =
-      DecimalHandlingMode.NUMERIC;
-  public static final ConfigDef.Type DECIMAL_HANDLING_MODE_TYPE = ConfigDef.Type.STRING;
-  public static final ConfigDef.Importance DECIMAL_HANDLING_MODE_IMPORTANCE = ConfigDef.Importance.MEDIUM;
-  public static final String DECIMAL_HANDLING_MODE_DOC =
-      "Handling for org.apache.kafka.connect.data.Decimal fields: none, float, numeric, bignumeric.";
   public static final ConfigDef.Type VARIABLE_SCALE_DECIMAL_HANDLING_MODE_TYPE = ConfigDef.Type.STRING;
   public static final ConfigDef.Importance VARIABLE_SCALE_DECIMAL_HANDLING_MODE_IMPORTANCE =
       ConfigDef.Importance.MEDIUM;
@@ -932,31 +949,25 @@ public class BigQuerySinkConfig extends AbstractConfig {
             CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_TYPE,
             CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_DEFAULT,
             CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_IMPORTANCE
+        ).defineInternal(
+            CONVERT_DEBEZIUM_DECIMAL_CONFIG,
+            ConfigDef.Type.BOOLEAN,
+            false,
+            ConfigDef.Importance.LOW
         ).define(
             DECIMAL_HANDLING_MODE_CONFIG,
             DECIMAL_HANDLING_MODE_TYPE,
-            DECIMAL_HANDLING_MODE_DEFAULT.name(),
-            (name, value) -> {
-              if (value == null) {
-                return;
-              }
-              DecimalHandlingMode.valueOf(((String) value).toUpperCase());
-            },
+            DECIMAL_HANDLING_MODE_DEFAULT,
+            DECIMAL_HANDLING_MODE_VALIDATOR,
             DECIMAL_HANDLING_MODE_IMPORTANCE,
             DECIMAL_HANDLING_MODE_DOC
         ).define(
-            VARIABLE_SCALE_DECIMAL_HANDLING_MODE_CONFIG,
-            VARIABLE_SCALE_DECIMAL_HANDLING_MODE_TYPE,
-            VARIABLE_SCALE_DECIMAL_HANDLING_MODE_DEFAULT.name(),
-            (name, value) -> {
-              if (value == null) {
-                return;
-              }
-              DecimalHandlingMode.valueOf(((String) value).toUpperCase());
-            },
-            VARIABLE_SCALE_DECIMAL_HANDLING_MODE_IMPORTANCE,
-            VARIABLE_SCALE_DECIMAL_HANDLING_MODE_DOC
-        );
+            DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_CONFIG,
+            DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_TYPE,
+            DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_DEFAULT,
+            DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_VALIDATOR,
+            DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_IMPORTANCE,
+            DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_DOC);
   }
 
   /**
@@ -1006,12 +1017,18 @@ public class BigQuerySinkConfig extends AbstractConfig {
 
   public DecimalHandlingMode getDecimalHandlingMode() {
     return DecimalHandlingMode.valueOf(
-        getString(DECIMAL_HANDLING_MODE_CONFIG).toUpperCase());
+        getString(DECIMAL_HANDLING_MODE_CONFIG).toUpperCase(Locale.ROOT));
   }
 
   public DecimalHandlingMode getVariableScaleDecimalHandlingMode() {
-    return DecimalHandlingMode.valueOf(
-        getString(VARIABLE_SCALE_DECIMAL_HANDLING_MODE_CONFIG).toUpperCase());
+    DecimalHandlingMode result = DecimalHandlingMode.valueOf(
+        getString(VARIABLE_SCALE_DECIMAL_HANDLING_MODE_CONFIG).toUpperCase(Locale.ROOT));
+    // if default check if deprecated flag is set.
+    if (DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_DEFAULT.equals(result.name())
+            && getBoolean(CONVERT_DEBEZIUM_DECIMAL_CONFIG)) {
+      result = DecimalHandlingMode.NUMERIC;
+    }
+    return result;
   }
   
   /**
@@ -1222,4 +1239,26 @@ public class BigQuerySinkConfig extends AbstractConfig {
     return DEPRECATED_DOC + " " + doc + " Warning: " + notice;
   }
 
+  private static class HandlingModeValidator implements ConfigDef.Validator {
+    @Override
+    public void ensureValid(String name, Object value) {
+      if (value == null) {
+        return;
+      }
+
+      if (value instanceof String) {
+        try {
+          DecimalHandlingMode.valueOf(((String) value).toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+          throw new ConfigException(String.format("Invalid value type for %s (expected one of %s).", name, this));
+        }
+      }
+    }
+
+    // toString is required for proper config documentation.  Must list validation limits.
+    @Override
+    public String toString() {
+      return String.join(", ", Arrays.stream(DecimalHandlingMode.values()).map(DecimalHandlingMode::toString).toArray(String[]::new));
+    }
+  }
 }

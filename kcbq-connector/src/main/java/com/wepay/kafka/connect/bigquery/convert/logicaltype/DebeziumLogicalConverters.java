@@ -224,7 +224,7 @@ public class DebeziumLogicalConverters {
   }
 
   /**
-   * Class for converting Debezium variable scale decimals to BigQuery NUMERIC.
+   * Class for converting Debezium variable scale decimals.
    */
   public static class VariableScaleDecimalConverter extends LogicalTypeConverter {
     /**

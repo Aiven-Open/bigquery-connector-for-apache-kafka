@@ -40,8 +40,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.Decimal;
+import org.apache.kafka.connect.data.Schema;
 
 /**
  * Class for converting from {@link Schema Kafka Connect Schemas} to
@@ -218,7 +218,7 @@ public class BigQuerySchemaConverter implements SchemaConverter<com.google.cloud
   private Optional<com.google.cloud.bigquery.Field.Builder> convertDecimalField(
       Schema schema, String fieldName) {
     switch (decimalHandlingMode) {
-      case NONE:
+      case RECORD:
         com.google.cloud.bigquery.Field scaleField =
             com.google.cloud.bigquery.Field.of("scale", LegacySQLTypeName.INTEGER);
         com.google.cloud.bigquery.Field valueField =
@@ -249,7 +249,7 @@ public class BigQuerySchemaConverter implements SchemaConverter<com.google.cloud
   private Optional<com.google.cloud.bigquery.Field.Builder> convertVariableScaleDecimalField(
       Schema schema, String fieldName) {
     switch (variableScaleDecimalHandlingMode) {
-      case NONE:
+      case RECORD:
         return convertStruct(schema, fieldName);
       case FLOAT:
         return Optional.of(
