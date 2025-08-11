@@ -62,10 +62,6 @@ public class BigQuerySchemaConverter implements SchemaConverter<com.google.cloud
   private static final Map<Schema.Type, LegacySQLTypeName> PRIMITIVE_TYPE_MAP;
 
   static {
-    // force registration
-    DebeziumLogicalConverters.initialize();
-    KafkaLogicalConverters.initialize();
-
     PRIMITIVE_TYPE_MAP = new HashMap<>();
     PRIMITIVE_TYPE_MAP.put(Schema.Type.BOOLEAN,
         LegacySQLTypeName.BOOLEAN);

@@ -24,7 +24,9 @@
 package com.wepay.kafka.connect.bigquery.convert.logicaltype;
 
 import com.google.cloud.bigquery.LegacySQLTypeName;
+import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import java.math.BigDecimal;
+import java.util.HashMap;
 import java.util.Map;
 import org.apache.kafka.connect.data.Date;
 import org.apache.kafka.connect.data.Decimal;
@@ -37,15 +39,11 @@ import org.apache.kafka.connect.data.Timestamp;
  */
 public class KafkaLogicalConverters {
 
-  static {
+  public static void initialize(final BigQuerySinkConfig config) {
     LogicalConverterRegistry.register(Date.LOGICAL_NAME, new DateConverter());
-    LogicalConverterRegistry.register(Decimal.LOGICAL_NAME, new DecimalConverter());
+    LogicalConverterRegistry.register(Decimal.LOGICAL_NAME, new DecimalConverter(config.getDecimalHandlingMode()));
     LogicalConverterRegistry.register(Timestamp.LOGICAL_NAME, new TimestampConverter());
     LogicalConverterRegistry.register(Time.LOGICAL_NAME, new TimeConverter());
-  }
-
-  public static void initialize() {
-    // forces static initialization.
   }
 
   private KafkaLogicalConverters() {
@@ -75,19 +73,38 @@ public class KafkaLogicalConverters {
    * Class for converting Kafka decimal logical types to Bigquery floating points.
    */
   public static class DecimalConverter extends LogicalTypeConverter {
+    private final BigQuerySinkConfig.DecimalHandlingMode decimalHandlingMode;
+
     /**
      * Create a new DecimalConverter.
      */
-    public DecimalConverter() {
+    public DecimalConverter(final BigQuerySinkConfig.DecimalHandlingMode decimalHandlingMode) {
       super(Decimal.LOGICAL_NAME,
           Schema.Type.BYTES,
           LegacySQLTypeName.FLOAT);
+      this.decimalHandlingMode = decimalHandlingMode;
     }
 
     @Override
-    public BigDecimal convert(Object kafkaConnectObject) {
+    public Object convert(Object kafkaConnectObject) {
+      if (kafkaConnectObject == null) {
+        return null;
+      }
       // cast to get ClassCastException
-      return (BigDecimal) kafkaConnectObject;
+      BigDecimal decimal = (BigDecimal) kafkaConnectObject;
+      switch (decimalHandlingMode) {
+        case RECORD:
+          Map<String, Object> struct = new HashMap<>();
+          struct.put("scale", decimal.scale());
+          struct.put("value", decimal.unscaledValue().toByteArray());
+          return struct;
+        case FLOAT:
+          return decimal.doubleValue();
+        case NUMERIC:
+        case BIGNUMERIC:
+        default:
+          return decimal;
+      }
     }
 
     @Override

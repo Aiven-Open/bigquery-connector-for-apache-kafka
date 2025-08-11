@@ -1030,6 +1030,10 @@ public class BigQuerySinkConfig extends AbstractConfig {
     }
     return result;
   }
+
+  public boolean getShouldConvertDebeziumTimestampToInteger() {
+    return getBoolean(CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_CONFIG);
+  }
   
   /**
    * Return a new instance of the configured Schema Converter.

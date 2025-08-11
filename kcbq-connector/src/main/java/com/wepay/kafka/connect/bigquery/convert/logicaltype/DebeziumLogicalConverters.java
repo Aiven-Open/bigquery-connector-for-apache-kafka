@@ -24,6 +24,7 @@
 package com.wepay.kafka.connect.bigquery.convert.logicaltype;
 
 import com.google.cloud.bigquery.LegacySQLTypeName;
+import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import io.debezium.data.VariableScaleDecimal;
 import io.debezium.time.Date;
 import io.debezium.time.MicroTime;
@@ -48,29 +49,18 @@ public class DebeziumLogicalConverters {
   private static final int MICROS_IN_SEC = 1000000;
   private static final int MICROS_IN_MILLI = 1000;
 
-  static {
+  public static void initialize(final BigQuerySinkConfig config) {
     LogicalConverterRegistry.register(Date.SCHEMA_NAME, new DateConverter());
     LogicalConverterRegistry.register(MicroTime.SCHEMA_NAME, new MicroTimeConverter());
     LogicalConverterRegistry.register(MicroTimestamp.SCHEMA_NAME, new MicroTimestampConverter());
     LogicalConverterRegistry.register(Time.SCHEMA_NAME, new TimeConverter());
     LogicalConverterRegistry.register(ZonedTimestamp.SCHEMA_NAME, new ZonedTimestampConverter());
-    LogicalConverterRegistry.register(Timestamp.SCHEMA_NAME, new TimestampConverter());
-  }
-
-  public static void initialize() {
-    // forces static initialization.
+    LogicalConverterRegistry.register(Timestamp.SCHEMA_NAME, new TimestampConverter(config.getShouldConvertDebeziumTimestampToInteger()));
+    LogicalConverterRegistry.registerIfAbsent(VariableScaleDecimal.LOGICAL_NAME, new VariableScaleDecimalConverter(config.getVariableScaleDecimalHandlingMode()));
   }
 
   private DebeziumLogicalConverters() {
     // do not instantiate.
-  }
-
-  /** Register the Debezium VariableScaleDecimal converter. */
-  
-  public static void registerVariableScaleDecimalConverter() {
-    LogicalConverterRegistry.registerIfAbsent(
-            VariableScaleDecimal.LOGICAL_NAME,
-            new VariableScaleDecimalConverter());
   }
 
   /**
@@ -181,17 +171,23 @@ public class DebeziumLogicalConverters {
    * Class for converting Debezium timestamp logical types to BigQuery timestamps.
    */
   public static class TimestampConverter extends LogicalTypeConverter {
+    private final boolean asInteger;
+
     /**
      * Create a new TimestampConverter.
      */
-    public TimestampConverter() {
+    public TimestampConverter(boolean asInteger) {
       super(Timestamp.SCHEMA_NAME,
           Schema.Type.INT64,
           LegacySQLTypeName.TIMESTAMP);
+      this.asInteger = asInteger;
     }
 
     @Override
-    public String convert(Object kafkaConnectObject) {
+    public Object convert(Object kafkaConnectObject) {
+      if (asInteger) {
+        return (Long) kafkaConnectObject;
+      }
       java.util.Date date = new java.util.Date((Long) kafkaConnectObject);
       return getBqTimestampFormat().format(date);
     }
@@ -227,25 +223,35 @@ public class DebeziumLogicalConverters {
    * Class for converting Debezium variable scale decimals.
    */
   public static class VariableScaleDecimalConverter extends LogicalTypeConverter {
+    private final BigQuerySinkConfig.DecimalHandlingMode decimalHandlingMode;
+
     /**
      * Create a new VariableScaleDecimalConverter.
      */
-    public VariableScaleDecimalConverter() {
+    public VariableScaleDecimalConverter(final BigQuerySinkConfig.DecimalHandlingMode decimalHandlingMode) {
       super(VariableScaleDecimal.LOGICAL_NAME,
           Schema.Type.STRUCT,
           LegacySQLTypeName.NUMERIC);
+      this.decimalHandlingMode = decimalHandlingMode;
     }
 
     @Override
-    public BigDecimal convert(Object kafkaConnectObject) {
-      return toLogical((Struct) kafkaConnectObject);
-    }
-
-    private static BigDecimal toLogical(Struct value) {
-      if (value == null) {
+    public Object convert(Object kafkaConnectObject) {
+      if (kafkaConnectObject == null) {
         return null;
       }
-      return VariableScaleDecimal.toLogical(value);
+      // may throw class cast exception.
+      Struct struct = (Struct) kafkaConnectObject;
+      switch (decimalHandlingMode) {
+        case RECORD:
+          return kafkaConnectObject;
+        case FLOAT:
+          return VariableScaleDecimal.toLogical(struct).doubleValue();
+        case NUMERIC:
+        case BIGNUMERIC:
+        default:
+          return VariableScaleDecimal.toLogical(struct);
+      }
     }
   }
 }
