@@ -86,7 +86,8 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiBase {
       boolean autoCreateTables,
       ErrantRecordHandler errantRecordHandler,
       SchemaManager schemaManager,
-      boolean attemptSchemaUpdate) {
+      boolean attemptSchemaUpdate,
+      boolean ignoreUnknownFields) {
     super(
         retry,
         retryWait,
@@ -94,7 +95,8 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiBase {
         autoCreateTables,
         errantRecordHandler,
         schemaManager,
-        attemptSchemaUpdate
+        attemptSchemaUpdate,
+        ignoreUnknownFields
     );
     streams = new ConcurrentHashMap<>();
     currentStreams = new ConcurrentHashMap<>();

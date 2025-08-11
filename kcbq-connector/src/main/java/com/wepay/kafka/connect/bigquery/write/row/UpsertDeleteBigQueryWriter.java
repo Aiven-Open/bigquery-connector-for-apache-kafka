@@ -47,6 +47,7 @@ public class UpsertDeleteBigQueryWriter extends AdaptiveBigQueryWriter {
    * @param retry                           How many retries to make in the event of a 500/503 error.
    * @param retryWait                       How long to wait in between retries.
    * @param autoCreateTables                Whether destination tables should be automatically created
+   * @param ignoreUnknownFields             Whether to ignore fields in records that are not defined in target BQ table
    * @param intermediateToDestinationTables A mapping used to determine the destination table for
    *                                        given intermediate tables; used for create/update
    *                                        operations in order to propagate them to the destination
@@ -59,6 +60,7 @@ public class UpsertDeleteBigQueryWriter extends AdaptiveBigQueryWriter {
                                     int retry,
                                     long retryWait,
                                     boolean autoCreateTables,
+                                    boolean ignoreUnknownFields,
                                     Map<TableId, TableId> intermediateToDestinationTables,
                                     ErrantRecordHandler errantRecordHandler,
                                     Time time) {
@@ -66,7 +68,8 @@ public class UpsertDeleteBigQueryWriter extends AdaptiveBigQueryWriter {
     // automatically created
     // The super class will handle all of the logic for writing to, creating, and updating
     // intermediate tables; this class will handle logic for creating/updating the destination table
-    super(bigQuery, schemaManager.forIntermediateTables(), retry, retryWait, true, errantRecordHandler, time);
+    super(bigQuery, schemaManager.forIntermediateTables(), retry, retryWait, true, ignoreUnknownFields,
+            errantRecordHandler, time);
     this.schemaManager = schemaManager;
     this.autoCreateTables = autoCreateTables;
     this.intermediateToDestinationTables = intermediateToDestinationTables;
