@@ -24,6 +24,7 @@
 package com.wepay.kafka.connect.bigquery.write.storage;
 
 import com.google.api.core.ApiFuture;
+import com.google.api.gax.retrying.RetrySettings;
 import com.google.cloud.bigquery.storage.v1.AppendRowsResponse;
 import com.google.cloud.bigquery.storage.v1.BigQueryWriteClient;
 import com.google.cloud.bigquery.storage.v1.BigQueryWriteSettings;
@@ -32,7 +33,6 @@ import com.google.cloud.bigquery.storage.v1.JsonStreamWriter;
 import com.google.cloud.bigquery.storage.v1.RowError;
 import com.google.cloud.bigquery.storage.v1.TableName;
 import com.google.common.annotations.VisibleForTesting;
-import com.google.rpc.Status;
 import com.wepay.kafka.connect.bigquery.ErrantRecordHandler;
 import com.wepay.kafka.connect.bigquery.SchemaManager;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiConnectException;
@@ -51,6 +51,7 @@ import org.apache.kafka.connect.sink.SinkRecord;
 import org.json.JSONArray;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.threeten.bp.Duration;
 
 /**
  * Base class which handles data ingestion to bigquery tables using different kind of streams
@@ -196,15 +197,12 @@ public abstract class StorageWriteApiBase {
         retryHandler.attemptTableOperation(schemaManager::updateSchema);
         throw new RetryException();
       } else if (writeResult.hasError()) {
-        Status errorStatus = writeResult.getError();
         String errorMessage = String.format("Failed to write rows on table %s due to %s", tableName, writeResult.getError().getMessage());
         retryHandler.setMostRecentException(new BigQueryStorageWriteApiConnectException(errorMessage));
         if (BigQueryStorageWriteApiErrorResponses.isMalformedRequest(errorMessage)) {
           throw new MalformedRowsException(convertToMap(writeResult.getRowErrorsList()));
-        } else if (!BigQueryStorageWriteApiErrorResponses.isRetriableError(errorStatus.getMessage())) {
-          failTask(retryHandler.getMostRecentException());
         }
-        throw new RetryException(errorMessage);
+        failTask(retryHandler.getMostRecentException());
       } else {
         if (!writeResult.hasAppendResult()) {
           logger.warn(
@@ -233,9 +231,7 @@ public abstract class StorageWriteApiBase {
         throw new MalformedRowsException(getRowErrorMapping(e));
       } else if (BigQueryStorageWriteApiErrorResponses.isTableMissing(message) && getAutoCreateTables()) {
         retryHandler.attemptTableOperation(schemaManager::createTable);
-      } else if (!BigQueryStorageWriteApiErrorResponses.isRetriableError(e.getMessage())
-          && BigQueryStorageWriteApiErrorResponses.isNonRetriableStorageError(e)
-      ) {
+      } else {
         failTask(retryHandler.getMostRecentException());
       }
       throw new RetryException(errorMessage);
@@ -306,7 +302,13 @@ public abstract class StorageWriteApiBase {
    * @return a {@link JsonStreamWriterFactory}
    */
   protected JsonStreamWriterFactory getJsonWriterFactory() {
+    RetrySettings retrySettings = RetrySettings.newBuilder()
+            .setMaxAttempts(retry)
+            .setInitialRetryDelay(Duration.ofMillis(retryWait))
+            .setMaxRetryDelay(Duration.ofMillis(retryWait))
+            .build();
     return streamOrTableName -> JsonStreamWriter.newBuilder(streamOrTableName, writeClient)
+            .setRetrySettings(retrySettings)
             .build();
   }
 
