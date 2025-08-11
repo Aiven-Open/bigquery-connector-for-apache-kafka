@@ -305,7 +305,8 @@ public abstract class StorageWriteApiBase {
     RetrySettings retrySettings = RetrySettings.newBuilder()
             .setMaxAttempts(retry)
             .setInitialRetryDelay(Duration.ofMillis(retryWait))
-            .setMaxRetryDelay(Duration.ofMillis(retryWait))
+            .setRetryDelayMultiplier(1.1)
+            .setMaxRetryDelay(Duration.ofMinutes(1))
             .build();
     return streamOrTableName -> JsonStreamWriter.newBuilder(streamOrTableName, writeClient)
             .setRetrySettings(retrySettings)
