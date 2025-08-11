@@ -135,6 +135,7 @@ public class BigQuerySinkTask extends SinkTask {
   private StorageWriteApiBase storageApiWriter;
   private StorageApiBatchModeHandler batchHandler;
   private boolean autoCreateTables;
+  private boolean ignoreUnknownFields;
   private int retry;
   private long retryWait;
   private Map<String, PartitionedTableId> topicToPartitionTableId;
@@ -486,6 +487,7 @@ public class BigQuerySinkTask extends SinkTask {
           retry,
           retryWait,
           autoCreateTables,
+          ignoreUnknownFields,
           mergeBatches.intermediateToDestinationTables(),
           errantRecordHandler,
           time);
@@ -495,10 +497,11 @@ public class BigQuerySinkTask extends SinkTask {
           retry,
           retryWait,
           autoCreateTables,
+          ignoreUnknownFields,
           errantRecordHandler,
           time);
     } else {
-      return new SimpleBigQueryWriter(bigQuery, retry, retryWait, errantRecordHandler, time);
+      return new SimpleBigQueryWriter(bigQuery, retry, retryWait, ignoreUnknownFields, errantRecordHandler, time);
     }
   }
 
@@ -553,6 +556,7 @@ public class BigQuerySinkTask extends SinkTask {
     stopped = false;
     config = new BigQuerySinkTaskConfig(properties);
     autoCreateTables = config.getBoolean(BigQuerySinkConfig.TABLE_CREATE_CONFIG);
+    ignoreUnknownFields = config.getBoolean(BigQuerySinkConfig.IGNORE_UNKNOWN_FIELDS_CONFIG);
     upsertDelete = config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)
         || config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG);
 
@@ -639,7 +643,8 @@ public class BigQuerySinkTask extends SinkTask {
             autoCreateTables,
             errantRecordHandler,
             getSchemaManager(),
-            attemptSchemaUpdate
+            attemptSchemaUpdate,
+            ignoreUnknownFields
         );
         storageApiWriter = writer;
 
@@ -659,7 +664,8 @@ public class BigQuerySinkTask extends SinkTask {
             autoCreateTables,
             errantRecordHandler,
             getSchemaManager(),
-            attemptSchemaUpdate
+            attemptSchemaUpdate,
+            ignoreUnknownFields
         );
       }
     }
