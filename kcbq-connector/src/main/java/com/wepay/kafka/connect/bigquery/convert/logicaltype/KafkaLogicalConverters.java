@@ -81,7 +81,7 @@ public class KafkaLogicalConverters {
     public DecimalConverter() {
       super(Decimal.LOGICAL_NAME,
           Schema.Type.BYTES,
-          LegacySQLTypeName.NUMERIC);
+          LegacySQLTypeName.FLOAT);
 
     }
 
