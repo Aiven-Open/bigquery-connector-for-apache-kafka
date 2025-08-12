@@ -81,7 +81,7 @@ public class KafkaLogicalConverters {
     public DecimalConverter(final BigQuerySinkConfig.DecimalHandlingMode decimalHandlingMode) {
       super(Decimal.LOGICAL_NAME,
           Schema.Type.BYTES,
-          LegacySQLTypeName.FLOAT);
+          decimalHandlingMode.sqlTypeName);
       this.decimalHandlingMode = decimalHandlingMode;
     }
 

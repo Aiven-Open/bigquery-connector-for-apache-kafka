@@ -25,9 +25,12 @@ package com.wepay.kafka.connect.bigquery.convert;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.google.cloud.bigquery.Field;
 import com.google.cloud.bigquery.LegacySQLTypeName;
+import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.exception.ConversionConnectException;
 import com.wepay.kafka.connect.bigquery.utils.FieldNameSanitizer;
 import com.wepay.kafka.connect.bigquery.convert.logicaltype.DebeziumLogicalConverters;
@@ -581,7 +584,11 @@ public class BigQuerySchemaConverterTest {
   public void testDebeziumVariableScaleDecimal() {
     final String fieldName = "DebeziumDecimal";
 
-    DebeziumLogicalConverters.registerVariableScaleDecimalConverter();
+    final BigQuerySinkConfig config = mock(BigQuerySinkConfig.class);
+    when(config.getVariableScaleDecimalHandlingMode()).thenReturn(BigQuerySinkConfig.DecimalHandlingMode.NUMERIC);
+
+    DebeziumLogicalConverters.initialize(config);
+    //DebeziumLogicalConverters.registerVariableScaleDecimalConverter();
 
     com.google.cloud.bigquery.Schema bigQueryExpectedSchema =
         com.google.cloud.bigquery.Schema.of(

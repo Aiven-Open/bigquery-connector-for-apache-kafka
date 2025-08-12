@@ -56,7 +56,7 @@ public class DebeziumLogicalConverters {
     LogicalConverterRegistry.register(Time.SCHEMA_NAME, new TimeConverter());
     LogicalConverterRegistry.register(ZonedTimestamp.SCHEMA_NAME, new ZonedTimestampConverter());
     LogicalConverterRegistry.register(Timestamp.SCHEMA_NAME, new TimestampConverter(config.getShouldConvertDebeziumTimestampToInteger()));
-    LogicalConverterRegistry.registerIfAbsent(VariableScaleDecimal.LOGICAL_NAME, new VariableScaleDecimalConverter(config.getVariableScaleDecimalHandlingMode()));
+    LogicalConverterRegistry.register(VariableScaleDecimal.LOGICAL_NAME, new VariableScaleDecimalConverter(config.getVariableScaleDecimalHandlingMode()));
   }
 
   private DebeziumLogicalConverters() {

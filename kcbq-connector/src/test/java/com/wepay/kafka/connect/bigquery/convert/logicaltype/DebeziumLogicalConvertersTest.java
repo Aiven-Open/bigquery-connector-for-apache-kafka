@@ -24,9 +24,12 @@
 package com.wepay.kafka.connect.bigquery.convert.logicaltype;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.cloud.bigquery.LegacySQLTypeName;
+import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.convert.logicaltype.DebeziumLogicalConverters.DateConverter;
 import com.wepay.kafka.connect.bigquery.convert.logicaltype.DebeziumLogicalConverters.MicroTimeConverter;
 import com.wepay.kafka.connect.bigquery.convert.logicaltype.DebeziumLogicalConverters.MicroTimestampConverter;
@@ -112,13 +115,14 @@ public class DebeziumLogicalConvertersTest {
 
   @Test
   public void testTimestampConversion() {
-    TimestampConverter converter = new TimestampConverter();
+    TimestampConverter converter = new TimestampConverter(false);
 
     assertEquals(LegacySQLTypeName.TIMESTAMP, converter.getBqSchemaType());
 
     converter.checkEncodingType(Schema.Type.INT64);
 
-    String formattedTimestamp = converter.convert(MILLI_TIMESTAMP);
+    Object formattedTimestamp = converter.convert(MILLI_TIMESTAMP);
+    assertInstanceOf(String.class, formattedTimestamp);
     assertEquals("2017-03-01 22:20:38.808", formattedTimestamp);
   }
 
@@ -137,7 +141,7 @@ public class DebeziumLogicalConvertersTest {
   @Test
   public void testVariableScaleDecimalConversion() {
     DebeziumLogicalConverters.VariableScaleDecimalConverter converter =
-        new DebeziumLogicalConverters.VariableScaleDecimalConverter();
+        new DebeziumLogicalConverters.VariableScaleDecimalConverter(BigQuerySinkConfig.DecimalHandlingMode.NUMERIC);
 
     assertEquals(LegacySQLTypeName.NUMERIC, converter.getBqSchemaType());
 
@@ -160,7 +164,7 @@ public class DebeziumLogicalConvertersTest {
   @Test
   public void testVariableScaleDecimalConversionNullValue() {
     DebeziumLogicalConverters.VariableScaleDecimalConverter converter =
-        new DebeziumLogicalConverters.VariableScaleDecimalConverter();
+        new DebeziumLogicalConverters.VariableScaleDecimalConverter(BigQuerySinkConfig.DecimalHandlingMode.NUMERIC);
 
     Schema schema = SchemaBuilder.struct()
         .name(io.debezium.data.VariableScaleDecimal.LOGICAL_NAME)

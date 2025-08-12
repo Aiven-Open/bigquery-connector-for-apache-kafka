@@ -68,11 +68,11 @@ public class LogicalConverterRegistry {
   /**
    * Gets the converter registered with the logical type name.
    *
-   * @param logicalTypeName the logical type name.
-   * @return the LogicalTypeConverter or {@code null} if none is registered.
+   * @param logicalTypeName the logical type name. May be {@code null}.
+   * @return the LogicalTypeConverter or {@code null} if none is registered or {@code null} passed for {@code logicalTypeName}.
    */
   public static LogicalTypeConverter getConverter(String logicalTypeName) {
-    return converterMap.get(logicalTypeName);
+    return logicalTypeName == null ? null : converterMap.get(logicalTypeName);
   }
 
   /**
