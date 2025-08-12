@@ -185,6 +185,11 @@ public class BigQuerySchemaConverter implements SchemaConverter<com.google.cloud
 
     String logicalName = kafkaConnectSchema.name();
     if (Decimal.LOGICAL_NAME.equals(logicalName)) {
+      if (kafkaConnectSchema.type() != Schema.Type.BYTES) {
+        throw new ConversionConnectException(
+            "Decimal logical type must have BYTES schema but found: " +
+                kafkaConnectSchema.type());
+      }
       result = convertDecimalField(kafkaConnectSchema, fieldName);
     } else if (VariableScaleDecimal.LOGICAL_NAME.equals(logicalName)) {
       result = convertVariableScaleDecimalField(kafkaConnectSchema, fieldName);
