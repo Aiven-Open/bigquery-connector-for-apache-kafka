@@ -31,19 +31,16 @@ import com.wepay.kafka.connect.bigquery.convert.BigQueryRecordConverter;
 import com.wepay.kafka.connect.bigquery.convert.BigQuerySchemaConverter;
 import com.wepay.kafka.connect.bigquery.convert.RecordConverter;
 import com.wepay.kafka.connect.bigquery.convert.SchemaConverter;
-import com.wepay.kafka.connect.bigquery.convert.logicaltype.DebeziumLogicalConverters;
 import com.wepay.kafka.connect.bigquery.retrieve.IdentitySchemaRetriever;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -171,25 +168,26 @@ public class BigQuerySinkConfig extends AbstractConfig {
   public static final String MAX_RETRIES_CONFIG = "max.retries";
   public static final String ENABLE_RETRIES_CONFIG = "enableRetries";
   public static final Boolean ENABLE_RETRIES_DEFAULT = true;
+
   public enum DecimalHandlingMode {
-    NONE,
+    RECORD,
     FLOAT,
     NUMERIC,
     BIGNUMERIC
   }
 
-  public static final DecimalHandlingMode DECIMAL_HANDLING_MODE_DEFAULT = DecimalHandlingMode.NUMERIC;
+  public static final DecimalHandlingMode DECIMAL_HANDLING_MODE_DEFAULT = DecimalHandlingMode.FLOAT;
   public static final DecimalHandlingMode VARIABLE_SCALE_DECIMAL_HANDLING_MODE_DEFAULT =
       DecimalHandlingMode.NUMERIC;
   public static final ConfigDef.Type DECIMAL_HANDLING_MODE_TYPE = ConfigDef.Type.STRING;
   public static final ConfigDef.Importance DECIMAL_HANDLING_MODE_IMPORTANCE = ConfigDef.Importance.MEDIUM;
   public static final String DECIMAL_HANDLING_MODE_DOC =
-      "Handling for org.apache.kafka.connect.data.Decimal fields: none, float, numeric, bignumeric.";
+      "Handling for org.apache.kafka.connect.data.Decimal fields: record, float, numeric, bignumeric.";
   public static final ConfigDef.Type VARIABLE_SCALE_DECIMAL_HANDLING_MODE_TYPE = ConfigDef.Type.STRING;
   public static final ConfigDef.Importance VARIABLE_SCALE_DECIMAL_HANDLING_MODE_IMPORTANCE =
       ConfigDef.Importance.MEDIUM;
   public static final String VARIABLE_SCALE_DECIMAL_HANDLING_MODE_DOC =
-      "Handling for io.debezium.data.VariableScaleDecimal fields: none, float, numeric, bignumeric.";  
+      "Handling for io.debezium.data.VariableScaleDecimal fields: record, float, numeric, bignumeric.";
   private static final ConfigDef.Type TOPICS_TYPE = ConfigDef.Type.LIST;
   private static final ConfigDef.Importance TOPICS_IMPORTANCE = ConfigDef.Importance.HIGH;
   private static final String TOPICS_GROUP = "Common";
@@ -940,7 +938,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
               if (value == null) {
                 return;
               }
-              DecimalHandlingMode.valueOf(((String) value).toUpperCase());
+              DecimalHandlingMode.valueOf(((String) value).toUpperCase(Locale.ROOT));
             },
             DECIMAL_HANDLING_MODE_IMPORTANCE,
             DECIMAL_HANDLING_MODE_DOC
@@ -952,7 +950,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
               if (value == null) {
                 return;
               }
-              DecimalHandlingMode.valueOf(((String) value).toUpperCase());
+              DecimalHandlingMode.valueOf(((String) value).toUpperCase(Locale.ROOT));
             },
             VARIABLE_SCALE_DECIMAL_HANDLING_MODE_IMPORTANCE,
             VARIABLE_SCALE_DECIMAL_HANDLING_MODE_DOC
@@ -1013,7 +1011,6 @@ public class BigQuerySinkConfig extends AbstractConfig {
     return DecimalHandlingMode.valueOf(
         getString(VARIABLE_SCALE_DECIMAL_HANDLING_MODE_CONFIG).toUpperCase());
   }
-  
   /**
    * Return a new instance of the configured Schema Converter.
    *

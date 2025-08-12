@@ -96,29 +96,17 @@ public class KafkaLogicalConverters {
         Schema schema, String fieldName) {
       checkEncodingType(schema.type());
       Map<String, String> params = schema.parameters();
-      Long precision = null;
-      Long scale = null;
+      com.google.cloud.bigquery.Field.Builder builder =
+          com.google.cloud.bigquery.Field.newBuilder(fieldName, LegacySQLTypeName.NUMERIC);
       if (params != null) {
         String precisionStr = params.get("connect.decimal.precision");
         if (precisionStr != null) {
-          precision = Long.valueOf(precisionStr);
+          builder.setPrecision(Long.valueOf(precisionStr));
         }
         String scaleStr = params.get("scale");
         if (scaleStr != null) {
-          scale = Long.valueOf(scaleStr);
+          builder.setScale(Long.valueOf(scaleStr));
         }
-      }
-      com.google.cloud.bigquery.LegacySQLTypeName type = LegacySQLTypeName.NUMERIC;
-      if ((precision != null && precision > 38) || (scale != null && scale > 9)) {
-        type = LegacySQLTypeName.BIGNUMERIC;
-      }
-      com.google.cloud.bigquery.Field.Builder builder =
-          com.google.cloud.bigquery.Field.newBuilder(fieldName, type);
-      if (precision != null) {
-        builder.setPrecision(precision);
-      }
-      if (scale != null) {
-        builder.setScale(scale);
       }
       return builder;
     }

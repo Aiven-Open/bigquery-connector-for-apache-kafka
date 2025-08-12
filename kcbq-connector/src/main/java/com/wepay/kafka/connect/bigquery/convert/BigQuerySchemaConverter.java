@@ -42,7 +42,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.Decimal;
-
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 /**
  * Class for converting from {@link Schema Kafka Connect Schemas} to
  * {@link com.google.cloud.bigquery.Schema BigQuery Schemas}.
@@ -90,15 +91,18 @@ public class BigQuerySchemaConverter implements SchemaConverter<com.google.cloud
   private final boolean allFieldsNullable;
   private final boolean sanitizeFieldNames;
   private final DecimalHandlingMode decimalHandlingMode;
-  private final DecimalHandlingMode variableScaleDecimalHandlingMode;  
+  private final DecimalHandlingMode variableScaleDecimalHandlingMode;
+  private static final Logger logger = LoggerFactory.getLogger(BigQuerySchemaConverter.class);
+  private static final int NUMERIC_MAX_PRECISION = 38;
+  private static final int NUMERIC_MAX_SCALE = 9;
 
   // visible for testing
   BigQuerySchemaConverter(boolean allFieldsNullable) {
-    this(allFieldsNullable, false, DecimalHandlingMode.NUMERIC, DecimalHandlingMode.NUMERIC);
+    this(allFieldsNullable, false, DecimalHandlingMode.FLOAT, DecimalHandlingMode.NUMERIC);
   }
 
   public BigQuerySchemaConverter(boolean allFieldsNullable, boolean sanitizeFieldNames) {
-    this(allFieldsNullable, sanitizeFieldNames, DecimalHandlingMode.NUMERIC, DecimalHandlingMode.NUMERIC);
+    this(allFieldsNullable, sanitizeFieldNames, DecimalHandlingMode.FLOAT, DecimalHandlingMode.NUMERIC);
   }
 
   public BigQuerySchemaConverter(boolean allFieldsNullable,
@@ -218,7 +222,7 @@ public class BigQuerySchemaConverter implements SchemaConverter<com.google.cloud
   private Optional<com.google.cloud.bigquery.Field.Builder> convertDecimalField(
       Schema schema, String fieldName) {
     switch (decimalHandlingMode) {
-      case NONE:
+      case RECORD:
         com.google.cloud.bigquery.Field scaleField =
             com.google.cloud.bigquery.Field.of("scale", LegacySQLTypeName.INTEGER);
         com.google.cloud.bigquery.Field valueField =
@@ -228,9 +232,28 @@ public class BigQuerySchemaConverter implements SchemaConverter<com.google.cloud
                 fieldName,
                 LegacySQLTypeName.RECORD,
                 FieldList.of(scaleField, valueField)));
-      case FLOAT:
-        return Optional.of(
-            com.google.cloud.bigquery.Field.newBuilder(fieldName, LegacySQLTypeName.FLOAT));
+      case NUMERIC:
+        LogicalTypeConverter numericConverter =
+            LogicalConverterRegistry.getConverter(Decimal.LOGICAL_NAME);
+        com.google.cloud.bigquery.Field.Builder numBuilder =
+            numericConverter.getFieldBuilder(schema, fieldName);
+        Map<String, String> params = schema.parameters();
+        if (params != null) {
+          String precisionStr = params.get("connect.decimal.precision");
+          String scaleStr = params.get("scale");
+          if (precisionStr != null) {
+            int precision = Integer.parseInt(precisionStr);
+            int scale = scaleStr != null ? Integer.parseInt(scaleStr) : 0;
+            if (precision > NUMERIC_MAX_PRECISION || scale > NUMERIC_MAX_SCALE) {
+              logger.warn(
+                  "Field {} precision {} or scale {} exceed NUMERIC limits and may be truncated",
+                  fieldName,
+                  precision,
+                  scale);
+            }
+          }
+        }
+        return Optional.of(numBuilder);
       case BIGNUMERIC:
         LogicalTypeConverter converter =
             LogicalConverterRegistry.getConverter(Decimal.LOGICAL_NAME);
@@ -238,18 +261,17 @@ public class BigQuerySchemaConverter implements SchemaConverter<com.google.cloud
             converter.getFieldBuilder(schema, fieldName);
         builder.setType(LegacySQLTypeName.BIGNUMERIC);
         return Optional.of(builder);
-      case NUMERIC:
+      case FLOAT:
       default:
-        LogicalTypeConverter numericConverter =
-            LogicalConverterRegistry.getConverter(Decimal.LOGICAL_NAME);
-        return Optional.of(numericConverter.getFieldBuilder(schema, fieldName));
+        return Optional.of(
+            com.google.cloud.bigquery.Field.newBuilder(fieldName, LegacySQLTypeName.FLOAT));
     }
   }
 
   private Optional<com.google.cloud.bigquery.Field.Builder> convertVariableScaleDecimalField(
       Schema schema, String fieldName) {
     switch (variableScaleDecimalHandlingMode) {
-      case NONE:
+      case RECORD:
         return convertStruct(schema, fieldName);
       case FLOAT:
         return Optional.of(

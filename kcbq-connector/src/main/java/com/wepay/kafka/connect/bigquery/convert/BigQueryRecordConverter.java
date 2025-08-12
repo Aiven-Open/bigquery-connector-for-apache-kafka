@@ -48,6 +48,8 @@ import org.apache.kafka.connect.data.Decimal;
 import org.apache.kafka.connect.sink.SinkRecord;
 import io.debezium.data.VariableScaleDecimal;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.DecimalHandlingMode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 /**
  * Class for converting from {@link SinkRecord SinkRecords} and BigQuery rows, which are represented
  * as {@link Map Maps} from {@link String Strings} to {@link Object Objects}.
@@ -59,6 +61,10 @@ public class BigQueryRecordConverter implements RecordConverter<Map<String, Obje
           Boolean.class, Character.class, Byte.class, Short.class,
           Integer.class, Long.class, Float.class, Double.class, String.class)
   );
+
+  private static final Logger logger = LoggerFactory.getLogger(BigQueryRecordConverter.class);
+  private static final int NUMERIC_MAX_PRECISION = 38;
+  private static final int NUMERIC_MAX_SCALE = 9;
 
   static {
     // force registration
@@ -84,8 +90,8 @@ public class BigQueryRecordConverter implements RecordConverter<Map<String, Obje
                                  boolean useStorageWriteApi,
                                  boolean shouldConvertToDebeziumVariableScaleDecimal) {
     this(shouldConvertDoubleSpecial, shouldConvertDebeziumTimestampToInteger, useStorageWriteApi,
-        DecimalHandlingMode.NUMERIC,
-        shouldConvertToDebeziumVariableScaleDecimal ? DecimalHandlingMode.NUMERIC : DecimalHandlingMode.NONE);
+        DecimalHandlingMode.FLOAT,
+        shouldConvertToDebeziumVariableScaleDecimal ? DecimalHandlingMode.NUMERIC : DecimalHandlingMode.RECORD);
   }
 
   public BigQueryRecordConverter(boolean shouldConvertDoubleSpecial,
@@ -93,7 +99,7 @@ public class BigQueryRecordConverter implements RecordConverter<Map<String, Obje
                                  boolean useStorageWriteApi,
                                  DecimalHandlingMode decimalHandlingMode,
                                  DecimalHandlingMode variableScaleDecimalHandlingMode) {
-    if (variableScaleDecimalHandlingMode != DecimalHandlingMode.NONE) {
+    if (variableScaleDecimalHandlingMode != DecimalHandlingMode.RECORD) {
       DebeziumLogicalConverters.registerVariableScaleDecimalConverter();
     }
     this.shouldConvertSpecialDouble = shouldConvertDoubleSpecial;
@@ -285,30 +291,39 @@ public class BigQueryRecordConverter implements RecordConverter<Map<String, Obje
     if (Decimal.LOGICAL_NAME.equals(logicalName)) {
       java.math.BigDecimal decimal = (java.math.BigDecimal) kafkaConnectObject;
       switch (decimalHandlingMode) {
-        case NONE:
+        case RECORD:
           Map<String, Object> struct = new HashMap<>();
           struct.put("scale", decimal.scale());
           struct.put("value", decimal.unscaledValue().toByteArray());
           return struct;
-        case FLOAT:
-          return decimal.doubleValue();
         case NUMERIC:
-        case BIGNUMERIC:
-        default:
+          warnIfNumericOverflow(decimal);
           return decimal;
+        case BIGNUMERIC:
+          return decimal;
+        case FLOAT:
+        default:
+          return decimal.doubleValue();
       }
     }
     if (VariableScaleDecimal.LOGICAL_NAME.equals(logicalName)) {
       LogicalTypeConverter converter =
           LogicalConverterRegistry.getConverter(logicalName);
-      java.math.BigDecimal decimal = (java.math.BigDecimal) converter.convert(kafkaConnectObject);
       switch (variableScaleDecimalHandlingMode) {
+        case RECORD:
+          return convertStruct(kafkaConnectObject, kafkaConnectSchema);
         case FLOAT:
+          java.math.BigDecimal decimal =
+              (java.math.BigDecimal) converter.convert(kafkaConnectObject);
           return decimal.doubleValue();
         case NUMERIC:
+          java.math.BigDecimal numericDecimal =
+              (java.math.BigDecimal) converter.convert(kafkaConnectObject);
+          warnIfNumericOverflow(numericDecimal);
+          return numericDecimal;
         case BIGNUMERIC:
         default:
-          return decimal;
+          return converter.convert(kafkaConnectObject);
       }
     }
 
@@ -319,6 +334,16 @@ public class BigQueryRecordConverter implements RecordConverter<Map<String, Obje
       return (Long) kafkaConnectObject;
     }
     return converter.convert(kafkaConnectObject);
+  }
+
+  private static void warnIfNumericOverflow(java.math.BigDecimal decimal) {
+    if (decimal.precision() > NUMERIC_MAX_PRECISION || decimal.scale() > NUMERIC_MAX_SCALE) {
+      logger.warn(
+          "Value {} exceeds NUMERIC precision {} or scale {} and may be truncated",
+          decimal,
+          NUMERIC_MAX_PRECISION,
+          NUMERIC_MAX_SCALE);
+    }
   }
 
   /**
