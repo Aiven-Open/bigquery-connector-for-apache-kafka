@@ -1016,7 +1016,8 @@ public class BigQuerySinkConfig extends AbstractConfig {
    *
    * @return a {@link SchemaConverter} for BigQuery.
    */
-  public SchemaConverter<Schema> getSchemaConverter() { /// Update it later
+
+  public SchemaConverter<Schema> getSchemaConverter() {
     return new BigQuerySchemaConverter(
         getBoolean(ALL_BQ_FIELDS_NULLABLE_CONFIG),
         getBoolean(SANITIZE_FIELD_NAME_CONFIG),
