@@ -26,6 +26,7 @@ package com.wepay.kafka.connect.bigquery.convert.logicaltype;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import com.google.cloud.bigquery.Field;
 import com.google.cloud.bigquery.LegacySQLTypeName;
 import com.wepay.kafka.connect.bigquery.convert.logicaltype.KafkaLogicalConverters.DateConverter;
 import com.wepay.kafka.connect.bigquery.convert.logicaltype.KafkaLogicalConverters.DecimalConverter;
@@ -34,6 +35,7 @@ import com.wepay.kafka.connect.bigquery.convert.logicaltype.KafkaLogicalConverte
 import java.math.BigDecimal;
 import java.util.Date;
 import org.apache.kafka.connect.data.Schema;
+import org.apache.kafka.connect.data.Decimal;
 import org.junit.jupiter.api.Test;
 
 public class KafkaLogicalConvertersTest {
@@ -68,6 +70,14 @@ public class KafkaLogicalConvertersTest {
 
     // expecting no-op
     assertEquals(bigDecimal, convertedDecimal);
+
+    Schema schema = Decimal.builder(2).parameter("connect.decimal.precision", "10").build();
+    Field field = converter.getFieldBuilder(schema, "foo").build();
+    assertEquals(LegacySQLTypeName.NUMERIC, field.getType());
+    assertEquals(Long.valueOf(2L), field.getScale());
+    assertEquals(Long.valueOf(10L), field.getPrecision());
+
+ 
   }
 
   @Test

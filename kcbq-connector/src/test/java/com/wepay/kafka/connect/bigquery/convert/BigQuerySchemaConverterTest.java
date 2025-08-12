@@ -30,7 +30,7 @@ import com.google.cloud.bigquery.Field;
 import com.google.cloud.bigquery.LegacySQLTypeName;
 import com.wepay.kafka.connect.bigquery.exception.ConversionConnectException;
 import com.wepay.kafka.connect.bigquery.utils.FieldNameSanitizer;
-import com.wepay.kafka.connect.bigquery.convert.logicaltype.DebeziumLogicalConverters;
+import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import io.confluent.connect.avro.AvroData;
 import org.apache.kafka.connect.data.Date;
 import org.apache.kafka.connect.data.Decimal;
@@ -70,7 +70,12 @@ public class BigQuerySchemaConverterTest {
         .build();
 
     com.google.cloud.bigquery.Schema bigQueryTestSchema =
-        new BigQuerySchemaConverter(false).convertSchema(kafkaConnectTestSchema);
+        new BigQuerySchemaConverter(
+            false,
+            false,
+            BigQuerySinkConfig.DecimalHandlingMode.NUMERIC,
+            BigQuerySinkConfig.DecimalHandlingMode.NUMERIC)
+            .convertSchema(kafkaConnectTestSchema);
     assertEquals(bigQueryExpectedSchema, bigQueryTestSchema);
   }
 
@@ -177,7 +182,12 @@ public class BigQuerySchemaConverterTest {
         .build();
 
     com.google.cloud.bigquery.Schema bigQueryTestSchema =
-        new BigQuerySchemaConverter(false).convertSchema(kafkaConnectTestSchema);
+        new BigQuerySchemaConverter(
+            false,
+            false,
+            BigQuerySinkConfig.DecimalHandlingMode.NUMERIC,
+            BigQuerySinkConfig.DecimalHandlingMode.NUMERIC)
+            .convertSchema(kafkaConnectTestSchema);
     assertEquals(bigQueryExpectedSchema, bigQueryTestSchema);
   }
 
@@ -553,8 +563,41 @@ public class BigQuerySchemaConverterTest {
     );
   }
 
-  @Test
-  public void testDecimal() {
+    @Test
+    public void testDecimal() {
+    final String fieldName = "Decimal";
+
+    com.google.cloud.bigquery.Schema bigQueryExpectedSchema =
+        com.google.cloud.bigquery.Schema.of(
+            com.google.cloud.bigquery.Field.newBuilder(
+                fieldName,
+                LegacySQLTypeName.NUMERIC
+            ).setMode(
+                com.google.cloud.bigquery.Field.Mode.REQUIRED
+            ).setScale(5L)
+            .setPrecision(10L)
+            .build()
+        );
+
+    Schema kafkaConnectTestSchema = SchemaBuilder
+        .struct()
+        .field(fieldName, Decimal.builder(5).parameter("connect.decimal.precision", "10").build())
+        .build();
+
+    com.google.cloud.bigquery.Schema bigQueryTestSchema =
+        new BigQuerySchemaConverter(
+            false,
+            false,
+            BigQuerySinkConfig.DecimalHandlingMode.NUMERIC,
+            BigQuerySinkConfig.DecimalHandlingMode.NUMERIC)
+            .convertSchema(kafkaConnectTestSchema);
+    assertEquals(bigQueryExpectedSchema, bigQueryTestSchema);
+  }
+
+
+
+    @Test
+    public void testDecimalDefaultFloat() {
     final String fieldName = "Decimal";
 
     com.google.cloud.bigquery.Schema bigQueryExpectedSchema =
@@ -569,19 +612,52 @@ public class BigQuerySchemaConverterTest {
 
     Schema kafkaConnectTestSchema = SchemaBuilder
         .struct()
-        .field(fieldName, Decimal.schema(0))
+        .field(fieldName, Decimal.schema(2))
         .build();
 
     com.google.cloud.bigquery.Schema bigQueryTestSchema =
-        new BigQuerySchemaConverter(false).convertSchema(kafkaConnectTestSchema);
+        new BigQuerySchemaConverter(false)
+            .convertSchema(kafkaConnectTestSchema);
+    assertEquals(bigQueryExpectedSchema, bigQueryTestSchema);
+    }
+
+  @Test
+  public void testBigNumericDecimal() {
+    final String fieldName = "BigDecimal";
+
+    com.google.cloud.bigquery.Schema bigQueryExpectedSchema =
+        com.google.cloud.bigquery.Schema.of(
+            com.google.cloud.bigquery.Field.newBuilder(
+                fieldName,
+                LegacySQLTypeName.BIGNUMERIC
+            ).setMode(
+                com.google.cloud.bigquery.Field.Mode.REQUIRED
+            ).setScale(10L)
+            .setPrecision(50L)
+            .build()
+        );
+
+    Schema kafkaConnectTestSchema = SchemaBuilder
+        .struct()
+        .field(fieldName, Decimal.builder(10).parameter("connect.decimal.precision", "50").build())
+        .build();
+
+    com.google.cloud.bigquery.Schema bigQueryTestSchema =
+        new BigQuerySchemaConverter(
+            false,
+            false,
+            BigQuerySinkConfig.DecimalHandlingMode.BIGNUMERIC,
+            BigQuerySinkConfig.DecimalHandlingMode.NUMERIC)
+            .convertSchema(kafkaConnectTestSchema);
     assertEquals(bigQueryExpectedSchema, bigQueryTestSchema);
   }
+
+
+
 
   @Test
   public void testDebeziumVariableScaleDecimal() {
     final String fieldName = "DebeziumDecimal";
-
-    DebeziumLogicalConverters.registerVariableScaleDecimalConverter();
 
     com.google.cloud.bigquery.Schema bigQueryExpectedSchema =
         com.google.cloud.bigquery.Schema.of(
@@ -605,7 +681,12 @@ public class BigQuerySchemaConverterTest {
         .build();
 
     com.google.cloud.bigquery.Schema bigQueryTestSchema =
-        new BigQuerySchemaConverter(false).convertSchema(kafkaConnectTestSchema);
+        new BigQuerySchemaConverter(
+            false,
+            false,
+            BigQuerySinkConfig.DecimalHandlingMode.NUMERIC,
+            BigQuerySinkConfig.DecimalHandlingMode.NUMERIC)
+            .convertSchema(kafkaConnectTestSchema);
     assertEquals(bigQueryExpectedSchema, bigQueryTestSchema);
   }
 

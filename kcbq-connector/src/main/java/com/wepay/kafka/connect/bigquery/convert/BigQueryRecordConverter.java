@@ -26,11 +26,13 @@ package com.wepay.kafka.connect.bigquery.convert;
 import com.google.cloud.bigquery.InsertAllRequest.RowToInsert;
 import com.google.protobuf.ByteString;
 import com.wepay.kafka.connect.bigquery.api.KafkaSchemaRecordType;
+import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.DecimalHandlingMode;
 import com.wepay.kafka.connect.bigquery.convert.logicaltype.DebeziumLogicalConverters;
 import com.wepay.kafka.connect.bigquery.convert.logicaltype.KafkaLogicalConverters;
 import com.wepay.kafka.connect.bigquery.convert.logicaltype.LogicalConverterRegistry;
 import com.wepay.kafka.connect.bigquery.convert.logicaltype.LogicalTypeConverter;
 import com.wepay.kafka.connect.bigquery.exception.ConversionConnectException;
+import io.debezium.data.VariableScaleDecimal;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -41,19 +43,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.apache.kafka.connect.data.Decimal;
 import org.apache.kafka.connect.data.Field;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.Struct;
-import org.apache.kafka.connect.data.Decimal;
 import org.apache.kafka.connect.sink.SinkRecord;
-import io.debezium.data.VariableScaleDecimal;
-import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.DecimalHandlingMode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 /**
  * Class for converting from {@link SinkRecord SinkRecords} and BigQuery rows, which are represented
  * as {@link Map Maps} from {@link String Strings} to {@link Object Objects}.
  */
+
 public class BigQueryRecordConverter implements RecordConverter<Map<String, Object>> {
 
   private static final Set<Class<?>> BASIC_TYPES = new HashSet<>(

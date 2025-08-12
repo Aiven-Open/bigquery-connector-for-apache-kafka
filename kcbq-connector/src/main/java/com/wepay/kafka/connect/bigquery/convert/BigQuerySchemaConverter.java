@@ -40,14 +40,15 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.Decimal;
+import org.apache.kafka.connect.data.Schema;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 /**
- * Class for converting from {@link Schema Kafka Connect Schemas} to
- * {@link com.google.cloud.bigquery.Schema BigQuery Schemas}.
- */
+* Class for converting from {@link Schema Kafka Connect Schemas} to
+* {@link com.google.cloud.bigquery.Schema BigQuery Schemas}.
+*/
+
 public class BigQuerySchemaConverter implements SchemaConverter<com.google.cloud.bigquery.Schema> {
 
   /**
@@ -187,8 +188,8 @@ public class BigQuerySchemaConverter implements SchemaConverter<com.google.cloud
     if (Decimal.LOGICAL_NAME.equals(logicalName)) {
       if (kafkaConnectSchema.type() != Schema.Type.BYTES) {
         throw new ConversionConnectException(
-            "Decimal logical type must have BYTES schema but found: " +
-                kafkaConnectSchema.type());
+            "Decimal logical type must have BYTES schema but found: " 
+            + kafkaConnectSchema.type());
       }
       result = convertDecimalField(kafkaConnectSchema, fieldName);
     } else if (VariableScaleDecimal.LOGICAL_NAME.equals(logicalName)) {
