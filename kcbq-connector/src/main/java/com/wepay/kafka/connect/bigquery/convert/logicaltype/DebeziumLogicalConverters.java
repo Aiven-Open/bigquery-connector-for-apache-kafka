@@ -179,7 +179,7 @@ public class DebeziumLogicalConverters {
     public TimestampConverter(boolean asInteger) {
       super(Timestamp.SCHEMA_NAME,
           Schema.Type.INT64,
-          LegacySQLTypeName.TIMESTAMP);
+          asInteger ? LegacySQLTypeName.INTEGER : LegacySQLTypeName.TIMESTAMP);
       this.asInteger = asInteger;
     }
 
@@ -231,7 +231,7 @@ public class DebeziumLogicalConverters {
     public VariableScaleDecimalConverter(final BigQuerySinkConfig.DecimalHandlingMode decimalHandlingMode) {
       super(VariableScaleDecimal.LOGICAL_NAME,
           Schema.Type.STRUCT,
-          LegacySQLTypeName.NUMERIC);
+          decimalHandlingMode.sqlTypeName);
       this.decimalHandlingMode = decimalHandlingMode;
     }
 

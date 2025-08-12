@@ -40,6 +40,11 @@ import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
+
+import java.math.BigDecimal;
 
 public class DebeziumLogicalConvertersTest {
 
@@ -113,17 +118,22 @@ public class DebeziumLogicalConvertersTest {
     assertEquals("05:26:46.838", formattedTime);
   }
 
-  @Test
-  public void testTimestampConversion() {
-    TimestampConverter converter = new TimestampConverter(false);
+  @ParameterizedTest
+  @ValueSource(booleans =  {true, false})
+  public void testTimestampConversion(boolean convertFlag) {
+    TimestampConverter converter = new TimestampConverter(convertFlag);
 
-    assertEquals(LegacySQLTypeName.TIMESTAMP, converter.getBqSchemaType());
-
+    assertEquals(convertFlag ? LegacySQLTypeName.INTEGER : LegacySQLTypeName.TIMESTAMP, converter.getBqSchemaType());
     converter.checkEncodingType(Schema.Type.INT64);
 
-    Object formattedTimestamp = converter.convert(MILLI_TIMESTAMP);
-    assertInstanceOf(String.class, formattedTimestamp);
-    assertEquals("2017-03-01 22:20:38.808", formattedTimestamp);
+    Object timestamp = converter.convert(MILLI_TIMESTAMP);
+    if (convertFlag) {
+      assertInstanceOf(Long.class, timestamp);
+      assertEquals(MILLI_TIMESTAMP, timestamp);
+    } else {
+      assertInstanceOf(String.class, timestamp);
+      assertEquals("2017-03-01 22:20:38.808", timestamp);
+    }
   }
 
   @Test
@@ -138,12 +148,13 @@ public class DebeziumLogicalConvertersTest {
     assertEquals("2017-03-01 14:20:38.808-08:00", formattedTimestamp);
   }
 
-  @Test
-  public void testVariableScaleDecimalConversion() {
+  @ParameterizedTest
+  @EnumSource(BigQuerySinkConfig.DecimalHandlingMode.class)
+  public void testVariableScaleDecimalConversion(BigQuerySinkConfig.DecimalHandlingMode handlingMode) {
     DebeziumLogicalConverters.VariableScaleDecimalConverter converter =
-        new DebeziumLogicalConverters.VariableScaleDecimalConverter(BigQuerySinkConfig.DecimalHandlingMode.NUMERIC);
+        new DebeziumLogicalConverters.VariableScaleDecimalConverter(handlingMode);
 
-    assertEquals(LegacySQLTypeName.NUMERIC, converter.getBqSchemaType());
+    assertEquals(handlingMode.sqlTypeName, converter.getBqSchemaType());
 
     Schema schema = SchemaBuilder.struct()
         .name(io.debezium.data.VariableScaleDecimal.LOGICAL_NAME)
@@ -157,8 +168,26 @@ public class DebeziumLogicalConvertersTest {
         .put("scale", 3)
         .put("value", new java.math.BigDecimal("123.456").unscaledValue().toByteArray());
 
-    java.math.BigDecimal converted = (java.math.BigDecimal) converter.convert(struct);
-    assertEquals(new java.math.BigDecimal("123.456"), converted);
+    Object converted = converter.convert(struct);
+    switch (handlingMode) {
+      case RECORD:
+        assertInstanceOf(Struct.class, converted);
+        Struct record = (Struct) converted;
+        assertEquals(struct, record);
+        break;
+      case NUMERIC:
+      case BIGNUMERIC:
+        assertInstanceOf(BigDecimal.class, converted);
+        assertEquals(new java.math.BigDecimal("123.456"), converted);
+        break;
+      case FLOAT:
+        assertInstanceOf(Double.class, converted);
+        assertEquals(123.456, converted);
+        break;
+      default:
+        throw new UnsupportedOperationException(handlingMode.name());
+
+    }
   }
 
   @Test
