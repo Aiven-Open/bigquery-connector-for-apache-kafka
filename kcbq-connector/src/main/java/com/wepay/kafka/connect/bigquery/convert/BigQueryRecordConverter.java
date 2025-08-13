@@ -60,6 +60,12 @@ public class BigQueryRecordConverter implements RecordConverter<Map<String, Obje
   private final boolean shouldConvertSpecialDouble;
   private final boolean useStorageWriteApi;
 
+  /**
+   * Creates a record converter.
+   *
+   * @param shouldConvertDoubleSpecial if {@code true} converts doubles of Infinity to MAX_VALUE and negative Infinity to MIN_VALUE.
+   * @param useStorageWriteApi if {@code true} use the storage write API.
+   */
   public BigQueryRecordConverter(boolean shouldConvertDoubleSpecial, boolean useStorageWriteApi) {
     this.shouldConvertSpecialDouble = shouldConvertDoubleSpecial;
     this.useStorageWriteApi = useStorageWriteApi;

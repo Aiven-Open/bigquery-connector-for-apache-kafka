@@ -23,8 +23,10 @@
 
 package com.wepay.kafka.connect.bigquery.convert.logicaltype;
 
+import com.google.cloud.bigquery.Field;
 import com.google.cloud.bigquery.LegacySQLTypeName;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
+import com.wepay.kafka.connect.bigquery.exception.ConversionConnectException;
 import io.debezium.data.VariableScaleDecimal;
 import io.debezium.time.Date;
 import io.debezium.time.MicroTime;
@@ -32,12 +34,13 @@ import io.debezium.time.MicroTimestamp;
 import io.debezium.time.Time;
 import io.debezium.time.Timestamp;
 import io.debezium.time.ZonedTimestamp;
-import java.math.BigDecimal;
 import java.text.SimpleDateFormat;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.TemporalAccessor;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiFunction;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.Struct;
 
@@ -251,6 +254,22 @@ public class DebeziumLogicalConverters {
         case BIGNUMERIC:
         default:
           return VariableScaleDecimal.toLogical(struct);
+      }
+    }
+
+    @Override
+    public Field.Builder getFieldBuilder(Schema schema, String fieldName, BiFunction<Schema, String, Optional<Field.Builder>> convertStruct) {
+      checkEncodingType(schema.type());
+      switch (decimalHandlingMode) {
+        case RECORD:
+          return convertStruct.apply(schema, fieldName).orElseThrow(() -> new ConversionConnectException("Unable to convert " + fieldName));
+        case FLOAT:
+          return Field.newBuilder(fieldName, LegacySQLTypeName.FLOAT);
+        case BIGNUMERIC:
+          return Field.newBuilder(fieldName, LegacySQLTypeName.BIGNUMERIC);
+        case NUMERIC:
+        default:
+          return Field.newBuilder(fieldName, LegacySQLTypeName.NUMERIC);
       }
     }
   }

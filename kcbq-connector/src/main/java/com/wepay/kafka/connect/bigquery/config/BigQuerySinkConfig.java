@@ -1043,9 +1043,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
   public SchemaConverter<Schema> getSchemaConverter() { /// Update it later
     return new BigQuerySchemaConverter(
         getBoolean(ALL_BQ_FIELDS_NULLABLE_CONFIG),
-        getBoolean(SANITIZE_FIELD_NAME_CONFIG),
-        getDecimalHandlingMode(),
-        getVariableScaleDecimalHandlingMode());
+        getBoolean(SANITIZE_FIELD_NAME_CONFIG));
   }
 
   /**
@@ -1056,11 +1054,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
   public RecordConverter<Map<String, Object>> getRecordConverter() {
     return new BigQueryRecordConverter(
         getBoolean(CONVERT_DOUBLE_SPECIAL_VALUES_CONFIG),
-        getBoolean(CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_CONFIG),
-        getBoolean(USE_STORAGE_WRITE_API_CONFIG),
-        getDecimalHandlingMode(),
-        getVariableScaleDecimalHandlingMode()
-    );
+        getBoolean(USE_STORAGE_WRITE_API_CONFIG));
   }
 
   /**

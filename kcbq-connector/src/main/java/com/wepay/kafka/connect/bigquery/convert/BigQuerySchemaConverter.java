@@ -26,13 +26,10 @@ package com.wepay.kafka.connect.bigquery.convert;
 import com.google.cloud.bigquery.FieldList;
 import com.google.cloud.bigquery.LegacySQLTypeName;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.DecimalHandlingMode;
-import com.wepay.kafka.connect.bigquery.convert.logicaltype.DebeziumLogicalConverters;
-import com.wepay.kafka.connect.bigquery.convert.logicaltype.KafkaLogicalConverters;
 import com.wepay.kafka.connect.bigquery.convert.logicaltype.LogicalConverterRegistry;
 import com.wepay.kafka.connect.bigquery.convert.logicaltype.LogicalTypeConverter;
 import com.wepay.kafka.connect.bigquery.exception.ConversionConnectException;
 import com.wepay.kafka.connect.bigquery.utils.FieldNameSanitizer;
-import io.debezium.data.VariableScaleDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -40,7 +37,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.apache.kafka.connect.data.Decimal;
 import org.apache.kafka.connect.data.Schema;
 
 /**
@@ -85,26 +81,27 @@ public class BigQuerySchemaConverter implements SchemaConverter<com.google.cloud
 
   private final boolean allFieldsNullable;
   private final boolean sanitizeFieldNames;
-  private final DecimalHandlingMode decimalHandlingMode;
-  private final DecimalHandlingMode variableScaleDecimalHandlingMode;  
 
-  // visible for testing
-  BigQuerySchemaConverter(boolean allFieldsNullable) {
-    this(allFieldsNullable, false, DecimalHandlingMode.NUMERIC, DecimalHandlingMode.NUMERIC);
-  }
-
+  /**
+   * Creates a schema converter.
+   *
+   * @param allFieldsNullable if {@code true} all fields are nullable.
+   * @param sanitizeFieldNames if {@code true} field names are sanitized before use.
+   */
   public BigQuerySchemaConverter(boolean allFieldsNullable, boolean sanitizeFieldNames) {
-    this(allFieldsNullable, sanitizeFieldNames, DecimalHandlingMode.NUMERIC, DecimalHandlingMode.NUMERIC);
+    this.allFieldsNullable = allFieldsNullable;
+    this.sanitizeFieldNames = sanitizeFieldNames;
   }
 
+  /**
+   * @deprecated Use {@link #BigQuerySchemaConverter(boolean, boolean)} decimalHandling and variable scale handling are handled in config processing.
+   */
+  @Deprecated
   public BigQuerySchemaConverter(boolean allFieldsNullable,
                                  boolean sanitizeFieldNames,
                                  DecimalHandlingMode decimalHandlingMode,
                                  DecimalHandlingMode variableScaleDecimalHandlingMode) {
-    this.allFieldsNullable = allFieldsNullable;
-    this.sanitizeFieldNames = sanitizeFieldNames;
-    this.decimalHandlingMode = decimalHandlingMode;
-    this.variableScaleDecimalHandlingMode = variableScaleDecimalHandlingMode;
+    this(allFieldsNullable, sanitizeFieldNames);
   }
 
   /**
@@ -176,12 +173,9 @@ public class BigQuerySchemaConverter implements SchemaConverter<com.google.cloud
     }
 
     String logicalName = kafkaConnectSchema.name();
-    if (Decimal.LOGICAL_NAME.equals(logicalName)) {
-      result = convertDecimalField(kafkaConnectSchema, fieldName);
-    } else if (VariableScaleDecimal.LOGICAL_NAME.equals(logicalName)) {
-      result = convertVariableScaleDecimalField(kafkaConnectSchema, fieldName);
-    } else if (LogicalConverterRegistry.isRegisteredLogicalType(logicalName)) {
-      result = Optional.of(convertLogical(kafkaConnectSchema, fieldName));
+    LogicalTypeConverter converter = LogicalConverterRegistry.getConverter(logicalName);
+    if (converter != null) {
+      result = Optional.of(converter.getFieldBuilder(kafkaConnectSchema, fieldName, this::convertStruct));
     } else if (PRIMITIVE_TYPE_MAP.containsKey(kafkaConnectSchemaType)) {
       result = Optional.of(convertPrimitive(kafkaConnectSchema, fieldName));
     } else {
@@ -210,56 +204,6 @@ public class BigQuerySchemaConverter implements SchemaConverter<com.google.cloud
     });
   }
 
-
-  private Optional<com.google.cloud.bigquery.Field.Builder> convertDecimalField(
-      Schema schema, String fieldName) {
-    switch (decimalHandlingMode) {
-      case RECORD:
-        com.google.cloud.bigquery.Field scaleField =
-            com.google.cloud.bigquery.Field.of("scale", LegacySQLTypeName.INTEGER);
-        com.google.cloud.bigquery.Field valueField =
-            com.google.cloud.bigquery.Field.of("value", LegacySQLTypeName.BYTES);
-        return Optional.of(
-            com.google.cloud.bigquery.Field.newBuilder(
-                fieldName,
-                LegacySQLTypeName.RECORD,
-                FieldList.of(scaleField, valueField)));
-      case FLOAT:
-        return Optional.of(
-            com.google.cloud.bigquery.Field.newBuilder(fieldName, LegacySQLTypeName.FLOAT));
-      case BIGNUMERIC:
-        LogicalTypeConverter converter =
-            LogicalConverterRegistry.getConverter(Decimal.LOGICAL_NAME);
-        com.google.cloud.bigquery.Field.Builder builder =
-            converter.getFieldBuilder(schema, fieldName);
-        builder.setType(LegacySQLTypeName.BIGNUMERIC);
-        return Optional.of(builder);
-      case NUMERIC:
-      default:
-        LogicalTypeConverter numericConverter =
-            LogicalConverterRegistry.getConverter(Decimal.LOGICAL_NAME);
-        return Optional.of(numericConverter.getFieldBuilder(schema, fieldName));
-    }
-  }
-
-  private Optional<com.google.cloud.bigquery.Field.Builder> convertVariableScaleDecimalField(
-      Schema schema, String fieldName) {
-    switch (variableScaleDecimalHandlingMode) {
-      case RECORD:
-        return convertStruct(schema, fieldName);
-      case FLOAT:
-        return Optional.of(
-            com.google.cloud.bigquery.Field.newBuilder(fieldName, LegacySQLTypeName.FLOAT));
-      case BIGNUMERIC:
-        return Optional.of(
-            com.google.cloud.bigquery.Field.newBuilder(fieldName, LegacySQLTypeName.BIGNUMERIC));
-      case NUMERIC:
-      default:
-        return Optional.of(
-            com.google.cloud.bigquery.Field.newBuilder(fieldName, LegacySQLTypeName.NUMERIC));
-    }
-  }
-
   private void setNullability(Schema kafkaConnectSchema,
                               com.google.cloud.bigquery.Field.Builder fieldBuilder) {
     switch (kafkaConnectSchema.type()) {
@@ -275,7 +219,7 @@ public class BigQuerySchemaConverter implements SchemaConverter<com.google.cloud
     }
   }
 
-  private Optional<com.google.cloud.bigquery.Field.Builder> convertStruct(Schema kafkaConnectSchema,
+  public Optional<com.google.cloud.bigquery.Field.Builder> convertStruct(Schema kafkaConnectSchema,
                                                                           String fieldName) {
     List<com.google.cloud.bigquery.Field> bigQueryRecordFields = kafkaConnectSchema.fields()
         .stream()
@@ -330,13 +274,5 @@ public class BigQuerySchemaConverter implements SchemaConverter<com.google.cloud
     LegacySQLTypeName bigQueryType =
         PRIMITIVE_TYPE_MAP.get(kafkaConnectSchema.type());
     return com.google.cloud.bigquery.Field.newBuilder(fieldName, bigQueryType);
-  }
-
-  private com.google.cloud.bigquery.Field.Builder convertLogical(Schema kafkaConnectSchema,
-                                                                 String fieldName) {
-    LogicalTypeConverter converter =
-        LogicalConverterRegistry.getConverter(kafkaConnectSchema.name());
-    return converter.getFieldBuilder(kafkaConnectSchema, fieldName);
-
   }
 }

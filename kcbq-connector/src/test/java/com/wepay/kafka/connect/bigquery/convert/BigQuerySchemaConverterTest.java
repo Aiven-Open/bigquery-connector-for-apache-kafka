@@ -29,8 +29,10 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.google.cloud.bigquery.Field;
+import com.google.cloud.bigquery.FieldList;
 import com.google.cloud.bigquery.LegacySQLTypeName;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
+import com.wepay.kafka.connect.bigquery.convert.logicaltype.KafkaLogicalConverters;
 import com.wepay.kafka.connect.bigquery.exception.ConversionConnectException;
 import com.wepay.kafka.connect.bigquery.utils.FieldNameSanitizer;
 import com.wepay.kafka.connect.bigquery.convert.logicaltype.DebeziumLogicalConverters;
@@ -40,13 +42,51 @@ import org.apache.kafka.connect.data.Decimal;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Timestamp;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Stream;
 
 public class BigQuerySchemaConverterTest {
 
+  private boolean allFieldsNullable;
+  private boolean sanitizeFieldNames;
+
+  @BeforeEach
+  void resetValues() {
+    allFieldsNullable = false;
+    sanitizeFieldNames = false;
+  }
+
+  private static BigQuerySinkConfig testingConfig(boolean convertDebeziumTimestamp, BigQuerySinkConfig.DecimalHandlingMode varibaleScaleDecimalMode, BigQuerySinkConfig.DecimalHandlingMode decimalMode) {
+    BigQuerySinkConfig result = mock(BigQuerySinkConfig.class);
+    when(result.getVariableScaleDecimalHandlingMode()).thenReturn(varibaleScaleDecimalMode);
+    when(result.getDecimalHandlingMode()).thenReturn(decimalMode);
+    when(result.getShouldConvertDebeziumTimestampToInteger()).thenReturn(convertDebeziumTimestamp);
+    return result;
+  }
+
+  private BigQuerySchemaConverter createConverter() {
+    // use the defaults from sink config
+    return createConverter(testingConfig(false, BigQuerySinkConfig.DecimalHandlingMode.RECORD, BigQuerySinkConfig.DecimalHandlingMode.FLOAT));
+  }
+
+  private BigQuerySchemaConverter createConverter(BigQuerySinkConfig config) {
+    DebeziumLogicalConverters.initialize(config);
+    KafkaLogicalConverters.initialize(config);
+    return new BigQuerySchemaConverter(allFieldsNullable, sanitizeFieldNames);
+  }
+
   @Test
   public void testTopLevelSchema() {
-    BigQuerySchemaConverter converter = new BigQuerySchemaConverter(false);
+    BigQuerySchemaConverter converter = createConverter();
     assertThrows(
         ConversionConnectException.class,
         () -> converter.convertSchema(Schema.BOOLEAN_SCHEMA)
@@ -72,8 +112,7 @@ public class BigQuerySchemaConverterTest {
         .field(fieldName, Schema.BOOLEAN_SCHEMA)
         .build();
 
-    com.google.cloud.bigquery.Schema bigQueryTestSchema =
-        new BigQuerySchemaConverter(false).convertSchema(kafkaConnectTestSchema);
+    com.google.cloud.bigquery.Schema bigQueryTestSchema = createConverter().convertSchema(kafkaConnectTestSchema);
     assertEquals(bigQueryExpectedSchema, bigQueryTestSchema);
   }
 
@@ -96,8 +135,7 @@ public class BigQuerySchemaConverterTest {
         .field(fieldName, Schema.INT8_SCHEMA)
         .build();
 
-    com.google.cloud.bigquery.Schema bigQueryTestSchema =
-        new BigQuerySchemaConverter(false).convertSchema(kafkaConnectTestSchema);
+    com.google.cloud.bigquery.Schema bigQueryTestSchema = createConverter().convertSchema(kafkaConnectTestSchema);
     assertEquals(bigQueryExpectedSchema, bigQueryTestSchema);
 
 
@@ -106,7 +144,7 @@ public class BigQuerySchemaConverterTest {
         .field(fieldName, Schema.INT16_SCHEMA)
         .build();
 
-    bigQueryTestSchema = new BigQuerySchemaConverter(false).convertSchema(kafkaConnectTestSchema);
+    bigQueryTestSchema = createConverter().convertSchema(kafkaConnectTestSchema);
     assertEquals(bigQueryExpectedSchema, bigQueryTestSchema);
 
 
@@ -115,7 +153,7 @@ public class BigQuerySchemaConverterTest {
         .field(fieldName, Schema.INT32_SCHEMA)
         .build();
 
-    bigQueryTestSchema = new BigQuerySchemaConverter(false).convertSchema(kafkaConnectTestSchema);
+    bigQueryTestSchema = createConverter().convertSchema(kafkaConnectTestSchema);
     assertEquals(bigQueryExpectedSchema, bigQueryTestSchema);
 
 
@@ -124,7 +162,7 @@ public class BigQuerySchemaConverterTest {
         .field(fieldName, Schema.INT64_SCHEMA)
         .build();
 
-    bigQueryTestSchema = new BigQuerySchemaConverter(false).convertSchema(kafkaConnectTestSchema);
+    bigQueryTestSchema = createConverter().convertSchema(kafkaConnectTestSchema);
     assertEquals(bigQueryExpectedSchema, bigQueryTestSchema);
   }
 
@@ -146,8 +184,7 @@ public class BigQuerySchemaConverterTest {
         .struct()
         .field(fieldName, Schema.FLOAT32_SCHEMA)
         .build();
-    com.google.cloud.bigquery.Schema bigQueryTestSchema =
-        new BigQuerySchemaConverter(false).convertSchema(kafkaConnectTestSchema);
+    com.google.cloud.bigquery.Schema bigQueryTestSchema = createConverter().convertSchema(kafkaConnectTestSchema);
     assertEquals(bigQueryExpectedSchema, bigQueryTestSchema);
 
     kafkaConnectTestSchema = SchemaBuilder
@@ -155,8 +192,7 @@ public class BigQuerySchemaConverterTest {
         .field(fieldName, Schema.FLOAT64_SCHEMA)
         .build();
 
-    bigQueryTestSchema =
-        new BigQuerySchemaConverter(false).convertSchema(kafkaConnectTestSchema);
+    bigQueryTestSchema = createConverter().convertSchema(kafkaConnectTestSchema);
     assertEquals(bigQueryExpectedSchema, bigQueryTestSchema);
   }
 
@@ -179,8 +215,7 @@ public class BigQuerySchemaConverterTest {
         .field(fieldName, Schema.STRING_SCHEMA)
         .build();
 
-    com.google.cloud.bigquery.Schema bigQueryTestSchema =
-        new BigQuerySchemaConverter(false).convertSchema(kafkaConnectTestSchema);
+    com.google.cloud.bigquery.Schema bigQueryTestSchema = createConverter().convertSchema(kafkaConnectTestSchema);
     assertEquals(bigQueryExpectedSchema, bigQueryTestSchema);
   }
 
@@ -221,8 +256,7 @@ public class BigQuerySchemaConverterTest {
 
     com.google.cloud.bigquery.Schema bigQueryExpectedInnerSchema =
         com.google.cloud.bigquery.Schema.of(bigQueryInnerRecord);
-    com.google.cloud.bigquery.Schema bigQueryTestInnerSchema =
-        new BigQuerySchemaConverter(false).convertSchema(
+    com.google.cloud.bigquery.Schema bigQueryTestInnerSchema = createConverter().convertSchema(
             SchemaBuilder
                 .struct()
                 .field(innerFieldStructName, kafkaConnectInnerSchema)
@@ -251,8 +285,7 @@ public class BigQuerySchemaConverterTest {
 
     com.google.cloud.bigquery.Schema bigQueryExpectedMiddleSchema =
         com.google.cloud.bigquery.Schema.of(bigQueryMiddleRecord);
-    com.google.cloud.bigquery.Schema bigQueryTestMiddleSchema =
-        new BigQuerySchemaConverter(false).convertSchema(
+    com.google.cloud.bigquery.Schema bigQueryTestMiddleSchema = createConverter().convertSchema(
             SchemaBuilder
                 .struct()
                 .field(middleFieldStructName, kafkaConnectMiddleSchema)
@@ -278,8 +311,7 @@ public class BigQuerySchemaConverterTest {
 
     com.google.cloud.bigquery.Schema bigQueryExpectedOuterSchema =
         com.google.cloud.bigquery.Schema.of(bigQueryOuterRecord);
-    com.google.cloud.bigquery.Schema bigQueryTestOuterSchema =
-        new BigQuerySchemaConverter(false).convertSchema(
+    com.google.cloud.bigquery.Schema bigQueryTestOuterSchema = createConverter().convertSchema(
             SchemaBuilder
                 .struct()
                 .field(outerFieldStructName, kafkaConnectOuterSchema)
@@ -290,8 +322,7 @@ public class BigQuerySchemaConverterTest {
 
   @Test
   public void testEmptyStruct() { // Empty struct
-    com.google.cloud.bigquery.Schema bigQueryTestOuterSchema =
-        new BigQuerySchemaConverter(false).convertSchema(
+    com.google.cloud.bigquery.Schema bigQueryTestOuterSchema = createConverter().convertSchema(
             SchemaBuilder
                 .struct()
                 .build()
@@ -333,8 +364,7 @@ public class BigQuerySchemaConverterTest {
 
     com.google.cloud.bigquery.Schema bigQueryExpectedOuterSchema =
         com.google.cloud.bigquery.Schema.of(bigQueryOuterRecord);
-    com.google.cloud.bigquery.Schema bigQueryTestOuterSchema =
-        new BigQuerySchemaConverter(false).convertSchema(
+    com.google.cloud.bigquery.Schema bigQueryTestOuterSchema = createConverter().convertSchema(
             SchemaBuilder
                 .struct()
                 .field(outerFieldStructName, kafkaConnectOuterSchema)
@@ -379,8 +409,7 @@ public class BigQuerySchemaConverterTest {
         .field(fieldName, kafkaConnectMapSchema)
         .build();
 
-    com.google.cloud.bigquery.Schema bigQueryTestSchema =
-        new BigQuerySchemaConverter(false).convertSchema(kafkaConnectTestSchema);
+    com.google.cloud.bigquery.Schema bigQueryTestSchema = createConverter().convertSchema(kafkaConnectTestSchema);
     assertEquals(bigQueryExpectedSchema, bigQueryTestSchema);
   }
 
@@ -402,8 +431,7 @@ public class BigQuerySchemaConverterTest {
         .field(fieldName, kafkaConnectArraySchema)
         .build();
 
-    com.google.cloud.bigquery.Schema bigQueryTestSchema =
-        new BigQuerySchemaConverter(false).convertSchema(kafkaConnectTestSchema);
+    com.google.cloud.bigquery.Schema bigQueryTestSchema = createConverter().convertSchema(kafkaConnectTestSchema);
     assertEquals(bigQueryExpectedSchema, bigQueryTestSchema);
   }
 
@@ -425,8 +453,7 @@ public class BigQuerySchemaConverterTest {
         .field(fieldName, kafkaConnectArraySchema)
         .build();
 
-    com.google.cloud.bigquery.Schema bigQueryTestSchema =
-        new BigQuerySchemaConverter(false).convertSchema(kafkaConnectTestSchema);
+    com.google.cloud.bigquery.Schema bigQueryTestSchema = createConverter().convertSchema(kafkaConnectTestSchema);
     assertEquals(bigQueryExpectedSchema, bigQueryTestSchema);
   }
 
@@ -447,8 +474,8 @@ public class BigQuerySchemaConverterTest {
         .field(fieldName, kafkaConnectArraySchema)
         .build();
 
-    com.google.cloud.bigquery.Schema bigQueryTestSchema =
-        new BigQuerySchemaConverter(false, true).convertSchema(kafkaConnectTestSchema);
+    sanitizeFieldNames = true;
+    com.google.cloud.bigquery.Schema bigQueryTestSchema = createConverter().convertSchema(kafkaConnectTestSchema);
     assertEquals(bigQueryExpectedSchema, bigQueryTestSchema);
   }
 
@@ -471,8 +498,7 @@ public class BigQuerySchemaConverterTest {
         .field(fieldName, Schema.BYTES_SCHEMA)
         .build();
 
-    com.google.cloud.bigquery.Schema bigQueryTestSchema =
-        new BigQuerySchemaConverter(false).convertSchema(kafkaConnectTestSchema);
+    com.google.cloud.bigquery.Schema bigQueryTestSchema = createConverter().convertSchema(kafkaConnectTestSchema);
     assertEquals(bigQueryExpectedSchema, bigQueryTestSchema);
   }
 
@@ -495,25 +521,35 @@ public class BigQuerySchemaConverterTest {
         .field(fieldName, Timestamp.SCHEMA)
         .build();
 
-    com.google.cloud.bigquery.Schema bigQueryTestSchema =
-        new BigQuerySchemaConverter(false).convertSchema(kafkaConnectTestSchema);
+    com.google.cloud.bigquery.Schema bigQueryTestSchema = createConverter().convertSchema(kafkaConnectTestSchema);
     assertEquals(bigQueryExpectedSchema, bigQueryTestSchema);
   }
 
-  @Test
-  public void testBadTimestamp() {
+  @ParameterizedTest
+  @MethodSource({"testBadTimestampData"})
+  public void testBadTimestamp(String name, String schemaName, BigQuerySinkConfig config) {
     final String fieldName = "Timestamp";
 
     Schema kafkaConnectTestSchema = SchemaBuilder
         .struct()
-        .field(fieldName, SchemaBuilder.bool().name(Timestamp.LOGICAL_NAME))
+        .field(fieldName, SchemaBuilder.bool().name(schemaName))
         .build();
 
-    BigQuerySchemaConverter converter = new BigQuerySchemaConverter(false);
+    BigQuerySchemaConverter converter = createConverter(config);
     assertThrows(
         ConversionConnectException.class,
         () -> converter.convertSchema(kafkaConnectTestSchema)
     );
+  }
+
+  private static Stream<Arguments> testBadTimestampData() {
+    List<Arguments> arguments = new ArrayList<>();
+
+    arguments.add(Arguments.of(Timestamp.LOGICAL_NAME, Timestamp.LOGICAL_NAME, testingConfig(false, BigQuerySinkConfig.DecimalHandlingMode.RECORD, BigQuerySinkConfig.DecimalHandlingMode.FLOAT)));
+    arguments.add(Arguments.of(io.debezium.time.Timestamp.SCHEMA_NAME+" standard", io.debezium.time.Timestamp.SCHEMA_NAME, testingConfig(false, BigQuerySinkConfig.DecimalHandlingMode.RECORD, BigQuerySinkConfig.DecimalHandlingMode.FLOAT)));
+    arguments.add(Arguments.of(io.debezium.time.Timestamp.SCHEMA_NAME+" converted", io.debezium.time.Timestamp.SCHEMA_NAME, testingConfig(true, BigQuerySinkConfig.DecimalHandlingMode.RECORD, BigQuerySinkConfig.DecimalHandlingMode.FLOAT)));
+
+    return arguments.stream();
   }
 
   @Test
@@ -535,8 +571,7 @@ public class BigQuerySchemaConverterTest {
         .field(fieldName, Date.SCHEMA)
         .build();
 
-    com.google.cloud.bigquery.Schema bigQueryTestSchema =
-        new BigQuerySchemaConverter(false).convertSchema(kafkaConnectTestSchema);
+    com.google.cloud.bigquery.Schema bigQueryTestSchema = createConverter().convertSchema(kafkaConnectTestSchema);
     assertEquals(bigQueryExpectedSchema, bigQueryTestSchema);
   }
 
@@ -549,88 +584,174 @@ public class BigQuerySchemaConverterTest {
         .field(fieldName, SchemaBuilder.int64().name(Date.LOGICAL_NAME))
         .build();
 
-    BigQuerySchemaConverter converter = new BigQuerySchemaConverter(false);
+    BigQuerySchemaConverter converter = createConverter();
     assertThrows(
         ConversionConnectException.class,
         () -> converter.convertSchema(kafkaConnectTestSchema)
     );
   }
 
-  @Test
-  public void testDecimal() {
-    final String fieldName = "Decimal";
+  @ParameterizedTest
+  @EnumSource(BigQuerySinkConfig.DecimalHandlingMode.class)
+  public void testDecimal(BigQuerySinkConfig.DecimalHandlingMode decimalHandlingMode) {
+    final BigQuerySinkConfig config = testingConfig(false, BigQuerySinkConfig.DecimalHandlingMode.RECORD, decimalHandlingMode);
 
-    com.google.cloud.bigquery.Schema bigQueryExpectedSchema =
-        com.google.cloud.bigquery.Schema.of(
-            com.google.cloud.bigquery.Field.newBuilder(
-                fieldName,
-                LegacySQLTypeName.FLOAT
-            ).setMode(
-                com.google.cloud.bigquery.Field.Mode.REQUIRED
-            ).build()
-        );
+    final String fieldName = "Decimal";
 
     Schema kafkaConnectTestSchema = SchemaBuilder
         .struct()
         .field(fieldName, Decimal.schema(0))
         .build();
 
-    com.google.cloud.bigquery.Schema bigQueryTestSchema =
-        new BigQuerySchemaConverter(false).convertSchema(kafkaConnectTestSchema);
+    com.google.cloud.bigquery.Schema bigQueryExpectedSchema = null;
+    switch (decimalHandlingMode) {
+          case RECORD:
+              FieldList fieldList = FieldList.of(
+                      Field.newBuilder("scale", LegacySQLTypeName.INTEGER).setMode(Field.Mode.REQUIRED).build(),
+                      Field.newBuilder("value", LegacySQLTypeName.BYTES).setMode(Field.Mode.REQUIRED).build());
+              bigQueryExpectedSchema = com.google.cloud.bigquery.Schema.of(
+                      com.google.cloud.bigquery.Field.newBuilder(fieldName,
+                                      LegacySQLTypeName.RECORD,
+                                      fieldList)
+                              .setMode(com.google.cloud.bigquery.Field.Mode.REQUIRED)
+                              .build());
+              break;
+          case NUMERIC:
+          case BIGNUMERIC:
+              bigQueryExpectedSchema = com.google.cloud.bigquery.Schema.of(
+                      com.google.cloud.bigquery.Field.newBuilder(
+                              fieldName,
+                              decimalHandlingMode.sqlTypeName
+                      ).setMode(
+                              com.google.cloud.bigquery.Field.Mode.REQUIRED
+                      ).setScale(0L).build()
+              );
+              break;
+          case FLOAT:
+              bigQueryExpectedSchema = com.google.cloud.bigquery.Schema.of(
+                      com.google.cloud.bigquery.Field.newBuilder(
+                              fieldName,
+                              decimalHandlingMode.sqlTypeName
+                      ).setMode(
+                              com.google.cloud.bigquery.Field.Mode.REQUIRED
+                      ).build()
+              );
+              break;
+          default:
+              throw new ConversionConnectException("Unexpected DecimalHandlingMode: " + decimalHandlingMode);
+    }
+    com.google.cloud.bigquery.Schema bigQueryTestSchema = createConverter(config).convertSchema(kafkaConnectTestSchema);
     assertEquals(bigQueryExpectedSchema, bigQueryTestSchema);
   }
 
-  @Test
-  public void testDebeziumVariableScaleDecimal() {
-    final String fieldName = "DebeziumDecimal";
-
-    final BigQuerySinkConfig config = mock(BigQuerySinkConfig.class);
-    when(config.getVariableScaleDecimalHandlingMode()).thenReturn(BigQuerySinkConfig.DecimalHandlingMode.NUMERIC);
-
-    DebeziumLogicalConverters.initialize(config);
-    //DebeziumLogicalConverters.registerVariableScaleDecimalConverter();
-
-    com.google.cloud.bigquery.Schema bigQueryExpectedSchema =
-        com.google.cloud.bigquery.Schema.of(
-            com.google.cloud.bigquery.Field.newBuilder(
-                fieldName,
-                LegacySQLTypeName.NUMERIC
-            ).setMode(
-                com.google.cloud.bigquery.Field.Mode.REQUIRED
-            ).build()
-        );
-
-    Schema variableDecimalSchema = SchemaBuilder.struct()
-        .name(io.debezium.data.VariableScaleDecimal.LOGICAL_NAME)
-        .field("scale", Schema.INT32_SCHEMA)
-        .field("value", Schema.BYTES_SCHEMA)
-        .build();
-
-    Schema kafkaConnectTestSchema = SchemaBuilder
-        .struct()
-        .field(fieldName, variableDecimalSchema)
-        .build();
-
-    com.google.cloud.bigquery.Schema bigQueryTestSchema =
-        new BigQuerySchemaConverter(false).convertSchema(kafkaConnectTestSchema);
-    assertEquals(bigQueryExpectedSchema, bigQueryTestSchema);
-  }
-
-  @Test
-  public void testBadDecimal() {
+  @ParameterizedTest
+  @MethodSource("testBadDecimalData")
+  public void testBadDecimal(String name, String schemaName, BigQuerySinkConfig config) {
     final String fieldName = "Decimal";
 
     Schema kafkaConnectTestSchema = SchemaBuilder
-        .struct()
-        .field(fieldName, SchemaBuilder.bool().name(Decimal.LOGICAL_NAME))
-        .build();
+            .struct()
+            .field(fieldName, SchemaBuilder.bool().name(schemaName))
+            .build();
 
-    BigQuerySchemaConverter converter = new BigQuerySchemaConverter(false);
+    BigQuerySchemaConverter converter = createConverter(config);
     assertThrows(
-        ConversionConnectException.class,
-        () -> converter.convertSchema(kafkaConnectTestSchema)
+            ConversionConnectException.class,
+            () -> converter.convertSchema(kafkaConnectTestSchema)
     );
   }
+
+  private static Stream<Arguments> testBadDecimalData() {
+    List<Arguments> arguments = new ArrayList<>();
+    for (BigQuerySinkConfig.DecimalHandlingMode decimalHandlingMode : BigQuerySinkConfig.DecimalHandlingMode.values()) {
+      BigQuerySinkConfig config = testingConfig(false, BigQuerySinkConfig.DecimalHandlingMode.RECORD, decimalHandlingMode);
+      arguments.add(Arguments.of(Decimal.LOGICAL_NAME + " " + config.getDecimalHandlingMode(), Decimal.LOGICAL_NAME, config));
+    }
+    for (BigQuerySinkConfig.DecimalHandlingMode decimalHandlingMode : BigQuerySinkConfig.DecimalHandlingMode.values()) {
+      BigQuerySinkConfig config = testingConfig(false, decimalHandlingMode, BigQuerySinkConfig.DecimalHandlingMode.FLOAT);
+      arguments.add(Arguments.of(io.debezium.data.VariableScaleDecimal.LOGICAL_NAME + " " + config.getVariableScaleDecimalHandlingMode(), io.debezium.data.VariableScaleDecimal.LOGICAL_NAME, config));
+    }
+    return arguments.stream();
+  }
+
+
+  @ParameterizedTest
+  @EnumSource(BigQuerySinkConfig.DecimalHandlingMode.class)
+  public void testDebeziumVariableScaleDecimal(BigQuerySinkConfig.DecimalHandlingMode decimalHandlingMode) {
+      final String fieldName = "DebeziumDecimal";
+
+      final BigQuerySinkConfig config = testingConfig(false, decimalHandlingMode, BigQuerySinkConfig.DecimalHandlingMode.FLOAT);
+
+      Schema variableDecimalSchema = SchemaBuilder.struct()
+              .name(io.debezium.data.VariableScaleDecimal.LOGICAL_NAME)
+              .field("scale", Schema.INT32_SCHEMA)
+              .field("value", Schema.BYTES_SCHEMA)
+              .build();
+
+      Schema kafkaConnectTestSchema = SchemaBuilder
+              .struct()
+              .field(fieldName, variableDecimalSchema)
+              .build();
+
+      com.google.cloud.bigquery.Schema bigQueryExpectedSchema = null;
+
+      switch (decimalHandlingMode) {
+          case RECORD:
+              FieldList fieldList = FieldList.of(
+                      Field.newBuilder("scale", LegacySQLTypeName.INTEGER).setMode(Field.Mode.REQUIRED).build(),
+                      Field.newBuilder("value", LegacySQLTypeName.BYTES).setMode(Field.Mode.REQUIRED).build());
+              bigQueryExpectedSchema = com.google.cloud.bigquery.Schema.of(
+                      com.google.cloud.bigquery.Field.newBuilder(fieldName,
+                                      LegacySQLTypeName.RECORD,
+                                      fieldList)
+                              .setMode(com.google.cloud.bigquery.Field.Mode.REQUIRED)
+                              .build());
+              break;
+          case NUMERIC:
+          case BIGNUMERIC:
+          case FLOAT:
+              bigQueryExpectedSchema = com.google.cloud.bigquery.Schema.of(
+                      com.google.cloud.bigquery.Field.newBuilder(
+                              fieldName,
+                              decimalHandlingMode.sqlTypeName
+                      ).setMode(
+                              com.google.cloud.bigquery.Field.Mode.REQUIRED
+                      ).build()
+              );
+              break;
+          default:
+              throw new ConversionConnectException("Unexpected DecimalHandlingMode: " + decimalHandlingMode);
+      }
+
+      com.google.cloud.bigquery.Schema bigQueryTestSchema = createConverter(config).convertSchema(kafkaConnectTestSchema);
+      assertEquals(bigQueryExpectedSchema, bigQueryTestSchema);
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  void testDebeziumTimestamp(boolean convertFlag) {
+    final String fieldName = "DebeziumTimestamp";
+    final BigQuerySinkConfig config = testingConfig(convertFlag, BigQuerySinkConfig.DecimalHandlingMode.RECORD, BigQuerySinkConfig.DecimalHandlingMode.FLOAT);
+
+    com.google.cloud.bigquery.Schema bigQueryExpectedSchema =
+            com.google.cloud.bigquery.Schema.of(
+                    com.google.cloud.bigquery.Field.newBuilder(
+                            fieldName,
+                            convertFlag ? LegacySQLTypeName.INTEGER : LegacySQLTypeName.TIMESTAMP
+                    ).setMode(
+                            com.google.cloud.bigquery.Field.Mode.REQUIRED
+                    ).build()
+            );
+
+    Schema kafkaConnectTestSchema = SchemaBuilder
+            .struct()
+            .field(fieldName, io.debezium.time.Timestamp.schema())
+            .build();
+
+    com.google.cloud.bigquery.Schema bigQueryTestSchema = createConverter(config).convertSchema(kafkaConnectTestSchema);
+    assertEquals(bigQueryExpectedSchema, bigQueryTestSchema);
+  }
+
 
   @Test
   public void testNullable() {
@@ -659,8 +780,7 @@ public class BigQuerySchemaConverterTest {
         .field(requiredFieldName, SchemaBuilder.int32().required().build())
         .build();
 
-    com.google.cloud.bigquery.Schema bigQueryTestSchema =
-        new BigQuerySchemaConverter(false).convertSchema(kafkaConnectTestSchema);
+    com.google.cloud.bigquery.Schema bigQueryTestSchema = createConverter().convertSchema(kafkaConnectTestSchema);
     assertEquals(bigQueryExpectedSchema, bigQueryTestSchema);
   }
 
@@ -683,8 +803,7 @@ public class BigQuerySchemaConverterTest {
             .field(fieldName, SchemaBuilder.string().doc(fieldDoc).build())
             .build();
 
-    com.google.cloud.bigquery.Schema bigQueryTestSchema =
-        new BigQuerySchemaConverter(false).convertSchema(kafkaConnectTestSchema);
+    com.google.cloud.bigquery.Schema bigQueryTestSchema = createConverter().convertSchema(kafkaConnectTestSchema);
     assertEquals(bigQueryExpectedSchema, bigQueryTestSchema);
   }
 
@@ -707,8 +826,8 @@ public class BigQuerySchemaConverterTest {
         .field(fieldName, SchemaBuilder.string().required().build())
         .build();
 
-    com.google.cloud.bigquery.Schema bigQueryTestSchema =
-        new BigQuerySchemaConverter(true).convertSchema(kafkaConnectTestSchema);
+    allFieldsNullable = true;
+    com.google.cloud.bigquery.Schema bigQueryTestSchema = createConverter().convertSchema(kafkaConnectTestSchema);
     assertEquals(bigQueryExpectedSchema, bigQueryTestSchema);
   }
 
@@ -727,8 +846,7 @@ public class BigQuerySchemaConverterTest {
         .endRecord();
 
     Schema connectSchema = new AvroData(100).toConnectSchema(recursiveAvroSchema);
-    ConversionConnectException e = assertThrows(ConversionConnectException.class, () ->
-        new BigQuerySchemaConverter(true).convertSchema(connectSchema));
+    ConversionConnectException e = assertThrows(ConversionConnectException.class, () -> createConverter().convertSchema(connectSchema));
     assertEquals("Kafka Connect schema contains cycle", e.getMessage());
   }
 
@@ -748,8 +866,7 @@ public class BigQuerySchemaConverterTest {
         .endRecord();
 
     Schema connectSchema = new AvroData(100).toConnectSchema(recursiveAvroSchema);
-    ConversionConnectException e = assertThrows(ConversionConnectException.class, () ->
-        new BigQuerySchemaConverter(true).convertSchema(connectSchema));
+    ConversionConnectException e = assertThrows(ConversionConnectException.class, () ->createConverter().convertSchema(connectSchema));
     assertEquals("Kafka Connect schema contains cycle", e.getMessage());
   }
 }
