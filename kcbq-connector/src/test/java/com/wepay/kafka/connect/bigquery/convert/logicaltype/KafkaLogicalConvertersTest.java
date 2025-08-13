@@ -27,7 +27,6 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.cloud.bigquery.LegacySQLTypeName;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
@@ -37,14 +36,12 @@ import com.wepay.kafka.connect.bigquery.convert.logicaltype.KafkaLogicalConverte
 import com.wepay.kafka.connect.bigquery.convert.logicaltype.KafkaLogicalConverters.TimestampConverter;
 import java.math.BigDecimal;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.Map;
 
 import org.apache.kafka.connect.data.Schema;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
-import org.junit.jupiter.params.provider.ValueSource;
 
 public class KafkaLogicalConvertersTest {
 

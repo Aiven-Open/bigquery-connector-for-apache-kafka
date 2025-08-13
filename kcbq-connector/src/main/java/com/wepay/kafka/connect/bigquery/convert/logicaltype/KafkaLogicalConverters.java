@@ -46,10 +46,11 @@ public class KafkaLogicalConverters {
 
   /**
    * These values are extracted from BigQuery documentation.
+   *
    * @see <a href="https://cloud.google.com/bigquery/docs/reference/standard-sql/data-types#numeric-type">BigQuery data types</a>
    */
-  private final static int MAX_NUMERIC_PRECISION = 38;
-  private final static int MAX_NUMERIC_SCALE = 9;
+  private static final int MAX_NUMERIC_PRECISION = 38;
+  private static final int MAX_NUMERIC_SCALE = 9;
 
   public static void initialize(final BigQuerySinkConfig config) {
     LogicalConverterRegistry.register(Date.LOGICAL_NAME, new DateConverter());
