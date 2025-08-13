@@ -177,7 +177,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
   public static final ConfigDef.Validator DECIMAL_HANDLING_MODE_VALIDATOR = new HandlingModeValidator();
   public static final ConfigDef.Importance DECIMAL_HANDLING_MODE_IMPORTANCE = ConfigDef.Importance.MEDIUM;
   public static final String DECIMAL_HANDLING_MODE_DOC = "Specifies the conversion strategy for "
-          + Decimal.LOGICAL_NAME + "variables.";
+          + Decimal.LOGICAL_NAME + "fields.";
 
   /**
    * @deprecated use {@link #DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_CONFIG}=DECIMAL
@@ -190,7 +190,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
   public static final ConfigDef.Validator DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_VALIDATOR =  new HandlingModeValidator();
   public static final ConfigDef.Importance DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_IMPORTANCE =  ConfigDef.Importance.MEDIUM;
   public static final String DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_DOC = "Specifies the conversion strategy for "
-          + VariableScaleDecimal.LOGICAL_NAME + "variables.";
+          + VariableScaleDecimal.LOGICAL_NAME + "fields.";
 
   public static final String TIME_PARTITIONING_TYPE_CONFIG = "timePartitioningType";
   public static final String TIME_PARTITIONING_TYPE_DEFAULT = TimePartitioning.Type.DAY.name().toUpperCase();
@@ -200,11 +200,6 @@ public class BigQuerySinkConfig extends AbstractConfig {
   public static final String ENABLE_RETRIES_CONFIG = "enableRetries";
   public static final Boolean ENABLE_RETRIES_DEFAULT = true;
 
-  public static final ConfigDef.Type VARIABLE_SCALE_DECIMAL_HANDLING_MODE_TYPE = ConfigDef.Type.STRING;
-  public static final ConfigDef.Importance VARIABLE_SCALE_DECIMAL_HANDLING_MODE_IMPORTANCE =
-      ConfigDef.Importance.MEDIUM;
-  public static final String VARIABLE_SCALE_DECIMAL_HANDLING_MODE_DOC =
-      "Handling for io.debezium.data.VariableScaleDecimal fields: none, float, numeric, bignumeric.";  
   private static final ConfigDef.Type TOPICS_TYPE = ConfigDef.Type.LIST;
   private static final ConfigDef.Importance TOPICS_IMPORTANCE = ConfigDef.Importance.HIGH;
   private static final String TOPICS_GROUP = "Common";
@@ -1021,7 +1016,15 @@ public class BigQuerySinkConfig extends AbstractConfig {
   public DecimalHandlingMode getVariableScaleDecimalHandlingMode() {
     DecimalHandlingMode result = DecimalHandlingMode.valueOf(
         getString(DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_CONFIG).toUpperCase(Locale.ROOT));
-    // if default check if deprecated flag is set.
+    /*
+    This block of code resolves the tension between DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_CONFIG and
+    the deprecated CONVERT_DEBEZIUM_DECIMAL_CONFIG.
+
+    If DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_CONFIG is set to anything but the default, it takes precedence so return the value.
+    If DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_CONFIG is the default then check CONVERT_DEBEZIUM_DECIMAL_CONFIG.
+    if CONVERT_DEBEZIUM_DECIMAL_CONFIG is set then set the return value to DecimalHandlingMode.NUMERIC.
+    otherwise return the value of the default.
+     */
     if (DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_DEFAULT.equals(result.name())
             && getBoolean(CONVERT_DEBEZIUM_DECIMAL_CONFIG)) {
       logger.warn(deprecationMessage(CONVERT_DEBEZIUM_DECIMAL_CONFIG, DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_DEFAULT));

@@ -44,6 +44,13 @@ import org.apache.kafka.connect.data.Timestamp;
  */
 public class KafkaLogicalConverters {
 
+  /**
+   * These values are extracted from BigQuery documentation.
+   * @see <a href="https://cloud.google.com/bigquery/docs/reference/standard-sql/data-types#numeric-type">BigQuery data types</a>
+   */
+  private final static int MAX_NUMERIC_PRECISION = 38;
+  private final static int MAX_NUMERIC_SCALE = 9;
+
   public static void initialize(final BigQuerySinkConfig config) {
     LogicalConverterRegistry.register(Date.LOGICAL_NAME, new DateConverter());
     LogicalConverterRegistry.register(Decimal.LOGICAL_NAME, new DecimalConverter(config.getDecimalHandlingMode()));
@@ -143,11 +150,11 @@ public class KafkaLogicalConverters {
               scale = Long.valueOf(scaleStr);
             }
           }
-          if (decimalHandlingMode.sqlTypeName != LegacySQLTypeName.BIGNUMERIC) {
-            if (precision != null && precision > 38) {
+          if (decimalHandlingMode.sqlTypeName == LegacySQLTypeName.NUMERIC) {
+            if (precision != null && precision > MAX_NUMERIC_PRECISION) {
               throw new ConversionConnectException(String.format("Requested precision (%s) is too high for %s type", precision, decimalHandlingMode.sqlTypeName));
             }
-            if (scale != null && scale > 9) {
+            if (scale != null && scale > MAX_NUMERIC_SCALE) {
               throw new ConversionConnectException(String.format("Requested scale (%s) is too large for %s type", precision, decimalHandlingMode.sqlTypeName));
             }
           }
