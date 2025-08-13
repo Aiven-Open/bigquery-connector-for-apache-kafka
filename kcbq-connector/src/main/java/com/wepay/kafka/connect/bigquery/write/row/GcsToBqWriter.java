@@ -136,6 +136,7 @@ public class GcsToBqWriter {
       logger.info("Table {} was not found. Creating the table automatically.", tableId);
       schemaManager.createTable(tableId, new ArrayList<>(rows.keySet()));
       while (!lookupSuccess && lookupAttempts <= retries) {
+        logger.warn("Exceptions occurred for table {}, attempting retry. Attempt {}/{}", tableId, lookupAttempts, retries);
         waitRandomTime();
         lookupSuccess = bigQuery.getTable(tableId) != null;
         lookupAttempts++;
