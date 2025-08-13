@@ -1237,7 +1237,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
 
   private static String deprecationMessage(String deprecatedOption, String replacementOption) {
     StringBuilder sb = new StringBuilder(String.format("'%s' has been deprecated.", deprecatedOption));
-    if(replacementOption != null) {
+    if (replacementOption != null) {
       sb.append(String.format(" Recommended replacement option is '%s'.", replacementOption));
     } else {
       sb.append(" No replacement is planned.");
