@@ -192,8 +192,6 @@ public class BigQuerySinkConfig extends AbstractConfig {
   public static final String DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_DOC = "Specifies the conversion strategy for "
           + VariableScaleDecimal.LOGICAL_NAME + "variables.";
 
-  public static final String VARIABLE_SCALE_DECIMAL_HANDLING_MODE_CONFIG =
-      "variableScaleDecimalHandlingMode";
   public static final String TIME_PARTITIONING_TYPE_CONFIG = "timePartitioningType";
   public static final String TIME_PARTITIONING_TYPE_DEFAULT = TimePartitioning.Type.DAY.name().toUpperCase();
   public static final String TIME_PARTITIONING_TYPE_NONE = "NONE";
@@ -1022,10 +1020,11 @@ public class BigQuerySinkConfig extends AbstractConfig {
 
   public DecimalHandlingMode getVariableScaleDecimalHandlingMode() {
     DecimalHandlingMode result = DecimalHandlingMode.valueOf(
-        getString(VARIABLE_SCALE_DECIMAL_HANDLING_MODE_CONFIG).toUpperCase(Locale.ROOT));
+        getString(DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_CONFIG).toUpperCase(Locale.ROOT));
     // if default check if deprecated flag is set.
     if (DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_DEFAULT.equals(result.name())
             && getBoolean(CONVERT_DEBEZIUM_DECIMAL_CONFIG)) {
+      logger.warn(deprecationMessage(CONVERT_DEBEZIUM_DECIMAL_CONFIG, DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_DEFAULT));
       result = DecimalHandlingMode.NUMERIC;
     }
     return result;
@@ -1225,7 +1224,6 @@ public class BigQuerySinkConfig extends AbstractConfig {
   }
 
   private static String deprecatedGcsLoadDoc(String doc) {
-
     return deprecatedDoc(doc, GCS_LOAD_DEPRECATION_NOTICE);
   }
 
@@ -1235,6 +1233,16 @@ public class BigQuerySinkConfig extends AbstractConfig {
 
   private static String deprecatedDoc(String doc, String notice) {
     return DEPRECATED_DOC + " " + doc + " Warning: " + notice;
+  }
+
+  private static String deprecationMessage(String deprecatedOption, String replacementOption) {
+    StringBuilder sb = new StringBuilder(String.format("'%s' has been deprecated.", deprecatedOption));
+    if(replacementOption != null) {
+      sb.append(String.format(" Recommended replacement option is '%s'.", replacementOption));
+    } else {
+      sb.append(" No replacement is planned.");
+    }
+    return sb.toString();
   }
 
   private static class HandlingModeValidator implements ConfigDef.Validator {
