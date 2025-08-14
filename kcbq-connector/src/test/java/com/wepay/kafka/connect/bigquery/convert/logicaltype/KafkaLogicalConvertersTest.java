@@ -39,6 +39,7 @@ import java.util.Date;
 import java.util.Map;
 
 import org.apache.kafka.connect.data.Schema;
+import org.apache.kafka.connect.data.Decimal;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
@@ -89,6 +90,46 @@ public class KafkaLogicalConvertersTest {
         assertInstanceOf(Double.class, convertedDecimal);
         assertEquals(3.14159, convertedDecimal);
         break;
+      default:
+        throw new UnsupportedOperationException(handlingMode.name());
+    }
+  }
+
+  @ParameterizedTest
+  @EnumSource(BigQuerySinkConfig.DecimalHandlingMode.class)
+ void convertsKafkaConnectDecimalLogicalType(BigQuerySinkConfig.DecimalHandlingMode handlingMode) {
+    final DecimalConverter converter = new DecimalConverter(handlingMode);
+
+    assertEquals(handlingMode.sqlTypeName, converter.getBqSchemaType());
+
+    final int scale = 5;
+    final Schema connectDecimalSchema = Decimal.builder(scale).build();
+    final BigDecimal originalDecimal = new BigDecimal("3.14159");
+
+    byte[] bytes = Decimal.fromLogical(connectDecimalSchema, originalDecimal);
+    BigDecimal kafkaConnectObject = Decimal.toLogical(connectDecimalSchema, bytes);
+
+    Object converted = converter.convert(kafkaConnectObject);
+
+    switch (handlingMode) {
+      case RECORD:
+        assertInstanceOf(Map.class, converted);
+        Map<?, ?> struct = (Map<?, ?>) converted;
+        assertEquals(originalDecimal.scale(), struct.get("scale"));
+        assertArrayEquals(originalDecimal.unscaledValue().toByteArray(), (byte[]) struct.get("value"));
+        break;
+
+      case NUMERIC:  
+      case BIGNUMERIC:
+        assertInstanceOf(BigDecimal.class, converted);
+        assertEquals(originalDecimal, converted);
+        break;
+
+      case FLOAT:
+        assertInstanceOf(Double.class, converted);
+        assertEquals(3.14159, (Double) converted, 0.0d);
+        break;
+
       default:
         throw new UnsupportedOperationException(handlingMode.name());
     }
