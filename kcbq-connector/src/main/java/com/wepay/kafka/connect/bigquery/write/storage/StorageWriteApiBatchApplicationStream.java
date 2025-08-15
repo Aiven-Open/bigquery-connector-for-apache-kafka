@@ -237,7 +237,7 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiBase {
         TableName.parse(tableName), rows != null ? getSinkRecords(rows) : null, retry, retryWait, time);
     do {
       try {
-        return new ApplicationStream(tableName, getWriteClient());
+        return new ApplicationStream(tableName, getWriteClient(), jsonWriterFactory);
       } catch (Exception e) {
         String baseErrorMessage = String.format(
             "Failed to create Application stream writer on table %s due to %s",

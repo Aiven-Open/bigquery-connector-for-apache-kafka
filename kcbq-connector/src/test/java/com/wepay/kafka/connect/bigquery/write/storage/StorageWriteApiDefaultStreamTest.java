@@ -23,9 +23,7 @@
 
 package com.wepay.kafka.connect.bigquery.write.storage;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.doNothing;
@@ -56,12 +54,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Stream;
+
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.sink.ErrantRecordReporter;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
 
@@ -83,9 +86,8 @@ public class StorageWriteApiDefaultStreamTest {
       new ConvertedRecord(mockedSinkRecord, new JSONObject()),
       new ConvertedRecord(mockedSinkRecord, new JSONObject()));
   private final StorageWriteApiDefaultStream defaultStream = mock(StorageWriteApiDefaultStream.class, CALLS_REAL_METHODS);
-  private final String nonRetriableExpectedException = "Failed to write rows on table "
-      + mockedTableName.toString()
-      + " due to I am non-retriable error";
+  private final String baseErrorMessage = "Failed to write rows on table "
+      + mockedTableName.toString();
   private final String retriableExpectedException = "Exceeded 0 attempts to write to table "
       + mockedTableName.toString() + " ";
   private final String malformedrequestExpectedException = "Insertion failed at table dummyTable for following rows:" +
@@ -147,34 +149,27 @@ public class StorageWriteApiDefaultStreamTest {
     defaultStream.initializeAndWriteRecords(mockedTableName, testRows, null);
   }
 
-  @Test
-  public void testDefaultStreamNonRetriableError() throws Exception {
-    AppendRowsResponse nonRetriableError = AppendRowsResponse.newBuilder()
+  @ParameterizedTest(name = "{index} – {0}")
+  @MethodSource("terminalClientErrors")
+  public void testDefaultStreamTerminalClientErrors(String testCase, String errorMessage) throws Exception {
+    AppendRowsResponse clientError = AppendRowsResponse.newBuilder()
         .setError(
             Status.newBuilder()
                 .setCode(0)
-                .setMessage("I am non-retriable error")
+                .setMessage(errorMessage)
                 .build()
         ).build();
 
-    when(mockedResponse.get()).thenReturn(nonRetriableError);
+    when(mockedResponse.get()).thenReturn(clientError);
 
-    verifyException(nonRetriableExpectedException);
+    verifyTerminalException(errorMessage);
   }
 
-  @Test
-  public void testDefaultStreamRetriableError() throws Exception {
-    AppendRowsResponse retriableError = AppendRowsResponse.newBuilder()
-        .setError(
-            Status.newBuilder()
-                .setCode(0)
-                .setMessage("I am an INTERNAL error")
-                .build()
-        ).build();
-
-    when(mockedResponse.get()).thenReturn(retriableError);
-
-    verifyException(retriableExpectedException);
+  public static Stream<Arguments> terminalClientErrors() {
+    return Stream.of(
+            Arguments.of("Non-retriable errors", "I am non-retriable error"),
+            Arguments.of("Request-level errors", "I am an INTERNAL error")
+    );
   }
 
   @Test
@@ -214,24 +209,21 @@ public class StorageWriteApiDefaultStreamTest {
     verifyNoInteractions(mockedSchemaManager);
   }
 
-  @Test
-  public void testDefaultStreamNonRetriableException() throws Exception {
-    InterruptedException exception = new InterruptedException("I am non-retriable error");
-
+  @ParameterizedTest(name = "{index} – {0}")
+  @MethodSource("terminalClientExceptions")
+  public void testDefaultStreamTerminalClientException(String testCase, Exception exception)
+          throws Exception {
     when(mockedResponse.get()).thenThrow(exception);
 
-    verifyException(nonRetriableExpectedException);
+    verifyTerminalException(exception.getMessage());
   }
 
-  @Test
-  public void testDefaultStreamRetriableException() throws Exception {
-    ExecutionException exception = new ExecutionException(new StatusRuntimeException(
-        io.grpc.Status.fromCode(io.grpc.Status.Code.INTERNAL).withDescription("I am an INTERNAL error")
-    ));
-
-    when(mockedResponse.get()).thenThrow(exception);
-
-    verifyException(retriableExpectedException);
+  public static Stream<Arguments> terminalClientExceptions() {
+    return Stream.of(
+            Arguments.of("Non-retriable errors", new InterruptedException("I am non-retriable error")),
+            Arguments.of("Request-level errors", new ExecutionException(new StatusRuntimeException(
+                    io.grpc.Status.fromCode(io.grpc.Status.Code.INTERNAL).withDescription("I am an INTERNAL error"))))
+    );
   }
 
   @Test
@@ -287,12 +279,18 @@ public class StorageWriteApiDefaultStreamTest {
     verify(mockedStreamWriter, times(1)).close();
   }
 
-  private void verifyException(String expectedException) {
+  private void verifyTerminalException(String expectedException) {
     BigQueryStorageWriteApiConnectException e = assertThrows(
         BigQueryStorageWriteApiConnectException.class,
         () -> defaultStream.initializeAndWriteRecords(mockedTableName, testRows, null)
     );
-    assertEquals(expectedException, e.getMessage());
+
+    assertAll(
+            () -> assertTrue(e.getMessage().startsWith(baseErrorMessage), "Should fail task with base message"),
+            () -> assertTrue(e.getMessage().contains(expectedException),"Should include cause of failure"),
+            () -> assertFalse(e.getMessage().contains(retriableExpectedException),
+                    "Should not use connector retry path")
+    );
   }
 
   private void verifyDLQ(List<ConvertedRecord> rows) {

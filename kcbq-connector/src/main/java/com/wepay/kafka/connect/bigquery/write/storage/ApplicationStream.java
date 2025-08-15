@@ -68,12 +68,13 @@ public class ApplicationStream {
    */
   private final AtomicInteger maxCalls;
   private final AtomicLong totalRowsSent;
+  private final JsonStreamWriterFactory jsonWriterFactory;
   private StreamState currentState = null;
   private WriteStream stream = null;
   private JsonStreamWriter jsonWriter = null;
   private List<String> committableStreams;
 
-  public ApplicationStream(String tableName, BigQueryWriteClient client) throws Exception {
+  public ApplicationStream(String tableName, BigQueryWriteClient client, JsonStreamWriterFactory jsonWriterFactory) throws Exception {
     this.client = client;
     this.tableName = tableName;
     this.offsetInformation = new HashMap<>();
@@ -82,6 +83,7 @@ public class ApplicationStream {
     this.completedCalls = new AtomicInteger();
     this.totalRowsSent = new AtomicLong();
     this.committableStreams = new ArrayList<>();
+    this.jsonWriterFactory = jsonWriterFactory;
     generateStream();
     currentState = StreamState.CREATED;
     logger.debug("New Application stream {} created", getStreamName());
@@ -94,7 +96,7 @@ public class ApplicationStream {
   private void generateStream() throws Descriptors.DescriptorValidationException, IOException, InterruptedException {
     this.stream = client.createWriteStream(
         tableName, WriteStream.newBuilder().setType(WriteStream.Type.PENDING).build());
-    this.jsonWriter = JsonStreamWriter.newBuilder(stream.getName(), client).build();
+    this.jsonWriter = jsonWriterFactory.create(getStreamName());
     this.committableStreams.add(getStreamName());
   }
 

@@ -23,10 +23,7 @@
 
 package com.wepay.kafka.connect.bigquery.write.storage;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.any;
@@ -58,6 +55,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Stream;
+
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.data.Schema;
@@ -66,6 +65,9 @@ import org.apache.kafka.connect.sink.SinkRecord;
 import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 
 public class StorageWriteApiBatchApplicationStreamTest {
@@ -108,12 +110,12 @@ public class StorageWriteApiBatchApplicationStreamTest {
       new Throwable("Destination table schema mismatch due to SCHEMA_MISMATCH_EXTRA_FIELDS"));
   ExecutionException noTable = new ExecutionException(
       new Throwable("Destination Table is deleted"));
-  InterruptedException nonRetriableException = new InterruptedException("I am a non-retriable error");
+  static InterruptedException nonRetriableException = new InterruptedException("I am a non-retriable error");
   List<ConvertedRecord> rows = new ArrayList<>();
-  ExecutionException exception = new ExecutionException(new StatusRuntimeException(
+  static ExecutionException requestLevelException = new ExecutionException(new StatusRuntimeException(
       io.grpc.Status.fromCode(io.grpc.Status.Code.INTERNAL).withDescription("I am an INTERNAL error")
   ));
-  ExecutionException streamFinalisedException = new ExecutionException(new StatusRuntimeException(
+  static ExecutionException streamFinalisedException = new ExecutionException(new StatusRuntimeException(
       io.grpc.Status.fromThrowable(new Throwable())
           .withDescription("STREAM_FINALISED")
   ));
@@ -165,12 +167,19 @@ public class StorageWriteApiBatchApplicationStreamTest {
     mockedStream.streams.get(mockedTable2.toString()).put(mockedStreamName2, mockedApplicationStream2);
   }
 
-  private void verifyException(String expectedException) {
+  private void verifyTerminalException(String expectedException) {
     try {
       mockedStream.initializeAndWriteRecords(mockedTable1, mockedRows, mockedStreamName1);
     } catch (Exception e) {
-      assertEquals(expectedException, e.getMessage());
-      assertTrue(e instanceof BigQueryStorageWriteApiConnectException);
+      assertAll(
+              () -> assertTrue(e instanceof BigQueryStorageWriteApiConnectException),
+              () -> assertTrue(e.getMessage().startsWith(baseErrorMessage),
+                      "Should fail task with base message"),
+              () -> assertTrue(e.getMessage().contains(expectedException),
+                      "Should include cause of failure"),
+              () -> assertFalse(e.getMessage().contains(exceeded0AttemptException),
+                      "Should not use connector retry path")
+      );
     }
   }
 
@@ -325,25 +334,22 @@ public class StorageWriteApiBatchApplicationStreamTest {
     verifyAllStreamCalls();
   }
 
-  @Test
-  public void testAppendNonRetriable() throws Exception {
-    initialiseStreams();
-    when(mockedResponse.get()).thenThrow(nonRetriableException);
-    verifyException(baseErrorMessage + "I am a non-retriable error");
-  }
-
-  @Test
-  public void testAppendRetriable() throws Exception {
+  @ParameterizedTest(name = "{index} – {0}")
+  @MethodSource("terminalClientExceptions")
+  public void testAppendTerminalClientException(String testCase, Exception exception)
+          throws Exception {
     initialiseStreams();
     when(mockedResponse.get()).thenThrow(exception);
-    verifyException(exceeded0AttemptException);
+
+    verifyTerminalException(exception.getMessage());
   }
 
-  @Test
-  public void testAppendStorageNonRetriable() throws Exception {
-    initialiseStreams();
-    when(mockedResponse.get()).thenThrow(streamFinalisedException);
-    verifyException(baseErrorMessage + streamFinalisedException.getMessage());
+  public static Stream<Arguments> terminalClientExceptions() {
+    return Stream.of(
+            Arguments.of("Non-retriable errors", nonRetriableException),
+            Arguments.of("Request-level errors", requestLevelException),
+            Arguments.of("Storage non-retriable", streamFinalisedException)
+    );
   }
 
   @Test
@@ -368,7 +374,12 @@ public class StorageWriteApiBatchApplicationStreamTest {
     initialiseStreams();
     when(mockedResponse.get()).thenThrow(badRecordsException);
     when(mockedErrantRecordHandler.getErrantRecordReporter()).thenReturn(null);
-    verifyException(malformedExceptionMessage);
+
+    BigQueryStorageWriteApiConnectException e = assertThrows(
+            BigQueryStorageWriteApiConnectException.class,
+            () -> verifyDLQ(rows)
+    );
+    assertEquals(e.getMessage(), malformedExceptionMessage);
   }
 
   private void verifyDLQ(List<ConvertedRecord> rows) {
