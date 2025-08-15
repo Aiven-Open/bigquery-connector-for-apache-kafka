@@ -23,10 +23,13 @@
 
 package com.wepay.kafka.connect.bigquery.convert.logicaltype;
 
+import com.google.cloud.bigquery.Field;
 import com.google.cloud.bigquery.LegacySQLTypeName;
 import com.wepay.kafka.connect.bigquery.exception.ConversionConnectException;
 import java.text.SimpleDateFormat;
+import java.util.Optional;
 import java.util.TimeZone;
+import java.util.function.BiFunction;
 import org.apache.kafka.connect.data.Schema;
 
 /**
@@ -94,11 +97,39 @@ public abstract class LogicalTypeConverter {
   }
 
   /**
+   * Build a BigQuery field for the given Kafka Connect schema.
+   * Subclasses may override to customize precision, scale, or type.
+   *
+   * @param schema the Kafka Connect schema of the logical field
+   * @param fieldName the name of the field
+   * @return a {@link Field.Builder} initialized for this logical type
+   * @deprecated use {@link #getFieldBuilder(Schema, String, BiFunction)}
+   */
+  @Deprecated
+  public Field.Builder getFieldBuilder(Schema schema, String fieldName) {
+    return getFieldBuilder(schema, fieldName, (a, b) -> Optional.empty());
+  }
+
+  /**
+   * Build a BigQuery field for the given Kafka Connect schema.
+   * Subclasses may override to customize precision, scale, or type.
+   *
+   * @param schema the Kafka Connect schema of the logical field
+   * @param fieldName the name of the field
+   * @param convertStruct a function that converts the schema and field name into a Field.Builder.
+   * @return a {@link Field.Builder} initialized for this logical type
+   */
+  public Field.Builder getFieldBuilder(Schema schema, String fieldName, BiFunction<Schema, String, Optional<Field.Builder>> convertStruct) {
+    checkEncodingType(schema.type());
+    return Field.newBuilder(fieldName, bqSchemaType);
+  }
+
+
+  /**
    * Convert the given KafkaConnect Record Object to a BigQuery Record Object.
    *
    * @param kafkaConnectObject the kafkaConnectObject
    * @return the converted Object
    */
   public abstract Object convert(Object kafkaConnectObject);
-
 }

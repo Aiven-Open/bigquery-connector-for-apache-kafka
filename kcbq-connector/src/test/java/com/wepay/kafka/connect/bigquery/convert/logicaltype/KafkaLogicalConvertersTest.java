@@ -23,18 +23,26 @@
 
 package com.wepay.kafka.connect.bigquery.convert.logicaltype;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.google.cloud.bigquery.LegacySQLTypeName;
+import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.convert.logicaltype.KafkaLogicalConverters.DateConverter;
 import com.wepay.kafka.connect.bigquery.convert.logicaltype.KafkaLogicalConverters.DecimalConverter;
 import com.wepay.kafka.connect.bigquery.convert.logicaltype.KafkaLogicalConverters.TimeConverter;
 import com.wepay.kafka.connect.bigquery.convert.logicaltype.KafkaLogicalConverters.TimestampConverter;
 import java.math.BigDecimal;
 import java.util.Date;
+import java.util.Map;
+
+import org.apache.kafka.connect.data.Decimal;
 import org.apache.kafka.connect.data.Schema;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 public class KafkaLogicalConvertersTest {
 
@@ -54,20 +62,43 @@ public class KafkaLogicalConvertersTest {
     assertEquals("2017-03-01", formattedDate);
   }
 
-  @Test
-  public void testDecimalConversion() {
-    DecimalConverter converter = new DecimalConverter();
+  @ParameterizedTest
+  @EnumSource(BigQuerySinkConfig.DecimalHandlingMode.class)
+  public void testDecimalConversion(BigQuerySinkConfig.DecimalHandlingMode handlingMode) {
+    DecimalConverter converter = new DecimalConverter(handlingMode);
 
-    assertEquals(LegacySQLTypeName.FLOAT, converter.getBqSchemaType());
+    assertEquals(handlingMode.sqlTypeName, converter.getBqSchemaType());
 
     converter.checkEncodingType(Schema.Type.BYTES);
 
-    BigDecimal bigDecimal = new BigDecimal("3.14159");
+    final int scale = 5;
+    final Schema connectDecimalSchema = Decimal.builder(scale).build();
+    final BigDecimal bigDecimal = new BigDecimal("3.14159");
 
-    BigDecimal convertedDecimal = converter.convert(bigDecimal);
+    byte[] bytes = Decimal.fromLogical(connectDecimalSchema, bigDecimal);
+    BigDecimal kafkaConnectObject = Decimal.toLogical(connectDecimalSchema, bytes);
 
-    // expecting no-op
-    assertEquals(bigDecimal, convertedDecimal);
+    Object convertedDecimal = converter.convert(kafkaConnectObject);
+
+    switch (handlingMode) {
+      case RECORD:
+        assertInstanceOf(Map.class, convertedDecimal);
+        Map<?, ?> struct = (Map<?, ?>) convertedDecimal;
+        assertEquals(bigDecimal.scale(), struct.get("scale"));
+        assertArrayEquals(bigDecimal.unscaledValue().toByteArray(), (byte[]) struct.get("value"));
+        break;
+      case BIGNUMERIC:
+      case NUMERIC:
+        assertInstanceOf(BigDecimal.class, convertedDecimal);
+        assertEquals(bigDecimal, convertedDecimal);
+        break;
+      case FLOAT:
+        assertInstanceOf(Double.class, convertedDecimal);
+        assertEquals(3.14159, convertedDecimal);
+        break;
+      default:
+        throw new UnsupportedOperationException(handlingMode.name());
+    }
   }
 
   @Test

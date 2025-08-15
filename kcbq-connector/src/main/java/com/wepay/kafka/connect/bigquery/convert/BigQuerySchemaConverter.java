@@ -25,8 +25,7 @@ package com.wepay.kafka.connect.bigquery.convert;
 
 import com.google.cloud.bigquery.FieldList;
 import com.google.cloud.bigquery.LegacySQLTypeName;
-import com.wepay.kafka.connect.bigquery.convert.logicaltype.DebeziumLogicalConverters;
-import com.wepay.kafka.connect.bigquery.convert.logicaltype.KafkaLogicalConverters;
+import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.DecimalHandlingMode;
 import com.wepay.kafka.connect.bigquery.convert.logicaltype.LogicalConverterRegistry;
 import com.wepay.kafka.connect.bigquery.convert.logicaltype.LogicalTypeConverter;
 import com.wepay.kafka.connect.bigquery.exception.ConversionConnectException;
@@ -59,10 +58,6 @@ public class BigQuerySchemaConverter implements SchemaConverter<com.google.cloud
   private static final Map<Schema.Type, LegacySQLTypeName> PRIMITIVE_TYPE_MAP;
 
   static {
-    // force registration
-    DebeziumLogicalConverters.initialize();
-    KafkaLogicalConverters.initialize();
-
     PRIMITIVE_TYPE_MAP = new HashMap<>();
     PRIMITIVE_TYPE_MAP.put(Schema.Type.BOOLEAN,
         LegacySQLTypeName.BOOLEAN);
@@ -87,14 +82,26 @@ public class BigQuerySchemaConverter implements SchemaConverter<com.google.cloud
   private final boolean allFieldsNullable;
   private final boolean sanitizeFieldNames;
 
-  // visible for testing
-  BigQuerySchemaConverter(boolean allFieldsNullable) {
-    this(allFieldsNullable, false);
-  }
-
+  /**
+   * Creates a schema converter.
+   *
+   * @param allFieldsNullable if {@code true} all fields are nullable.
+   * @param sanitizeFieldNames if {@code true} field names are sanitized before use.
+   */
   public BigQuerySchemaConverter(boolean allFieldsNullable, boolean sanitizeFieldNames) {
     this.allFieldsNullable = allFieldsNullable;
     this.sanitizeFieldNames = sanitizeFieldNames;
+  }
+
+  /**
+   * @deprecated Use {@link #BigQuerySchemaConverter(boolean, boolean)} decimalHandling and variable scale handling are handled in config processing.
+   */
+  @Deprecated
+  public BigQuerySchemaConverter(boolean allFieldsNullable,
+                                 boolean sanitizeFieldNames,
+                                 DecimalHandlingMode decimalHandlingMode,
+                                 DecimalHandlingMode variableScaleDecimalHandlingMode) {
+    this(allFieldsNullable, sanitizeFieldNames);
   }
 
   /**
@@ -165,8 +172,10 @@ public class BigQuerySchemaConverter implements SchemaConverter<com.google.cloud
       fieldName = FieldNameSanitizer.sanitizeName(fieldName);
     }
 
-    if (LogicalConverterRegistry.isRegisteredLogicalType(kafkaConnectSchema.name())) {
-      result = Optional.of(convertLogical(kafkaConnectSchema, fieldName));
+    String logicalName = kafkaConnectSchema.name();
+    LogicalTypeConverter converter = LogicalConverterRegistry.getConverter(logicalName);
+    if (converter != null) {
+      result = Optional.of(converter.getFieldBuilder(kafkaConnectSchema, fieldName, this::convertStruct));
     } else if (PRIMITIVE_TYPE_MAP.containsKey(kafkaConnectSchemaType)) {
       result = Optional.of(convertPrimitive(kafkaConnectSchema, fieldName));
     } else {
@@ -210,7 +219,7 @@ public class BigQuerySchemaConverter implements SchemaConverter<com.google.cloud
     }
   }
 
-  private Optional<com.google.cloud.bigquery.Field.Builder> convertStruct(Schema kafkaConnectSchema,
+  public Optional<com.google.cloud.bigquery.Field.Builder> convertStruct(Schema kafkaConnectSchema,
                                                                           String fieldName) {
     List<com.google.cloud.bigquery.Field> bigQueryRecordFields = kafkaConnectSchema.fields()
         .stream()
@@ -265,13 +274,5 @@ public class BigQuerySchemaConverter implements SchemaConverter<com.google.cloud
     LegacySQLTypeName bigQueryType =
         PRIMITIVE_TYPE_MAP.get(kafkaConnectSchema.type());
     return com.google.cloud.bigquery.Field.newBuilder(fieldName, bigQueryType);
-  }
-
-  private com.google.cloud.bigquery.Field.Builder convertLogical(Schema kafkaConnectSchema,
-                                                                 String fieldName) {
-    LogicalTypeConverter converter =
-        LogicalConverterRegistry.getConverter(kafkaConnectSchema.name());
-    converter.checkEncodingType(kafkaConnectSchema.type());
-    return com.google.cloud.bigquery.Field.newBuilder(fieldName, converter.getBqSchemaType());
   }
 }

@@ -69,7 +69,6 @@ public class StorageWriteApiWriterTest {
     when(mockedConfig.getBoolean(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG)).thenReturn(true);
     RecordConverter<Map<String, Object>> recordConverter = new BigQueryRecordConverter(
         false,
-        false,
         true
     );
     when(mockedConfig.getRecordConverter()).thenReturn(recordConverter);
@@ -119,7 +118,7 @@ public class StorageWriteApiWriterTest {
     BigQuerySinkTaskConfig mockedConfig = Mockito.mock(BigQuerySinkTaskConfig.class);
     when(mockedConfig.getBoolean(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG)).thenReturn(true);
     RecordConverter<Map<String, Object>> recordConverter = new BigQueryRecordConverter(
-        false, false, false);
+        false, false);
     when (mockedConfig.getRecordConverter()).thenReturn(recordConverter);
     StorageApiBatchModeHandler batchModeHandler = mock(StorageApiBatchModeHandler.class);
     SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(mockedConfig, null, null);
@@ -140,8 +139,6 @@ public class StorageWriteApiWriterTest {
         .initializeAndWriteRecords(any(), any(), streamName.capture());
 
     assertEquals(expectedStreamName, streamName.getValue());
-
-
   }
 
   private SinkRecord createRecord(String topic, long offset) {

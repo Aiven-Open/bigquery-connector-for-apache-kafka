@@ -23,8 +23,16 @@
 
 package com.wepay.kafka.connect.bigquery.convert.logicaltype;
 
+import com.google.cloud.bigquery.Field;
+import com.google.cloud.bigquery.FieldList;
 import com.google.cloud.bigquery.LegacySQLTypeName;
+import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
+import com.wepay.kafka.connect.bigquery.exception.ConversionConnectException;
 import java.math.BigDecimal;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+import java.util.function.BiFunction;
 import org.apache.kafka.connect.data.Date;
 import org.apache.kafka.connect.data.Decimal;
 import org.apache.kafka.connect.data.Schema;
@@ -36,15 +44,19 @@ import org.apache.kafka.connect.data.Timestamp;
  */
 public class KafkaLogicalConverters {
 
-  static {
+  /**
+   * These values are extracted from BigQuery documentation.
+   *
+   * @see <a href="https://cloud.google.com/bigquery/docs/reference/standard-sql/data-types#numeric-type">BigQuery data types</a>
+   */
+  private static final int MAX_NUMERIC_PRECISION = 38;
+  private static final int MAX_NUMERIC_SCALE = 9;
+
+  public static void initialize(final BigQuerySinkConfig config) {
     LogicalConverterRegistry.register(Date.LOGICAL_NAME, new DateConverter());
-    LogicalConverterRegistry.register(Decimal.LOGICAL_NAME, new DecimalConverter());
+    LogicalConverterRegistry.register(Decimal.LOGICAL_NAME, new DecimalConverter(config.getDecimalHandlingMode()));
     LogicalConverterRegistry.register(Timestamp.LOGICAL_NAME, new TimestampConverter());
     LogicalConverterRegistry.register(Time.LOGICAL_NAME, new TimeConverter());
-  }
-
-  public static void initialize() {
-    // forces static initialization.
   }
 
   private KafkaLogicalConverters() {
@@ -74,19 +86,92 @@ public class KafkaLogicalConverters {
    * Class for converting Kafka decimal logical types to Bigquery floating points.
    */
   public static class DecimalConverter extends LogicalTypeConverter {
+    private final BigQuerySinkConfig.DecimalHandlingMode decimalHandlingMode;
+
     /**
      * Create a new DecimalConverter.
      */
-    public DecimalConverter() {
+    public DecimalConverter(final BigQuerySinkConfig.DecimalHandlingMode decimalHandlingMode) {
       super(Decimal.LOGICAL_NAME,
-          Schema.Type.BYTES,
-          LegacySQLTypeName.FLOAT);
+              Schema.Type.BYTES,
+              decimalHandlingMode.sqlTypeName);
+      this.decimalHandlingMode = decimalHandlingMode;
     }
 
     @Override
-    public BigDecimal convert(Object kafkaConnectObject) {
+    public Object convert(Object kafkaConnectObject) {
+      if (kafkaConnectObject == null) {
+        return null;
+      }
       // cast to get ClassCastException
-      return (BigDecimal) kafkaConnectObject;
+      BigDecimal decimal = (BigDecimal) kafkaConnectObject;
+      switch (decimalHandlingMode) {
+        case RECORD:
+          Map<String, Object> struct = new HashMap<>();
+          struct.put("scale", decimal.scale());
+          struct.put("value", decimal.unscaledValue().toByteArray());
+          return struct;
+        case FLOAT:
+          return decimal.doubleValue();
+        case NUMERIC:
+        case BIGNUMERIC:
+          return decimal;
+        default:
+          throw new ConversionConnectException("Unsupported decimal handling mode: " + decimalHandlingMode);
+      }
+    }
+
+    public Field.Builder getFieldBuilder(
+            Schema schema, String fieldName, BiFunction<Schema, String, Optional<Field.Builder>> convertStruct) {
+      checkEncodingType(schema.type());
+      switch (decimalHandlingMode) {
+        case RECORD:
+          com.google.cloud.bigquery.Field scaleField =
+                  Field.newBuilder("scale", LegacySQLTypeName.INTEGER).setMode(Field.Mode.REQUIRED).build();
+          com.google.cloud.bigquery.Field valueField =
+                  Field.newBuilder("value", LegacySQLTypeName.BYTES).setMode(Field.Mode.REQUIRED).build();
+          return com.google.cloud.bigquery.Field.newBuilder(
+                  fieldName,
+                  LegacySQLTypeName.RECORD,
+                  FieldList.of(scaleField, valueField));
+        case FLOAT:
+          return com.google.cloud.bigquery.Field.newBuilder(fieldName, LegacySQLTypeName.FLOAT);
+        case BIGNUMERIC:
+        case NUMERIC:
+          Map<String, String> params = schema.parameters();
+          Long precision = null;
+          Long scale = null;
+          if (params != null) {
+            String precisionStr = params.get("connect.decimal.precision");
+            if (precisionStr != null) {
+              precision = Long.valueOf(precisionStr);
+            }
+            String scaleStr = params.get("scale");
+            if (scaleStr != null) {
+              scale = Long.valueOf(scaleStr);
+            }
+          }
+          if (decimalHandlingMode.sqlTypeName == LegacySQLTypeName.NUMERIC) {
+            if (precision != null && precision > MAX_NUMERIC_PRECISION) {
+              throw new ConversionConnectException(String.format("Requested precision (%s) is too high for %s type", precision, decimalHandlingMode.sqlTypeName));
+            }
+            if (scale != null && scale > MAX_NUMERIC_SCALE) {
+              throw new ConversionConnectException(String.format("Requested scale (%s) is too large for %s type", precision, decimalHandlingMode.sqlTypeName));
+            }
+          }
+          com.google.cloud.bigquery.Field.Builder builder =
+                  com.google.cloud.bigquery.Field.newBuilder(fieldName, decimalHandlingMode.sqlTypeName);
+          if (precision != null) {
+            builder.setPrecision(precision);
+          }
+          if (scale != null) {
+            builder.setScale(scale);
+          }
+          builder.setType(decimalHandlingMode.sqlTypeName);
+          return builder;
+        default:
+          throw new ConversionConnectException("Unsupported decimal handling mode: " + decimalHandlingMode);
+      }
     }
   }
 

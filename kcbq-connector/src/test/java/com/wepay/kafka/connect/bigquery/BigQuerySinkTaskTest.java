@@ -24,14 +24,13 @@
 package com.wepay.kafka.connect.bigquery;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyObject;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyObject;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -53,6 +52,8 @@ import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.Storage;
 import com.wepay.kafka.connect.bigquery.api.SchemaRetriever;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
+import com.wepay.kafka.connect.bigquery.convert.logicaltype.DebeziumLogicalConverters;
+import com.wepay.kafka.connect.bigquery.convert.logicaltype.KafkaLogicalConverters;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
 import com.wepay.kafka.connect.bigquery.utils.MockTime;
 import com.wepay.kafka.connect.bigquery.utils.PartitionedTableId;
@@ -61,6 +62,7 @@ import com.wepay.kafka.connect.bigquery.write.batch.MergeBatches;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageApiBatchModeHandler;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiDefaultStream;
 import java.net.SocketTimeoutException;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -156,10 +158,21 @@ public class BigQuerySinkTaskTest {
     return spoofSinkRecord(topic, null, null, field, value, timestampType, timestamp);
   }
 
+  /**
+   * Initialize the converters.  This is normally done by BigQuerySinkConnector before task is created.
+   * @param properties the configuration properties.
+   */
+  private void initialize(Map<String, String> properties) {
+    BigQuerySinkConfig config = new BigQuerySinkConfig(properties);
+    DebeziumLogicalConverters.initialize(config);
+    KafkaLogicalConverters.initialize(config);
+  }
+
   @Test
   public void testGetRecordTableUsesConfiguredProject() throws Exception {
     Map<String, String> properties = propertiesFactory.getProperties();
     properties.put(BigQuerySinkConfig.USE_CREDENTIALS_PROJECT_ID_CONFIG, "false");
+    initialize(properties);
 
     BigQuerySinkTask task = new BigQuerySinkTask(
         mock(BigQuery.class),
@@ -188,6 +201,7 @@ public class BigQuerySinkTaskTest {
   public void testGetRecordTableUsesCredentialsProject() throws Exception {
     Map<String, String> properties = propertiesFactory.getProperties();
     properties.put(BigQuerySinkConfig.USE_CREDENTIALS_PROJECT_ID_CONFIG, "true");
+    initialize(properties);
 
     BigQuerySinkTask task = new BigQuerySinkTask(
         mock(BigQuery.class),
@@ -280,6 +294,7 @@ public class BigQuerySinkTaskTest {
     Map<String, String> properties = propertiesFactory.getProperties();
     properties.put(BigQuerySinkConfig.TOPICS_CONFIG, topic);
     properties.put(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG, "scratch");
+    initialize(properties);
 
     BigQuery bigQuery = mock(BigQuery.class);
     Table mockTable = mock(Table.class);
@@ -290,7 +305,7 @@ public class BigQuerySinkTaskTest {
     SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
     InsertAllResponse insertAllResponse = mock(InsertAllResponse.class);
 
-    when(bigQuery.insertAll(anyObject())).thenReturn(insertAllResponse);
+    when(bigQuery.insertAll(any())).thenReturn(insertAllResponse);
     when(insertAllResponse.hasErrors()).thenReturn(false);
 
     SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
@@ -324,6 +339,7 @@ public class BigQuerySinkTaskTest {
     properties.put(BigQuerySinkConfig.TOPICS_CONFIG, topic);
     properties.put(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG, "scratch");
     properties.put(BigQuerySinkConfig.ENABLE_BATCH_CONFIG, "test-topic");
+    initialize(properties);
 
     BigQuery bigQuery = mock(BigQuery.class);
     Table mockTable = mock(Table.class);
@@ -371,6 +387,7 @@ public class BigQuerySinkTaskTest {
     Map<String, String> properties = propertiesFactory.getProperties();
     properties.put(BigQuerySinkConfig.TOPICS_CONFIG, topic);
     properties.put(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG, "scratch");
+    initialize(properties);
 
     BigQuery bigQuery = mock(BigQuery.class);
     Table mockTable = mock(Table.class);
@@ -410,6 +427,7 @@ public class BigQuerySinkTaskTest {
   @Test
   public void testEmptyPut() {
     Map<String, String> properties = propertiesFactory.getProperties();
+    initialize(properties);
     BigQuery bigQuery = mock(BigQuery.class);
     Storage storage = mock(Storage.class);
 
@@ -442,6 +460,7 @@ public class BigQuerySinkTaskTest {
         .build();
 
     Map<String, String> properties = propertiesFactory.getProperties();
+    initialize(properties);
     BigQuery bigQuery = mock(BigQuery.class);
     Storage storage = mock(Storage.class);
 
@@ -475,6 +494,7 @@ public class BigQuerySinkTaskTest {
     properties.put(BigQuerySinkConfig.TOPICS_CONFIG, topic);
     properties.put(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG, "scratch");
     properties.put(BigQuerySinkConfig.BIGQUERY_MESSAGE_TIME_PARTITIONING_CONFIG, "true");
+    initialize(properties);
 
     BigQuery bigQuery = mock(BigQuery.class);
     Table mockTable = mock(Table.class);
@@ -522,6 +542,7 @@ public class BigQuerySinkTaskTest {
     properties.put(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG, "scratch");
     properties.put(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG, "true");
     properties.put(BigQuerySinkConfig.BIGQUERY_MESSAGE_TIME_PARTITIONING_CONFIG, "true");
+    initialize(properties);
 
     BigQuery bigQuery = mock(BigQuery.class);
     Table mockTable = mock(Table.class);
@@ -568,6 +589,7 @@ public class BigQuerySinkTaskTest {
     properties.put(BigQuerySinkConfig.TOPICS_CONFIG, topic);
     properties.put(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG, "scratch");
     properties.put(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG, "false");
+    initialize(properties);
 
     BigQuery bigQuery = mock(BigQuery.class);
     Table mockTable = mock(Table.class);
@@ -614,6 +636,7 @@ public class BigQuerySinkTaskTest {
     properties.put(BigQuerySinkConfig.TOPICS_CONFIG, topic);
     properties.put(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG, "scratch");
     properties.put(BigQuerySinkConfig.BIGQUERY_MESSAGE_TIME_PARTITIONING_CONFIG, "true");
+    initialize(properties);
 
     BigQuery bigQuery = mock(BigQuery.class);
     Table mockTable = mock(Table.class);
@@ -663,6 +686,7 @@ public class BigQuerySinkTaskTest {
     properties.put(BigQuerySinkConfig.MERGE_INTERVAL_MS_CONFIG, "-1");
     properties.put(BigQuerySinkConfig.MERGE_RECORDS_THRESHOLD_CONFIG, "2");
     properties.put(BigQuerySinkConfig.KAFKA_KEY_FIELD_NAME_CONFIG, key);
+    initialize(properties);
 
     BigQuery bigQuery = mock(BigQuery.class);
     Storage storage = mock(Storage.class);
@@ -744,6 +768,7 @@ public class BigQuerySinkTaskTest {
     Map<String, String> properties = propertiesFactory.getProperties();
     properties.put(BigQuerySinkConfig.TOPICS_CONFIG, topic);
     properties.put(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG, "scratch");
+    initialize(properties);
 
     BigQuery bigQuery = mock(BigQuery.class);
     Table mockTable = mock(Table.class);
@@ -789,6 +814,7 @@ public class BigQuerySinkTaskTest {
   @Test
   public void testEmptyFlush() {
     Map<String, String> properties = propertiesFactory.getProperties();
+    initialize(properties);
     BigQuery bigQuery = mock(BigQuery.class);
     Storage storage = mock(Storage.class);
 
@@ -816,6 +842,7 @@ public class BigQuerySinkTaskTest {
   @Test
   public void testFlushAfterStop() {
     Map<String, String> properties = propertiesFactory.getProperties();
+    initialize(properties);
     Storage storage = mock(Storage.class);
 
     BigQuery bigQuery = mock(BigQuery.class);
@@ -870,6 +897,7 @@ public class BigQuerySinkTaskTest {
     properties.put(BigQuerySinkConfig.BIGQUERY_RETRY_WAIT_CONFIG, "2000");
     properties.put(BigQuerySinkConfig.TOPICS_CONFIG, topic);
     properties.put(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG, dataset);
+    initialize(properties);
 
     BigQuery bigQuery = mock(BigQuery.class);
     when(bigQuery.getTable(any())).thenThrow(new BigQueryException(new SocketTimeoutException("mock timeout")));
@@ -909,6 +937,7 @@ public class BigQuerySinkTaskTest {
     properties.put(BigQuerySinkConfig.BIGQUERY_RETRY_WAIT_CONFIG, "2000");
     properties.put(BigQuerySinkConfig.TOPICS_CONFIG, topic);
     properties.put(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG, dataset);
+    initialize(properties);
 
     BigQuery bigQuery = mock(BigQuery.class);
     Table mockTable = mock(Table.class);
@@ -958,6 +987,7 @@ public class BigQuerySinkTaskTest {
     properties.put(BigQuerySinkConfig.BIGQUERY_RETRY_WAIT_CONFIG, "2000");
     properties.put(BigQuerySinkConfig.TOPICS_CONFIG, topic);
     properties.put(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG, dataset);
+    initialize(properties);
 
     BigQuery bigQuery = mock(BigQuery.class);
     Table mockTable = mock(Table.class);
@@ -1008,6 +1038,7 @@ public class BigQuerySinkTaskTest {
     properties.put(BigQuerySinkConfig.BIGQUERY_RETRY_WAIT_CONFIG, "2000");
     properties.put(BigQuerySinkConfig.TOPICS_CONFIG, topic);
     properties.put(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG, dataset);
+    initialize(properties);
 
     BigQuery bigQuery = mock(BigQuery.class);
     Table mockTable = mock(Table.class);
@@ -1055,6 +1086,7 @@ public class BigQuerySinkTaskTest {
     Map<String, String> properties = propertiesFactory.getProperties();
     properties.put(BigQuerySinkConfig.TOPICS_CONFIG, topic);
     properties.put(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG, dataset);
+    initialize(properties);
 
     BigQuery bigQuery = mock(BigQuery.class);
     Table mockTable = mock(Table.class);
@@ -1105,6 +1137,7 @@ public class BigQuerySinkTaskTest {
     properties.put(BigQuerySinkConfig.BIGQUERY_MESSAGE_TIME_PARTITIONING_CONFIG, "true");
     properties.put(BigQuerySinkConfig.TOPICS_CONFIG, topic);
     properties.put(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG, dataset);
+    initialize(properties);
 
     StandardTableDefinition mockTableDefinition = mock(StandardTableDefinition.class);
     when(mockTableDefinition.getTimePartitioning()).thenReturn(TimePartitioning.of(TimePartitioning.Type.HOUR));
@@ -1154,6 +1187,7 @@ public class BigQuerySinkTaskTest {
     Map<String, String> properties = propertiesFactory.getProperties();
     properties.put(BigQuerySinkConfig.TOPICS_CONFIG, topic);
     properties.put(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG, dataset);
+    initialize(properties);
 
     BigQuery bigQuery = mock(BigQuery.class);
     Table mockTable = mock(Table.class);
@@ -1183,9 +1217,9 @@ public class BigQuerySinkTaskTest {
     testTask.initialize(sinkTaskContext);
     testTask.start(properties);
     testTask.put(Collections.singletonList(spoofSinkRecord(topic)));
-
-    assertEquals(1, testTask.getTaskThreadsActiveCount());
+    assertTrue(testTask.isRunning());
     testTask.stop();
+    assertFalse(testTask.isRunning());
     assertEquals(0, testTask.getTaskThreadsActiveCount());
     verify(bigQuery, times(1)).insertAll(any(InsertAllRequest.class));
 
