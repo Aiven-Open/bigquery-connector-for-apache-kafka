@@ -24,14 +24,13 @@
 package com.wepay.kafka.connect.bigquery;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyObject;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyObject;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -63,6 +62,7 @@ import com.wepay.kafka.connect.bigquery.write.batch.MergeBatches;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageApiBatchModeHandler;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiDefaultStream;
 import java.net.SocketTimeoutException;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -305,7 +305,7 @@ public class BigQuerySinkTaskTest {
     SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
     InsertAllResponse insertAllResponse = mock(InsertAllResponse.class);
 
-    when(bigQuery.insertAll(anyObject())).thenReturn(insertAllResponse);
+    when(bigQuery.insertAll(any())).thenReturn(insertAllResponse);
     when(insertAllResponse.hasErrors()).thenReturn(false);
 
     SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
@@ -1217,9 +1217,9 @@ public class BigQuerySinkTaskTest {
     testTask.initialize(sinkTaskContext);
     testTask.start(properties);
     testTask.put(Collections.singletonList(spoofSinkRecord(topic)));
-
-    assertEquals(1, testTask.getTaskThreadsActiveCount());
+    assertTrue(testTask.isRunning());
     testTask.stop();
+    assertFalse(testTask.isRunning());
     assertEquals(0, testTask.getTaskThreadsActiveCount());
     verify(bigQuery, times(1)).insertAll(any(InsertAllRequest.class));
 
