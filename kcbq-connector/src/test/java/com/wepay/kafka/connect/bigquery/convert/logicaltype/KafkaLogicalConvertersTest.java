@@ -38,6 +38,7 @@ import java.math.BigDecimal;
 import java.util.Date;
 import java.util.Map;
 
+import org.apache.kafka.connect.data.Decimal;
 import org.apache.kafka.connect.data.Schema;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -70,9 +71,15 @@ public class KafkaLogicalConvertersTest {
 
     converter.checkEncodingType(Schema.Type.BYTES);
 
-    BigDecimal bigDecimal = new BigDecimal("3.14159");
+    final int scale = 5;
+    final Schema connectDecimalSchema = Decimal.builder(scale).build();
+    final BigDecimal bigDecimal = new BigDecimal("3.14159");
 
-    Object convertedDecimal = converter.convert(bigDecimal);
+    byte[] bytes = Decimal.fromLogical(connectDecimalSchema, bigDecimal);
+    BigDecimal kafkaConnectObject = Decimal.toLogical(connectDecimalSchema, bytes);
+
+    Object convertedDecimal = converter.convert(kafkaConnectObject);
+
     switch (handlingMode) {
       case RECORD:
         assertInstanceOf(Map.class, convertedDecimal);

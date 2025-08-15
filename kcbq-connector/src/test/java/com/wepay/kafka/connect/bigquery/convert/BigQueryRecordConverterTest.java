@@ -23,7 +23,9 @@
 
 package com.wepay.kafka.connect.bigquery.convert;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -34,6 +36,8 @@ import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.convert.logicaltype.DebeziumLogicalConverters;
 import com.wepay.kafka.connect.bigquery.convert.logicaltype.KafkaLogicalConverters;
 import com.wepay.kafka.connect.bigquery.exception.ConversionConnectException;
+
+import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -45,14 +49,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
+import org.apache.kafka.connect.data.Decimal;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
+import org.apache.kafka.connect.data.Timestamp;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
 
 public class BigQueryRecordConverterTest {
@@ -614,9 +621,7 @@ public class BigQueryRecordConverterTest {
   @ParameterizedTest
   @MethodSource("testDebeziumVariableScaleData")
   public void testDebeziumVariableScaleDecimal(String name, BigQuerySinkConfig config, Object expectedValue) {
-    DebeziumLogicalConverters.initialize(config);
-
-    final String fieldName = "DebeziumDecimal";
+    final String fieldName = "DebeziumVariableScaleDecimal";
     Map<String, Object> bigQueryExpectedRecord = new HashMap<>();
       bigQueryExpectedRecord.put(fieldName, expectedValue);
 
@@ -640,6 +645,7 @@ public class BigQueryRecordConverterTest {
     SinkRecord kafkaConnectRecord = spoofSinkRecord(kafkaConnectSchema, kafkaConnectStruct, false);
 
     Map<String, Object> bigQueryTestRecord = createConverter(config).convertRecord(kafkaConnectRecord, KafkaSchemaRecordType.VALUE);
+    assertEquals(bigQueryExpectedRecord.get("DebeziumVariableScaleDecimal").getClass(), bigQueryTestRecord.get("DebeziumVariableScaleDecimal").getClass());
     assertEquals(bigQueryExpectedRecord, bigQueryTestRecord);
   }
 
@@ -672,6 +678,92 @@ public class BigQueryRecordConverterTest {
       BigQuerySinkConfig config =  testingConfig(false, decimalHandlingMode, BigQuerySinkConfig.DecimalHandlingMode.FLOAT);
       arguments.add(Arguments.of(decimalHandlingMode.name(), config, expectedValue));
     }
+    return arguments.stream();
+  }
+
+  @ParameterizedTest
+  @MethodSource("testDecimalData")
+  public void testDecimalConversion(String name, BigQuerySinkConfig config, Object expectedValue) {
+
+    final String fieldName = "Decimal";
+    Map<String, Object> bigQueryExpectedRecord = new HashMap<>();
+    bigQueryExpectedRecord.put(fieldName, expectedValue);
+
+    Schema decimalSchema = Decimal.schema(2);
+    final BigDecimal kafkaConnectObject = new BigDecimal("12.34");
+    Schema kafkaConnectSchema = SchemaBuilder
+            .struct()
+            .field(fieldName, decimalSchema)
+            .build();
+
+    Struct kafkaConnectStruct = new Struct(kafkaConnectSchema);
+    kafkaConnectStruct.put(fieldName, kafkaConnectObject);
+    SinkRecord kafkaConnectRecord = spoofSinkRecord(kafkaConnectSchema, kafkaConnectStruct, false);
+
+    Map<String, Object> bigQueryTestRecord = createConverter(config).convertRecord(kafkaConnectRecord, KafkaSchemaRecordType.VALUE);
+    assertEquals(bigQueryExpectedRecord.get(fieldName).getClass(), bigQueryTestRecord.get(fieldName).getClass());
+    if (name.equals(BigQuerySinkConfig.DecimalHandlingMode.RECORD.name())) {
+      assertEquals(bigQueryExpectedRecord.size(), bigQueryTestRecord.size());
+      Map<?, ?> expectedMap = (Map<?, ?>) bigQueryExpectedRecord.get(fieldName);
+      Map<?, ?> testMap = (Map<?, ?>) bigQueryTestRecord.get(fieldName);
+      assertEquals(expectedMap.get("scale"), testMap.get("scale"));
+      assertArrayEquals((byte[]) expectedMap.get("value"), (byte[]) testMap.get("value"));
+    } else {
+      assertEquals(bigQueryExpectedRecord, bigQueryTestRecord);
+    }
+  }
+
+  private static Stream<Arguments> testDecimalData() {
+    List<Arguments> arguments = new ArrayList<>();
+    for (BigQuerySinkConfig.DecimalHandlingMode decimalHandlingMode : BigQuerySinkConfig.DecimalHandlingMode.values()) {
+      Object expectedValue;
+      switch (decimalHandlingMode) {
+        case NUMERIC:
+        case BIGNUMERIC:
+          expectedValue = new java.math.BigDecimal("12.34");
+          break;
+        case FLOAT:
+          expectedValue = 12.34;
+          break;
+        case RECORD:
+          Map<String,Object> map = new HashMap<String, Object>();
+          map.put("scale", 2);
+          map.put("value", new java.math.BigDecimal("12.34").unscaledValue().toByteArray());
+          expectedValue = map;
+          break;
+        default:
+          throw new UnsupportedOperationException("Unsupported decimal handling mode: " + decimalHandlingMode);
+      }
+      BigQuerySinkConfig config =  testingConfig(false, BigQuerySinkConfig.DecimalHandlingMode.RECORD, decimalHandlingMode);
+      arguments.add(Arguments.of(decimalHandlingMode.name(), config, expectedValue));
+    }
+    return arguments.stream();
+  }
+
+  @ParameterizedTest
+  @MethodSource({"debeziumTimestampConversionData"})
+  public void testDebeziumTimestampConversion(String name, BigQuerySinkConfig config, Object value) {
+
+    final String fieldName = "Timestamp";
+
+    Schema kafkaConnectSchema = SchemaBuilder
+            .struct()
+            .field(fieldName, io.debezium.time.Timestamp.schema())
+            .build();
+
+    Struct kafkaConnectStruct = new Struct(kafkaConnectSchema);
+    kafkaConnectStruct.put(fieldName, 1488406838808L);
+    SinkRecord kafkaConnectRecord = spoofSinkRecord(kafkaConnectSchema, kafkaConnectStruct, false);
+
+    Map<String, Object> bigQueryTestRecord = createConverter(config).convertRecord(kafkaConnectRecord, KafkaSchemaRecordType.VALUE);
+
+    assertEquals(value,  bigQueryTestRecord.get(fieldName));
+  }
+
+  private static Stream<Arguments> debeziumTimestampConversionData() {
+    List<Arguments> arguments = new ArrayList<>();
+    arguments.add(Arguments.of(io.debezium.time.Timestamp.SCHEMA_NAME+" standard", testingConfig(false, BigQuerySinkConfig.DecimalHandlingMode.RECORD, BigQuerySinkConfig.DecimalHandlingMode.FLOAT), "2017-03-01 22:20:38.808"));
+    arguments.add(Arguments.of(io.debezium.time.Timestamp.SCHEMA_NAME+" converted", testingConfig(true, BigQuerySinkConfig.DecimalHandlingMode.RECORD, BigQuerySinkConfig.DecimalHandlingMode.FLOAT), 1488406838808L));
     return arguments.stream();
   }
 
