@@ -129,20 +129,29 @@ public class GcsToBqWriter {
     // Check if the table specified exists
     // This error shouldn't be thrown. All tables should be created by the connector at startup
     int lookupAttempts = 0;
-    boolean lookupSuccess = bigQuery.getTable(tableId) != null;
+    boolean lookupSuccess = false;
     BigQueryException lookupException = null;
-
-    if (autoCreateTables && !lookupSuccess) {
-      logger.info("Table {} was not found. Creating the table automatically.", tableId);
-      schemaManager.createTable(tableId, new ArrayList<>(rows.keySet()));
-      while (!lookupSuccess && lookupAttempts <= retries) {
+    while (!lookupSuccess && lookupAttempts <= retries) {
+      if (lookupAttempts >= 0) {
         waitRandomTime();
-        lookupSuccess = bigQuery.getTable(tableId) != null;
-        lookupAttempts++;
       }
+      try {
+        lookupSuccess = bigQuery.getTable(tableId) != null;
+      } catch (BigQueryException exception) {
+        lookupException = exception;
+        logger.warn("Table lookup failed for {}, attempting retry. {}", tableId.getTable(), exception);
+      }
+      lookupAttempts++;
     }
+
     if (!lookupSuccess) {
-      throw new BigQueryConnectException("Failed to lookup table " + tableId, lookupException);
+      if (autoCreateTables) {
+        schemaManager.createTable(tableId, new ArrayList<>(rows.keySet()));
+      } else {
+        throw new BigQueryConnectException(
+        "Failed to look up table " + tableId + " after " + lookupAttempts + " attempt(s).",
+          lookupException);
+      }
     }
 
     int attemptCount = 0;
