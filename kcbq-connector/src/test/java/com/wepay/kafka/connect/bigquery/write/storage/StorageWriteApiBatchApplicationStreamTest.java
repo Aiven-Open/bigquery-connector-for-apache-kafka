@@ -48,6 +48,8 @@ import com.wepay.kafka.connect.bigquery.ErrantRecordHandler;
 import com.wepay.kafka.connect.bigquery.SchemaManager;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiConnectException;
 import com.wepay.kafka.connect.bigquery.utils.MockTime;
+import com.wepay.kafka.connect.bigquery.utils.PartitionedTableId;
+import com.wepay.kafka.connect.bigquery.utils.TableNameUtils;
 import io.grpc.StatusRuntimeException;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -71,8 +73,10 @@ import org.mockito.ArgumentCaptor;
 public class StorageWriteApiBatchApplicationStreamTest {
   StorageWriteApiBatchApplicationStream mockedStream = mock(StorageWriteApiBatchApplicationStream.class,
       CALLS_REAL_METHODS);
-  TableName mockedTable1 = TableName.of("p", "d", "t1");
-  TableName mockedTable2 = TableName.of("p", "d", "t2");
+  PartitionedTableId mockedPartitionedTableId1 = new PartitionedTableId.Builder("d", "t1").setProject("p").build();
+  PartitionedTableId mockedPartitionedTableId2 = new PartitionedTableId.Builder("d", "t2").setProject("p").build();
+  TableName mockedTable1 = TableNameUtils.tableName(mockedPartitionedTableId1.getBaseTableId());
+  TableName mockedTable2 = TableNameUtils.tableName(mockedPartitionedTableId2.getBaseTableId());
   ApplicationStream mockedApplicationStream1 = mock(ApplicationStream.class);
   ApplicationStream mockedApplicationStream2 = mock(ApplicationStream.class);
   String mockedStreamName1 = "dummyApplicationStream1";
@@ -167,7 +171,7 @@ public class StorageWriteApiBatchApplicationStreamTest {
 
   private void verifyException(String expectedException) {
     try {
-      mockedStream.initializeAndWriteRecords(mockedTable1, mockedRows, mockedStreamName1);
+      mockedStream.initializeAndWriteRecords(mockedPartitionedTableId1, mockedRows, mockedStreamName1);
     } catch (Exception e) {
       assertEquals(expectedException, e.getMessage());
       assertTrue(e instanceof BigQueryStorageWriteApiConnectException);
@@ -281,7 +285,7 @@ public class StorageWriteApiBatchApplicationStreamTest {
     when(mockedApplicationStream1.canBeCommitted()).thenReturn(true);
     when(mockedResponse.get()).thenReturn(successResponse);
 
-    mockedStream.initializeAndWriteRecords(mockedTable1, mockedRows, mockedStreamName1);
+    mockedStream.initializeAndWriteRecords(mockedPartitionedTableId1, mockedRows, mockedStreamName1);
 
     verify(mockedApplicationStream1, times(1)).increaseAppendCall();
     verifyAllStreamCalls();
@@ -293,7 +297,7 @@ public class StorageWriteApiBatchApplicationStreamTest {
     mockedStream.currentStreams.put(mockedTable1.toString(), "newStream");
     when(mockedResponse.get()).thenThrow(schemaException).thenReturn(successResponse);
     when(mockedApplicationStream1.canBeCommitted()).thenReturn(true);
-    mockedStream.initializeAndWriteRecords(mockedTable1, mockedRows, mockedStreamName1);
+    mockedStream.initializeAndWriteRecords(mockedPartitionedTableId1, mockedRows, mockedStreamName1);
 
     verify(mockedSchemaManager, times(1)).updateSchema(any(), any());
     verifyAllStreamCalls();
@@ -307,7 +311,7 @@ public class StorageWriteApiBatchApplicationStreamTest {
 
     assertThrows(
         BigQueryStorageWriteApiConnectException.class,
-        () -> mockedStream.initializeAndWriteRecords(mockedTable1, mockedRows, mockedStreamName1)
+        () -> mockedStream.initializeAndWriteRecords(mockedPartitionedTableId1, mockedRows, mockedStreamName1)
     );
 
     verify(mockedSchemaManager, times(0)).updateSchema(any(), any());
@@ -319,7 +323,7 @@ public class StorageWriteApiBatchApplicationStreamTest {
     mockedStream.currentStreams.put(mockedTable1.toString(), "newStream");
     when(mockedResponse.get()).thenThrow(noTable).thenReturn(successResponse);
     when(mockedApplicationStream1.canBeCommitted()).thenReturn(true);
-    mockedStream.initializeAndWriteRecords(mockedTable1, mockedRows, mockedStreamName1);
+    mockedStream.initializeAndWriteRecords(mockedPartitionedTableId1, mockedRows, mockedStreamName1);
 
     verify(mockedSchemaManager, times(1)).createTable(any(), any());
     verifyAllStreamCalls();
@@ -375,7 +379,7 @@ public class StorageWriteApiBatchApplicationStreamTest {
     @SuppressWarnings("unchecked")
     ArgumentCaptor<Map<SinkRecord, Throwable>> captorRecord = ArgumentCaptor.forClass(Map.class);
 
-    mockedStream.initializeAndWriteRecords(mockedTable1, rows, mockedStreamName1);
+    mockedStream.initializeAndWriteRecords(mockedPartitionedTableId1, rows, mockedStreamName1);
 
     verify(mockedErrantRecordHandler, times(1))
         .reportErrantRecords(captorRecord.capture());
