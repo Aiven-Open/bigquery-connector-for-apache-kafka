@@ -23,8 +23,12 @@
 
 package com.wepay.kafka.connect.bigquery.config;
 
+import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.CONVERT_DEBEZIUM_DECIMAL_CONFIG;
+import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_CONFIG;
+import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.DECIMAL_HANDLING_MODE_CONFIG;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -36,11 +40,14 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import org.apache.kafka.common.config.ConfigException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 public class BigQuerySinkConfigTest {
   private SinkPropertiesFactory propertiesFactory;
@@ -69,7 +76,7 @@ public class BigQuerySinkConfigTest {
 
     BigQuerySinkConfig testConfig = new BigQuerySinkConfig(configProperties);
 
-    assertTrue(testConfig.getSchemaConverter() instanceof BigQuerySchemaConverter);
+    assertInstanceOf(BigQuerySchemaConverter.class, testConfig.getSchemaConverter());
   }
 
   @Test
@@ -79,7 +86,7 @@ public class BigQuerySinkConfigTest {
 
     BigQuerySinkConfig testConfig = new BigQuerySinkConfig(configProperties);
 
-    assertTrue(testConfig.getRecordConverter() instanceof BigQueryRecordConverter);
+    assertInstanceOf(BigQueryRecordConverter.class, testConfig.getRecordConverter());
   }
 
   @Test
@@ -325,5 +332,57 @@ public class BigQuerySinkConfigTest {
         ConfigException.class,
         () -> new BigQuerySinkConfig(badConfigProperties)
     );
+  }
+
+  @Test
+  public void testConvertDebeziumVariableScaleDecimal() {
+    Map<String, String> configProperties = propertiesFactory.getProperties();
+    BigQuerySinkConfig config = new BigQuerySinkConfig(configProperties);
+    assertEquals(BigQuerySinkConfig.DecimalHandlingMode.RECORD, config.getVariableScaleDecimalHandlingMode());
+
+    configProperties.put(CONVERT_DEBEZIUM_DECIMAL_CONFIG, "true");
+    config = new BigQuerySinkConfig(configProperties);
+    assertEquals(BigQuerySinkConfig.DecimalHandlingMode.NUMERIC, config.getVariableScaleDecimalHandlingMode());
+
+    configProperties.put(DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_CONFIG, BigQuerySinkConfig.DecimalHandlingMode.FLOAT.name());
+    config = new BigQuerySinkConfig(configProperties);
+    assertEquals(BigQuerySinkConfig.DecimalHandlingMode.FLOAT, config.getVariableScaleDecimalHandlingMode());
+
+  }
+
+  @ParameterizedTest
+  @EnumSource(BigQuerySinkConfig.DecimalHandlingMode.class)
+  void testDebeziumVariableScaleDecimalHandlingMode(BigQuerySinkConfig.DecimalHandlingMode handlingMode) {
+    Map<String, String> configProperties = propertiesFactory.getProperties();
+    configProperties.put(DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_CONFIG, handlingMode.name());
+    BigQuerySinkConfig config = new BigQuerySinkConfig(configProperties);
+    assertEquals(handlingMode, config.getVariableScaleDecimalHandlingMode());
+
+    configProperties.put(DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_CONFIG, handlingMode.name().toLowerCase(Locale.ROOT));
+    config = new BigQuerySinkConfig(configProperties);
+    assertEquals(handlingMode, config.getVariableScaleDecimalHandlingMode());
+  }
+
+  @ParameterizedTest
+  @EnumSource(BigQuerySinkConfig.DecimalHandlingMode.class)
+  void testDecimalHandlingMode(BigQuerySinkConfig.DecimalHandlingMode handlingMode) {
+    Map<String, String> configProperties = propertiesFactory.getProperties();
+    configProperties.put(DECIMAL_HANDLING_MODE_CONFIG, handlingMode.name());
+    BigQuerySinkConfig config = new BigQuerySinkConfig(configProperties);
+    assertEquals(handlingMode, config.getDecimalHandlingMode());
+
+    configProperties.put(DECIMAL_HANDLING_MODE_CONFIG, handlingMode.name().toLowerCase(Locale.ROOT));
+    config = new BigQuerySinkConfig(configProperties);
+    assertEquals(handlingMode, config.getDecimalHandlingMode());
+  }
+
+  @Test
+  void testDefaults() {
+    Map<String, String> configProperties = propertiesFactory.getProperties();
+    BigQuerySinkConfig config = new BigQuerySinkConfig(configProperties);
+
+    assertEquals(BigQuerySinkConfig.DecimalHandlingMode.RECORD, config.getVariableScaleDecimalHandlingMode());
+    assertEquals(BigQuerySinkConfig.DecimalHandlingMode.FLOAT, config.getDecimalHandlingMode());
+    assertFalse(config.getShouldConvertDebeziumTimestampToInteger());
   }
 }

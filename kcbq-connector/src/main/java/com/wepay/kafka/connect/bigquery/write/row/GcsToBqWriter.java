@@ -136,6 +136,7 @@ public class GcsToBqWriter {
         waitRandomTime();
       }
       try {
+        logger.warn("Exceptions occurred for table {}, attempting retry. Attempt {}/{}", tableId, lookupAttempts, retries);
         lookupSuccess = bigQuery.getTable(tableId) != null;
       } catch (BigQueryException exception) {
         lookupException = exception;

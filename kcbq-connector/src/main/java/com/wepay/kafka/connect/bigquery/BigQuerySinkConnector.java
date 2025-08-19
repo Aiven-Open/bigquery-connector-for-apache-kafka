@@ -25,6 +25,8 @@ package com.wepay.kafka.connect.bigquery;
 
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkTaskConfig;
+import com.wepay.kafka.connect.bigquery.convert.logicaltype.DebeziumLogicalConverters;
+import com.wepay.kafka.connect.bigquery.convert.logicaltype.KafkaLogicalConverters;
 import io.aiven.kafka.utils.VersionInfo;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -71,6 +73,8 @@ public class BigQuerySinkConnector extends SinkConnector {
     logger.trace("connector.start()");
     configProperties = properties;
     config = new BigQuerySinkConfig(properties);
+    DebeziumLogicalConverters.initialize(config);
+    KafkaLogicalConverters.initialize(config);
   }
 
   @Override
