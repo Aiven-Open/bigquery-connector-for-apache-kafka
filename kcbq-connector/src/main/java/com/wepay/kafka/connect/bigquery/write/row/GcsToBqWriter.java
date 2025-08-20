@@ -23,9 +23,10 @@
 
 package com.wepay.kafka.connect.bigquery.write.row;
 
+import com.google.cloud.BaseServiceException;
 import com.google.cloud.bigquery.BigQuery;
-import com.google.cloud.bigquery.BigQueryException;
 import com.google.cloud.bigquery.InsertAllRequest.RowToInsert;
+import com.google.cloud.bigquery.Table;
 import com.google.cloud.bigquery.TableId;
 import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
@@ -36,15 +37,18 @@ import com.google.gson.Gson;
 import com.wepay.kafka.connect.bigquery.SchemaManager;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
 import com.wepay.kafka.connect.bigquery.exception.GcsConnectException;
+import com.wepay.kafka.connect.bigquery.utils.Backoff;
 import com.wepay.kafka.connect.bigquery.utils.Time;
+import com.wepay.kafka.connect.bigquery.utils.Timer;
 import java.io.UnsupportedEncodingException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.SortedMap;
+import java.util.function.Supplier;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.slf4j.Logger;
@@ -128,31 +132,29 @@ public class GcsToBqWriter {
 
     // Check if the table specified exists
     // This error shouldn't be thrown. All tables should be created by the connector at startup
-    int lookupAttempts = 0;
-    boolean lookupSuccess = false;
-    BigQueryException lookupException = null;
-    while (!lookupSuccess && lookupAttempts <= retries) {
-      if (lookupAttempts >= 0) {
-        waitRandomTime();
+    Duration timeout = Duration.ofMillis(retryWaitMs * retries);
+    if (retries == 0) {
+      timeout = Duration.ofMillis(retryWaitMs);
+    }
+
+    Table table = executeWithRetry(() -> bigQuery.getTable(tableId), timeout);
+    boolean lookupSuccess = table != null;
+
+    if (autoCreateTables && !lookupSuccess) {
+      logger.info("Table {} was not found. Creating the table automatically.", tableId);
+      Boolean created = executeWithRetry(
+          () -> schemaManager.createTable(tableId, new ArrayList<>(rows.keySet())),
+          timeout
+      );
+      if (created == null) {
+        throw new BigQueryConnectException("Failed to create table " + tableId);
       }
-      try {
-        logger.warn("Exceptions occurred for table {}, attempting retry. Attempt {}/{}", tableId, lookupAttempts, retries);
-        lookupSuccess = bigQuery.getTable(tableId) != null;
-      } catch (BigQueryException exception) {
-        lookupException = exception;
-        logger.warn("Table lookup failed for {}, attempting retry. {}", tableId.getTable(), exception);
-      }
-      lookupAttempts++;
+      table = executeWithRetry(() -> bigQuery.getTable(tableId), timeout);
+      lookupSuccess = table != null;
     }
 
     if (!lookupSuccess) {
-      if (autoCreateTables) {
-        schemaManager.createTable(tableId, new ArrayList<>(rows.keySet()));
-      } else {
-        throw new BigQueryConnectException(
-        "Failed to look up table " + tableId + " after " + lookupAttempts + " attempt(s).",
-          lookupException);
-      }
+      throw new BigQueryConnectException("Failed to lookup table " + tableId);
     }
 
     int attemptCount = 0;
@@ -213,6 +215,37 @@ public class GcsToBqWriter {
     }
     return jsonRecordsBuilder.toString();
   }
+
+  /**
+   * Execute the supplied function with retries and exponential backoff.
+   *
+   * @param func    the operation to execute
+   * @param timeout maximum time to keep retrying
+   * @return result of the function, or {@code null} if timeout expires
+   */
+  private <T> T executeWithRetry(Supplier<T> func, Duration timeout) throws InterruptedException {
+    Timer timer = new Timer(time, timeout);
+    Backoff backoff = new Backoff(time, timeout);
+    // retryCount has been added to keep track of errors in every run.
+    int retryCount = 0;
+    while (!timer.isExpired()) {
+      try {
+        return func.get();
+      } catch (BaseServiceException e) {
+        retryCount++;
+        if (e.isRetryable()) {
+          logger.warn("Retryable exception on attempt {}: {}", retryCount, e.getMessage());
+          backoff.delay();
+        } else {
+          logger.error("Non-retryable exception on attempt {}", retryCount, e);
+          throw e;
+        }
+      }
+    }
+    logger.error("Operation failed after {} attempts within timeout {}", retryCount, timeout);
+    return null;
+  }
+
 
   /**
    * Wait at least {@link #retryWaitMs}, with up to an additional 1 second of random jitter.
