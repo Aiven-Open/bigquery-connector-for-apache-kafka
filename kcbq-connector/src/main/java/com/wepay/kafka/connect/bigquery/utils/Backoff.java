@@ -4,7 +4,7 @@ import java.time.Duration;
 import java.util.Random;
 
 /**
- * Simple exponential backoff helper with jitter.
+ * Simple doubling backoff helper with jitter.
  */
 public class Backoff {
   private static final int JITTER_MS = 1000;
@@ -20,7 +20,7 @@ public class Backoff {
   }
 
   /**
-   * Sleep for the current backoff period and increase the delay exponentially.
+   * Sleep during the current backoff period and double the delay until the timeout value.
    */
   public void delay() throws InterruptedException {
     long delay = Math.min(currentDelayMs, maxDelayMs);
