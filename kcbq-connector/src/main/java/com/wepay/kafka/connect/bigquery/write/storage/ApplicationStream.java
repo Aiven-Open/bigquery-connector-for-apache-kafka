@@ -74,7 +74,8 @@ public class ApplicationStream {
   private JsonStreamWriter jsonWriter = null;
   private List<String> committableStreams;
 
-  public ApplicationStream(String tableName, BigQueryWriteClient client, JsonStreamWriterFactory jsonWriterFactory) throws Exception {
+  public ApplicationStream(String tableName, BigQueryWriteClient client, JsonStreamWriterFactory jsonWriterFactory)
+          throws Exception {
     this.client = client;
     this.tableName = tableName;
     this.offsetInformation = new HashMap<>();
@@ -87,6 +88,18 @@ public class ApplicationStream {
     generateStream();
     currentState = StreamState.CREATED;
     logger.debug("New Application stream {} created", getStreamName());
+  }
+
+  /**
+   * @deprecated This constructor does not support custom {@link JsonStreamWriter} configuration.
+   * Use {@link #ApplicationStream(String, BigQueryWriteClient, JsonStreamWriterFactory)} instead
+   * to supply a factory for creating writers with custom settings.
+   */
+  @Deprecated
+  public ApplicationStream(String tableName, BigQueryWriteClient client) throws Exception {
+    this(tableName, client, streamOrTableName ->
+            JsonStreamWriter.newBuilder(streamOrTableName, client).build()
+    );
   }
 
   public Map<TopicPartition, OffsetAndMetadata> getOffsetInformation() {
