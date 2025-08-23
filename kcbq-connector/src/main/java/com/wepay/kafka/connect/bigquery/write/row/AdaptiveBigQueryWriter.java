@@ -66,6 +66,7 @@ public class AdaptiveBigQueryWriter extends BigQueryWriter {
    * @param retry               How many retries to make in the event of a 500/503 error.
    * @param retryWait           How long to wait in between retries.
    * @param autoCreateTables    Whether tables should be automatically created
+   * @param ignoreUnknownFields Whether to ignore fields in records that are not defined in target BQ table schema
    * @param errantRecordHandler Used to handle errant records
    * @param time                used to wait during backoff periods
    */
@@ -74,9 +75,10 @@ public class AdaptiveBigQueryWriter extends BigQueryWriter {
                                 int retry,
                                 long retryWait,
                                 boolean autoCreateTables,
+                                boolean ignoreUnknownFields,
                                 ErrantRecordHandler errantRecordHandler,
                                 Time time) {
-    super(retry, retryWait, errantRecordHandler, time);
+    super(retry, retryWait, ignoreUnknownFields, errantRecordHandler, time);
     this.bigQuery = bigQuery;
     this.schemaManager = schemaManager;
     this.autoCreateTables = autoCreateTables;
