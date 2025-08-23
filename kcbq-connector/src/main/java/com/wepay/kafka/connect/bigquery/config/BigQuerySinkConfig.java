@@ -608,9 +608,9 @@ public class BigQuerySinkConfig extends AbstractConfig {
   private static final ConfigDef.Importance ENABLE_RETRIES_IMPORTANCE = ConfigDef.Importance.MEDIUM;
   private static final ConfigDef.Type IGNORE_UNKNOWN_FIELDS_TYPE = ConfigDef.Type.BOOLEAN;
   private static final ConfigDef.Importance IGNORE_UNKNOWN_FIELDS_IMPORTANCE = ConfigDef.Importance.LOW;
-  private static final String IGNORE_UNKNOWN_FIELDS_DOC = "Whether fields in a record that are not present in the " +
-          "BigQuery table schema should be ignored during ingestion. When enabled, unknown fields will be silently " +
-          "dropped instead of causing the record to be rejected.\n";
+  private static final String IGNORE_UNKNOWN_FIELDS_DOC = "Whether fields in a record that are not present in the "
+          + "BigQuery table schema should be ignored during ingestion. When enabled, unknown fields will be silently "
+          + "dropped instead of causing the record to be rejected.\n";
   private static final List<MultiPropertyValidator<BigQuerySinkConfig>> MULTI_PROPERTY_VALIDATIONS = new ArrayList<>();
 
   static {
