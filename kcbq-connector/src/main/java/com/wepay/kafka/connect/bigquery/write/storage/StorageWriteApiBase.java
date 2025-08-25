@@ -46,6 +46,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.json.JSONArray;
@@ -61,6 +62,8 @@ public abstract class StorageWriteApiBase {
   private static final Logger logger = LoggerFactory.getLogger(StorageWriteApiBase.class);
   private static final double RETRY_DELAY_MULTIPLIER = 1.1;
   private static final int MAX_RETRY_DELAY_MINUTES = 1;
+  private static final String TRACE_ID_FORMAT = "AivenKafkaConnector:%s";
+  private final String traceId;
   protected final JsonStreamWriterFactory jsonWriterFactory;
   protected final int retry;
   protected final long retryWait;
@@ -101,6 +104,7 @@ public abstract class StorageWriteApiBase {
       throw new BigQueryStorageWriteApiConnectException("Failed to create Big Query Storage Write API write client", e);
     }
     this.jsonWriterFactory = getJsonWriterFactory();
+    this.traceId = String.format(TRACE_ID_FORMAT, UUID.randomUUID());
     this.time = Time.SYSTEM;
   }
 
@@ -312,6 +316,7 @@ public abstract class StorageWriteApiBase {
             .build();
     return streamOrTableName -> JsonStreamWriter.newBuilder(streamOrTableName, writeClient)
             .setRetrySettings(retrySettings)
+            .setTraceId(traceId)
             .build();
   }
 
