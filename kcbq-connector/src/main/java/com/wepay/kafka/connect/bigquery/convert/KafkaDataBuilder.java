@@ -88,6 +88,7 @@ public class KafkaDataBuilder {
 
   /**
    * Sets the use original values flag.
+   *
    * @param useOriginalValues the state of the flag.
    */
   public static void setUseOriginalValues(boolean useOriginalValues) {
@@ -96,10 +97,11 @@ public class KafkaDataBuilder {
 
   /**
    * Sets the Kafka Post 3.6 flag.  Used in testing.
-   * @param post3_6Flag the state of the flag.
+   *
+   * @param post36Flag the state of the flag.
    */
-  static void setPost3_6Flag(boolean post3_6Flag) {
-    KAFKA_CONNECT_API_POST_3_6 = post3_6Flag;
+  static void setPost3_6Flag(boolean post36Flag) {
+    KAFKA_CONNECT_API_POST_3_6 = post36Flag;
   }
 
   /**

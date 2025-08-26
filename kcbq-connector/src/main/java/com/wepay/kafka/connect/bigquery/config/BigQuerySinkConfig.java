@@ -175,8 +175,8 @@ public class BigQuerySinkConfig extends AbstractConfig {
   public static final ConfigDef.Type USE_ORIGINAL_VALUES_TYPE = ConfigDef.Type.BOOLEAN;
   public static final Boolean USE_ORIGINAL_VALUES_DEFAULT = false;
   public static final ConfigDef.Importance USE_ORIGINAL_VALUES_IMPORTANCE = ConfigDef.Importance.LOW;
-  public static final String USE_ORIGINAL_VALUES_DOC = "If True and Kafka v3.6 or higher is in use will use the original " +
-          "topic, partition, and offset values as specified before any message transformation occurs.";
+  public static final String USE_ORIGINAL_VALUES_DOC = "If True and Kafka v3.6 or higher is in use will use the original "
+          + "topic, partition, and offset values as specified before any message transformation occurs.";
 
   public static final String CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_CONFIG = "convertDebeziumTimestampToInteger";
 
