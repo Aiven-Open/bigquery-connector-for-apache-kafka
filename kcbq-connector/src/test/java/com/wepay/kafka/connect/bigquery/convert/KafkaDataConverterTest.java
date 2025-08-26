@@ -23,17 +23,25 @@
 
 package com.wepay.kafka.connect.bigquery.convert;
 
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.cloud.bigquery.Field;
 import com.google.cloud.bigquery.LegacySQLTypeName;
+
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+
+import org.apache.kafka.common.record.TimestampType;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class KafkaDataConverterTest {
 
@@ -64,7 +72,7 @@ public class KafkaDataConverterTest {
     Map<String, Object> actualKafkaDataFields = KafkaDataBuilder.buildKafkaDataRecord(record);
 
     assertTrue(actualKafkaDataFields.containsKey(kafkaDataInsertTimeName));
-    assertTrue(actualKafkaDataFields.get(kafkaDataInsertTimeName) instanceof Double);
+    assertInstanceOf(Double.class, actualKafkaDataFields.get(kafkaDataInsertTimeName));
 
     actualKafkaDataFields.remove(kafkaDataInsertTimeName);
 
@@ -92,10 +100,61 @@ public class KafkaDataConverterTest {
             null
     );
 
+    KafkaDataBuilder.setUseOriginalValues(true);
+    KafkaDataBuilder.setPost3_6Flag(true);
     Map<String, Object> actualKafkaDataFields = KafkaDataBuilder.buildKafkaDataRecord(mutatedRecord);
     actualKafkaDataFields.remove(kafkaDataInsertTimeName);
 
     assertEquals(expectedKafkaDataFields, actualKafkaDataFields);
+  }
+
+  @ParameterizedTest
+  @MethodSource("buildKafkaDataRecordTestData")
+  void testBuildKafkaDataRecord(String ver, boolean useOriginalValues, boolean post3_6Flag, SinkRecord sinkRecord, Map<String, Object> expectedKafkaDataFields) {
+    KafkaDataBuilder.setUseOriginalValues(useOriginalValues);
+    KafkaDataBuilder.setPost3_6Flag(post3_6Flag);
+    Map<String, Object> actualKafkaDataRecord = KafkaDataBuilder.buildKafkaDataRecord(sinkRecord);
+    // remove any unwanted values.
+    actualKafkaDataRecord.keySet().retainAll(expectedKafkaDataFields.keySet());
+    assertEquals(expectedKafkaDataFields, actualKafkaDataRecord);
+  }
+
+  static List<Arguments> buildKafkaDataRecordTestData() {
+    List<Arguments> arguments = new ArrayList<>();
+    SinkRecord sinkRecord;
+    Map<String, Object> expected;
+
+    // pre 6.5 record format
+    sinkRecord = new SinkRecord("topic", 1, null, null, null, null, 2L);
+    expected = new HashMap<>();
+    expected.put(kafkaDataTopicName, "topic");
+    expected.put(kafkaDataPartitionName, 1);
+    expected.put(kafkaDataOffsetName, 2L);
+    arguments.add(Arguments.of("pre 6.5",true, false, sinkRecord, expected));
+    arguments.add(Arguments.of("pre 6.5",true, true, sinkRecord, expected));
+    arguments.add(Arguments.of("pre 6.5",false, false, sinkRecord, expected));
+    arguments.add(Arguments.of("pre 6.5",false, true, sinkRecord, expected));
+
+    // post 6.5 record format
+    sinkRecord = new SinkRecord( "topic", 1, null, null, null, null, 2L,
+            System.currentTimeMillis(), TimestampType.CREATE_TIME, null, "origTopic", 11, 22L);
+    arguments.add(Arguments.of("post 6.5", true, false, sinkRecord, expected));
+    arguments.add(Arguments.of("post 6.5", false, false, sinkRecord, expected));
+    arguments.add(Arguments.of("post 6.5", false, true, sinkRecord, expected));
+    expected = new HashMap<>();
+    expected.put(kafkaDataTopicName, "origTopic");
+    expected.put(kafkaDataPartitionName, 11);
+    expected.put(kafkaDataOffsetName, 22L);
+    arguments.add(Arguments.of("post 6.5", true, true, sinkRecord, expected));
+    return arguments;
+  }
+
+  private static SinkRecord createPre6_5SinkRecord(String topic, int partition, long offset) {
+    return new SinkRecord(topic, partition, null, null, null, null, offset);
+  }
+
+  private static SinkRecord createPost6_5SinkRecord(String topic, int partition, long offset) {
+    return new SinkRecord(topic, partition, null, null, null, null, offset, System.currentTimeMillis(), TimestampType.CREATE_TIME, null, "origTopic", 11, 55L);
   }
 
   @Test
@@ -104,7 +163,7 @@ public class KafkaDataConverterTest {
     Map<String, Object> actualKafkaDataFields = KafkaDataBuilder.buildKafkaDataRecordStorageApi(record);
 
     assertTrue(actualKafkaDataFields.containsKey(kafkaDataInsertTimeName));
-    assertTrue(actualKafkaDataFields.get(kafkaDataInsertTimeName) instanceof Long);
+    assertInstanceOf(Long.class, actualKafkaDataFields.get(kafkaDataInsertTimeName));
 
     actualKafkaDataFields.remove(kafkaDataInsertTimeName);
 

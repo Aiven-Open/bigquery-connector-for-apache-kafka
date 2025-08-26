@@ -46,9 +46,17 @@ public class KafkaDataBuilder {
   public static final String KAFKA_DATA_OFFSET_FIELD_NAME = "offset";
   public static final String KAFKA_DATA_INSERT_TIME_FIELD_NAME = "insertTime";
 
-  // This is a marker variable for methods necessary to keep original sink record metadata.
-  // These methods in SinkRecord class are available only since Kafka Connect API version 3.6.
-  private static final boolean KAFKA_CONNECT_API_POST_3_6;
+  /**
+   * This is a marker variable for methods necessary to keep original sink record metadata.
+   * These methods in SinkRecord class are available only since Kafka Connect API version 3.6.
+   */
+  private static boolean KAFKA_CONNECT_API_POST_3_6;
+
+  /**
+   * This variable determines if the original variable or the mutated variable should be used
+   * when running in a post 3.6 Kafka.
+   */
+  private static boolean USE_ORIGINAL_VALUES = false;
 
   static {
     boolean kafkaConnectApiPost36;
@@ -79,6 +87,22 @@ public class KafkaDataBuilder {
   }
 
   /**
+   * Sets the use original values flag.
+   * @param useOriginalValues the state of the flag.
+   */
+  public static void setUseOriginalValues(boolean useOriginalValues) {
+    USE_ORIGINAL_VALUES = useOriginalValues;
+  }
+
+  /**
+   * Sets the Kafka Post 3.6 flag.  Used in testing.
+   * @param post3_6Flag the state of the flag.
+   */
+  static void setPost3_6Flag(boolean post3_6Flag) {
+    KAFKA_CONNECT_API_POST_3_6 = post3_6Flag;
+  }
+
+  /**
    * Construct schema for Kafka Data Field
    *
    * @param kafkaDataFieldName The configured name of Kafka Data Field
@@ -99,7 +123,7 @@ public class KafkaDataBuilder {
   }
 
   private static String tryGetOriginalTopic(SinkRecord kafkaConnectRecord) {
-    if (KAFKA_CONNECT_API_POST_3_6) {
+    if (KAFKA_CONNECT_API_POST_3_6 && USE_ORIGINAL_VALUES) {
       return kafkaConnectRecord.originalTopic();
     } else {
       return kafkaConnectRecord.topic();
@@ -107,7 +131,7 @@ public class KafkaDataBuilder {
   }
 
   private static Integer tryGetOriginalKafkaPartition(SinkRecord kafkaConnectRecord) {
-    if (KAFKA_CONNECT_API_POST_3_6) {
+    if (KAFKA_CONNECT_API_POST_3_6 && USE_ORIGINAL_VALUES) {
       return kafkaConnectRecord.originalKafkaPartition();
     } else {
       return kafkaConnectRecord.kafkaPartition();
@@ -115,7 +139,7 @@ public class KafkaDataBuilder {
   }
 
   private static long tryGetOriginalKafkaOffset(SinkRecord kafkaConnectRecord) {
-    if (KAFKA_CONNECT_API_POST_3_6) {
+    if (KAFKA_CONNECT_API_POST_3_6 && USE_ORIGINAL_VALUES) {
       return kafkaConnectRecord.originalKafkaOffset();
     } else {
       return kafkaConnectRecord.kafkaOffset();

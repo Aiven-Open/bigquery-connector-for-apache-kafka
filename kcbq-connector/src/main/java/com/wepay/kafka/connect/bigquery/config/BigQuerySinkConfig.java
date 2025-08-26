@@ -30,6 +30,7 @@ import com.wepay.kafka.connect.bigquery.GcpClientBuilder;
 import com.wepay.kafka.connect.bigquery.api.SchemaRetriever;
 import com.wepay.kafka.connect.bigquery.convert.BigQueryRecordConverter;
 import com.wepay.kafka.connect.bigquery.convert.BigQuerySchemaConverter;
+import com.wepay.kafka.connect.bigquery.convert.KafkaDataBuilder;
 import com.wepay.kafka.connect.bigquery.convert.RecordConverter;
 import com.wepay.kafka.connect.bigquery.convert.SchemaConverter;
 import com.wepay.kafka.connect.bigquery.retrieve.IdentitySchemaRetriever;
@@ -169,6 +170,14 @@ public class BigQuerySinkConfig extends AbstractConfig {
   public static final Boolean BIGQUERY_PARTITION_DECORATOR_DEFAULT = true;
   public static final String BIGQUERY_TIMESTAMP_PARTITION_FIELD_NAME_CONFIG = "timestampPartitionFieldName";
   public static final String BIGQUERY_CLUSTERING_FIELD_NAMES_CONFIG = "clusteringPartitionFieldNames";
+
+  public static final String USE_ORIGINAL_VALUES_CONFIG = "useOriginalValues";
+  public static final ConfigDef.Type USE_ORIGINAL_VALUES_TYPE = ConfigDef.Type.BOOLEAN;
+  public static final Boolean USE_ORIGINAL_VALUES_DEFAULT = false;
+  public static final ConfigDef.Importance USE_ORIGINAL_VALUES_IMPORTANCE = ConfigDef.Importance.LOW;
+  public static final String USE_ORIGINAL_VALUES_DOC = "If True and Kafka v3.6 or higher is in use will use the original " +
+          "topic, partition, and offset values as specified before any message transformation occurs.";
+
   public static final String CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_CONFIG = "convertDebeziumTimestampToInteger";
 
   public static final String DECIMAL_HANDLING_MODE_CONFIG = "decimalHandlingMode";
@@ -589,6 +598,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
   protected BigQuerySinkConfig(ConfigDef config, Map<String, String> properties) {
     super(config, properties);
     logDeprecationWarnings();
+    KafkaDataBuilder.setUseOriginalValues(getBoolean(USE_ORIGINAL_VALUES_CONFIG));
   }
 
   public BigQuerySinkConfig(Map<String, String> properties) {
@@ -960,7 +970,15 @@ public class BigQuerySinkConfig extends AbstractConfig {
             DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_DEFAULT,
             DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_VALIDATOR,
             DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_IMPORTANCE,
-            DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_DOC);
+            DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_DOC
+        ).define(
+            USE_ORIGINAL_VALUES_CONFIG,
+            USE_ORIGINAL_VALUES_TYPE,
+            USE_ORIGINAL_VALUES_DEFAULT,
+            USE_ORIGINAL_VALUES_IMPORTANCE,
+            USE_ORIGINAL_VALUES_DOC
+        );
+
   }
 
   /**
