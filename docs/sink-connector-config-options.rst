@@ -306,6 +306,13 @@ BigQuery Sink Connector Configuration Options
   * Default: false
   * Importance: low
 
+``preserveKafkaTopicPartitionOffset``
+  If True and Kafka v3.6 or higher is in use will use the original topic, partition, and offset values as specified before any message transformation occurs.
+
+  * Type: boolean
+  * Default: false
+  * Importance: low
+
 Common
 ^^^^^^
 

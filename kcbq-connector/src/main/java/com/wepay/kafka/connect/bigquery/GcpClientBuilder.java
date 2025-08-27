@@ -152,7 +152,7 @@ public abstract class GcpClientBuilder<ClientT> {
           logger.debug("Attempting to use application default credentials");
           return GoogleCredentials.getApplicationDefault();
         } catch (IOException e) {
-          throw new BigQueryConnectException("Failed to create Application Default Credentials", e);
+          throw new BigQueryConnectException("Failed to create Application Default Credentials: " + e.getMessage(), e);
         }
       default:
         throw new IllegalArgumentException("Unexpected value for KeySource enum: " + keySource);
