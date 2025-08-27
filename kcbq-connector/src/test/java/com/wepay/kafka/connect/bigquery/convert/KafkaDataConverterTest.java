@@ -124,28 +124,28 @@ public class KafkaDataConverterTest {
     SinkRecord sinkRecord;
     Map<String, Object> expected;
 
-    // pre 6.5 record format
+    // pre 3.6 record format
     sinkRecord = new SinkRecord("topic", 1, null, null, null, null, 2L);
     expected = new HashMap<>();
     expected.put(kafkaDataTopicName, "topic");
     expected.put(kafkaDataPartitionName, 1);
     expected.put(kafkaDataOffsetName, 2L);
-    arguments.add(Arguments.of("pre 6.5",true, false, sinkRecord, expected));
-    arguments.add(Arguments.of("pre 6.5",true, true, sinkRecord, expected));
-    arguments.add(Arguments.of("pre 6.5",false, false, sinkRecord, expected));
-    arguments.add(Arguments.of("pre 6.5",false, true, sinkRecord, expected));
+    arguments.add(Arguments.of("pre 3.6",true, false, sinkRecord, expected));
+    arguments.add(Arguments.of("pre 3.6",true, true, sinkRecord, expected));
+    arguments.add(Arguments.of("pre 3.6",false, false, sinkRecord, expected));
+    arguments.add(Arguments.of("pre 3.6",false, true, sinkRecord, expected));
 
-    // post 6.5 record format
+    // post 3.6 record format
     sinkRecord = new SinkRecord( "topic", 1, null, null, null, null, 2L,
             System.currentTimeMillis(), TimestampType.CREATE_TIME, null, "origTopic", 11, 22L);
-    arguments.add(Arguments.of("post 6.5", true, false, sinkRecord, expected));
-    arguments.add(Arguments.of("post 6.5", false, false, sinkRecord, expected));
-    arguments.add(Arguments.of("post 6.5", false, true, sinkRecord, expected));
+    arguments.add(Arguments.of("post 3.6", true, false, sinkRecord, expected));
+    arguments.add(Arguments.of("post 3.6", false, false, sinkRecord, expected));
+    arguments.add(Arguments.of("post 3.6", false, true, sinkRecord, expected));
     expected = new HashMap<>();
     expected.put(kafkaDataTopicName, "origTopic");
     expected.put(kafkaDataPartitionName, 11);
     expected.put(kafkaDataOffsetName, 22L);
-    arguments.add(Arguments.of("post 6.5", true, true, sinkRecord, expected));
+    arguments.add(Arguments.of("post 3.6", true, true, sinkRecord, expected));
     return arguments;
   }
 
