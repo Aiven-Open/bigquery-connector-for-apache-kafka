@@ -54,7 +54,8 @@ public class StorageWriteApiDefaultStream extends StorageWriteApiBase {
                                       boolean autoCreateTables,
                                       ErrantRecordHandler errantRecordHandler,
                                       SchemaManager schemaManager,
-                                      boolean attemptSchemaUpdate) {
+                                      boolean attemptSchemaUpdate,
+                                      String traceId) {
     super(
         retry,
         retryWait,
@@ -62,7 +63,8 @@ public class StorageWriteApiDefaultStream extends StorageWriteApiBase {
         autoCreateTables,
         errantRecordHandler,
         schemaManager,
-        attemptSchemaUpdate
+        attemptSchemaUpdate,
+        traceId
     );
   }
 

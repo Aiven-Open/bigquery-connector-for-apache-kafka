@@ -87,6 +87,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
   public static final String TOPICS_REGEX_DEFAULT = "";
   public static final String ENABLE_BATCH_CONFIG = "enableBatchLoad";
   public static final String BATCH_LOAD_INTERVAL_SEC_CONFIG = "batchLoadIntervalSec";
+  public static final String CONNECTOR_NAME_CONFIG = "name";
   public static final String GCS_BUCKET_NAME_CONFIG = "gcsBucketName";
   public static final String GCS_FOLDER_NAME_CONFIG = "gcsFolderName";
   public static final String GCS_FOLDER_NAME_DEFAULT = "";
@@ -946,6 +947,11 @@ public class BigQuerySinkConfig extends AbstractConfig {
             CONVERT_DEBEZIUM_DECIMAL_CONFIG,
             ConfigDef.Type.BOOLEAN,
             false,
+            ConfigDef.Importance.LOW
+        ).defineInternal(
+            CONNECTOR_NAME_CONFIG,
+            ConfigDef.Type.STRING,
+            null,
             ConfigDef.Importance.LOW
         ).define(
             DECIMAL_HANDLING_MODE_CONFIG,
