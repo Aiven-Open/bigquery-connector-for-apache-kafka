@@ -171,11 +171,11 @@ public class BigQuerySinkConfig extends AbstractConfig {
   public static final String BIGQUERY_TIMESTAMP_PARTITION_FIELD_NAME_CONFIG = "timestampPartitionFieldName";
   public static final String BIGQUERY_CLUSTERING_FIELD_NAMES_CONFIG = "clusteringPartitionFieldNames";
 
-  public static final String USE_ORIGINAL_VALUES_CONFIG = "useOriginalValues";
-  public static final ConfigDef.Type USE_ORIGINAL_VALUES_TYPE = ConfigDef.Type.BOOLEAN;
-  public static final Boolean USE_ORIGINAL_VALUES_DEFAULT = false;
-  public static final ConfigDef.Importance USE_ORIGINAL_VALUES_IMPORTANCE = ConfigDef.Importance.LOW;
-  public static final String USE_ORIGINAL_VALUES_DOC = "If True and Kafka v3.6 or higher is in use will use the original "
+  public static final String PRESERVE_KAFKA_TOPIC_PARTITION_OFFSET__CONFIG = "preserveKafkaTopicPartitionOffset";
+  public static final ConfigDef.Type PRESERVE_KAFKA_TOPIC_PARTITION_OFFSET__TYPE = ConfigDef.Type.BOOLEAN;
+  public static final Boolean PRESERVE_KAFKA_TOPIC_PARTITION_OFFSET__DEFAULT = false;
+  public static final ConfigDef.Importance PRESERVE_KAFKA_TOPIC_PARTITION_OFFSET__IMPORTANCE = ConfigDef.Importance.LOW;
+  public static final String PRESERVE_KAFKA_TOPIC_PARTITION_OFFSET__DOC = "If True and Kafka v3.6 or higher is in use will use the original "
           + "topic, partition, and offset values as specified before any message transformation occurs.";
 
   public static final String CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_CONFIG = "convertDebeziumTimestampToInteger";
@@ -598,7 +598,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
   protected BigQuerySinkConfig(ConfigDef config, Map<String, String> properties) {
     super(config, properties);
     logDeprecationWarnings();
-    KafkaDataBuilder.setUseOriginalValues(getBoolean(USE_ORIGINAL_VALUES_CONFIG));
+    KafkaDataBuilder.setUseOriginalValues(getBoolean(PRESERVE_KAFKA_TOPIC_PARTITION_OFFSET__CONFIG));
   }
 
   public BigQuerySinkConfig(Map<String, String> properties) {
@@ -972,11 +972,11 @@ public class BigQuerySinkConfig extends AbstractConfig {
             DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_IMPORTANCE,
             DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_DOC
         ).define(
-            USE_ORIGINAL_VALUES_CONFIG,
-            USE_ORIGINAL_VALUES_TYPE,
-            USE_ORIGINAL_VALUES_DEFAULT,
-            USE_ORIGINAL_VALUES_IMPORTANCE,
-            USE_ORIGINAL_VALUES_DOC
+            PRESERVE_KAFKA_TOPIC_PARTITION_OFFSET__CONFIG,
+            PRESERVE_KAFKA_TOPIC_PARTITION_OFFSET__TYPE,
+            PRESERVE_KAFKA_TOPIC_PARTITION_OFFSET__DEFAULT,
+            PRESERVE_KAFKA_TOPIC_PARTITION_OFFSET__IMPORTANCE,
+            PRESERVE_KAFKA_TOPIC_PARTITION_OFFSET__DOC
         );
 
   }

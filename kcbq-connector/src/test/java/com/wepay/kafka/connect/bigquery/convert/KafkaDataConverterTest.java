@@ -149,14 +149,6 @@ public class KafkaDataConverterTest {
     return arguments;
   }
 
-  private static SinkRecord createPre6_5SinkRecord(String topic, int partition, long offset) {
-    return new SinkRecord(topic, partition, null, null, null, null, offset);
-  }
-
-  private static SinkRecord createPost6_5SinkRecord(String topic, int partition, long offset) {
-    return new SinkRecord(topic, partition, null, null, null, null, offset, System.currentTimeMillis(), TimestampType.CREATE_TIME, null, "origTopic", 11, 55L);
-  }
-
   @Test
   public void testBuildKafkaDataRecordStorageWriteApi() {
     SinkRecord record = new SinkRecord(kafkaDataTopicValue, kafkaDataPartitionValue, null, null, null, null, kafkaDataOffsetValue);

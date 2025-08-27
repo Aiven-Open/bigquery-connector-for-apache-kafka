@@ -26,6 +26,7 @@ package com.wepay.kafka.connect.bigquery.convert;
 
 import com.google.cloud.bigquery.Field;
 import com.google.cloud.bigquery.LegacySQLTypeName;
+import com.google.common.annotations.VisibleForTesting;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.util.HashMap;
@@ -100,6 +101,7 @@ public class KafkaDataBuilder {
    *
    * @param post36Flag the state of the flag.
    */
+  @VisibleForTesting
   static void setPost3_6Flag(boolean post36Flag) {
     KAFKA_CONNECT_API_POST_3_6 = post36Flag;
   }
@@ -124,7 +126,7 @@ public class KafkaDataBuilder {
         .setMode(com.google.cloud.bigquery.Field.Mode.NULLABLE).build();
   }
 
-  private static String tryGetOriginalTopic(SinkRecord kafkaConnectRecord) {
+  private static String maybeGetOriginalTopic(SinkRecord kafkaConnectRecord) {
     if (KAFKA_CONNECT_API_POST_3_6 && USE_ORIGINAL_VALUES) {
       return kafkaConnectRecord.originalTopic();
     } else {
@@ -132,7 +134,7 @@ public class KafkaDataBuilder {
     }
   }
 
-  private static Integer tryGetOriginalKafkaPartition(SinkRecord kafkaConnectRecord) {
+  private static Integer maybeGetOriginalKafkaPartition(SinkRecord kafkaConnectRecord) {
     if (KAFKA_CONNECT_API_POST_3_6 && USE_ORIGINAL_VALUES) {
       return kafkaConnectRecord.originalKafkaPartition();
     } else {
@@ -140,7 +142,7 @@ public class KafkaDataBuilder {
     }
   }
 
-  private static long tryGetOriginalKafkaOffset(SinkRecord kafkaConnectRecord) {
+  private static long maybeGetOriginalKafkaOffset(SinkRecord kafkaConnectRecord) {
     if (KAFKA_CONNECT_API_POST_3_6 && USE_ORIGINAL_VALUES) {
       return kafkaConnectRecord.originalKafkaOffset();
     } else {
@@ -156,9 +158,9 @@ public class KafkaDataBuilder {
    */
   public static Map<String, Object> buildKafkaDataRecord(SinkRecord kafkaConnectRecord) {
     HashMap<String, Object> kafkaData = new HashMap<>();
-    kafkaData.put(KAFKA_DATA_TOPIC_FIELD_NAME, tryGetOriginalTopic(kafkaConnectRecord));
-    kafkaData.put(KAFKA_DATA_PARTITION_FIELD_NAME, tryGetOriginalKafkaPartition(kafkaConnectRecord));
-    kafkaData.put(KAFKA_DATA_OFFSET_FIELD_NAME, tryGetOriginalKafkaOffset(kafkaConnectRecord));
+    kafkaData.put(KAFKA_DATA_TOPIC_FIELD_NAME, maybeGetOriginalTopic(kafkaConnectRecord));
+    kafkaData.put(KAFKA_DATA_PARTITION_FIELD_NAME, maybeGetOriginalKafkaPartition(kafkaConnectRecord));
+    kafkaData.put(KAFKA_DATA_OFFSET_FIELD_NAME, maybeGetOriginalKafkaOffset(kafkaConnectRecord));
     kafkaData.put(KAFKA_DATA_INSERT_TIME_FIELD_NAME, System.currentTimeMillis() / 1000.0);
     return kafkaData;
   }
