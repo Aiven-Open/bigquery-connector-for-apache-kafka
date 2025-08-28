@@ -124,7 +124,7 @@ public class StorageWriteApiDefaultStream extends StorageWriteApiBase {
   }
 
   @Override
-  protected void applyJsonWriterConfig(JsonStreamWriter.Builder builder) {
+  protected void updateJsonStreamWriterBuilder(JsonStreamWriter.Builder builder) {
     builder.setEnableConnectionPool(true);
   }
 

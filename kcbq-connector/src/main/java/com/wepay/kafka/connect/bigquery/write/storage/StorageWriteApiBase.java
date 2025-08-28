@@ -313,7 +313,7 @@ public abstract class StorageWriteApiBase {
     return streamOrTableName -> {
       JsonStreamWriter.Builder builder = JsonStreamWriter.newBuilder(streamOrTableName, writeClient)
               .setRetrySettings(retrySettings);
-      applyJsonWriterConfig(builder);
+      updateJsonStreamWriterBuilder(builder);
       return builder.build();
     };
   }
@@ -321,7 +321,7 @@ public abstract class StorageWriteApiBase {
   /**
    * Override to provide additional configs to JsonStreamWriter
    */
-  protected void applyJsonWriterConfig(JsonStreamWriter.Builder builder) {
+  protected void updateJsonStreamWriterBuilder(JsonStreamWriter.Builder builder) {
     // no-op default
   }
 
