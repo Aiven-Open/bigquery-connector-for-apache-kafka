@@ -102,7 +102,6 @@ import org.slf4j.MDC;
 public class BigQuerySinkTask extends SinkTask {
   private static final Logger logger = LoggerFactory.getLogger(BigQuerySinkTask.class);
   private static final int EXECUTOR_SHUTDOWN_TIMEOUT_SEC = 30;
-  public static final String TRACE_ID_FORMAT = "AivenKafkaConnector:%s";
   private final BigQuery testBigQuery;
   private final Storage testGcs;
   private final SchemaManager testSchemaManager;
@@ -536,14 +535,6 @@ public class BigQuerySinkTask extends SinkTask {
     return new SinkRecordConverter(config, mergeBatches, mergeQueries);
   }
 
-  private String generateTraceId() {
-    String name = config.getString(BigQuerySinkConfig.CONNECTOR_NAME_CONFIG);
-    String suffix = (name == null || name.isBlank())
-            ? "default"
-            : name + "-" + config.getInt(BigQuerySinkTaskConfig.TASK_ID_CONFIG);
-    return String.format(TRACE_ID_FORMAT, suffix);
-  }
-
   private synchronized Map<TableId, Table> getCache() {
     if (cache == null) {
       cache = new HashMap<>();
@@ -640,7 +631,6 @@ public class BigQuerySinkTask extends SinkTask {
     } else {
       boolean attemptSchemaUpdate = allowNewBigQueryFields || allowRequiredFieldRelaxation;
       BigQueryWriteSettings writeSettings = new GcpClientBuilder.BigQueryWriteSettingsBuilder().withConfig(config).build();
-      String traceId = generateTraceId();
       if (useStorageApiBatchMode) {
         StorageWriteApiBatchApplicationStream writer = new StorageWriteApiBatchApplicationStream(
             retry,
@@ -650,7 +640,7 @@ public class BigQuerySinkTask extends SinkTask {
             errantRecordHandler,
             getSchemaManager(),
             attemptSchemaUpdate,
-            traceId
+            config
         );
         storageApiWriter = writer;
 
@@ -671,7 +661,7 @@ public class BigQuerySinkTask extends SinkTask {
             errantRecordHandler,
             getSchemaManager(),
             attemptSchemaUpdate,
-            traceId
+            config
         );
       }
     }
