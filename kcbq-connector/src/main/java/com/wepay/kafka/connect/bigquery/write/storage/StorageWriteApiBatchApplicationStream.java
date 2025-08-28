@@ -31,6 +31,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.protobuf.Descriptors;
 import com.wepay.kafka.connect.bigquery.ErrantRecordHandler;
 import com.wepay.kafka.connect.bigquery.SchemaManager;
+import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiConnectException;
 import java.io.IOException;
 import java.util.HashMap;
@@ -87,7 +88,7 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiBase {
       ErrantRecordHandler errantRecordHandler,
       SchemaManager schemaManager,
       boolean attemptSchemaUpdate,
-      boolean ignoreUnknownFields) {
+      BigQuerySinkConfig config) {
     super(
         retry,
         retryWait,
@@ -96,8 +97,37 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiBase {
         errantRecordHandler,
         schemaManager,
         attemptSchemaUpdate,
-        ignoreUnknownFields
+        config
     );
+    streams = new ConcurrentHashMap<>();
+    currentStreams = new ConcurrentHashMap<>();
+    tableLocks = new ConcurrentHashMap<>();
+    streamLocks = new ConcurrentHashMap<>();
+  }
+
+  /**
+   * @deprecated This constructor does not support configuration of additional write settings.
+   * Use {@link #StorageWriteApiBatchApplicationStream(int retry, long retryWait, BigQueryWriteSettings writeSettings,
+   * boolean autoCreateTables, ErrantRecordHandler errantRecordHandler, SchemaManager schemaManager,
+   * boolean attemptSchemaUpdate, BigQuerySinkConfig config)} instead.
+   */
+  @Deprecated
+  public StorageWriteApiBatchApplicationStream(
+          int retry,
+          long retryWait,
+          BigQueryWriteSettings writeSettings,
+          boolean autoCreateTables,
+          ErrantRecordHandler errantRecordHandler,
+          SchemaManager schemaManager,
+          boolean attemptSchemaUpdate) {
+    super(
+            retry,
+            retryWait,
+            writeSettings,
+            autoCreateTables,
+            errantRecordHandler,
+            schemaManager,
+            attemptSchemaUpdate);
     streams = new ConcurrentHashMap<>();
     currentStreams = new ConcurrentHashMap<>();
     tableLocks = new ConcurrentHashMap<>();

@@ -307,7 +307,8 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
     assertEquals(expectedRows(), testRows.stream().map(row -> row.get(0)).collect(Collectors.toSet()));
   }
 
-  @Test public void testRecordWithUnknownFieldFails() throws InterruptedException {
+  @Test
+  public void testRecordWithUnknownFieldFails() throws InterruptedException {
     // create topic in Kafka
     final String topic = suffixedTableOrTopic("storage-api-json-extra-field-fails");
     final String table = sanitizedTable(topic);
@@ -347,7 +348,10 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
             TASKS_MAX,
             "Tasks should have failed when writing record with fields not present"
                     + "in target table." );
-  } @Test public void testRecordWithUnknownFieldWhenIgnoreEnabled() throws InterruptedException {
+  }
+
+  @Test
+  public void testRecordWithUnknownFieldWhenIgnoreEnabled() throws InterruptedException {
     // create topic in Kafka
     final String topic = suffixedTableOrTopic("storage-api-json-extra-field");
     final String table = sanitizedTable(topic);
