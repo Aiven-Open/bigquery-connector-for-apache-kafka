@@ -35,6 +35,7 @@ import com.google.cloud.bigquery.storage.v1.TableName;
 import com.google.common.annotations.VisibleForTesting;
 import com.wepay.kafka.connect.bigquery.ErrantRecordHandler;
 import com.wepay.kafka.connect.bigquery.SchemaManager;
+import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiConnectException;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiErrorResponses;
 import com.wepay.kafka.connect.bigquery.utils.Time;
@@ -80,7 +81,7 @@ public abstract class StorageWriteApiBase {
    * @param writeSettings       Write Settings for stream which carry authentication and other header information
    * @param autoCreateTables    boolean flag set if table should be created automatically
    * @param errantRecordHandler Used to handle errant records
-   * @param ignoreUnknownFields whether to ignore fields in records that are not defined in target BQ table schema
+   * @param config              Connector configurations
    */
   protected StorageWriteApiBase(int retry,
                                 long retryWait,
@@ -89,7 +90,7 @@ public abstract class StorageWriteApiBase {
                                 ErrantRecordHandler errantRecordHandler,
                                 SchemaManager schemaManager,
                                 boolean attemptSchemaUpdate,
-                                boolean ignoreUnknownFields) {
+                                BigQuerySinkConfig config) {
     this.retry = retry;
     this.retryWait = retryWait;
     this.autoCreateTables = autoCreateTables;
@@ -97,7 +98,45 @@ public abstract class StorageWriteApiBase {
     this.errantRecordHandler = errantRecordHandler;
     this.schemaManager = schemaManager;
     this.attemptSchemaUpdate = attemptSchemaUpdate;
-    this.ignoreUnknownFields = ignoreUnknownFields;
+    this.ignoreUnknownFields = config.getBoolean(BigQuerySinkConfig.IGNORE_UNKNOWN_FIELDS_CONFIG);
+    try {
+      this.writeClient = getWriteClient();
+    } catch (IOException e) {
+      logger.error("Failed to create Big Query Storage Write API write client due to {}", e.getMessage());
+      throw new BigQueryStorageWriteApiConnectException("Failed to create Big Query Storage Write API write client", e);
+    }
+    this.jsonWriterFactory = getJsonWriterFactory();
+    this.time = Time.SYSTEM;
+  }
+
+  /**
+   * @deprecated This constructor does not support does not support configuration of additional write settings.
+   * Use {@link #StorageWriteApiBase(int retry, long retryWait, BigQueryWriteSettings writeSettings,
+   * boolean autoCreateTables, ErrantRecordHandler errantRecordHandler, SchemaManager schemaManager,
+   * boolean attemptSchemaUpdate, BigQuerySinkConfig config)} instead.
+   *
+   * @param retry               How many retries to make in the event of a retriable error.
+   * @param retryWait           How long to wait in between retries.
+   * @param writeSettings       Write Settings for stream which carry authentication and other header information
+   * @param autoCreateTables    boolean flag set if table should be created automatically
+   * @param errantRecordHandler Used to handle errant records
+   */
+  @Deprecated
+  protected StorageWriteApiBase(int retry,
+                                long retryWait,
+                                BigQueryWriteSettings writeSettings,
+                                boolean autoCreateTables,
+                                ErrantRecordHandler errantRecordHandler,
+                                SchemaManager schemaManager,
+                                boolean attemptSchemaUpdate) {
+    this.retry = retry;
+    this.retryWait = retryWait;
+    this.autoCreateTables = autoCreateTables;
+    this.writeSettings = writeSettings;
+    this.errantRecordHandler = errantRecordHandler;
+    this.schemaManager = schemaManager;
+    this.attemptSchemaUpdate = attemptSchemaUpdate;
+    this.ignoreUnknownFields = false;
     try {
       this.writeClient = getWriteClient();
     } catch (IOException e) {

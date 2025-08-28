@@ -52,13 +52,31 @@ public class SimpleBigQueryWriter extends BigQueryWriter {
    * @param bigQuery            The object used to send write requests to BigQuery.
    * @param retry               How many retries to make in the event of a 500/503 error.
    * @param retryWait           How long to wait in between retries.
-   * @param ignoreUnknownFields whether to ignore fields in records that are not defined in target BQ table schema
+   * @param errantRecordHandler Used to handle errant records
+   * @param time                used to wait during backoff periods
+   * @param config              Connector configurations
+   */
+  public SimpleBigQueryWriter(BigQuery bigQuery, int retry, long retryWait, ErrantRecordHandler errantRecordHandler,
+                              Time time, BigQuerySinkConfig config) {
+    super(retry, retryWait, errantRecordHandler, time, config);
+    this.bigQuery = bigQuery;
+  }
+
+  /**
+   * @deprecated This constructor does not support configuration of additional write settings.
+   * Use {@link #SimpleBigQueryWriter(BigQuery bigQuery, int retry, long retryWait, ErrantRecordHandler errantRecordHandler,
+   * Time time, BigQuerySinkConfig config)}.
+   *
+   * @param bigQuery            The object used to send write requests to BigQuery.
+   * @param retry               How many retries to make in the event of a 500/503 error.
+   * @param retryWait           How long to wait in between retries.
    * @param errantRecordHandler Used to handle errant records
    * @param time                used to wait during backoff periods
    */
-  public SimpleBigQueryWriter(BigQuery bigQuery, int retry, long retryWait, boolean ignoreUnknownFields,
-                              ErrantRecordHandler errantRecordHandler, Time time) {
-    super(retry, retryWait, ignoreUnknownFields, errantRecordHandler, time);
+  @Deprecated
+  public SimpleBigQueryWriter(BigQuery bigQuery, int retry, long retryWait, ErrantRecordHandler errantRecordHandler,
+                              Time time) {
+    super(retry, retryWait, errantRecordHandler, time);
     this.bigQuery = bigQuery;
   }
 
