@@ -80,14 +80,16 @@ public class StorageWriteApiDefaultStream extends StorageWriteApiBase {
    * @param tableName The table name for which stream has to be removed.
    */
   private void closeAndDelete(String tableName) {
-    logger.debug("Closing stream on table {}", tableName);
-    if (tableToStream.containsKey(tableName)) {
-      synchronized (tableToStream) {
-        tableToStream.get(tableName).close();
-        tableToStream.remove(tableName);
+    tableToStream.computeIfPresent(tableName, (t, writer) -> {
+      logger.debug("Closing stream on table {}", t);
+      try {
+        writer.close();
+        logger.debug("Closed stream on table {}", t);
+      } catch (Throwable e) {
+        logger.warn("Error closing stream for table {}", t, e);
       }
-      logger.debug("Closed stream on table {}", tableName);
-    }
+      return null;
+    });
   }
 
   /**
