@@ -98,7 +98,7 @@ public abstract class StorageWriteApiBase {
     this.errantRecordHandler = errantRecordHandler;
     this.schemaManager = schemaManager;
     this.attemptSchemaUpdate = attemptSchemaUpdate;
-    this.ignoreUnknownFields = config.getBoolean(BigQuerySinkConfig.IGNORE_UNKNOWN_FIELDS_CONFIG);
+    this.ignoreUnknownFields = config.isIgnoreUnknownFields();
     try {
       this.writeClient = getWriteClient();
     } catch (IOException e) {
@@ -110,16 +110,16 @@ public abstract class StorageWriteApiBase {
   }
 
   /**
-   * @deprecated This constructor does not support does not support configuration of additional write settings.
-   * Use {@link #StorageWriteApiBase(int retry, long retryWait, BigQueryWriteSettings writeSettings,
-   * boolean autoCreateTables, ErrantRecordHandler errantRecordHandler, SchemaManager schemaManager,
-   * boolean attemptSchemaUpdate, BigQuerySinkConfig config)} instead.
-   *
    * @param retry               How many retries to make in the event of a retriable error.
    * @param retryWait           How long to wait in between retries.
    * @param writeSettings       Write Settings for stream which carry authentication and other header information
    * @param autoCreateTables    boolean flag set if table should be created automatically
    * @param errantRecordHandler Used to handle errant records
+   *
+   * @deprecated This constructor does not support does not support configuration of additional write settings.
+   * Use {@link #StorageWriteApiBase(int retry, long retryWait, BigQueryWriteSettings writeSettings,
+   * boolean autoCreateTables, ErrantRecordHandler errantRecordHandler, SchemaManager schemaManager,
+   * boolean attemptSchemaUpdate, BigQuerySinkConfig config)} instead.
    */
   @Deprecated
   protected StorageWriteApiBase(int retry,

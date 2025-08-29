@@ -1223,6 +1223,10 @@ public class BigQuerySinkConfig extends AbstractConfig {
     return getBoolean(UPSERT_ENABLED_CONFIG) || getBoolean(DELETE_ENABLED_CONFIG);
   }
 
+  public boolean isIgnoreUnknownFields() {
+    return getBoolean(BigQuerySinkConfig.IGNORE_UNKNOWN_FIELDS_CONFIG);
+  }
+
   public Optional<TimePartitioning.Type> getTimePartitioningType() {
     return parseTimePartitioningType(getString(TIME_PARTITIONING_TYPE_CONFIG));
   }
