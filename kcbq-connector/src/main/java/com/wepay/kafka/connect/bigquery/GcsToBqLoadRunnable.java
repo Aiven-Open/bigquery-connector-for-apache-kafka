@@ -295,11 +295,16 @@ public class GcsToBqLoadRunnable implements Runnable {
   }
 
   private void processFailedJob(final Job job, final List<BlobId> blobsNotCompleted) {
-    logger.warn("Job {} failed with {}.  Blobs not completed: {}", job.getJobId(), job.getStatus().getError(),  blobsNotCompleted);
-    logger.debug("Errors associated with job {}: {}", job.getJobId(), job.getStatus().getExecutionErrors());
+    logger.warn("Job {} failed with {}", job.getJobId(), job.getStatus().getError());
+    if (job.getStatus().getExecutionErrors().isEmpty()) {
+      logger.warn("No additional errors associated with job {}", job.getJobId());
+    } else {
+      logger.warn("Additional errors associated with job {}: {}", job.getJobId(), job.getStatus().getExecutionErrors());
+    }
+    logger.warn("Blobs in job {}: {}", job.getJobId(), blobsNotCompleted);
     // unclaim blobs
     blobsNotCompleted.forEach(claimedBlobIds::remove);
-    logger.trace("Failed blobs reset as processable: {}", blobsNotCompleted);
+    logger.trace("Failed blobs reset as processable");
   }
 
   /**
