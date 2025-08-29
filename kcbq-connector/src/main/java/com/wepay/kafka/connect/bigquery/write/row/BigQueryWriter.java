@@ -75,20 +75,20 @@ public abstract class BigQueryWriter {
     this.random = new Random();
     this.errantRecordHandler = errantRecordHandler;
     this.time = time;
-    this.ignoreUnknownFields = config.getBoolean(BigQuerySinkConfig.IGNORE_UNKNOWN_FIELDS_CONFIG);
+    this.ignoreUnknownFields = config.isIgnoreUnknownFields();
   }
 
   /**
-   * @deprecated This constructor does not support configuration of additional write settings.
-   * Use {@link #BigQueryWriter(int retries, long retryWaitMs, ErrantRecordHandler errantRecordHandler,
-   * Time time, BigQuerySinkConfig config)} instead.
-   *
    * @param retries             the number of times to retry a request if BQ returns an internal service error
    *                            or a service unavailable error.
    * @param retryWaitMs         the amount of time to wait in between reattempting a request if BQ returns
    *                            an internal service error or a service unavailable error.
    * @param errantRecordHandler used to handle errant records
    * @param time                used to wait during backoff periods
+   *
+   * @deprecated This constructor does not support configuration of additional write settings.
+   * Use {@link #BigQueryWriter(int retries, long retryWaitMs, ErrantRecordHandler errantRecordHandler,
+   * Time time, BigQuerySinkConfig config)} instead.
    */
   @Deprecated
   public BigQueryWriter(int retries, long retryWaitMs, ErrantRecordHandler errantRecordHandler, Time time) {

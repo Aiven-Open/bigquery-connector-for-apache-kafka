@@ -77,11 +77,6 @@ public class UpsertDeleteBigQueryWriter extends AdaptiveBigQueryWriter {
   }
 
   /**
-   * @deprecated This constructor does not support configuration of additional write settings.
-   * Use {@link #UpsertDeleteBigQueryWriter(BigQuery bigQuery, SchemaManager schemaManager, int retry,
-   * long retryWait, boolean autoCreateTables, Map intermediateToDestinationTables,
-   * ErrantRecordHandler errantRecordHandler, Time time, BigQuerySinkConfig config)} instead.
-   *
    * @param bigQuery                        Used to send write requests to BigQuery.
    * @param schemaManager                   Used to update BigQuery tables.
    * @param retry                           How many retries to make in the event of a 500/503 error.
@@ -93,6 +88,11 @@ public class UpsertDeleteBigQueryWriter extends AdaptiveBigQueryWriter {
    *                                        table
    * @param errantRecordHandler             Used to handle errant records
    * @param time                            used to wait during backoff periods
+   *
+   * @deprecated This constructor does not support configuration of additional write settings.
+   * Use {@link #UpsertDeleteBigQueryWriter(BigQuery bigQuery, SchemaManager schemaManager, int retry,
+   * long retryWait, boolean autoCreateTables, Map intermediateToDestinationTables,
+   * ErrantRecordHandler errantRecordHandler, Time time, BigQuerySinkConfig config)} instead.
    */
   @Deprecated
   public UpsertDeleteBigQueryWriter(BigQuery bigQuery,

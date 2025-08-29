@@ -86,10 +86,6 @@ public class AdaptiveBigQueryWriter extends BigQueryWriter {
   }
 
   /**
-   * @deprecated This constructor does not support configuration of additional write settings.
-   * Use {@link #AdaptiveBigQueryWriter(BigQuery bigQuery, SchemaManager schemaManager, int retry, long retryWait,
-   * boolean autoCreateTables, ErrantRecordHandler errantRecordHandler, Time time, BigQuerySinkConfig config)}.
-   *
    * @param bigQuery            Used to send write requests to BigQuery.
    * @param schemaManager       Used to update BigQuery tables.
    * @param retry               How many retries to make in the event of a 500/503 error.
@@ -97,6 +93,10 @@ public class AdaptiveBigQueryWriter extends BigQueryWriter {
    * @param autoCreateTables    Whether tables should be automatically created
    * @param errantRecordHandler Used to handle errant records
    * @param time                used to wait during backoff periods
+   *
+   * @deprecated This constructor does not support configuration of additional write settings.
+   * Use {@link #AdaptiveBigQueryWriter(BigQuery bigQuery, SchemaManager schemaManager, int retry, long retryWait,
+   * boolean autoCreateTables, ErrantRecordHandler errantRecordHandler, Time time, BigQuerySinkConfig config)}.
    */
   @Deprecated
   public AdaptiveBigQueryWriter(BigQuery bigQuery,
