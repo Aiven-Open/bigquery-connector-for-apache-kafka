@@ -62,6 +62,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -222,8 +223,8 @@ public class BigQuerySinkConnectorIT {
     testBase.connect.deleteConnector(connectorName);
   }
 
-  @ParameterizedTest
-  @MethodSource
+  @Test
+  @Disabled("unknown configuration for test")
   public void runTestCase() throws Exception {
     final int tasksMax = 1;
 

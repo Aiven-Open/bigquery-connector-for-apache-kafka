@@ -35,6 +35,7 @@ import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.Bucket;
 import com.google.cloud.storage.StorageException;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.re2j.Matcher;
 import com.google.re2j.Pattern;
 import com.wepay.kafka.connect.bigquery.write.row.GcsToBqWriter;
@@ -67,18 +68,24 @@ public class GcsToBqLoadRunnable implements Runnable {
   private static String SOURCE_URI_FORMAT = "gs://%s/%s";
   private final BigQuery bigQuery;
 
-  // these numbers are intended to try to make this task not excede Google Cloud Quotas.
+  // these numbers are intended to try to make this task not exceed Google Cloud Quotas.
   // see: https://cloud.google.com/bigquery/quotas#load_jobs
   private final Bucket bucket;
   private final Map<Job, List<BlobId>> activeJobs;
+  /**
+   * The set of blob Ids that the system is currently processing or are queued to process.
+   */
   private final Set<BlobId> claimedBlobIds;
+  /**
+   * The set of blob Ids that the system can delete.
+   */
   private final Set<BlobId> deletableBlobIds;
 
   /**
    * Create a {@link GcsToBqLoadRunnable} with the given bigquery, bucket, and ms wait interval.
    *
    * @param bigQuery the {@link BigQuery} instance.
-   * @param bucket   the the GCS bucket to read from.
+   * @param bucket   the GCS bucket to read from.
    */
   public GcsToBqLoadRunnable(BigQuery bigQuery, Bucket bucket) {
     this.bigQuery = bigQuery;
@@ -86,6 +93,24 @@ public class GcsToBqLoadRunnable implements Runnable {
     this.activeJobs = new HashMap<>();
     this.claimedBlobIds = new HashSet<>();
     this.deletableBlobIds = new HashSet<>();
+  }
+
+  /**
+   * Create a {@link GcsToBqLoadRunnable} with the given bigquery, bucket, and ms wait interval.
+   *
+   * @param bigQuery the {@link BigQuery} instance.
+   * @param bucket   the GCS bucket to read from.
+   * @param activeJobs the map of job to the list of blobs it contains.
+   * @param claimedBlobIds the list of Blob Ids being processed.
+   * @param deletableBlobIds the list of Blob Ids that can be deleted.
+   */
+  @VisibleForTesting
+  GcsToBqLoadRunnable(BigQuery bigQuery, Bucket bucket, Map<Job, List<BlobId>> activeJobs, Set<BlobId> claimedBlobIds, Set<BlobId> deletableBlobIds) {
+    this.bigQuery = bigQuery;
+    this.bucket = bucket;
+    this.activeJobs = activeJobs;
+    this.claimedBlobIds = claimedBlobIds;
+    this.deletableBlobIds = deletableBlobIds;
   }
 
   /**
@@ -217,7 +242,8 @@ public class GcsToBqLoadRunnable implements Runnable {
    * any jobs that failed. We only log a message for failed jobs because those blobs will be
    * retried during the next run.
    */
-  private void checkJobs() {
+  @VisibleForTesting
+  void checkJobs() {
     if (activeJobs.isEmpty()) {
       // quick exit if nothing needs to be done.
       logger.debug("No active jobs to check. Skipping check jobs.");
@@ -237,29 +263,48 @@ public class GcsToBqLoadRunnable implements Runnable {
       try {
         if (job.isDone()) {
           logger.trace("Job is marked done: id={}, status={}", job.getJobId(), job.getStatus());
-          final List<BlobId> blobIdsToDelete = jobEntry.getValue();
+          if (job.getStatus().getError() == null) {
+            processSuccessfulJob(job, jobEntry.getValue());
+            successCount++;
+          } else {
+            processFailedJob(job, jobEntry.getValue());
+            failureCount++;
+          }
           jobIterator.remove();
           logger.trace("Job is removed from iterator: {}", job.getJobId());
-          successCount++;
-          claimedBlobIds.removeAll(blobIdsToDelete);
-          logger.trace("Completed blobs have been removed from claimed set: {}", blobIdsToDelete);
-          deletableBlobIds.addAll(blobIdsToDelete);
-          logger.trace("Completed blobs marked as deletable: {}", blobIdsToDelete);
         }
       } catch (BigQueryException ex) {
         // log a message.
         logger.warn("GCS to BQ load job failed", ex);
-        // remove job from active jobs (it's not active anymore)
-        List<BlobId> blobIds = activeJobs.get(job);
-        jobIterator.remove();
-        // unclaim blobs
-        claimedBlobIds.removeAll(blobIds);
+        processFailedJob(job, jobEntry.getValue());
         failureCount++;
+        jobIterator.remove();
+        logger.trace("Job is removed from iterator: {}", job.getJobId());
       } finally {
         logger.info("GCS To BQ job tally: {} successful jobs, {} failed jobs.",
             successCount, failureCount);
       }
     }
+  }
+
+  private void processSuccessfulJob(final Job job, final List<BlobId> blobIdsToDelete) {
+    blobIdsToDelete.forEach(claimedBlobIds::remove);
+    logger.trace("Completed blobs have been removed from claimed set: {}", blobIdsToDelete);
+    deletableBlobIds.addAll(blobIdsToDelete);
+    logger.trace("Completed blobs marked as deletable: {}", blobIdsToDelete);
+  }
+
+  private void processFailedJob(final Job job, final List<BlobId> blobsNotCompleted) {
+    logger.warn("Job {} failed with {}", job.getJobId(), job.getStatus().getError());
+    if (job.getStatus().getExecutionErrors().isEmpty()) {
+      logger.warn("No additional errors associated with job {}", job.getJobId());
+    } else {
+      logger.warn("Additional errors associated with job {}: {}", job.getJobId(), job.getStatus().getExecutionErrors());
+    }
+    logger.warn("Blobs in job {}: {}", job.getJobId(), blobsNotCompleted);
+    // unclaim blobs
+    blobsNotCompleted.forEach(claimedBlobIds::remove);
+    logger.trace("Failed blobs reset as processable");
   }
 
   /**
@@ -298,7 +343,7 @@ public class GcsToBqLoadRunnable implements Runnable {
       // Calculate number of successful deletes, remove the successful deletes from
       // the deletableBlobIds.
       successfulDeletes = numberOfBlobs - failedDeletes;
-      deletableBlobIds.removeAll(blobIdsToDelete);
+      blobIdsToDelete.forEach(deletableBlobIds::remove);
 
       logger.info("Successfully deleted {} blobs; failed to delete {} blobs",
           successfulDeletes,

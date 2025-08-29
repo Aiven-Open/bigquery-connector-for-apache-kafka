@@ -25,13 +25,33 @@ package com.wepay.kafka.connect.bigquery;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
+import com.google.cloud.bigquery.BigQuery;
+import com.google.cloud.bigquery.BigQueryError;
+import com.google.cloud.bigquery.BigQueryException;
+import com.google.cloud.bigquery.Job;
+import com.google.cloud.bigquery.JobId;
+import com.google.cloud.bigquery.JobStatus;
 import com.google.cloud.bigquery.TableId;
 import com.google.cloud.storage.Blob;
+
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
+
+import com.google.cloud.storage.BlobId;
+import com.google.cloud.storage.Bucket;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mockito;
 
 public class GcsToBqLoadRunnableTest {
@@ -63,7 +83,7 @@ public class GcsToBqLoadRunnableTest {
   @Test
   public void testGetTableFromBlobWithoutMetadata() {
     Blob mockBlob = mock(Blob.class);
-    Mockito.when(mockBlob.getMetadata()).thenReturn(null);
+    when(mockBlob.getMetadata()).thenReturn(null);
 
     TableId tableId = GcsToBqLoadRunnable.getTableFromBlob(mockBlob);
     assertNull(tableId);
@@ -91,9 +111,68 @@ public class GcsToBqLoadRunnableTest {
 
   private Blob createMockBlobWithTableMetadata(Map<String, String> metadata) {
     Blob mockBlob = mock(Blob.class);
-    Mockito.when(mockBlob.getMetadata()).thenReturn(metadata);
+    when(mockBlob.getMetadata()).thenReturn(metadata);
     return mockBlob;
   }
 
+  private static Job createJob(String jobId) {
+    Job job = mock(Job.class);
+    when(job.getJobId()).thenReturn(JobId.of(jobId));
+    return job;
+
+  }
+
+  @ParameterizedTest
+  @MethodSource("checkJobsData")
+  void testCheckJobsFailure(String name, Job job, List<BlobId> blobIds, int activeCount, int claimedCount, int deletableCount) {
+    BigQuery bigQuery = mock(BigQuery.class);
+    Bucket bucket = mock(Bucket.class);
+    final Map<Job, List<BlobId>> activeJobs = new HashMap<>();
+    final Set<BlobId> deletableBlobIds = new HashSet<>();
+    final Set<BlobId> claimedBlobIds = new HashSet<>(blobIds);
+
+    activeJobs.put(job, blobIds);
+
+    GcsToBqLoadRunnable runnable = new GcsToBqLoadRunnable(bigQuery, bucket, activeJobs, claimedBlobIds, deletableBlobIds);
+    runnable.checkJobs();
+    assertEquals(activeCount, activeJobs.size(), "Wrong active count" );
+    assertEquals(claimedCount, claimedBlobIds.size(), "Wrong claimed count");
+    assertEquals(deletableCount, deletableBlobIds.size(), "Wrong deletable count");
+  }
+
+  static List<Arguments> checkJobsData() {
+    List<Arguments> args = new ArrayList<>();
+
+    Job job = createJob("errorInProcessing");
+    BlobId blob = BlobId.of("bucket", "blob1");
+    when(job.isDone()).thenReturn(true);
+    BigQueryError error = new BigQueryError("reason","location", "message", "debugInfo");
+    JobStatus jobStatus = mock(JobStatus.class);
+    when(jobStatus.getError()).thenReturn(error);
+    when(jobStatus.getExecutionErrors()).thenReturn(Collections.singletonList(new BigQueryError("executionError","location", "message", "debugInfo")));
+    when(job.getStatus()).thenReturn(jobStatus);
+    args.add(Arguments.of(job.getJobId().getJob(), job, Collections.singletonList(blob), 0, 0, 0));
+
+     job = createJob("goodCompleted");
+     blob = BlobId.of("bucket", "blob2");
+    when(job.isDone()).thenReturn(true);
+    jobStatus = mock(JobStatus.class);
+    when(job.getStatus()).thenReturn(jobStatus);
+    args.add(Arguments.of(job.getJobId().getJob(), job, Collections.singletonList(blob), 0, 0, 1));
+
+    job = createJob("exception");
+    blob = BlobId.of("bucket", "blob3");
+    when(job.isDone()).thenThrow(BigQueryException.class);
+    jobStatus = mock(JobStatus.class);
+    when(job.getStatus()).thenReturn(jobStatus);
+    args.add(Arguments.of(job.getJobId().getJob(), job, Collections.singletonList(blob), 0, 0, 0));
+
+    job = createJob("stillRunning");
+    blob = BlobId.of("bucket", "blob2");
+    jobStatus = mock(JobStatus.class);
+    when(job.getStatus()).thenReturn(jobStatus);
+    args.add(Arguments.of(job.getJobId().getJob(), job, Collections.singletonList(blob), 1, 1, 0));
+    return args;
+  }
 
 }
