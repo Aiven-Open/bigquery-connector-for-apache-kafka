@@ -39,8 +39,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.google.cloud.bigquery.BigQuery;
-import com.google.cloud.bigquery.Table;
-import com.google.cloud.bigquery.TableId;
 import com.google.cloud.storage.Storage;
 import com.wepay.kafka.connect.bigquery.api.SchemaRetriever;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
@@ -51,7 +49,6 @@ import com.wepay.kafka.connect.bigquery.utils.Time;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageApiBatchModeHandler;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiBatchApplicationStream;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
@@ -83,10 +80,9 @@ public class BigQueryStorageApiBatchSinkTaskTest {
   SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
   SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
   SchemaManager schemaManager = mock(SchemaManager.class);
-  Map<TableId, Table> cache = new HashMap<>();
   Time time = new MockTime();
   BigQuerySinkTask testTask = new BigQuerySinkTask(
-      bigQuery, schemaRetriever, storage, schemaManager, cache, mockedStorageWriteApiBatchStream, mockedBatchHandler, time);
+      bigQuery, schemaRetriever, storage, schemaManager, mockedStorageWriteApiBatchStream, mockedBatchHandler, time);
   BigQueryStorageWriteApiConnectException exception = new BigQueryStorageWriteApiConnectException("error 12345");
   Map<TopicPartition, OffsetAndMetadata> mockedOffset = mock(Map.class);
 

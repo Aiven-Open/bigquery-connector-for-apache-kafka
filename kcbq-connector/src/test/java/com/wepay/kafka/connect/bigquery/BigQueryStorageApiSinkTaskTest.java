@@ -36,8 +36,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import com.google.cloud.bigquery.BigQuery;
-import com.google.cloud.bigquery.Table;
-import com.google.cloud.bigquery.TableId;
 import com.google.cloud.storage.Storage;
 import com.wepay.kafka.connect.bigquery.api.SchemaRetriever;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
@@ -48,7 +46,6 @@ import com.wepay.kafka.connect.bigquery.utils.Time;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageApiBatchModeHandler;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiDefaultStream;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
@@ -75,11 +72,10 @@ public class BigQueryStorageApiSinkTaskTest {
   SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
   SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
   SchemaManager schemaManager = mock(SchemaManager.class);
-  Map<TableId, Table> cache = new HashMap<>();
   Time time = new MockTime();
   StorageApiBatchModeHandler storageApiBatchHandler = mock(StorageApiBatchModeHandler.class);
   BigQuerySinkTask testTask = new BigQuerySinkTask(
-      bigQuery, schemaRetriever, storage, schemaManager, cache, mockedStorageWriteApiDefaultStream, storageApiBatchHandler, time);
+      bigQuery, schemaRetriever, storage, schemaManager, mockedStorageWriteApiDefaultStream, storageApiBatchHandler, time);
 
   @BeforeEach
   public void setUp() {
