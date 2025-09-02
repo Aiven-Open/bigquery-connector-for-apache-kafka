@@ -38,6 +38,7 @@ import io.debezium.data.VariableScaleDecimal;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -73,10 +74,6 @@ public class BigQuerySinkConfig extends AbstractConfig {
   }
 
   private static final Logger logger = LoggerFactory.getLogger(BigQuerySinkConfig.class);
-
-  public static final String DEPRECATED_DOC = "(DEPRECATED)";
-  public static final String GCS_LOAD_DEPRECATION_NOTICE =
-      "GCS batch loading has been deprecated and will be removed in a future major release.";
 
   // Values taken from https://github.com/apache/kafka/blob/1.1.1/connect/runtime/src/main/java/org/apache/kafka/connect/runtime/SinkConnectorConfig.java#L33
   public static final String TOPICS_CONFIG = SinkConnector.TOPICS_CONFIG;
@@ -594,7 +591,6 @@ public class BigQuerySinkConfig extends AbstractConfig {
 
   protected BigQuerySinkConfig(ConfigDef config, Map<String, String> properties) {
     super(config, properties);
-    logDeprecationWarnings();
     KafkaDataBuilder.setUseOriginalValues(getBoolean(PRESERVE_KAFKA_TOPIC_PARTITION_OFFSET__CONFIG));
   }
 
@@ -602,15 +598,6 @@ public class BigQuerySinkConfig extends AbstractConfig {
     this(getConfig(), properties);
   }
 
-  private void logDeprecationWarnings() {
-    if (!getList(ENABLE_BATCH_CONFIG).isEmpty()) {
-      logger.warn(
-          GCS_LOAD_DEPRECATION_NOTICE
-              + " To disable this feature, remove the {} property from the connector configuration",
-          ENABLE_BATCH_CONFIG
-      );
-    }
-  }
 
   /**
    * Return the ConfigDef object used to define this config's fields.
@@ -644,25 +631,25 @@ public class BigQuerySinkConfig extends AbstractConfig {
             ENABLE_BATCH_TYPE,
             ENABLE_BATCH_DEFAULT,
             ENABLE_BATCH_IMPORTANCE,
-            deprecatedGcsLoadDoc(ENABLE_BATCH_DOC)
+            ENABLE_BATCH_DOC
         ).define(
             BATCH_LOAD_INTERVAL_SEC_CONFIG,
             BATCH_LOAD_INTERVAL_SEC_TYPE,
             BATCH_LOAD_INTERVAL_SEC_DEFAULT,
             BATCH_LOAD_INTERVAL_SEC_IMPORTANCE,
-            deprecatedGcsLoadDoc(BATCH_LOAD_INTERVAL_SEC_DOC)
+            BATCH_LOAD_INTERVAL_SEC_DOC
         ).define(
             GCS_BUCKET_NAME_CONFIG,
             GCS_BUCKET_NAME_TYPE,
             GCS_BUCKET_NAME_DEFAULT,
             GCS_BUCKET_NAME_IMPORTANCE,
-            deprecatedGcsLoadDoc(GCS_BUCKET_NAME_DOC)
+            GCS_BUCKET_NAME_DOC
         ).define(
             GCS_FOLDER_NAME_CONFIG,
             GCS_FOLDER_NAME_TYPE,
             GCS_FOLDER_NAME_DEFAULT,
             GCS_FOLDER_NAME_IMPORTANCE,
-            deprecatedGcsLoadDoc(GCS_FOLDER_NAME_DOC)
+            GCS_FOLDER_NAME_DOC
         ).define(
             PROJECT_CONFIG,
             PROJECT_TYPE,
@@ -756,7 +743,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
             AUTO_CREATE_BUCKET_TYPE,
             AUTO_CREATE_BUCKET_DEFAULT,
             AUTO_CREATE_BUCKET_IMPORTANCE,
-            deprecatedGcsLoadDoc(AUTO_CREATE_BUCKET_DOC)
+            AUTO_CREATE_BUCKET_DOC
         ).define(
             ALLOW_NEW_BIGQUERY_FIELDS_CONFIG,
             ALLOW_NEW_BIGQUERY_FIELDS_TYPE,
@@ -1233,13 +1220,6 @@ public class BigQuerySinkConfig extends AbstractConfig {
     return wrapper + "\n" + text + "\n" + wrapper + "\n";
   }
 
-  private static String deprecatedGcsLoadDoc(String doc) {
-    return deprecatedDoc(doc, GCS_LOAD_DEPRECATION_NOTICE);
-  }
-
-  private static String deprecatedDoc(String doc, String notice) {
-    return DEPRECATED_DOC + " " + doc + " Warning: " + notice;
-  }
 
   private static String deprecationMessage(String deprecatedOption, String replacementOption) {
     StringBuilder sb = new StringBuilder(String.format("'%s' has been deprecated.", deprecatedOption));
