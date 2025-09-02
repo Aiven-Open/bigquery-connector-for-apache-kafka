@@ -494,7 +494,8 @@ public class BigQuerySinkTask extends SinkTask {
           autoCreateTables,
           mergeBatches.intermediateToDestinationTables(),
           errantRecordHandler,
-          time);
+          time,
+          config);
     } else if (autoCreateTables || allowNewBigQueryFields || allowRequiredFieldRelaxation) {
       return new AdaptiveBigQueryWriter(bigQuery,
           getSchemaManager(),
@@ -502,9 +503,10 @@ public class BigQuerySinkTask extends SinkTask {
           retryWait,
           autoCreateTables,
           errantRecordHandler,
-          time);
+          time,
+          config);
     } else {
-      return new SimpleBigQueryWriter(bigQuery, retry, retryWait, errantRecordHandler, time);
+      return new SimpleBigQueryWriter(bigQuery, retry, retryWait, errantRecordHandler, time, config);
     }
   }
 
@@ -639,7 +641,8 @@ public class BigQuerySinkTask extends SinkTask {
             autoCreateTables,
             errantRecordHandler,
             getSchemaManager(),
-            attemptSchemaUpdate
+            attemptSchemaUpdate,
+            config
         );
         storageApiWriter = writer;
 
@@ -659,7 +662,8 @@ public class BigQuerySinkTask extends SinkTask {
             autoCreateTables,
             errantRecordHandler,
             getSchemaManager(),
-            attemptSchemaUpdate
+            attemptSchemaUpdate,
+            config
         );
       }
     }
