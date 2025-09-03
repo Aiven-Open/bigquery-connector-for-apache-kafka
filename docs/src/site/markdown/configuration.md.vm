@@ -10,6 +10,6 @@ ${esc.hash}${esc.hash} ${section.displayName}
  - Valid values:  ${section.validator|"no restrictions"}
  - Importance: $section.importance
 
-    ${bigquery.markdownEscape(${section.documentation})}`
+    ${bigquery.markdownEscape(${section.documentation})}
 
 #end
