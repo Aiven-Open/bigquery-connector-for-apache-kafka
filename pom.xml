@@ -368,6 +368,7 @@ under the License.
                         <Jenkinsfile>JENKINSFILE_STYLE</Jenkinsfile>
                     </mapping>
                     <excludes>
+                        <exclude>**/*.vm</exclude>
                         <exclude>LICENSE.md</exclude>
                         <exclude>*.log</exclude>
                         <exclude>config/checkstyle/google_checks.xml</exclude>
