@@ -107,21 +107,22 @@ public abstract class StorageWriteApiBase {
       throw new BigQueryStorageWriteApiConnectException("Failed to create Big Query Storage Write API write client", e);
     }
     this.jsonWriterFactory = getJsonWriterFactory();
-    this.traceId = generateTraceId(config.getString(BigQuerySinkConfig.CONNECTOR_NAME_CONFIG));
+    this.traceId = generateTraceId(config.getConnectorName().orElse(null));
     this.time = Time.SYSTEM;
   }
 
   /**
-   * @deprecated This constructor does not support does not support configuration of additional write settings.
-   * Use {@link #StorageWriteApiBase(int retry, long retryWait, BigQueryWriteSettings writeSettings,
-   * boolean autoCreateTables, ErrantRecordHandler errantRecordHandler, SchemaManager schemaManager,
-   * boolean attemptSchemaUpdate, BigQuerySinkConfig config)} instead.
-   *
    * @param retry               How many retries to make in the event of a retriable error.
    * @param retryWait           How long to wait in between retries.
    * @param writeSettings       Write Settings for stream which carry authentication and other header information
    * @param autoCreateTables    boolean flag set if table should be created automatically
    * @param errantRecordHandler Used to handle errant records
+   *
+   * @deprecated This constructor does not support does not support configuration of additional write settings.
+   * Use {@link #StorageWriteApiBase(int retry, long retryWait, BigQueryWriteSettings writeSettings,
+   * boolean autoCreateTables, ErrantRecordHandler errantRecordHandler, SchemaManager schemaManager,
+   * boolean attemptSchemaUpdate, BigQuerySinkConfig config)} instead.
+   *
    */
   @Deprecated
   protected StorageWriteApiBase(int retry,

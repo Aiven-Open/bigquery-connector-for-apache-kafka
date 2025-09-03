@@ -1144,6 +1144,10 @@ public class BigQuerySinkConfig extends AbstractConfig {
     return Optional.ofNullable(getString(KAFKA_DATA_FIELD_NAME_CONFIG));
   }
 
+  public Optional<String> getConnectorName() {
+    return Optional.ofNullable(getString(CONNECTOR_NAME_CONFIG));
+  }
+
   public boolean isUpsertDeleteEnabled() {
     return getBoolean(UPSERT_ENABLED_CONFIG) || getBoolean(DELETE_ENABLED_CONFIG);
   }
