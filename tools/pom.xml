@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+    Copyright 2024 Copyright 2022 Aiven Oy and
+    bigquery-connector-for-apache-kafka project contributors
+
+    This software contains code derived from the Confluent BigQuery
+    Kafka Connector, Copyright Confluent, Inc, which in turn
+    contains code derived from the WePay BigQuery Kafka Connector,
+    Copyright WePay, Inc.
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing,
+    software distributed under the License is distributed on an
+    "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+    KIND, either express or implied.  See the License for the
+    specific language governing permissions and limitations
+    under the License.
+
+-->
+<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns="http://maven.apache.org/POM/4.0.0"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.wepay.kcbq</groupId>
+        <artifactId>kcbq-parent</artifactId>
+        <version>2.9.0-SNAPSHOT</version>
+    </parent>
+    <url>https://github.com/Aiven-Open/bigquery-connector-for-apache-kafka/</url>
+    <artifactId>tools</artifactId>
+    <name>kafka-connect-bigquery documentation tools</name>
+    <organization>
+        <name>Aiven</name>
+        <url>https://www.aiven.io</url>
+    </organization>
+    <properties>
+        <main.dir>${project.parent.basedir}</main.dir>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.wepay.kcbq</groupId>
+            <artifactId>kcbq-connector</artifactId>
+            <version>${parent.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.kafka</groupId>
+            <artifactId>kafka-clients</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.velocity</groupId>
+            <artifactId>velocity-engine-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.velocity.tools</groupId>
+            <artifactId>velocity-tools-generic</artifactId>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <defaultGoal>install</defaultGoal>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-checkstyle-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.4.2</version>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <mainClass>io.aiven.kafka.utils.VersionInfo</mainClass>
+                            <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
+                            <addDefaultSpecificationEntries>true</addDefaultSpecificationEntries>
+                        </manifest>
+                        <manifestEntries>
+                            <url>${project.url}</url>
+                        </manifestEntries>
+                    </archive>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>
