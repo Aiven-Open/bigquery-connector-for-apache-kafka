@@ -1,0 +1,15 @@
+# BigQuery connector configuration options
+
+#set($stringUtils = ${bigquery.stringUtils})
+
+#foreach ($section in ${bigquery.options})
+${esc.hash}${esc.hash} ${section.displayName}
+
+ - Default value: ${section.getDefaultValue()|"none"}
+ - Type:  $section.type
+ - Valid values:  ${section.validator|"no restrictions"}
+ - Importance: $section.importance
+
+    ${bigquery.markdownEscape(${section.documentation})}`
+
+#end
