@@ -35,6 +35,7 @@ import com.google.cloud.bigquery.storage.v1.TableName;
 import com.google.common.annotations.VisibleForTesting;
 import com.wepay.kafka.connect.bigquery.ErrantRecordHandler;
 import com.wepay.kafka.connect.bigquery.SchemaManager;
+import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiConnectException;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiErrorResponses;
 import com.wepay.kafka.connect.bigquery.utils.Time;
@@ -61,7 +62,10 @@ public abstract class StorageWriteApiBase {
   private static final Logger logger = LoggerFactory.getLogger(StorageWriteApiBase.class);
   private static final double RETRY_DELAY_MULTIPLIER = 1.1;
   private static final int MAX_RETRY_DELAY_MINUTES = 1;
+  public static final String TRACE_ID_FORMAT = "AivenKafkaConnector:%s";
   protected final JsonStreamWriterFactory jsonWriterFactory;
+  private final String traceId;
+
   protected final int retry;
   protected final long retryWait;
   private final boolean autoCreateTables;
@@ -79,7 +83,48 @@ public abstract class StorageWriteApiBase {
    * @param writeSettings       Write Settings for stream which carry authentication and other header information
    * @param autoCreateTables    boolean flag set if table should be created automatically
    * @param errantRecordHandler Used to handle errant records
+   * @param config              Connector configurations
    */
+  protected StorageWriteApiBase(int retry,
+                                long retryWait,
+                                BigQueryWriteSettings writeSettings,
+                                boolean autoCreateTables,
+                                ErrantRecordHandler errantRecordHandler,
+                                SchemaManager schemaManager,
+                                boolean attemptSchemaUpdate,
+                                BigQuerySinkConfig config) {
+    this.retry = retry;
+    this.retryWait = retryWait;
+    this.autoCreateTables = autoCreateTables;
+    this.writeSettings = writeSettings;
+    this.errantRecordHandler = errantRecordHandler;
+    this.schemaManager = schemaManager;
+    this.attemptSchemaUpdate = attemptSchemaUpdate;
+    try {
+      this.writeClient = getWriteClient();
+    } catch (IOException e) {
+      logger.error("Failed to create Big Query Storage Write API write client due to {}", e.getMessage());
+      throw new BigQueryStorageWriteApiConnectException("Failed to create Big Query Storage Write API write client", e);
+    }
+    this.jsonWriterFactory = getJsonWriterFactory();
+    this.traceId = generateTraceId(config.getConnectorName().orElse(null));
+    this.time = Time.SYSTEM;
+  }
+
+  /**
+   * @param retry               How many retries to make in the event of a retriable error.
+   * @param retryWait           How long to wait in between retries.
+   * @param writeSettings       Write Settings for stream which carry authentication and other header information
+   * @param autoCreateTables    boolean flag set if table should be created automatically
+   * @param errantRecordHandler Used to handle errant records
+   *
+   * @deprecated This constructor does not support does not support configuration of additional write settings.
+   * Use {@link #StorageWriteApiBase(int retry, long retryWait, BigQueryWriteSettings writeSettings,
+   * boolean autoCreateTables, ErrantRecordHandler errantRecordHandler, SchemaManager schemaManager,
+   * boolean attemptSchemaUpdate, BigQuerySinkConfig config)} instead.
+   *
+   */
+  @Deprecated
   protected StorageWriteApiBase(int retry,
                                 long retryWait,
                                 BigQueryWriteSettings writeSettings,
@@ -101,6 +146,7 @@ public abstract class StorageWriteApiBase {
       throw new BigQueryStorageWriteApiConnectException("Failed to create Big Query Storage Write API write client", e);
     }
     this.jsonWriterFactory = getJsonWriterFactory();
+    this.traceId = generateTraceId(null);
     this.time = Time.SYSTEM;
   }
 
@@ -312,6 +358,7 @@ public abstract class StorageWriteApiBase {
             .build();
     return streamOrTableName -> JsonStreamWriter.newBuilder(streamOrTableName, writeClient)
             .setRetrySettings(retrySettings)
+            .setTraceId(traceId)
             .build();
   }
 
@@ -451,4 +498,10 @@ public abstract class StorageWriteApiBase {
     throw failure;
   }
 
+  private String generateTraceId(String connectorName) {
+    String suffix = (connectorName != null)
+            ? connectorName
+            : "default";
+    return String.format(TRACE_ID_FORMAT, suffix);
+  }
 }

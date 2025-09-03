@@ -639,7 +639,8 @@ public class BigQuerySinkTask extends SinkTask {
             autoCreateTables,
             errantRecordHandler,
             getSchemaManager(),
-            attemptSchemaUpdate
+            attemptSchemaUpdate,
+            config
         );
         storageApiWriter = writer;
 
@@ -659,7 +660,8 @@ public class BigQuerySinkTask extends SinkTask {
             autoCreateTables,
             errantRecordHandler,
             getSchemaManager(),
-            attemptSchemaUpdate
+            attemptSchemaUpdate,
+            config
         );
       }
     }
