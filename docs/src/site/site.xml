@@ -57,8 +57,6 @@
                 <item name="Configuration options" href="configuration.html"/>
             </menu>
 
-
-
         <menu ref="modules"/>
         <menu ref="reports"/>
         <footer>Copyright &amp;copy; 2022-2025 Aiven Oy and bigquery-connector-for-apache-kafka project contributors. Licensed under the Apache License, Version 2.0.
