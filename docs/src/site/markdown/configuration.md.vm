@@ -5,9 +5,12 @@
 #foreach ($section in ${bigquery.options})
 ${esc.hash}${esc.hash} ${section.displayName}
 
+ - Configuration option: ${section.name}
  - Default value: ${section.getDefaultValue()|"none"}
  - Type:  $section.type
+ #if (${section.validator})
  - Valid values:  ${section.validator|"no restrictions"}
+ #end
  - Importance: $section.importance
 
     ${bigquery.markdownEscape(${section.documentation})}

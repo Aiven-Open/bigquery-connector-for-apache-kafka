@@ -287,49 +287,57 @@ public class BigQuerySinkConfig extends AbstractConfig {
           + " if not enabled topic names will be used directly as table names";
   private static final ConfigDef.Type TOPIC2TABLE_MAP_TYPE = ConfigDef.Type.STRING;
   private static final ConfigDef.Importance TOPIC2TABLE_MAP_IMPORTANCE = ConfigDef.Importance.LOW;
-  private static final ConfigDef.Validator TOPIC2TABLE_MAP_VALIDATOR = (name, value) -> {
-    String topic2TableMapString = (String) ConfigDef.parseType(name, value, TOPIC2TABLE_MAP_TYPE);
+  private static final ConfigDef.Validator TOPIC2TABLE_MAP_VALIDATOR = new ConfigDef.Validator() {
+    @Override
+    public void ensureValid(String name, Object value) {
+      String topic2TableMapString = (String) ConfigDef.parseType(name, value, TOPIC2TABLE_MAP_TYPE);
 
-    if (topic2TableMapString.isEmpty()) {
-      return;
+      if (topic2TableMapString.isEmpty()) {
+        return;
+      }
+
+      Map<String, String> topic2TableMap = new HashMap<>();
+
+      for (String str : topic2TableMapString.split(",")) {
+        String[] tt = str.split(":");
+
+        if (tt.length != 2) {
+          throw new ConfigException(
+                  name,
+                  topic2TableMapString,
+                  "One of the topic to table mappings has an invalid format."
+          );
+        }
+
+        String topic = tt[0].trim();
+        String table = tt[1].trim();
+
+        if (topic.isEmpty() || table.isEmpty()) {
+          throw new ConfigException(
+                  name,
+                  topic2TableMapString,
+                  String.format("Topic to table map '%s' has an invalid format.", str)
+          );
+        }
+
+        if (topic2TableMap.containsKey(topic)) {
+          throw new ConfigException(
+                  name,
+                  name,
+                  String.format(
+                          "The topic name %s is duplicated. Topic names cannot be duplicated.",
+                          topic
+                  )
+          );
+        }
+
+        topic2TableMap.put(topic, table);
+      }
     }
 
-    Map<String, String> topic2TableMap = new HashMap<>();
-
-    for (String str : topic2TableMapString.split(",")) {
-      String[] tt = str.split(":");
-
-      if (tt.length != 2) {
-        throw new ConfigException(
-            name,
-            topic2TableMapString,
-            "One of the topic to table mappings has an invalid format."
-        );
-      }
-
-      String topic = tt[0].trim();
-      String table = tt[1].trim();
-
-      if (topic.isEmpty() || table.isEmpty()) {
-        throw new ConfigException(
-            name,
-            topic2TableMapString,
-            "One of the topic to table mappings has an invalid format."
-        );
-      }
-
-      if (topic2TableMap.containsKey(topic)) {
-        throw new ConfigException(
-            name,
-            name,
-            String.format(
-                "The topic name %s is duplicated. Topic names cannot be duplicated.",
-                topic
-            )
-        );
-      }
-
-      topic2TableMap.put(topic, table);
+    @Override
+    public String toString() {
+      return "A list of comma separated values comprising topic:table pairs.";
     }
   };
   private static final ConfigDef.Type SANITIZE_FIELD_NAME_TYPE = ConfigDef.Type.BOOLEAN;
@@ -524,15 +532,23 @@ public class BigQuerySinkConfig extends AbstractConfig {
           + " to enable ingestion time partitioning for each table.";
   private static final ConfigDef.Type BIGQUERY_CLUSTERING_FIELD_NAMES_TYPE = ConfigDef.Type.LIST;
   private static final List<String> BIGQUERY_CLUSTERING_FIELD_NAMES_DEFAULT = null;
-  private static final ConfigDef.Validator BIGQUERY_CLUSTERING_FIELD_NAMES_VALIDATOR = (name, value) -> {
-    if (value == null) {
-      return;
+  private static final ConfigDef.Validator BIGQUERY_CLUSTERING_FIELD_NAMES_VALIDATOR = new ConfigDef.Validator() {
+    @Override
+    public void ensureValid(String name, Object value) {
+      if (value == null) {
+        return;
+      }
+
+      @SuppressWarnings("unchecked")
+      List<String> parsedValue = (List<String>) value;
+      if (parsedValue.size() > 4) {
+        throw new ConfigException(name, value, "You may only specify up to four clustering field names.");
+      }
     }
 
-    @SuppressWarnings("unchecked")
-    List<String> parsedValue = (List<String>) value;
-    if (parsedValue.size() > 4) {
-      throw new ConfigException(name, value, "You may only specify up to four clustering field names.");
+    @Override
+    public String toString() {
+      return "Up to four clustering field names";
     }
   };
   private static final ConfigDef.Importance BIGQUERY_CLUSTERING_FIELD_NAMES_IMPORTANCE =
@@ -555,11 +571,20 @@ public class BigQuerySinkConfig extends AbstractConfig {
           + "Existing tables will not be altered to use this partitioning type.";
   private static final ConfigDef.Type BIGQUERY_PARTITION_EXPIRATION_TYPE = ConfigDef.Type.LONG;
   private static final String BIGQUERY_PARTITION_EXPIRATION_DEFAULT = null;
-  private static final ConfigDef.Validator BIGQUERY_PARTITION_EXPIRATION_VALIDATOR = (name, value) -> {
-    if (value != null) {
-      ConfigDef.Range.atLeast(1).ensureValid(name, value);
+  private static final ConfigDef.Validator BIGQUERY_PARTITION_EXPIRATION_VALIDATOR = new ConfigDef.Validator() {
+    @Override
+    public void ensureValid(String name, Object value) {
+      if (value != null) {
+        ConfigDef.Range.atLeast(1).ensureValid(name, value);
+      }
+    }
+
+    @Override
+    public String toString() {
+      return "if set the value must be at least 1";
     }
   };
+
   private static final ConfigDef.Importance BIGQUERY_PARTITION_EXPIRATION_IMPORTANCE = ConfigDef.Importance.LOW;
   private static final String BIGQUERY_PARTITION_EXPIRATION_DOC =
       "The amount of time, in milliseconds, after which partitions should be deleted from the tables this "
@@ -867,13 +892,21 @@ public class BigQuerySinkConfig extends AbstractConfig {
             TIME_PARTITIONING_TYPE_CONFIG,
             TIME_PARTITIONING_TYPE_TYPE,
             TIME_PARTITIONING_TYPE_DEFAULT,
-            (name, value) -> {
-              if (value == null) {
-                return;
+            new ConfigDef.Validator() {
+              @Override
+              public void ensureValid(String name, Object value) {
+                if (value == null) {
+                  return;
+                }
+                String[] validStrings = TIME_PARTITIONING_TYPES.stream().map(String::toLowerCase).toArray(String[]::new);
+                String lowercaseValue = ((String) value).toLowerCase();
+                ConfigDef.ValidString.in(validStrings).ensureValid(name, lowercaseValue);
               }
-              String[] validStrings = TIME_PARTITIONING_TYPES.stream().map(String::toLowerCase).toArray(String[]::new);
-              String lowercaseValue = ((String) value).toLowerCase();
-              ConfigDef.ValidString.in(validStrings).ensureValid(name, lowercaseValue);
+
+              @Override
+              public String toString() {
+                return TIME_PARTITIONING_TYPES.stream().map(String::toLowerCase).collect(Collectors.joining(", "));
+              }
             },
             TIME_PARTITIONING_TYPE_IMPORTANCE,
             TIME_PARTITIONING_TYPE_DOC,
