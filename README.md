@@ -74,3 +74,16 @@ KCBQ_TEST_BUCKET - the bucket to use for the tests
 KCBQ_TEST_DATASET - the data set to use for the tests.
 
 KCBQ_TEST_PROJECT - the project to use for the tests.
+
+## Building documentation
+
+The documentation is not built as part of the standard build.  To build the documentation execute the following steps.
+
+    mvn install -DskipITs
+    cd tools
+    mvn
+    cd ../docs
+    mvn
+
+To run the docs locally in the `docs` directory execute `mvn site:run`.
+

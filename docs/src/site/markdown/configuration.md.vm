@@ -7,9 +7,18 @@ All the configuration options are listed below in alphabetical order.
 
 ${esc.hash}${esc.hash} ${section.displayName}
 
+  #if (${section.isDeprecated})
+**${section.deprecated}**
+
+  #end
  - Configuration option: ${section.name}
+
+ #if (${section.since})
+ - Since: ${section.since}
+ #end
+
  - Default value: ${section.getDefaultValue()|"none"}
- - Type:  $section.type
+ - Type:  ${section.type}
  #if (${section.validator})
  - Valid values:  ${section.validator|"no restrictions"}
  #end
