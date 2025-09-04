@@ -1014,14 +1014,16 @@ public class BigQuerySinkConfig extends AbstractConfig {
                             .validator(DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_VALIDATOR)
                             .importance(DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_IMPORTANCE)
                             .documentation(DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_DOC)
-                            .since("2.8.0")
+                            .since("2.7.0")
                             .build()
             ).define(
-                    PRESERVE_KAFKA_TOPIC_PARTITION_OFFSET__CONFIG,
-                    PRESERVE_KAFKA_TOPIC_PARTITION_OFFSET__TYPE,
-                    PRESERVE_KAFKA_TOPIC_PARTITION_OFFSET__DEFAULT,
-                    PRESERVE_KAFKA_TOPIC_PARTITION_OFFSET__IMPORTANCE,
-                    PRESERVE_KAFKA_TOPIC_PARTITION_OFFSET__DOC
+                    ExtendedConfigKey.builder(PRESERVE_KAFKA_TOPIC_PARTITION_OFFSET__CONFIG)
+                            .type(PRESERVE_KAFKA_TOPIC_PARTITION_OFFSET__TYPE)
+                            .defaultValue(PRESERVE_KAFKA_TOPIC_PARTITION_OFFSET__DEFAULT)
+                            .importance(PRESERVE_KAFKA_TOPIC_PARTITION_OFFSET__IMPORTANCE)
+                            .documentation(PRESERVE_KAFKA_TOPIC_PARTITION_OFFSET__DOC)
+                            .since("2.8.0")
+                            .build()
             );
   }
 
