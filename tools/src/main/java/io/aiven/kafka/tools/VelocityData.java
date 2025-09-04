@@ -1,5 +1,6 @@
 package io.aiven.kafka.tools;
 
+import io.aiven.kafka.utils.ExtendedConfigKey;
 import java.util.List;
 import org.apache.kafka.common.config.ConfigDef;
 
@@ -11,6 +12,7 @@ import org.apache.kafka.common.config.ConfigDef;
 public class VelocityData {
   /** The key */
   private final ConfigDef.ConfigKey key;
+  private final boolean extendedFlag;
 
   /**
    * Constructor.
@@ -20,6 +22,7 @@ public class VelocityData {
    */
   public VelocityData(final ConfigDef.ConfigKey key) {
     this.key = key;
+    this.extendedFlag = (key instanceof ExtendedConfigKey);
   }
 
   /**
@@ -137,6 +140,26 @@ public class VelocityData {
    */
   public final boolean isInternalConfig() {
     return key.internalConfig;
+  }
+
+  public final boolean isExtendedFlag() {
+    return extendedFlag;
+  }
+
+  private ExtendedConfigKey asExtended() {
+    return extendedFlag ? (ExtendedConfigKey) key : null;
+  }
+
+  public final String since() {
+    return extendedFlag ? asExtended().since : null;
+  }
+
+  public final boolean isDeprecated() {
+    return extendedFlag && asExtended().isDeprecated();
+  }
+
+  public final ExtendedConfigKey.DeprecatedInfo deprecated() {
+    return extendedFlag ? asExtended().deprecated : null;
   }
 
 }

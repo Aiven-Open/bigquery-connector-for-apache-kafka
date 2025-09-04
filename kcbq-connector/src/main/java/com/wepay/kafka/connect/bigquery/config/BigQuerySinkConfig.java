@@ -34,6 +34,7 @@ import com.wepay.kafka.connect.bigquery.convert.KafkaDataBuilder;
 import com.wepay.kafka.connect.bigquery.convert.RecordConverter;
 import com.wepay.kafka.connect.bigquery.convert.SchemaConverter;
 import com.wepay.kafka.connect.bigquery.retrieve.IdentitySchemaRetriever;
+import io.aiven.kafka.utils.ExtendedConfigKey;
 import io.debezium.data.VariableScaleDecimal;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -44,6 +45,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -630,13 +632,12 @@ public class BigQuerySinkConfig extends AbstractConfig {
   }
 
   private void logDeprecationWarnings() {
-    if (!getList(ENABLE_BATCH_CONFIG).isEmpty()) {
-      logger.warn(
-          GCS_LOAD_DEPRECATION_NOTICE
-              + " To disable this feature, remove the {} property from the connector configuration",
-          ENABLE_BATCH_CONFIG
-      );
-    }
+    getConfig().configKeys().values().stream()
+            .filter(x -> x instanceof ExtendedConfigKey)
+            .map(x -> (ExtendedConfigKey) x)// an extended key
+            .filter(ex -> Objects.nonNull(get(ex.name)))  // has value
+            .filter(ExtendedConfigKey::isDeprecated) // is deprecated
+            .forEach(ex -> logger.warn("Option {}", ex.deprecated.formatted(ex.name)));
   }
 
   /**
@@ -645,6 +646,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
    * @return The ConfigDef object used to define this config's fields.
    */
   public static ConfigDef getConfig() {
+    ExtendedConfigKey.DeprecatedInfo.Builder remove280 = ExtendedConfigKey.DeprecatedInfo.builder().setForRemoval(true).setSince("2.8.0");
     return new ConfigDef()
         .define(
             TOPICS_CONFIG,
@@ -666,30 +668,36 @@ public class BigQuerySinkConfig extends AbstractConfig {
             TOPICS_REGEX_ORDER_IN_GROUP,
             TOPICS_REGEX_WIDTH,
             TOPICS_REGEX_DISPLAY)
-        .define(
-            ENABLE_BATCH_CONFIG,
-            ENABLE_BATCH_TYPE,
-            ENABLE_BATCH_DEFAULT,
-            ENABLE_BATCH_IMPORTANCE,
-            deprecatedGcsLoadDoc(ENABLE_BATCH_DOC)
+        .define(ExtendedConfigKey.builder(ENABLE_BATCH_CONFIG)
+                        .type(ENABLE_BATCH_TYPE)
+                        .defaultValue(ENABLE_BATCH_DEFAULT)
+                        .importance(ENABLE_BATCH_IMPORTANCE)
+                        .documentation(ENABLE_BATCH_DOC)
+                        .deprecatedInfo(remove280)
+                .build()
+        ).define(ExtendedConfigKey.builder(BATCH_LOAD_INTERVAL_SEC_CONFIG)
+                            .type(BATCH_LOAD_INTERVAL_SEC_TYPE)
+                            .defaultValue(BATCH_LOAD_INTERVAL_SEC_DEFAULT)
+                            .importance(BATCH_LOAD_INTERVAL_SEC_IMPORTANCE)
+                                    .documentation(BATCH_LOAD_INTERVAL_SEC_DOC)
+                    .deprecatedInfo(remove280)
+                    .build()
         ).define(
-            BATCH_LOAD_INTERVAL_SEC_CONFIG,
-            BATCH_LOAD_INTERVAL_SEC_TYPE,
-            BATCH_LOAD_INTERVAL_SEC_DEFAULT,
-            BATCH_LOAD_INTERVAL_SEC_IMPORTANCE,
-            deprecatedGcsLoadDoc(BATCH_LOAD_INTERVAL_SEC_DOC)
+                    ExtendedConfigKey.builder(GCS_BUCKET_NAME_CONFIG)
+                            .type(GCS_BUCKET_NAME_TYPE)
+                            .defaultValue(GCS_BUCKET_NAME_DEFAULT)
+            .importance(GCS_BUCKET_NAME_IMPORTANCE)
+                    .documentation(GCS_BUCKET_NAME_DOC)
+                            .deprecatedInfo(remove280)
+                            .build()
         ).define(
-            GCS_BUCKET_NAME_CONFIG,
-            GCS_BUCKET_NAME_TYPE,
-            GCS_BUCKET_NAME_DEFAULT,
-            GCS_BUCKET_NAME_IMPORTANCE,
-            deprecatedGcsLoadDoc(GCS_BUCKET_NAME_DOC)
-        ).define(
-            GCS_FOLDER_NAME_CONFIG,
-            GCS_FOLDER_NAME_TYPE,
-            GCS_FOLDER_NAME_DEFAULT,
-            GCS_FOLDER_NAME_IMPORTANCE,
-            deprecatedGcsLoadDoc(GCS_FOLDER_NAME_DOC)
+                    ExtendedConfigKey.builder(GCS_FOLDER_NAME_CONFIG)
+                            .type(GCS_FOLDER_NAME_TYPE)
+                            .defaultValue(GCS_FOLDER_NAME_DEFAULT)
+                            .importance(GCS_FOLDER_NAME_IMPORTANCE)
+                                    .documentation(GCS_FOLDER_NAME_DOC)
+                            .deprecatedInfo(remove280)
+                            .build()
         ).define(
             PROJECT_CONFIG,
             PROJECT_TYPE,
@@ -778,12 +786,12 @@ public class BigQuerySinkConfig extends AbstractConfig {
             TABLE_CREATE_DEFAULT,
             TABLE_CREATE_IMPORTANCE,
             TABLE_CREATE_DOC
-        ).define(
-            AUTO_CREATE_BUCKET_CONFIG,
-            AUTO_CREATE_BUCKET_TYPE,
-            AUTO_CREATE_BUCKET_DEFAULT,
-            AUTO_CREATE_BUCKET_IMPORTANCE,
-            deprecatedGcsLoadDoc(AUTO_CREATE_BUCKET_DOC)
+        ).define(ExtendedConfigKey.builder(AUTO_CREATE_BUCKET_CONFIG)
+                            .type(AUTO_CREATE_BUCKET_TYPE)
+                            .defaultValue(AUTO_CREATE_BUCKET_DEFAULT)
+                            .importance(AUTO_CREATE_BUCKET_IMPORTANCE)
+                            .documentation(AUTO_CREATE_BUCKET_DOC)
+                            .deprecatedInfo(remove280).build()
         ).define(
             ALLOW_NEW_BIGQUERY_FIELDS_CONFIG,
             ALLOW_NEW_BIGQUERY_FIELDS_TYPE,
@@ -985,11 +993,14 @@ public class BigQuerySinkConfig extends AbstractConfig {
             CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_TYPE,
             CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_DEFAULT,
             CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_IMPORTANCE
-        ).defineInternal(
-            CONVERT_DEBEZIUM_DECIMAL_CONFIG,
-            ConfigDef.Type.BOOLEAN,
-            false,
-            ConfigDef.Importance.LOW
+        ).define(
+                ExtendedConfigKey.builder(CONVERT_DEBEZIUM_DECIMAL_CONFIG)
+                        .type(ConfigDef.Type.BOOLEAN)
+                        .defaultValue(false)
+                        .importance(ConfigDef.Importance.LOW)
+                        .deprecatedInfo(ExtendedConfigKey.DeprecatedInfo.builder().setSince("2.8.0")
+                                .setDescription(String.format("Use %s instead.", DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_CONFIG))
+                        ).build()
         ).define(
             DECIMAL_HANDLING_MODE_CONFIG,
             DECIMAL_HANDLING_MODE_TYPE,
