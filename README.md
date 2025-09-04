@@ -82,8 +82,9 @@ The documentation is not built as part of the standard build.  To build the docu
     mvn install -DskipITs
     mvn -f tools/
     mvn -f docs/
-    
-    # To run the docs locally
+
+To run the docs locally
+
     mvn -f docs/ site:run
 
 
