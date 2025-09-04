@@ -13,9 +13,9 @@ ${esc.hash}${esc.hash} ${configKey.displayName}
     #end
  - Configuration option: ${configKey.name}
 
-    #if (${configKey.since})
-    - Since: ${configKey.since}
-    #end
+ #if ($stringUtils.isNotEmpty(${configKey.since}))
+ - Since: ${configKey.since}
+ #end
 
  - Default value: ${configKey.getDefaultValue()|"none"}
  - Type:  $configKey.type
@@ -33,17 +33,17 @@ ${esc.hash}${esc.hash} ${configKey.displayName}
 
  #end
 
- #if (!${configKey.dependents.isEmpty})
+ #if (!${section.dependents.isEmpty})
 
  - Options that this option influences:
 
-   #foreach ($p in ${configKey.dependents})
+   #foreach ($p in ${section.dependents})
    - ${p}
 
    #end
 
  #end
 
-    ${configDef.markdownEscape(${configKey.documentation})}
+    ${bigquery.markdownEscape(${section.documentation})}
 
 #end
