@@ -13,15 +13,13 @@ ${esc.hash}${esc.hash} ${section.displayName}
   #end
  - Configuration option: ${section.name}
 
- #if (${section.since})
+ #if ($stringUtils.isNotEmpty(${section.since}))
  - Since: ${section.since}
  #end
 
  - Default value: ${section.getDefaultValue()|"none"}
  - Type:  ${section.type}
- #if (${section.validator})
  - Valid values:  ${section.validator|"no restrictions"}
- #end
  - Importance: $section.importance
  #if (!$parents.isEmpty)
  - Options that influence if or how this option can be used:
