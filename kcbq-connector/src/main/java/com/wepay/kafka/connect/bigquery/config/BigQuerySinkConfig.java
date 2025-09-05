@@ -432,10 +432,12 @@ public class BigQuerySinkConfig extends AbstractConfig {
         }
         long parsedValue = (long) ConfigDef.parseType(name, value, MERGE_INTERVAL_MS_TYPE);
 
-        if (parsedValue < -1)
-          throw new ConfigException(name, value, "Cannot be less than -1");
-        if (parsedValue < 10000 && parsedValue >=0) {
-          throw new ConfigException(name, value, "Value must be atleast 10 sec (10000) to enable or -1 to disable");
+        if (parsedValue < 10000 && parsedValue != -1) {
+          throw new ConfigException(
+                  name,
+                  value,
+                  "Value must be either -1 to disable, or at least 10000 (10 seconds)."
+          );
         }
       },
       () -> "Either -1 to disable or a value of atleast 10000 to enable"
@@ -453,10 +455,12 @@ public class BigQuerySinkConfig extends AbstractConfig {
         }
         long parsedValue = (long) ConfigDef.parseType(name, value, MERGE_RECORDS_THRESHOLD_TYPE);
 
-        if (parsedValue == 0) {
-          throw new ConfigException(name, value, "Cannot be zero");
-        } else if (parsedValue < -1) {
-          throw new ConfigException(name, value, "Cannot be less than -1");
+        if (parsedValue < 10000 && parsedValue != -1) {
+          throw new ConfigException(
+                  name,
+                  value,
+                  "Value must be either -1 to disable, or at least 10000 (10 seconds)."
+          );
         }
       },
       () -> "Either a positive integer or -1 to disable throughput-based merging"
