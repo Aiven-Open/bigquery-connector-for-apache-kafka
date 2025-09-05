@@ -34,6 +34,7 @@ import com.wepay.kafka.connect.bigquery.convert.KafkaDataBuilder;
 import com.wepay.kafka.connect.bigquery.convert.RecordConverter;
 import com.wepay.kafka.connect.bigquery.convert.SchemaConverter;
 import com.wepay.kafka.connect.bigquery.retrieve.IdentitySchemaRetriever;
+import io.aiven.kafka.utils.ConfigKeyBuilder;
 import io.aiven.kafka.utils.ExtendedConfigKey;
 import io.debezium.data.VariableScaleDecimal;
 import java.lang.reflect.Constructor;
@@ -811,22 +812,21 @@ public class BigQuerySinkConfig extends AbstractConfig {
                     ALLOW_SCHEMA_UNIONIZATION_IMPORTANCE,
                     ALLOW_SCHEMA_UNIONIZATION_DOC
             ).define(
-                    UPSERT_ENABLED_CONFIG,
-                    UPSERT_ENABLED_TYPE,
-                    UPSERT_ENABLED_DEFAULT,
-                    UPSERT_ENABLED_IMPORTANCE,
-                    UPSERT_ENABLED_DOC,
-            null, -1, ConfigDef.Width.NONE,
-                    UPSERT_ENABLED_CONFIG,
-                    Arrays.asList(INTERMEDIATE_TABLE_SUFFIX_CONFIG, USE_STORAGE_WRITE_API_CONFIG, MERGE_INTERVAL_MS_CONFIG, KAFKA_KEY_FIELD_NAME_CONFIG)).define(
-                    DELETE_ENABLED_CONFIG,
-                    DELETE_ENABLED_TYPE,
-                    DELETE_ENABLED_DEFAULT,
-                    DELETE_ENABLED_IMPORTANCE,
-                    DELETE_ENABLED_DOC,
-                    null, -1, ConfigDef.Width.NONE,
-                    DELETE_ENABLED_CONFIG,
-                    Arrays.asList(INTERMEDIATE_TABLE_SUFFIX_CONFIG, USE_STORAGE_WRITE_API_CONFIG, MERGE_INTERVAL_MS_CONFIG, KAFKA_KEY_FIELD_NAME_CONFIG)
+                    new ConfigKeyBuilder<>(UPSERT_ENABLED_CONFIG)
+                            .type(UPSERT_ENABLED_TYPE)
+                            .defaultValue(UPSERT_ENABLED_DEFAULT)
+                            .importance(UPSERT_ENABLED_IMPORTANCE)
+                            .documentation(UPSERT_ENABLED_DOC)
+                            .dependents(INTERMEDIATE_TABLE_SUFFIX_CONFIG, USE_STORAGE_WRITE_API_CONFIG, MERGE_INTERVAL_MS_CONFIG, KAFKA_KEY_FIELD_NAME_CONFIG)
+                            .build()
+            ).define(
+                    new ConfigKeyBuilder<>(DELETE_ENABLED_CONFIG)
+                            .type(DELETE_ENABLED_TYPE)
+                            .defaultValue(DELETE_ENABLED_DEFAULT)
+                            .importance(DELETE_ENABLED_IMPORTANCE)
+                            .documentation(DELETE_ENABLED_DOC)
+                            .dependents(INTERMEDIATE_TABLE_SUFFIX_CONFIG, USE_STORAGE_WRITE_API_CONFIG, MERGE_INTERVAL_MS_CONFIG, KAFKA_KEY_FIELD_NAME_CONFIG)
+                            .build()
             ).define(
                     INTERMEDIATE_TABLE_SUFFIX_CONFIG,
                     INTERMEDIATE_TABLE_SUFFIX_TYPE,
@@ -903,43 +903,42 @@ public class BigQuerySinkConfig extends AbstractConfig {
                     BIGQUERY_CLUSTERING_FIELD_NAMES_IMPORTANCE,
                     BIGQUERY_CLUSTERING_FIELD_NAMES_DOC
             ).define(
-                    TIME_PARTITIONING_TYPE_CONFIG,
-                    TIME_PARTITIONING_TYPE_TYPE,
-                    TIME_PARTITIONING_TYPE_DEFAULT,
-                    new ConfigDef.Validator() {
-                      @Override
-                      public void ensureValid(String name, Object value) {
-                        if (value == null) {
-                          return;
-                        }
-                        String[] validStrings = TIME_PARTITIONING_TYPES.stream().map(String::toLowerCase).toArray(String[]::new);
-                        String lowercaseValue = ((String) value).toLowerCase();
-                        ConfigDef.ValidString.in(validStrings).ensureValid(name, lowercaseValue);
-                      }
+                    new ConfigKeyBuilder<>(TIME_PARTITIONING_TYPE_CONFIG)
+                            .type(TIME_PARTITIONING_TYPE_TYPE)
+                            .defaultValue(TIME_PARTITIONING_TYPE_DEFAULT)
+                            .validator(
+                              new ConfigDef.Validator() {
+                                @Override
+                                public void ensureValid(String name, Object value) {
+                                  if (value == null) {
+                                    return;
+                                  }
+                                  String[] validStrings = TIME_PARTITIONING_TYPES.stream().map(String::toLowerCase).toArray(String[]::new);
+                                  String lowercaseValue = ((String) value).toLowerCase();
+                                  ConfigDef.ValidString.in(validStrings).ensureValid(name, lowercaseValue);
+                                }
 
-                      @Override
-                      public String toString() {
-                        return TIME_PARTITIONING_TYPES.stream().map(String::toLowerCase).collect(Collectors.joining(", "));
-                      }
-                    },
-                    TIME_PARTITIONING_TYPE_IMPORTANCE,
-                    TIME_PARTITIONING_TYPE_DOC,
-                    "",
-                    -1,
-                    ConfigDef.Width.NONE,
-                    TIME_PARTITIONING_TYPE_CONFIG,
-                    new ConfigDef.Recommender() {
-                      @Override
-                      public List<Object> validValues(String s, Map<String, Object> map) {
-                        // Construct a new list to transform from List<String> to List<Object>
-                        return new ArrayList<>(TIME_PARTITIONING_TYPES);
-                      }
+                                @Override
+                                public String toString() {
+                                  return TIME_PARTITIONING_TYPES.stream().map(String::toLowerCase).collect(Collectors.joining(", "));
+                                }
+                              })
+                            .importance(TIME_PARTITIONING_TYPE_IMPORTANCE)
+                            .documentation(TIME_PARTITIONING_TYPE_DOC)
+                            .recommender(
+                              new ConfigDef.Recommender() {
+                                @Override
+                                public List<Object> validValues(String s, Map<String, Object> map) {
+                                  // Construct a new list to transform from List<String> to List<Object>
+                                  return new ArrayList<>(TIME_PARTITIONING_TYPES);
+                                }
 
-                      @Override
-                      public boolean visible(String s, Map<String, Object> map) {
-                        return true;
-                      }
-                    }
+                                @Override
+                                public boolean visible(String s, Map<String, Object> map) {
+                                  return true;
+                                }
+                              })
+                            .build()
             ).define(
                     BIGQUERY_PARTITION_EXPIRATION_CONFIG,
                     BIGQUERY_PARTITION_EXPIRATION_TYPE,
@@ -948,14 +947,13 @@ public class BigQuerySinkConfig extends AbstractConfig {
                     BIGQUERY_PARTITION_EXPIRATION_IMPORTANCE,
                     BIGQUERY_PARTITION_EXPIRATION_DOC
             ).define(
-                    USE_STORAGE_WRITE_API_CONFIG,
-                    USE_STORAGE_WRITE_API_TYPE,
-                    USE_STORAGE_WRITE_API_DEFAULT,
-                    USE_STORAGE_WRITE_API_IMPORTANCE,
-                    USE_STORAGE_WRITE_API_DOC,
-                    null, -1, ConfigDef.Width.NONE,
-                    USE_STORAGE_WRITE_API_CONFIG,
-                    Arrays.asList(COMMIT_INTERVAL_SEC_CONFIG, ENABLE_BATCH_MODE_CONFIG, BIGQUERY_PARTITION_DECORATOR_CONFIG)
+                    new ConfigKeyBuilder<>(USE_STORAGE_WRITE_API_CONFIG)
+                            .type(USE_STORAGE_WRITE_API_TYPE)
+                            .defaultValue(USE_STORAGE_WRITE_API_DEFAULT)
+                            .importance(USE_STORAGE_WRITE_API_IMPORTANCE)
+                            .documentation(USE_STORAGE_WRITE_API_DOC)
+                            .dependents(COMMIT_INTERVAL_SEC_CONFIG, ENABLE_BATCH_MODE_CONFIG, BIGQUERY_PARTITION_DECORATOR_CONFIG)
+                            .build()
             ).define(
                     USE_CREDENTIALS_PROJECT_ID_CONFIG,
                     USE_CREDENTIALS_PROJECT_ID_TYPE,

@@ -26,6 +26,7 @@ package io.aiven.kafka.utils;
 
 import static org.apache.kafka.common.config.ConfigDef.NO_DEFAULT_VALUE;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -112,6 +113,10 @@ public class ConfigKeyBuilder<T extends ConfigKeyBuilder<?>> {
   public final T displayName(final String displayName) {
     this.displayName = displayName;
     return self();
+  }
+
+  public final T dependents(final String... dependents) {
+    return dependents(Arrays.asList(dependents));
   }
 
   public final T dependents(final Collection<String> dependents) {
