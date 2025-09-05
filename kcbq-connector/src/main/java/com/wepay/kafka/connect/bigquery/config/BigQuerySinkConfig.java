@@ -441,7 +441,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
           );
         }
       },
-      () -> "Either a positive integer or -1 to disable time interval-based merging"
+      () -> "Either -1 to disable or a value of atleast 10000 to enable"
   );
   private static final ConfigDef.Importance MERGE_INTERVAL_MS_IMPORTANCE = ConfigDef.Importance.LOW;
   private static final String MERGE_INTERVAL_MS_DOC =
