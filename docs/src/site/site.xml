@@ -52,15 +52,12 @@
                       href="https://github.com/Aiven-Open/bigquery-connector-for-apache-kafka/releases"/>
             </menu>
 
-            <!--
-            <item name="Design Notes">
-                <item name="Site Documentation" href="design/site.html"/>
-                <item name="Source Design Strategy" href="design/source.html"/>
-            </item>
--->
-            <menu name="Configuration">
-                <item name="Configuration file" href="configuration.html"/>
+            <menu name="Using">
+                <item name="Design notes" href="designNotes.html"/>
+                <item name="Configuration options" href="configuration.html"/>
             </menu>
+
+
 
         <menu ref="modules"/>
         <menu ref="reports"/>

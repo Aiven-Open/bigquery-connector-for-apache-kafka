@@ -1,8 +1,10 @@
 # BigQuery connector configuration options
 
-#set($stringUtils = ${bigquery.stringUtils})
+All the configuration options are listed below in alphabetical order.
 
 #foreach ($section in ${bigquery.options})
+    #set($parents = ${bigquery.parents(${section.name})})
+
 ${esc.hash}${esc.hash} ${section.displayName}
 
  - Configuration option: ${section.name}
@@ -12,6 +14,26 @@ ${esc.hash}${esc.hash} ${section.displayName}
  - Valid values:  ${section.validator|"no restrictions"}
  #end
  - Importance: $section.importance
+ #if (!$parents.isEmpty)
+ - Options that influence if or how this option can be used:
+
+   #foreach ($p in $parents)
+   - ${p.name}
+
+   #end
+
+ #end
+
+ #if (!${section.dependents.isEmpty})
+
+ - Options that this option influences:
+
+   #foreach ($p in ${section.dependents})
+   - ${p}
+
+   #end
+
+ #end
 
     ${bigquery.markdownEscape(${section.documentation})}
 

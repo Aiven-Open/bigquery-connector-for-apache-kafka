@@ -806,13 +806,19 @@ public class BigQuerySinkConfig extends AbstractConfig {
             UPSERT_ENABLED_TYPE,
             UPSERT_ENABLED_DEFAULT,
             UPSERT_ENABLED_IMPORTANCE,
-            UPSERT_ENABLED_DOC
+            UPSERT_ENABLED_DOC,
+                    null, -1, ConfigDef.Width.NONE,
+                    UPSERT_ENABLED_CONFIG,
+                    Arrays.asList(INTERMEDIATE_TABLE_SUFFIX_CONFIG, USE_STORAGE_WRITE_API_CONFIG, MERGE_INTERVAL_MS_CONFIG, KAFKA_KEY_FIELD_NAME_CONFIG)
         ).define(
             DELETE_ENABLED_CONFIG,
             DELETE_ENABLED_TYPE,
             DELETE_ENABLED_DEFAULT,
             DELETE_ENABLED_IMPORTANCE,
-            DELETE_ENABLED_DOC
+            DELETE_ENABLED_DOC,
+                    null, -1, ConfigDef.Width.NONE,
+                    DELETE_ENABLED_CONFIG,
+                    Arrays.asList(INTERMEDIATE_TABLE_SUFFIX_CONFIG, USE_STORAGE_WRITE_API_CONFIG, MERGE_INTERVAL_MS_CONFIG, KAFKA_KEY_FIELD_NAME_CONFIG)
         ).define(
             INTERMEDIATE_TABLE_SUFFIX_CONFIG,
             INTERMEDIATE_TABLE_SUFFIX_TYPE,
@@ -938,7 +944,10 @@ public class BigQuerySinkConfig extends AbstractConfig {
             USE_STORAGE_WRITE_API_TYPE,
             USE_STORAGE_WRITE_API_DEFAULT,
             USE_STORAGE_WRITE_API_IMPORTANCE,
-            USE_STORAGE_WRITE_API_DOC
+            USE_STORAGE_WRITE_API_DOC,
+                    null, -1, ConfigDef.Width.NONE,
+                    USE_STORAGE_WRITE_API_CONFIG,
+                    Arrays.asList(COMMIT_INTERVAL_SEC_CONFIG, ENABLE_BATCH_MODE_CONFIG, BIGQUERY_PARTITION_DECORATOR_CONFIG)
         ).define(
             USE_CREDENTIALS_PROJECT_ID_CONFIG,
             USE_CREDENTIALS_PROJECT_ID_TYPE,
