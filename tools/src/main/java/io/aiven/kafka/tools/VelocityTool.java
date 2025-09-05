@@ -26,7 +26,10 @@ package io.aiven.kafka.tools;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.common.config.ConfigDef;
@@ -69,6 +72,44 @@ public class VelocityTool {
    */
   public VelocityTool() {
     this.configDef = BigQuerySinkConfig.getConfig();
+  }
+
+  private List<VelocityData> generatedFilteredList(Predicate<ConfigDef.ConfigKey> filter) {
+    return configDef.configKeys().values().stream()
+            .filter(filter)
+            .map(VelocityData::new).sorted(Comparator.comparing(VelocityData::getName)).collect(Collectors.toList());
+  }
+
+  /**
+   * Finds all the nodes for which {@code name} is a dependent.
+   *
+   * @param name the name to find the parents for.
+   * @return the list of parents.
+   */
+  public List<VelocityData> parents(String name) {
+    return generatedFilteredList(c -> c.dependents.contains(name));
+  }
+
+  /**
+   * Finds all the nodes that have dependents.
+   *
+   * @return the list of parents.
+   */
+  public List<VelocityData> parents() {
+    return generatedFilteredList(c -> !c.dependents.isEmpty());
+  }
+
+  /**
+   * Finds all the names that have been listed in a dependent field.
+   *
+   * @return the list of all dependent nodes.
+   */
+  public List<VelocityData> dependents() {
+    Set<String> dependentNames = new HashSet<>();
+    configDef.configKeys().values().stream()
+            .filter(c -> c.dependents != null)
+            .forEach(c -> dependentNames.addAll(c.dependents));
+    return generatedFilteredList(c -> dependentNames.contains(c.name));
   }
 
   /**
@@ -146,7 +187,6 @@ public class VelocityTool {
   public String doubleLine() {
     return "\n\n";
   }
-
 
   /**
    * Creates a string of spaces of the specified length.
