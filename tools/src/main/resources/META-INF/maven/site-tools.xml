@@ -25,6 +25,6 @@
 
 -->
     <toolbox scope ="application">
-        <tool class="io.aiven.kafka.config.tools.ConfigDefBean"/>
+        <tool class="com.wepay.kafka.connect.bigquery.config.BigQueryConfigDefBean"/>
     </toolbox>
 </tools>

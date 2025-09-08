@@ -33,7 +33,7 @@ import org.apache.kafka.common.config.ConfigDef;
     */
 public class ConfigKeyBean {
   /** The key */
-  private final ConfigDef.ConfigKey key;
+  protected final ConfigDef.ConfigKey key;
 
   /**
    * Constructor.

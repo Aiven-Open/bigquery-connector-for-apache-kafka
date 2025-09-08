@@ -22,7 +22,7 @@
  */
 
 
-package io.aiven.kafka.tools;
+package io.aiven.kafka.config.tools;
 
 import io.aiven.kafka.utils.ConfigKeyBuilder;
 import io.aiven.kafka.utils.ExtendedConfigKey;
@@ -35,18 +35,18 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-public class VelocityDataTests {
+public class ExtendedConfigKeyBeanTest {
 
     @Test
     void testExtendedConfigKey() {
         ExtendedConfigKey extendedConfigKey = ExtendedConfigKey.builder("testOpt").deprecatedInfo(ExtendedConfigKey.DeprecatedInfo.builder()).build();
-        VelocityData underTest = new VelocityData(extendedConfigKey);
+        ExtendedConfigKeyBean underTest = new ExtendedConfigKeyBean(extendedConfigKey);
         assertTrue(underTest.isExtendedFlag());
         assertNotNull(underTest.deprecated());
         assertNull(underTest.since());
 
         extendedConfigKey = ExtendedConfigKey.builder("testOpt").deprecatedInfo(ExtendedConfigKey.DeprecatedInfo.builder()).since("Then").build();
-        underTest = new VelocityData(extendedConfigKey);
+        underTest = new ExtendedConfigKeyBean(extendedConfigKey);
         assertTrue(underTest.isExtendedFlag());
         assertNotNull(underTest.deprecated());
         assertEquals("Then", underTest.since());
@@ -56,7 +56,7 @@ public class VelocityDataTests {
     @Test
     void testConfigKey() {
         ConfigDef.ConfigKey configKey = new ConfigKeyBuilder<>("testOpt").build();
-        VelocityData underTest = new VelocityData(configKey);
+        ExtendedConfigKeyBean underTest = new ExtendedConfigKeyBean(configKey);
         assertFalse(underTest.isExtendedFlag());
         assertNull(underTest.deprecated());
         assertNull(underTest.since());
