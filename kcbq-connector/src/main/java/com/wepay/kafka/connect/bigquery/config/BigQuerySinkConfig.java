@@ -441,12 +441,12 @@ public class BigQuerySinkConfig extends AbstractConfig {
           );
         }
       },
-      () -> "Either -1 to disable or a value of atleast 10000 to enable"
+      () -> "Either -1 to disable or a value of at least 10000 to enable"
   );
   private static final ConfigDef.Importance MERGE_INTERVAL_MS_IMPORTANCE = ConfigDef.Importance.LOW;
   private static final String MERGE_INTERVAL_MS_DOC =
       "How often (in milliseconds) to perform a merge flush, if upsert/delete is enabled. Can be set to -1"
-              + " to disable periodic flushing , otherwise the value should be atleast 10000 (10 seconds) Either " + MERGE_INTERVAL_MS_CONFIG + " or "
+              + " to disable periodic flushing , otherwise the value should be at least 10000 (10 seconds) Either " + MERGE_INTERVAL_MS_CONFIG + " or "
               + MERGE_RECORDS_THRESHOLD_CONFIG + "or both must be enabled";
   private static final ConfigDef.Type MERGE_RECORDS_THRESHOLD_TYPE = ConfigDef.Type.LONG;
   private static final ConfigDef.Validator MERGE_RECORDS_THRESHOLD_VALIDATOR = ConfigDef.LambdaValidator.with(
