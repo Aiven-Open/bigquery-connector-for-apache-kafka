@@ -21,7 +21,6 @@
  * under the License.
  */
 
-
 package com.wepay.kafka.connect.bigquery.config;
 
 import io.aiven.kafka.config.tools.BaseConfigDefBean;
