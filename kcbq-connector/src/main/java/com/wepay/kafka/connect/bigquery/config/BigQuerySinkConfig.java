@@ -1272,7 +1272,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
   }
 
   private static String header(String text) {
-    String wrapper = text.replaceAll(".", "=");
+    String wrapper = text.replaceAll("\\.", "=");
     return wrapper + "\n" + text + "\n" + wrapper + "\n";
   }
 

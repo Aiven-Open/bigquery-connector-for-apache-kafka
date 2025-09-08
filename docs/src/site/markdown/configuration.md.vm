@@ -2,18 +2,18 @@
 
 All the configuration options are listed below in alphabetical order.
 
-#foreach ($section in ${bigquery.options})
-    #set($parents = ${bigquery.parents(${section.name})})
+#foreach ($configKey in ${configDef.configKeys})
+    #set($parents = ${configDef.parents(${configKey.name})})
 
-${esc.hash}${esc.hash} ${section.displayName}
+${esc.hash}${esc.hash} ${configKey.displayName}
 
- - Configuration option: ${section.name}
- - Default value: ${section.getDefaultValue()|"none"}
- - Type:  $section.type
- #if (${section.validator})
- - Valid values:  ${section.validator|"no restrictions"}
+ - Configuration option: ${configKey.name}
+ - Default value: ${configKey.getDefaultValue()|"none"}
+ - Type:  $configKey.type
+ #if (${configKey.validator})
+ - Valid values:  ${configKey.validator|"no restrictions"}
  #end
- - Importance: $section.importance
+ - Importance: $configKey.importance
  #if (!$parents.isEmpty)
  - Options that influence if or how this option can be used:
 
@@ -24,17 +24,17 @@ ${esc.hash}${esc.hash} ${section.displayName}
 
  #end
 
- #if (!${section.dependents.isEmpty})
+ #if (!${configKey.dependents.isEmpty})
 
  - Options that this option influences:
 
-   #foreach ($p in ${section.dependents})
+   #foreach ($p in ${configKey.dependents})
    - ${p}
 
    #end
 
  #end
 
-    ${bigquery.markdownEscape(${section.documentation})}
+    ${configDef.markdownEscape(${configKey.documentation})}
 
 #end

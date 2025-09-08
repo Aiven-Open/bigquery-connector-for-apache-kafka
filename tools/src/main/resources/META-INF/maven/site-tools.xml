@@ -25,6 +25,6 @@
 
 -->
     <toolbox scope ="application">
-        <tool class="io.aiven.kafka.tools.VelocityTool"/>
+        <tool class="io.aiven.kafka.config.tools.ConfigDefBean"/>
     </toolbox>
 </tools>

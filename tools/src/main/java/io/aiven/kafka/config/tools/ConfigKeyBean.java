@@ -21,7 +21,7 @@
  * under the License.
  */
 
-package io.aiven.kafka.tools;
+package io.aiven.kafka.config.tools;
 
 import java.util.List;
 import org.apache.kafka.common.config.ConfigDef;
@@ -31,7 +31,7 @@ import org.apache.kafka.common.config.ConfigDef;
    *
        * @see <a href="https://velocity.apache.org/">Apache Velocity</a>
     */
-public class VelocityData {
+public class ConfigKeyBean {
   /** The key */
   private final ConfigDef.ConfigKey key;
 
@@ -41,7 +41,7 @@ public class VelocityData {
    * @param key
    *      the Key to wrap.
    */
-  public VelocityData(final ConfigDef.ConfigKey key) {
+  public ConfigKeyBean(final ConfigDef.ConfigKey key) {
     this.key = key;
   }
 

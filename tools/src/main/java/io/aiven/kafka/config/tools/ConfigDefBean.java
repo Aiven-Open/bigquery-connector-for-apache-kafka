@@ -21,7 +21,7 @@
  * under the License.
  */
 
-package io.aiven.kafka.tools;
+package io.aiven.kafka.config.tools;
 
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import java.util.Arrays;
@@ -43,9 +43,9 @@ import org.apache.velocity.tools.config.ValidScope;
  * </p>
  */
 @SuppressWarnings("unused")
-@DefaultKey("bigquery")
+@DefaultKey("configDef")
 @ValidScope({"application"})
-public class VelocityTool {
+public class ConfigDefBean {
 
   private static String[] charParser(final String charText) {
     char[] chars = charText.toCharArray();
@@ -70,14 +70,14 @@ public class VelocityTool {
   /**
    * Constructor.
    */
-  public VelocityTool() {
+  public ConfigDefBean() {
     this.configDef = BigQuerySinkConfig.getConfig();
   }
 
-  private List<VelocityData> generatedFilteredList(Predicate<ConfigDef.ConfigKey> filter) {
+  private List<ConfigKeyBean> generatedFilteredList(Predicate<ConfigDef.ConfigKey> filter) {
     return configDef.configKeys().values().stream()
             .filter(filter)
-            .map(VelocityData::new).sorted(Comparator.comparing(VelocityData::getName)).collect(Collectors.toList());
+            .map(ConfigKeyBean::new).sorted(Comparator.comparing(ConfigKeyBean::getName)).collect(Collectors.toList());
   }
 
   /**
@@ -86,7 +86,7 @@ public class VelocityTool {
    * @param name the name to find the parents for.
    * @return the list of parents.
    */
-  public List<VelocityData> parents(String name) {
+  public List<ConfigKeyBean> parents(String name) {
     return generatedFilteredList(c -> c.dependents.contains(name));
   }
 
@@ -95,7 +95,7 @@ public class VelocityTool {
    *
    * @return the list of parents.
    */
-  public List<VelocityData> parents() {
+  public List<ConfigKeyBean> parents() {
     return generatedFilteredList(c -> !c.dependents.isEmpty());
   }
 
@@ -104,7 +104,7 @@ public class VelocityTool {
    *
    * @return the list of all dependent nodes.
    */
-  public List<VelocityData> dependents() {
+  public List<ConfigKeyBean> dependents() {
     Set<String> dependentNames = new HashSet<>();
     configDef.configKeys().values().stream()
             .filter(c -> c.dependents != null)
@@ -117,8 +117,8 @@ public class VelocityTool {
    *
    * @return the list of configuration options.
    */
-  public List<VelocityData> options() {
-    return configDef.configKeys().values().stream().map(VelocityData::new).sorted(Comparator.comparing(VelocityData::getName)).collect(Collectors.toList());
+  public List<ConfigKeyBean> configKeys() {
+    return configDef.configKeys().values().stream().map(ConfigKeyBean::new).sorted(Comparator.comparing(ConfigKeyBean::getName)).collect(Collectors.toList());
   }
 
   /**
