@@ -433,20 +433,21 @@ public class BigQuerySinkConfig extends AbstractConfig {
         }
         long parsedValue = (long) ConfigDef.parseType(name, value, MERGE_INTERVAL_MS_TYPE);
 
-        if (parsedValue == 0) {
-          throw new ConfigException(name, value, "Cannot be zero");
-        } else if (parsedValue < -1) {
-          throw new ConfigException(name, value, "Cannot be less than -1");
+        if (parsedValue < 10000 && parsedValue != -1) {
+          throw new ConfigException(
+                  name,
+                  value,
+                  "Value must be either -1 to disable, or at least 10000 (10 seconds)."
+          );
         }
       },
-      () -> "Either a positive integer or -1 to disable time interval-based merging"
+      () -> "Either -1 to disable or a value of at least 10000 to enable"
   );
   private static final ConfigDef.Importance MERGE_INTERVAL_MS_IMPORTANCE = ConfigDef.Importance.LOW;
   private static final String MERGE_INTERVAL_MS_DOC =
       "How often (in milliseconds) to perform a merge flush, if upsert/delete is enabled. Can be set to -1"
-          + " to disable periodic flushing. Either " + MERGE_INTERVAL_MS_CONFIG + " or "
-          + MERGE_RECORDS_THRESHOLD_CONFIG + ", or both must be enabled.\nThis should not be set to less"
-          + " than 10 seconds. A validation would be introduced in a future release to this effect.";
+              + " to disable periodic flushing , otherwise the value should be at least 10000 (10 seconds) Either " + MERGE_INTERVAL_MS_CONFIG + " or "
+              + MERGE_RECORDS_THRESHOLD_CONFIG + "or both must be enabled";
   private static final ConfigDef.Type MERGE_RECORDS_THRESHOLD_TYPE = ConfigDef.Type.LONG;
   private static final ConfigDef.Validator MERGE_RECORDS_THRESHOLD_VALIDATOR = ConfigDef.LambdaValidator.with(
       (name, value) -> {
