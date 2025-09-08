@@ -37,7 +37,7 @@ import org.apache.velocity.tools.config.DefaultKey;
 import org.apache.velocity.tools.config.ValidScope;
 
 /**
- * The Velocity RAT plugin that provides access to the RAT data.
+ * A class that provides a bean to access the ConfigDef data.
  * <p>
  * DEVHINT: Be careful when removing methods as this may invalidate contents and functionality of the velocity templates.
  * </p>
