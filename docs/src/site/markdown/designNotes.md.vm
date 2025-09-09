@@ -1,0 +1,31 @@
+# Design Notes
+
+The BigQuery sink connector supports two distinct paths for inserting data into BigQuery.  The original BatchLoader path is uses GCS to store intermediate files before writing them to tables in BigQuery.  The second path is to use the StorageWriteAPI to stream the data to BigQuery.
+
+${esc.hash}${esc.hash} The general flow
+
+1. Records come into the connector from Kafka.  
+2. They are processed and converted into BigQuery table data.
+3. The table data are written to temporary files in GCS.
+4. The data from the files is written to BigQuery through either:
+   1. Batch loading
+   2. StorageWriterAPI.
+
+
+${esc.hash}${esc.hash} Configuration options that are influenced by other options
+
+#foreach ($configKey in ${configDef.configKeys})
+#set($parents = ${configDef.parents(${configKey.name})})
+  #if (!$parents.isEmpty)
+
+${esc.hash}${esc.hash}${esc.hash} ${configKey.name}
+
+    #foreach ($p in $parents)
+
+ - ${p.name}
+
+    #end
+
+  #end
+
+#end
