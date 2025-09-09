@@ -184,7 +184,7 @@ public class BaseConfigDefBean<T extends ConfigKeyBean> {
   public final String aptEscape(final String text) {
     return escape(text, APT_CHARS);
   }
-  
+
   /**
    * Gets a tab character.
    *
