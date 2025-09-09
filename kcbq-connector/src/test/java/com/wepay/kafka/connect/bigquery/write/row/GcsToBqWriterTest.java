@@ -196,7 +196,8 @@ public class GcsToBqWriterTest {
         ConnectException.class,
         () -> testTask.flush(Collections.emptyMap())
     );
-    verify(storage, times(4)).create((BlobInfo) anyObject(), (byte[]) anyObject());
+    // Budget = 3 * 2000ms = 6000ms → 2 sleeps → 3 total attempts
+    verify(storage, times(3)).create((BlobInfo) anyObject(), (byte[]) anyObject());
   }
 
   @Test
@@ -259,7 +260,7 @@ public class GcsToBqWriterTest {
     writer.writeRows(oneRow(), TableId.of("ds", "tbl"), "bucket", "blob");
     long elapsed = mockTime.milliseconds() - t0;
 
-    long minExpected = 5000 + 10000 + 10000; // 25s
+    long minExpected = 20_000; // Budget = retries(4) * retryWaitMs(5000) = 20s
     long maxExpected = minExpected + 3 * 1000; // + jitter bound
     verify(storage, times(4)).create(any(BlobInfo.class), any(byte[].class));
     assertTrue(elapsed >= minExpected, "elapsed too small: " + elapsed);

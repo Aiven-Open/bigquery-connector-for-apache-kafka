@@ -124,13 +124,6 @@ public class GcsToBqWriter {
                         String bucketName,
                         String blobName) throws InterruptedException {
 
-    // Get Source URI
-    BlobId blobId = BlobId.of(bucketName, blobName);
-
-    Map<String, String> metadata = getMetadata(tableId);
-    BlobInfo blobInfo =
-        BlobInfo.newBuilder(blobId).setContentType("text/json").setMetadata(metadata).build();
-
     // Compute a time budget that still guarantees at least one attempt even if retryWaitMs == 0.
     Duration timeout = Duration.ofMillis(Math.max(0L, retryWaitMs * Math.max(1, retries)));
     if (retries == 0) {
@@ -164,15 +157,20 @@ public class GcsToBqWriter {
       uploadTimeout = Duration.ofMillis(retryWaitMs);
     }
 
+    // Get Source URI
+    BlobId blobId = BlobId.of(bucketName, blobName);
+    Map<String, String> metadata = getMetadata(tableId);
+    BlobInfo blobInfo = BlobInfo.newBuilder(blobId).setContentType("text/json").setMetadata(metadata).build();
+
     Boolean uploaded =
-      executeWithRetry(
-        () -> {
-          // Perform GCS upload; throws StorageException (BaseServiceException) on failure
-          uploadRowsToGcs(rows, blobInfo);
-          return Boolean.TRUE;
-          },
-          uploadTimeout
-      );
+        executeWithRetry(
+          () -> {
+            // Perform GCS upload; throws StorageException (BaseServiceException) on failure
+            uploadRowsToGcs(rows, blobInfo);
+            return Boolean.TRUE;
+            },
+            uploadTimeout
+        );
 
     // If executeWithRetry timed out (budget exhausted) it returns null → fail like before
     if (uploaded == null) {
@@ -270,10 +268,10 @@ public class GcsToBqWriter {
         delay += (delay > 0 ? random.nextInt(WAIT_MAX_JITTER) : 0);
 
         logger.info(
-          "Retryable exception on attempt {}: {}. Backing off {} ms",
-          attempt + 1,
-          e.getMessage(),
-          delay
+            "Retryable exception on attempt {}: {}. Backing off {} ms",
+            attempt + 1,
+            e.getMessage(),
+            delay
         );
 
         if (delay > 0) {
@@ -287,10 +285,7 @@ public class GcsToBqWriter {
   /**
    * Computes the exponential backoff delay for a given retry attempt. The delay is calculated as:
    *
-   * <pre>
-   *   delay = baseDelayMs * (2 ^ attemptIndex)
-   * </pre>
-   *
+   * <pre>delay = baseDelayMs * (2 ^ attemptIndex)</pre>
    * but is clamped to an upper bound {@code capMs}. This ensures that the backoff grows
    * exponentially with each retry, but never exceeds the configured cap.
    *
