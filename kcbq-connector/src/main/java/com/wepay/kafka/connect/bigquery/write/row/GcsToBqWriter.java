@@ -260,8 +260,7 @@ public class GcsToBqWriter {
           long elapsed = time.milliseconds() - start;
           long remaining = budget - elapsed;
           if (remaining <= 0) {
-            logger.error(
-                "Timeout expired after {} attempts within {} ms budget.", attempt + 1, budget);
+            logger.error("Timeout expired after {} attempts within {} ms budget.", attempt + 1, budget);
             return null;
           }
           delay = Math.min(delay, Math.max(0L, remaining));
@@ -270,11 +269,12 @@ public class GcsToBqWriter {
         // Add up to 1s jitter
         delay += (delay > 0 ? random.nextInt(WAIT_MAX_JITTER) : 0);
 
-        logger.warn(
-            "Retryable exception on attempt {}: {}. Backing off {} ms",
-            attempt + 1,
-            e.getMessage(),
-            delay);
+        logger.info(
+          "Retryable exception on attempt {}: {}. Backing off {} ms",
+          attempt + 1,
+          e.getMessage(),
+          delay
+        );
 
         if (delay > 0) {
           time.sleep(delay);
