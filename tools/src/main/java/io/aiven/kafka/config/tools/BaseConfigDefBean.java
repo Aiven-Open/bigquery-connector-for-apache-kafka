@@ -184,18 +184,7 @@ public class BaseConfigDefBean<T extends ConfigKeyBean> {
   public final String aptEscape(final String text) {
     return escape(text, APT_CHARS);
   }
-
-  /**
-   * Gets the {@link StringUtils} object in order to work with it in Velocity templates.
-   *
-   * @return the org.apache.commons.lang3 StringUtils object.
-   * @see StringUtils
-   */
-  @SuppressWarnings("unused")
-  public final StringUtils stringUtils() {
-    return new StringUtils();
-  }
-
+  
   /**
    * Gets a tab character.
    *
