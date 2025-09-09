@@ -26,10 +26,7 @@ import org.apache.velocity.tools.config.DefaultKey;
 import org.apache.velocity.tools.config.ValidScope;
 
 /**
- * The Velocity RAT plugin that provides access to the RAT data.
- * <p>
- * DEVHINT: Be careful when removing methods as this may invalidate contents and functionality of the velocity templates.
- * </p>
+ * A BaseConfigDefBean instance that uses the {@link BigQuerySinkConfig#getConfig} for data and returns {@link ExtendedConfigKeyBean} objects.
  */
 @SuppressWarnings("unused")
 @DefaultKey("extendedConfigDef")

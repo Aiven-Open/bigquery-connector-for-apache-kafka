@@ -26,5 +26,6 @@
 -->
     <toolbox scope ="application">
         <tool class="com.wepay.kafka.connect.bigquery.config.BigQueryConfigDefBean"/>
+        <tool key="stringUtils" class="org.apache.commons.lang3.StringUtils"/>
     </toolbox>
 </tools>

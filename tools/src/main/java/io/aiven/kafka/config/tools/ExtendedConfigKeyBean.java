@@ -36,6 +36,7 @@ public class ExtendedConfigKeyBean extends ConfigKeyBean {
     return extendedFlag ? asExtended().since : null;
   }
 
+  @SuppressWarnings("unused")
   public final boolean isDeprecated() {
     return extendedFlag && asExtended().isDeprecated();
   }

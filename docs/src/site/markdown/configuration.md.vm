@@ -33,17 +33,18 @@ ${esc.hash}${esc.hash} ${configKey.displayName}
 
  #end
 
- #if (!${section.dependents.isEmpty})
+ #if (!${configKey.dependents.isEmpty})
 
  - Options that this option influences:
 
-   #foreach ($p in ${section.dependents})
+   #foreach ($p in ${configKey.dependents})
    - ${p}
 
    #end
 
  #end
 
-    ${bigquery.markdownEscape(${section.documentation})}
+    ${extendedConfigDef.markdownEscape(${configKey.documentation})}
+
 
 #end
