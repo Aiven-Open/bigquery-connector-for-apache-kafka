@@ -80,10 +80,11 @@ KCBQ_TEST_PROJECT - the project to use for the tests.
 The documentation is not built as part of the standard build.  To build the documentation execute the following steps.
 
     mvn install -DskipITs
-    cd tools
-    mvn
-    cd ../docs
-    mvn
+    mvn -f tools/
+    mvn -f docs/
+    
+    # To run the docs locally
+    mvn -f docs/ site:run
 
 To run the docs locally in the `docs` directory execute `mvn site:run`.
 
