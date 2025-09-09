@@ -33,7 +33,7 @@ import org.apache.kafka.common.config.ConfigDef;
     */
 public class ConfigKeyBean {
   /** The key */
-  private final ConfigDef.ConfigKey key;
+  protected final ConfigDef.ConfigKey key;
 
   /**
    * Constructor.
@@ -59,6 +59,7 @@ public class ConfigKeyBean {
    *
    * @return The data type of the entry.
    */
+  @SuppressWarnings("unused")
   public final ConfigDef.Type getType() {
     return key.type;
   }
@@ -68,6 +69,7 @@ public class ConfigKeyBean {
    *
    * @return The documentation for the entry.
    */
+  @SuppressWarnings("unused")
   public final String getDocumentation() {
     return key.documentation;
   }
@@ -77,6 +79,7 @@ public class ConfigKeyBean {
    *
    * @return The default value for the entry. May be {@code null}.
    */
+  @SuppressWarnings("unused")
   public final Object getDefaultValue() {
     return ConfigDef.NO_DEFAULT_VALUE.equals(key.defaultValue) ? null : key.defaultValue;
   }
@@ -86,6 +89,7 @@ public class ConfigKeyBean {
    *
    * @return The Validator for the entry.
    */
+  @SuppressWarnings("unused")
   public final ConfigDef.Validator getValidator() {
     return key.validator;
   }
@@ -95,6 +99,7 @@ public class ConfigKeyBean {
    *
    * @return the importance of the entry.
    */
+  @SuppressWarnings("unused")
   public final ConfigDef.Importance getImportance() {
     return key.importance;
   }
@@ -104,6 +109,7 @@ public class ConfigKeyBean {
    *
    * @return The group of the entry,
    */
+  @SuppressWarnings("unused")
   public final String getGroup() {
     return key.group;
   }
@@ -113,6 +119,7 @@ public class ConfigKeyBean {
    *
    * @return the order in the group of the entry.
    */
+  @SuppressWarnings("unused")
   public final int getOrderInGroup() {
     return key.orderInGroup;
   }
@@ -122,6 +129,7 @@ public class ConfigKeyBean {
    *
    * @return The width estimate for the entry.
    */
+  @SuppressWarnings("unused")
   public final ConfigDef.Width getWidth() {
     return key.width;
   }
@@ -131,6 +139,7 @@ public class ConfigKeyBean {
    *
    * @return The display name for the entry.
    */
+  @SuppressWarnings("unused")
   public final String getDisplayName() {
     return key.displayName;
   }
@@ -140,6 +149,7 @@ public class ConfigKeyBean {
    *
    * @return The list of dependents for the entry.
    */
+  @SuppressWarnings("unused")
   public final List<String> getDependents() {
     return key.dependents;
   }
@@ -149,6 +159,7 @@ public class ConfigKeyBean {
    *
    * @return the recommender for the entry.
    */
+  @SuppressWarnings("unused")
   public final ConfigDef.Recommender getRecommender() {
     return key.recommender;
   }
@@ -158,6 +169,7 @@ public class ConfigKeyBean {
    *
    * @return The internal config flag.
    */
+  @SuppressWarnings("unused")
   public final boolean isInternalConfig() {
     return key.internalConfig;
   }

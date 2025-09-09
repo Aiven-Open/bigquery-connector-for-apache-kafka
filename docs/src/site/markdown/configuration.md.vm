@@ -2,12 +2,21 @@
 
 All the configuration options are listed below in alphabetical order.
 
-#foreach ($configKey in ${configDef.configKeys})
-    #set($parents = ${configDef.parents(${configKey.name})})
+#foreach ($configKey in ${extendedConfigDef.configKeys})
+    #set($parents = ${extendedConfigDef.parents(${configKey.name})})
 
 ${esc.hash}${esc.hash} ${configKey.displayName}
 
+  #if (${configKey.isDeprecated})
+**${configKey.deprecated}**
+  #end
+
  - Configuration option: ${configKey.name}
+
+ #if ($stringUtils.isNotEmpty(${configKey.since}))
+ - Since: ${configKey.since}
+ #end
+
  - Default value: ${configKey.getDefaultValue()|"none"}
  - Type:  $configKey.type
  #if (${configKey.validator})
@@ -35,6 +44,7 @@ ${esc.hash}${esc.hash} ${configKey.displayName}
 
  #end
 
-    ${configDef.markdownEscape(${configKey.documentation})}
+    ${extendedConfigDef.markdownEscape(${configKey.documentation})}
+
 
 #end

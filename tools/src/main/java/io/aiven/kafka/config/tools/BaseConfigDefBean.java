@@ -23,30 +23,45 @@
 
 package io.aiven.kafka.config.tools;
 
-import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.common.config.ConfigDef;
-import org.apache.velocity.tools.config.DefaultKey;
-import org.apache.velocity.tools.config.ValidScope;
 
 /**
- * A class that provides a bean to access the ConfigDef data.
+ * A Base ConfigDefBean that provides created {@link ConfigKeyBean} instances from {@link ConfigDef.ConfigKey} instances.
+ * Also provides convenience methods for formatting and ConfigKeyBean access.
  * <p>
  * DEVHINT: Be careful when removing methods as this may invalidate contents and functionality of the velocity templates.
  * </p>
+ *
+ * <p>Example of use <pre>{@code
+ * @DefaultKey("configDef")
+ * @ValidScope({"application"})
+ * public class ConfigDefBean extends BaseConfigDefBean<ConfigKeyBean> {
+ *   public ConfigDefBean() {
+ *     super(myConnectorConfig.getConfigDef(), ConfigKeyBean::new);
+ *   }
+ * }
+ * }</pre>
+ * </p>
+ *
+ * @param <T> The {@link ConfigKeyBean} type that this ConfigDefBean returns.
  */
-@SuppressWarnings("unused")
-@DefaultKey("configDef")
-@ValidScope({"application"})
-public class ConfigDefBean {
+public class BaseConfigDefBean<T extends ConfigKeyBean> {
 
+  /**
+   * Converts a string into an array of single character strings
+   *
+   * @param charText the text to convert.
+   * @return An array of single character strings
+   */
   private static String[] charParser(final String charText) {
     char[] chars = charText.toCharArray();
     String[] result = new String[chars.length];
@@ -65,19 +80,28 @@ public class ConfigDefBean {
    */
   private static final String[] APT_CHARS = charParser("\\~=-+*[]<>{}");
 
+  /**
+   * The configuration definition that we are processing.
+   */
   private final ConfigDef configDef;
+
+  /**
+   * A function to convert a ConfigKey to the bean type we are returning.
+   */
+  private final Function<? super ConfigDef.ConfigKey, T> constructor;
 
   /**
    * Constructor.
    */
-  public ConfigDefBean() {
-    this.configDef = BigQuerySinkConfig.getConfig();
+  public BaseConfigDefBean(ConfigDef configDef, Function<? super ConfigDef.ConfigKey, T> constructor) {
+    this.configDef = configDef;
+    this.constructor = constructor;
   }
 
-  private List<ConfigKeyBean> generatedFilteredList(Predicate<ConfigDef.ConfigKey> filter) {
+  private List<T> generatedFilteredList(Predicate<ConfigDef.ConfigKey> filter) {
     return configDef.configKeys().values().stream()
             .filter(filter)
-            .map(ConfigKeyBean::new).sorted(Comparator.comparing(ConfigKeyBean::getName)).collect(Collectors.toList());
+            .map(constructor).sorted(Comparator.comparing(ConfigKeyBean::getName)).collect(Collectors.toList());
   }
 
   /**
@@ -86,7 +110,7 @@ public class ConfigDefBean {
    * @param name the name to find the parents for.
    * @return the list of parents.
    */
-  public List<ConfigKeyBean> parents(String name) {
+  public List<T> parents(String name) {
     return generatedFilteredList(c -> c.dependents.contains(name));
   }
 
@@ -95,7 +119,7 @@ public class ConfigDefBean {
    *
    * @return the list of parents.
    */
-  public List<ConfigKeyBean> parents() {
+  public List<T> parents() {
     return generatedFilteredList(c -> !c.dependents.isEmpty());
   }
 
@@ -104,7 +128,7 @@ public class ConfigDefBean {
    *
    * @return the list of all dependent nodes.
    */
-  public List<ConfigKeyBean> dependents() {
+  public List<T> dependents() {
     Set<String> dependentNames = new HashSet<>();
     configDef.configKeys().values().stream()
             .filter(c -> c.dependents != null)
@@ -117,8 +141,8 @@ public class ConfigDefBean {
    *
    * @return the list of configuration options.
    */
-  public List<ConfigKeyBean> configKeys() {
-    return configDef.configKeys().values().stream().map(ConfigKeyBean::new).sorted(Comparator.comparing(ConfigKeyBean::getName)).collect(Collectors.toList());
+  public List<T> configKeys() {
+    return configDef.configKeys().values().stream().map(constructor).sorted(Comparator.comparing(ConfigKeyBean::getName)).collect(Collectors.toList());
   }
 
   /**
@@ -145,7 +169,8 @@ public class ConfigDefBean {
    * @param text the text to escape.
    * @return the text with the markdown specific characters escaped.
    */
-  public String markdownEscape(final String text) {
+  @SuppressWarnings("unused")
+  public final String markdownEscape(final String text) {
     return escape(text, MARKDOWN_CHARS);
   }
 
@@ -155,19 +180,9 @@ public class ConfigDefBean {
    * @param text the text to escape.
    * @return the text with the APT specific characters escaped.
    */
-  public String aptEscape(final String text) {
+  @SuppressWarnings("unused")
+  public final String aptEscape(final String text) {
     return escape(text, APT_CHARS);
-  }
-
-
-  /**
-   * Gets the {@link StringUtils} object in order to work with it in Velocity templates.
-   *
-   * @return the org.apache.commons.lang3 StringUtils object.
-   * @see org.apache.commons.lang3.StringUtils
-   */
-  public StringUtils stringUtils() {
-    return new StringUtils();
   }
 
   /**
@@ -175,7 +190,8 @@ public class ConfigDefBean {
    *
    * @return the tab character.
    */
-  public String tab() {
+  @SuppressWarnings("unused")
+  public final String tab() {
     return "\t";
   }
 
@@ -184,7 +200,8 @@ public class ConfigDefBean {
    *
    * @return a string containing two new lines.
    */
-  public String doubleLine() {
+  @SuppressWarnings("unused")
+  public final String doubleLine() {
     return "\n\n";
   }
 
@@ -194,7 +211,8 @@ public class ConfigDefBean {
    * @param length the length of the string.
    * @return a string of spaces of the specified length.
    */
-  public String pad(final int length) {
+  @SuppressWarnings("unused")
+  public final String pad(final int length) {
     char[] padding = new char[length];
     Arrays.fill(padding, ' ');
     return new String(padding);
