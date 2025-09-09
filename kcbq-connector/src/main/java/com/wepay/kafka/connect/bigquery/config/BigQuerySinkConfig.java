@@ -643,7 +643,6 @@ public class BigQuerySinkConfig extends AbstractConfig {
    * @return The ConfigDef object used to define this config's fields.
    */
   public static ConfigDef getConfig() {
-    ExtendedConfigKey.DeprecatedInfo.Builder remove280 = ExtendedConfigKey.DeprecatedInfo.builder().setForRemoval(true).setSince("2.8.0");
     return new ConfigDef()
             .define(
                     TOPICS_CONFIG,
