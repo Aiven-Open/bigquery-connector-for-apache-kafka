@@ -86,5 +86,4 @@ The documentation is not built as part of the standard build.  To build the docu
     # To run the docs locally
     mvn -f docs/ site:run
 
-To run the docs locally in the `docs` directory execute `mvn site:run`.
 
