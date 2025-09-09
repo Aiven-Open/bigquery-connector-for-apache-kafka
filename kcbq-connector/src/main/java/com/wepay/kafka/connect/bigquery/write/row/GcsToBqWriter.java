@@ -23,16 +23,14 @@
 
 package com.wepay.kafka.connect.bigquery.write.row;
 
-import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.BaseServiceException;
+import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.InsertAllRequest.RowToInsert;
 import com.google.cloud.bigquery.Table;
 import com.google.cloud.bigquery.TableId;
-import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.Storage;
-import com.google.cloud.storage.StorageException;
 import com.google.gson.Gson;
 import com.wepay.kafka.connect.bigquery.SchemaManager;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
@@ -78,7 +76,7 @@ public class GcsToBqWriter {
    * @param retries Maximum number of retry attempts after the initial call.
    *                <p>Note that this is an upper bound: the actual number of retries may be lower if the
    *                computed exponential backoff delays (based on {@code retryWaitMs}) plus jitter cause the
-   *                total timeout budget to be exceeded.
+   *                total timeout budget to be exceeded.</p>
    * @param retryWaitMs Base wait time in milliseconds before the first retry. Each subsequent retry
    *                    doubles this delay, up to a maximum per-sleep cap of {@value #MAX_BACKOFF_MS} milliseconds.
    * @param time used to wait during backoff periods
@@ -160,47 +158,51 @@ public class GcsToBqWriter {
       throw new BigQueryConnectException("Failed to lookup table " + tableId);
     }
 
-    int attemptCount = 0;
-    boolean success = false;
-    while (!success && (attemptCount <= retries)) {
-      if (attemptCount > 0) {
-        // use capped exponential backoff w/ jitter for GCS upload retries
-        waitRandomTime(attemptCount - 1);
-      }
-      // Perform GCS Upload
-      try {
-        uploadRowsToGcs(rows, blobInfo);
-        success = true;
-      } catch (StorageException se) {
-        logger.warn("Exceptions occurred for table {}, attempting retry", tableId.getTable());
-      }
-      attemptCount++;
+    // --- Upload rows to GCS with executeWithRetry (fresh budget for uploads) ---
+    Duration uploadTimeout = Duration.ofMillis(Math.max(0L, retryWaitMs * Math.max(1, retries)));
+    if (retries == 0) {
+      uploadTimeout = Duration.ofMillis(retryWaitMs);
     }
 
-    if (success) {
-      logger.info("Batch loaded {} rows", rows.size());
-    } else {
-      throw new ConnectException(String.format("Failed to load %d rows into GCS within %d re-attempts.", rows.size(), retries));
+    Boolean uploaded =
+      executeWithRetry(
+        () -> {
+          // Perform GCS upload; throws StorageException (BaseServiceException) on failure
+          uploadRowsToGcs(rows, blobInfo);
+          return Boolean.TRUE;
+          },
+          uploadTimeout
+      );
+
+    // If executeWithRetry timed out (budget exhausted) it returns null → fail like before
+    if (uploaded == null) {
+      throw new ConnectException(
+        String.format("Failed to load %d rows into GCS within %d re-attempts.", rows.size(), retries)
+      );
     }
 
+    logger.info("Batch loaded {} rows", rows.size());
   }
 
   /**
    * Creates a JSON string containing all records and uploads it as a blob to GCS.
    *
-   * @return The blob uploaded to GCS
+   * <p>Returns normally on success; throws on failure.</p>
+   *
+   * @throws com.google.cloud.storage.StorageException if the GCS write fails
+   * @throws com.wepay.kafka.connect.bigquery.exception.GcsConnectException if UTF-8 encoding fails
    */
-  private Blob uploadRowsToGcs(SortedMap<SinkRecord, RowToInsert> rows, BlobInfo blobInfo) {
+  private void uploadRowsToGcs(SortedMap<SinkRecord, RowToInsert> rows, BlobInfo blobInfo) {
     try {
-      Blob resultBlob = uploadBlobToGcs(toJson(rows.values()).getBytes("UTF-8"), blobInfo);
-      return resultBlob;
+      uploadBlobToGcs(toJson(rows.values()).getBytes("UTF-8"), blobInfo);
     } catch (UnsupportedEncodingException uee) {
+      // Practically unreachable in modern JVMs, but we keep a clear domain exception
       throw new GcsConnectException("Failed to upload blob to GCS", uee);
     }
   }
 
-  private Blob uploadBlobToGcs(byte[] blobContent, BlobInfo blobInfo) {
-    return storage.create(blobInfo, blobContent); // todo options: like a retention policy maybe?
+  private void uploadBlobToGcs(byte[] blobContent, BlobInfo blobInfo) {
+    storage.create(blobInfo, blobContent); // todo options: like a retention policy maybe?
   }
 
   /**
@@ -327,17 +329,4 @@ public class GcsToBqWriter {
     return Math.min(backoff, capMs);
   }
 
-  /**
-   * Wait with exponential backoff based on attempt index, capped by {@link #MAX_BACKOFF_MS}, plus
-   * up to 1s jitter.
-   *
-   * @param attemptZeroBased zero-based attempt index (0 => base delay, 1 => doubled, …)
-   * @throws InterruptedException if interrupted.
-   */
-  private void waitRandomTime(int attemptZeroBased) throws InterruptedException {
-    long base = Math.max(0L, retryWaitMs);
-    long delay = computeBackoff(base, attemptZeroBased, MAX_BACKOFF_MS);
-    delay += (delay > 0 ? random.nextInt(WAIT_MAX_JITTER) : 0);
-    time.sleep(delay);
-  }
 }
