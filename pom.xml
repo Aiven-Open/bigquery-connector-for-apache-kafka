@@ -382,6 +382,7 @@ under the License.
                     </mapping>
                     <excludes>
                         <exclude>**/*.vm</exclude>
+                        <exclude>**/*.properties</exclude>
                         <exclude>LICENSE.md</exclude>
                         <exclude>*.log</exclude>
                         <exclude>config/checkstyle/google_checks.xml</exclude>
