@@ -78,10 +78,6 @@ public class BigQuerySinkConfig extends AbstractConfig {
 
   private static final Logger logger = LoggerFactory.getLogger(BigQuerySinkConfig.class);
 
-  public static final String DEPRECATED_DOC = "(DEPRECATED)";
-  public static final String GCS_LOAD_DEPRECATION_NOTICE =
-      "GCS batch loading has been deprecated and will be removed in a future major release.";
-
   // Values taken from https://github.com/apache/kafka/blob/1.1.1/connect/runtime/src/main/java/org/apache/kafka/connect/runtime/SinkConnectorConfig.java#L33
   public static final String TOPICS_CONFIG = SinkConnector.TOPICS_CONFIG;
   public static final String TOPICS_DEFAULT = "";
@@ -647,7 +643,6 @@ public class BigQuerySinkConfig extends AbstractConfig {
    * @return The ConfigDef object used to define this config's fields.
    */
   public static ConfigDef getConfig() {
-    ExtendedConfigKey.DeprecatedInfo.Builder remove280 = ExtendedConfigKey.DeprecatedInfo.builder().setForRemoval(true).setSince("2.8.0");
     return new ConfigDef()
             .define(
                     TOPICS_CONFIG,
@@ -674,31 +669,25 @@ public class BigQuerySinkConfig extends AbstractConfig {
                     .defaultValue(ENABLE_BATCH_DEFAULT)
                     .importance(ENABLE_BATCH_IMPORTANCE)
                     .documentation(ENABLE_BATCH_DOC)
-                    .deprecatedInfo(remove280)
                     .build()
             ).define(ExtendedConfigKey.builder(BATCH_LOAD_INTERVAL_SEC_CONFIG)
                     .type(BATCH_LOAD_INTERVAL_SEC_TYPE)
                     .defaultValue(BATCH_LOAD_INTERVAL_SEC_DEFAULT)
                     .importance(BATCH_LOAD_INTERVAL_SEC_IMPORTANCE)
                     .documentation(BATCH_LOAD_INTERVAL_SEC_DOC)
-                    .deprecatedInfo(remove280)
                     .build()
-            ).define(
-                    ExtendedConfigKey.builder(GCS_BUCKET_NAME_CONFIG)
-                            .type(GCS_BUCKET_NAME_TYPE)
-                            .defaultValue(GCS_BUCKET_NAME_DEFAULT)
-                            .importance(GCS_BUCKET_NAME_IMPORTANCE)
-                            .documentation(GCS_BUCKET_NAME_DOC)
-                            .deprecatedInfo(remove280)
-                            .build()
-            ).define(
-                    ExtendedConfigKey.builder(GCS_FOLDER_NAME_CONFIG)
-                            .type(GCS_FOLDER_NAME_TYPE)
-                            .defaultValue(GCS_FOLDER_NAME_DEFAULT)
-                            .importance(GCS_FOLDER_NAME_IMPORTANCE)
-                            .documentation(GCS_FOLDER_NAME_DOC)
-                            .deprecatedInfo(remove280)
-                            .build()
+            ).define(ExtendedConfigKey.builder(GCS_BUCKET_NAME_CONFIG)
+                    .type(GCS_BUCKET_NAME_TYPE)
+                    .defaultValue(GCS_BUCKET_NAME_DEFAULT)
+                    .importance(GCS_BUCKET_NAME_IMPORTANCE)
+                    .documentation(GCS_BUCKET_NAME_DOC)
+                    .build()
+            ).define(ExtendedConfigKey.builder(GCS_FOLDER_NAME_CONFIG)
+                    .type(GCS_FOLDER_NAME_TYPE)
+                    .defaultValue(GCS_FOLDER_NAME_DEFAULT)
+                    .importance(GCS_FOLDER_NAME_IMPORTANCE)
+                    .documentation(GCS_FOLDER_NAME_DOC)
+                    .build()
             ).define(
                     PROJECT_CONFIG,
                     PROJECT_TYPE,
@@ -792,7 +781,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
                     .defaultValue(AUTO_CREATE_BUCKET_DEFAULT)
                     .importance(AUTO_CREATE_BUCKET_IMPORTANCE)
                     .documentation(AUTO_CREATE_BUCKET_DOC)
-                    .deprecatedInfo(remove280).build()
+                    .build()
             ).define(
                     ALLOW_NEW_BIGQUERY_FIELDS_CONFIG,
                     ALLOW_NEW_BIGQUERY_FIELDS_TYPE,
@@ -1288,13 +1277,6 @@ public class BigQuerySinkConfig extends AbstractConfig {
     return wrapper + "\n" + text + "\n" + wrapper + "\n";
   }
 
-  private static String deprecatedGcsLoadDoc(String doc) {
-    return deprecatedDoc(doc, GCS_LOAD_DEPRECATION_NOTICE);
-  }
-
-  private static String deprecatedDoc(String doc, String notice) {
-    return DEPRECATED_DOC + " " + doc + " Warning: " + notice;
-  }
 
   private static String deprecationMessage(String deprecatedOption, String replacementOption) {
     StringBuilder sb = new StringBuilder(String.format("'%s' has been deprecated.", deprecatedOption));
