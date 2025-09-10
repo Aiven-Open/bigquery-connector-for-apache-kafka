@@ -37,7 +37,7 @@
     </modules>
 
     <properties>
-        <release.version>2.8.0</release.version>
+        <latestRelease>2.8.0</latestRelease>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <java.version>8</java.version>
@@ -94,28 +94,35 @@
 
     <developers>
         <developer>
-            <id>C0urante</id>
+            <id>claudenw</id>
+            <name>Claude Warren</name>
+            <email>claude@xenei.com</email>
+            <timezone>Europe/Dublin</timezone>
+            <organization>Aiven, OY</organization>
+            <organizationUrl>https://aiven.io</organizationUrl>
+        </developer>
+    </developers>
+
+    <contributors>
+        <contributor>
+            <url>https://github.com/C0urante</url>
             <name>Chris Egerton</name>
             <email>fearthecellos@gmail.com</email>
             <timezone>America/New_York</timezone>
-        </developer>
-        <developer>
-            <id>moirat</id>
+        </contributor>
+        <contributor>
+            <url>https://github.com/moirat</url>
             <name>Moira Tagle</name>
             <email>moirat@wepay.com</email>
             <timezone>America/Los_Angeles</timezone>
-        </developer>
-    </developers>
+        </contributor>
+    </contributors>
 
     <repositories>
         <repository>
             <id>confluent</id>
             <url>https://packages.confluent.io/maven/</url>
         </repository>
-<!--        <repository>-->
-<!--            <id>jitpack.io</id>-->
-<!--            <url>https://jitpack.io</url>-->
-<!--        </repository>-->
     </repositories>
 
     <pluginRepositories>
@@ -314,6 +321,12 @@
                 <artifactId>velocity-tools-generic</artifactId>
                 <version>${velocity.tools.version}</version>
             </dependency>
+            <dependency>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-resources-plugin</artifactId>
+                <version>3.3.1</version>
+                <type>maven-plugin</type>
+            </dependency>
         </dependencies>
     </dependencyManagement>
     <dependencies>
@@ -375,6 +388,31 @@ under the License.
                         <exclude>**/VersionInfo.java</exclude>
                     </excludes>
                 </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-project-info-reports-plugin</artifactId>
+                <version>3.9.0</version>
+                <configuration>
+                    <siteDirectory>docs/src/site</siteDirectory>
+                    <outputFormat>xhtml</outputFormat>
+                    <customBundle>${project.basedir}/docs/src/site/custom/project-info-reports.properties</customBundle>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>dependencies</goal>
+                            <goal>dependency-convergence</goal>
+                            <goal>distribution-management</goal>
+                            <goal>issue-management</goal>
+                            <goal>plugin-management</goal>
+                            <goal>plugins</goal>
+                            <goal>team</goal>
+                            <goal>scm</goal>
+                        </goals>
+                        <phase>prepare-package</phase>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
         <pluginManagement>

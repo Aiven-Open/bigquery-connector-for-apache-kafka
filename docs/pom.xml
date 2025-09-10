@@ -33,15 +33,13 @@
         <artifactId>kcbq-parent</artifactId>
         <version>2.9.0-SNAPSHOT</version>
     </parent>
-    <url>https://github.com/Aiven-Open/bigquery-connector-for-apache-kafka/</url>
+
     <artifactId>docs</artifactId>
     <name>kafka-connect-bigquery documentation site</name>
-    <organization>
-        <name>Aiven</name>
-        <url>https://www.aiven.io</url>
-    </organization>
+    <packaging>pom</packaging>
     <properties>
         <main.dir>${project.parent.basedir}</main.dir>
+        <releaseVersion>2.8.0</releaseVersion>
     </properties>
 
     <dependencies>
@@ -102,6 +100,66 @@
                         <version>${kafka.version}</version>
                     </dependency>
                 </dependencies>
+                <configuration>
+                    <generateReports>false</generateReports>
+                </configuration>
+            </plugin>
+
+            <plugin>
+                <artifactId>maven-resources-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <!-- copy the generated reports from the parent build to the generated-site in this module -->
+                        <id>copy-report-xhtml</id>
+                        <phase>pre-site</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/generated-site/xhtml</outputDirectory>
+                            <resources>
+                                <resource>
+                                    <directory>${project.parent.build.directory}/reports</directory>
+                                    <includes>*.xhtml</includes>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <!-- copy the generated reports from the parent build to the generated-site in this module -->
+                        <id>copy-report-resources</id>
+                        <phase>pre-site</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/generated-site/</outputDirectory>
+                            <resources>
+                                <resource>
+                                    <directory>${project.parent.build.directory}/reports/</directory>
+                                    <excludes>*.xhtml</excludes>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <!-- copy the static markdown documents -->
+                        <id>copy-static-markdown</id>
+                        <phase>pre-site</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/generated-site/markdown</outputDirectory>
+                            <resources>
+                                <resource>
+                                    <directory>${project.parent.basedir}/</directory>
+                                    <includes>LICENSE.md</includes>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

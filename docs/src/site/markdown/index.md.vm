@@ -1,0 +1,96 @@
+# Kafka Connect BigQuery Connector
+
+This is an implementation of a sink connector from [Apache Kafka](http://kafka.apache.org) to 
+[Google BigQuery](https://cloud.google.com/bigquery/), built on top 
+of [Apache Kafka Connect](https://kafka.apache.org/documentation.html#connect).
+
+${esc.hash}${esc.hash} Download
+
+The current release is [v${latestRelease}](https://github.com/Aiven-Open/bigquery-connector-for-apache-kafka/releases/tag/v${latestRelease})
+
+We provide the following convenience packages
+
+ - Connector + dependencies [tar](https://github.com/Aiven-Open/bigquery-connector-for-apache-kafka/releases/download/v${latestRelease}/bigquery-connector-for-apache-kafka-${latestRelease}.tar) [zip](https://github.com/Aiven-Open/bigquery-connector-for-apache-kafka/releases/download/v${latestRelease}/bigquery-connector-for-apache-kafka-${latestRelease}.zip) |
+ - Source [tar.gz](https://github.com/Aiven-Open/bigquery-connector-for-apache-kafka/archive/refs/tags/v${latestRelease}.tar.gz) [zip](https://github.com/Aiven-Open/bigquery-connector-for-apache-kafka/archive/refs/tags/v${latestRelease}.zip)
+
+See the [release notes](RELEASE_NOTES.html) for information on all releases.
+
+The Kafka Connect BigQuery Connector is dependent upon or uses the following:
+
+- [Apache Kafka Connect](https://kafka.apache.org/documentation.html#connect)
+- [Apache Kafka](http://kafka.apache.org)
+- [Google BigQuery](https://cloud.google.com/bigquery/)
+
+
+${esc.hash}${esc.hash} History
+
+This connector was [originally developed by WePay](https://github.com/wepay/kafka-connect-bigquery).
+In late 2020 the project moved to [Confluent](https://github.com/confluentinc/kafka-connect-bigquery),
+with both companies taking on maintenance duties.
+In 2024, [Aiven](https://aiven.io) created [its own fork](https://github.com/Aiven-Open/bigquery-connector-for-apache-kafka/)
+based off the Confluent project in order to continue maintaining an open source, Apache 2-licensed
+version of the connector.
+
+${esc.hash}${esc.hash} Configuration
+
+${esc.hash}${esc.hash}${esc.hash} Sample
+
+An example connector configuration, that reads records from Kafka with
+JSON-encoded values and writes their values to BigQuery:
+
+```json
+{
+  "connector.class": "com.wepay.kafka.connect.bigquery.BigQuerySinkConnector",
+  "topics": "users, clicks, payments",
+  "tasks.max": "3",
+  "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+
+  "project": "kafka-ingest-testing",
+  "defaultDataset": "kcbq-example",
+  "keyfile": "/tmp/bigquery-credentials.json"
+}
+```
+
+${esc.hash}${esc.hash}${esc.hash} Configuration options documentation
+
+See the [Configuration options](configuration.html) for a list of the connector's configuration properties.
+
+${esc.hash}${esc.hash} Building from source
+
+This project uses the Maven build tool.
+
+To compile the project without running the integration tests execute `mvn package -DskipITs`.
+
+To build the documentation execute the following steps:
+
+```
+mvn install -DskipIts
+mvn -f tools
+mvn -f docs
+```
+
+Once the documentation is built it can be run by executing `mvn -f docs site:run`.
+
+
+${esc.hash}${esc.hash}${esc.hash} Integration test setup
+
+Integration tests require a live BigQuery and Kafka installation.  Configuring those components is beyond the scope of this document.
+
+Once you have the test environment ready, integration specific environment variables must be set.
+
+${esc.hash}${esc.hash}${esc.hash}${esc.hash} Local configuration
+
+ - GOOGLE_APPLICATION_CREDENTIALS - the path to a json file that was download when the GCP account key was created.
+ - KCBQ_TEST_BUCKET - the name of the bucket to use for testing,
+ - KCBQ_TEST_DATASET - the name of the dataset to use for testing,
+ - KCBQ_TEST_KEYFILE - same as the GOOGLE_APPLICATION_CREDENTIALS
+ - KCBQ_TEST_PROJECT - the name of the project to use.
+
+${esc.hash}${esc.hash}${esc.hash}${esc.hash} GitHub configuration
+
+To run the integration tests from a GitHub action the following variables must be set
+
+ - GCP_CREDENTIALS - the contents of a json file that was download when the GCP account key was created.
+ - KCBQ_TEST_BUCKET - the bucket to use for the tests
+ - KCBQ_TEST_DATASET - the data set to use for the tests.
+ - KCBQ_TEST_PROJECT - the project to use for the tests.
