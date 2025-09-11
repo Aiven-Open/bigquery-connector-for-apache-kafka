@@ -39,7 +39,6 @@
     <packaging>pom</packaging>
     <properties>
         <main.dir>${project.parent.basedir}</main.dir>
-        <releaseVersion>2.8.0</releaseVersion>
     </properties>
 
     <dependencies>

@@ -3,6 +3,11 @@
 This is an implementation of a sink connector from [Apache Kafka] to [Google BigQuery], built on top 
 of [Apache Kafka Connect].
 
+## Documentation
+
+The Kafka Connect BigQuery Connector documentation is available online at https://aiven-open.github.io/bigquery-connector-for-apache-kafka/.
+The site contains a complete list of the configuration options as well as information about the project.
+
 ## History
 
 This connector was [originally developed by WePay](https://github.com/wepay/kafka-connect-bigquery).
@@ -16,7 +21,7 @@ version of the connector.
 
 ### Sample
 
-An example connector configuration, that reads records from Kafka with
+A simple example connector configuration, that reads records from Kafka with
 JSON-encoded values and writes their values to BigQuery:
 
 ```json
@@ -33,58 +38,49 @@ JSON-encoded values and writes their values to BigQuery:
 ```
 
 ### Complete docs
-See [here](docs/sink-connector-config-options.rst) for a list of the connector's
+See the [configuration documentation](https://aiven-open.github.io/bigquery-connector-for-apache-kafka/configuration.html) for a list of the connector's
 configuration properties.
 
 ## Download
 
-Releases are available in the GitHub release tab.
-<!-- TODO:
-  Mention first Aiven-published release (which will be the first to
-  include executable artifacts)
--->
+Download information is available on the [project web site]((https://aiven-open.github.io/bigquery-connector-for-apache-kafka)). 
 
-  [Apache Kafka Connect]: https://kafka.apache.org/documentation.html#connect
-  [Apache Kafka]: http://kafka.apache.org
-  [Google BigQuery]: https://cloud.google.com/bigquery/
-  [Kafka]: http://kafka.apache.org
-  
-## Integration test setup
+## Building from source
 
-In order to execute the integration specific environment variables must be set.
+This project uses the Maven build tool.
 
-### Local configuration
+To compile the project without running the integration tests execute `mvn package -DskipITs`.
 
-GOOGLE_APPLICATION_CREDENTIALS - the path to a json file that was download when the GCP account key was created..
+To build the documentation execute the following steps:
 
-KCBQ_TEST_BUCKET - the name of the bucket to use for testing,
+```
+mvn install -DskipIts
+mvn -f tools
+mvn -f docs
+```
 
-KCBQ_TEST_DATASET - the name of the dataset to use for testing,
-
-KCBQ_TEST_KEYFILE - same as the GOOGLE_APPLICATION_CREDENTIALS
-
-KCBQ_TEST_PROJECT - the name of the project to use. 
-
-### Github configuration
-
-GCP_CREDENTIALS - the contents of a json file that was download when the GCP account key was created.
-
-KCBQ_TEST_BUCKET - the bucket to use for the tests
-
-KCBQ_TEST_DATASET - the data set to use for the tests.
-
-KCBQ_TEST_PROJECT - the project to use for the tests.
-
-## Building documentation
-
-The documentation is not built as part of the standard build.  To build the documentation execute the following steps.
-
-    mvn install -DskipITs
-    mvn -f tools/
-    mvn -f docs/
-
-To run the docs locally
-
-    mvn -f docs/ site:run
+Once the documentation is built it can be run by executing `mvn -f docs site:run`.
 
 
+### Integration test setup
+
+Integration tests require a live BigQuery and Kafka installation.  Configuring those components is beyond the scope of this document.
+
+Once you have the test environment ready, integration specific environment variables must be set.
+
+#### Local configuration
+
+- GOOGLE_APPLICATION_CREDENTIALS - the path to a json file that was download when the GCP account key was created.
+- KCBQ_TEST_BUCKET - the name of the bucket to use for testing,
+- KCBQ_TEST_DATASET - the name of the dataset to use for testing,
+- KCBQ_TEST_KEYFILE - same as the GOOGLE_APPLICATION_CREDENTIALS
+- KCBQ_TEST_PROJECT - the name of the project to use.  
+
+#### GitHub configuration
+
+To run the integration tests from a GitHub action the following variables must be set
+
+- GCP_CREDENTIALS - the contents of a json file that was download when the GCP account key was created.
+- KCBQ_TEST_BUCKET - the bucket to use for the tests
+- KCBQ_TEST_DATASET - the data set to use for the tests.
+- KCBQ_TEST_PROJECT - the project to use for the tests.
