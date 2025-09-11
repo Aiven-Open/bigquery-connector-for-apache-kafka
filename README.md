@@ -61,7 +61,6 @@ mvn -f docs
 
 Once the documentation is built it can be run by executing `mvn -f docs site:run`.
 
-
 ### Integration test setup
 
 Integration tests require a live BigQuery and Kafka installation.  Configuring those components is beyond the scope of this document.
