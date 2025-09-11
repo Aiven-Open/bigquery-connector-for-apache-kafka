@@ -1,7 +1,8 @@
 # Kafka Connect BigQuery Connector
 
-This is an implementation of a sink connector from [Apache Kafka] to [Google BigQuery], built on top 
-of [Apache Kafka Connect].
+This is an implementation of a sink connector from [Apache Kafka](http://kafka.apache.org) to 
+[Google BigQuery](https://cloud.google.com/bigquery/), built on top 
+of [Apache Kafka Connect](https://kafka.apache.org/documentation.html#connect).
 
 ## Documentation
 
