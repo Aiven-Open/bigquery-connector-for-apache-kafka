@@ -39,26 +39,30 @@
     </poweredBy>
     <body>
 
-            <menu name="Overview">
-                <item name="Introduction" href="index.html"/>
-                <item name="Code of Conduct" href="CODE_OF_CONDUCT.html"/>
-                <item name="Contributing" href="CONTRIBUTING.html"/>
-                <item name="License" href="licenses.html"/>
-                <item name="Release Notes" href="RELEASE_NOTES.html"/>
-                <item name="Security" href="SECURITY.html"/>
-                <item name="Source Code"
-                      href="https://github.com/Aiven-Open/bigquery-connector-for-apache-kafka"/>
-                <item name="Releases"
-                      href="https://github.com/Aiven-Open/bigquery-connector-for-apache-kafka/releases"/>
-            </menu>
+        <menu name="Overview">
+            <item name="Introduction" href="index.html"/>
+            <item name="Code of Conduct" href="CODE_OF_CONDUCT.html"/>
+            <item name="Contributing" href="CONTRIBUTING.html"/>
+            <item name="License" href="LICENSE.html"/>
+            <item name="Release Notes" href="RELEASE_NOTES.html"/>
+            <item name="Security" href="SECURITY.html"/>
+        </menu>
 
-            <menu name="Using">
-                <item name="Design notes" href="designNotes.html"/>
-                <item name="Configuration options" href="configuration.html"/>
-            </menu>
+        <menu name="Using">
+            <item name="Design notes" href="designNotes.html"/>
+            <item name="Configuration options" href="configuration.html"/>
+        </menu>
 
-        <menu ref="modules"/>
-        <menu ref="reports"/>
+        <menu name="Reports">
+            <item name="Dependencies" href="dependencies.html"/>
+            <item name="Dependency Convergence" href="dependency-convergence.html"/>
+            <item name="Plugins" href="plugins.html"/>
+            <item name="Plugin Management" href="plugin-management.html"/>
+            <item name="Source Code" href="scm.html"/>
+            <item name="Team" href="team.html"/>
+
+        </menu>
+
         <footer>Copyright &amp;copy; 2022-2025 Aiven Oy and bigquery-connector-for-apache-kafka project contributors. Licensed under the Apache License, Version 2.0.
             Apache Kafka,is a trademark of The Apache Software Foundation.
             All other marks mentioned may be trademarks or registered trademarks of their respective owners.</footer>
