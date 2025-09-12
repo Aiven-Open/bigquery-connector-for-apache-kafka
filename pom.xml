@@ -61,7 +61,7 @@
         <compiler.plugin.version>3.8.1</compiler.plugin.version>
         <exec.plugin.version>3.2.0</exec.plugin.version>
         <google.cloud.bom.version>26.33.0</google.cloud.bom.version>
-        <surefire.plugin.version>3.0.0-M4</surefire.plugin.version>
+        <surefire.plugin.version>3.5.3</surefire.plugin.version>
 
         <site.plugin.version>3.21.0</site.plugin.version>
         <velocity.core.version>2.4.1</velocity.core.version>
@@ -76,6 +76,11 @@
     <url>https://github.com/Aiven-Open/bigquery-connector-for-apache-kafka</url>
 
     <inceptionYear>2016</inceptionYear>
+
+    <organization>
+        <name>Aiven</name>
+        <url>https://www.aiven.io</url>
+    </organization>
 
     <licenses>
         <license>
@@ -310,16 +315,6 @@
                 <groupId>com.google.re2j</groupId>
                 <artifactId>re2j</artifactId>
                 <version>${com.google.re2j.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.apache.velocity</groupId>
-                <artifactId>velocity-engine-core</artifactId>
-                <version>${velocity.core.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.apache.velocity.tools</groupId>
-                <artifactId>velocity-tools-generic</artifactId>
-                <version>${velocity.tools.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.apache.maven.plugins</groupId>
