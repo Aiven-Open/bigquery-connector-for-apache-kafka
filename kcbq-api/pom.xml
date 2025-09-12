@@ -68,6 +68,7 @@
                 <artifactId>maven-site-plugin</artifactId>
                 <configuration>
                     <skip>true</skip>
+                    <generateProjectInfo>false</generateProjectInfo>
                 </configuration>
             </plugin>
         </plugins>
