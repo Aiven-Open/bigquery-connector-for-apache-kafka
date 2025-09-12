@@ -499,8 +499,8 @@ public class BigQuerySinkConfig extends AbstractConfig {
   private static final String BIGQUERY_RETRY_DOC =
       "The number of retry attempts that will be made per BigQuery request that fails with a "
           + "backend error or a quota exceeded error. "
-          + "For GCS batch load(``enableBatchLoad``): upper bound, but retries may be cut short if the exponential "
-          + "backoff (starting at ``bigQueryRetryWait``) exceeds the retry budget. "
+          + "For GCS batch load(enableBatchLoad): upper bound, but retries may be cut short if the exponential "
+          + "backoff (starting at bigQueryRetryWait) exceeds the retry budget. "
           + "For other writers (direct BigQuery, Storage API): used as a fixed retry count.";
   private static final ConfigDef.Type BIGQUERY_RETRY_WAIT_CONFIG_TYPE = ConfigDef.Type.LONG;
   private static final ConfigDef.Validator BIGQUERY_RETRY_WAIT_VALIDATOR =
@@ -510,7 +510,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
   private static final String BIGQUERY_RETRY_WAIT_DOC =
       "The minimum amount of time, in milliseconds, to wait between BigQuery backend or quota "
           + "exceeded error retry attempts. "
-          + "For GCS batch load(see ``enableBatchLoad``): base delay for exponential backoff with jitter (capped at 10s). "
+          + "For GCS batch load(see enableBatchLoad): base delay for exponential backoff with jitter (capped at 10s). "
           + "For other writers: constant wait time between retries.";
   private static final ConfigDef.Type BIGQUERY_MESSAGE_TIME_PARTITIONING_CONFIG_TYPE =
       ConfigDef.Type.BOOLEAN;
