@@ -74,7 +74,7 @@ jobs:
         run: |
           git config --local user.name "GitHub Action"
           git config --local user.email "action@github.com"
-          mvn versions:set -DgenerateBackupPoms=false -DnewVersion=${{ github.event.inputs.release_version }}
+          mvn versions:set -DgenerateBackupPoms=false -DnewVersion=${{ github.event.inputs.release_version }} versions:set-property -Dproperty=latestRelease
           git add pom.xml kcbq-api/pom.xml kcbq-connector/pom.xml
           git commit -m "Release version ${{ github.event.inputs.release_version }}"
           mvn versions:set -DgenerateBackupPoms=false -DnewVersion=${{ github.event.inputs.snapshot_version }}
