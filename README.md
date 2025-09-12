@@ -55,7 +55,7 @@ To compile the project without running the integration tests execute `mvn packag
 To build the documentation execute the following steps:
 
 ```
-mvn install -DskipIts
+mvn install -DskipITs
 mvn -f tools
 mvn -f docs
 ```
