@@ -24,15 +24,24 @@
 package com.wepay.kafka.connect.bigquery.write.row;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.atLeast;
+import static org.mockito.Mockito.atMost;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.Table;
 import com.google.cloud.bigquery.TableId;
+import com.google.cloud.bigquery.BigQueryException;
+import com.google.cloud.bigquery.InsertAllRequest.RowToInsert;
 import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageException;
@@ -46,8 +55,12 @@ import com.wepay.kafka.connect.bigquery.utils.MockTime;
 import com.wepay.kafka.connect.bigquery.utils.Time;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageApiBatchModeHandler;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiDefaultStream;
+import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.SortedMap;
 import java.util.HashMap;
+import java.util.TreeMap;
 import java.util.Map;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
@@ -183,7 +196,123 @@ public class GcsToBqWriterTest {
         ConnectException.class,
         () -> testTask.flush(Collections.emptyMap())
     );
-    verify(storage, times(4)).create((BlobInfo) anyObject(), (byte[]) anyObject());
+    // Budget = 3 * 2000ms = 6000ms → 2 sleeps → 3 total attempts
+    verify(storage, times(3)).create((BlobInfo) anyObject(), (byte[]) anyObject());
+  }
+
+  @Test
+  public void happyPathNoRetry() throws Exception {
+    // retries/wait are irrelevant when everything succeeds first try
+    int retries = 3;
+    long retryWaitMs = 100;
+    boolean autoCreate = false;
+
+    // BigQuery: table lookup succeeds immediately
+    BigQuery bigQuery = mock(BigQuery.class);
+    when(bigQuery.getTable(any(TableId.class))).thenReturn(mock(Table.class));
+
+    // GCS: upload succeeds on first call
+    Storage storage = mock(Storage.class);
+    when(storage.create(any(BlobInfo.class), any(byte[].class))).thenReturn(null);
+
+    SchemaManager schemaManager = mock(SchemaManager.class);
+    Time mockTime = new MockTime();
+
+    GcsToBqWriter writer =
+        new GcsToBqWriter(
+            storage, bigQuery, schemaManager, retries, retryWaitMs, autoCreate, mockTime);
+
+    long t0 = mockTime.milliseconds();
+    writer.writeRows(oneRow(), TableId.of("ds", "tbl"), "bucket", "blob");
+    long elapsed = mockTime.milliseconds() - t0;
+
+    // One lookup, one upload; no retries, no sleeps → elapsed should be 0
+    verify(bigQuery, times(1)).getTable(any(TableId.class));
+    verify(storage, times(1)).create(any(BlobInfo.class), any(byte[].class));
+    verifyNoMoreInteractions(storage, bigQuery);
+    assertEquals(0L, elapsed, "no backoff should occur on the happy path");
+  }
+
+  @Test
+  public void backoffIsCapped() throws Exception {
+    int retries = 4; // allow 3 sleeps then success
+    long retryWaitMs = 5000; // 5s → sequence 5s, 10s, 10s (capped)
+    boolean autoCreate = false;
+
+    Storage storage = mock(Storage.class);
+    when(storage.create(any(BlobInfo.class), any(byte[].class)))
+        .thenThrow(new StorageException(500, "t1"))
+        .thenThrow(new StorageException(500, "t2"))
+        .thenThrow(new StorageException(500, "t3"))
+        .thenReturn(null);
+
+    BigQuery bigQuery = mock(BigQuery.class);
+    when(bigQuery.getTable(any(TableId.class))).thenReturn(mock(Table.class));
+
+    SchemaManager schemaManager = mock(SchemaManager.class);
+    Time mockTime = new MockTime();
+
+    GcsToBqWriter writer =
+        new GcsToBqWriter(
+            storage, bigQuery, schemaManager, retries, retryWaitMs, autoCreate, mockTime);
+
+    long t0 = mockTime.milliseconds();
+    writer.writeRows(oneRow(), TableId.of("ds", "tbl"), "bucket", "blob");
+    long elapsed = mockTime.milliseconds() - t0;
+
+    long minExpected = 20_000; // Budget = retries(4) * retryWaitMs(5000) = 20s
+    long maxExpected = minExpected + 3 * 1000; // + jitter bound
+    verify(storage, times(4)).create(any(BlobInfo.class), any(byte[].class));
+    assertTrue(elapsed >= minExpected, "elapsed too small: " + elapsed);
+    assertTrue(elapsed <= maxExpected, "elapsed too large: " + elapsed);
+  }
+
+  @Test
+  public void budgetCutsBeforeAllRetries() throws Exception {
+    /*
+     * In GcsToBqWriter.writeRows we compute:
+     *   Duration timeout = Duration.ofMillis(Math.max(0L, retryWaitMs * Math.max(1, retries)));
+     *
+     * With retryWaitMs=100 and retries=100 → timeout ≈ 10_000 ms (our “budget”).
+     * Exponential backoff sleeps (pre-cap) are ~100, 200, 400, 800, 1600, 3200, 6400...
+     * The cumulative base waits cross ~10s around the 6th/7th sleep, so the budget should
+     * cut off the loop *before* we consume all configured retries.
+     */
+
+    final int retries = 100; // very high; we want budget to be the stopping condition
+    final long retryWaitMs = 100L; // base delay ⇒ budget = 100 * 100 = 10_000 ms
+    final boolean autoCreate = false;
+
+    // BigQuery always throws a retryable error so executeWithRetry keeps retrying until budget
+    // ends.
+    BigQuery bigQuery = mock(BigQuery.class);
+    when(bigQuery.getTable(any(TableId.class)))
+        .thenThrow(new BigQueryException(500, "retryable backend error"));
+
+    // Storage is never reached because we fail during table lookup.
+    Storage storage = mock(Storage.class);
+
+    SchemaManager schemaManager = mock(SchemaManager.class);
+    Time mockTime = new MockTime(); // virtual clock; sleep() advances time but doesn’t block
+
+    GcsToBqWriter writer =
+        new GcsToBqWriter(
+            storage, bigQuery, schemaManager, retries, retryWaitMs, autoCreate, mockTime);
+
+    // Because lookup never succeeds and the time budget expires, writeRows should fail
+    // with a BigQueryConnectException (null table interpreted as lookup failure).
+    assertThrows(
+        BigQueryConnectException.class,
+        () -> writer.writeRows(oneRow(), TableId.of("ds", "tbl"), "bucket", "blob"));
+
+    // We expect multiple getTable() attempts until budget expires.
+    // Because jitter can vary up to 1s per sleep and sleeps are clamped by remaining budget,
+    // the exact attempt count can vary a little. A stable range is ~6..10 total calls.
+    verify(bigQuery, atLeast(6)).getTable(any(TableId.class));
+    verify(bigQuery, atMost(10)).getTable(any(TableId.class));
+
+    // No upload should be attempted since table resolution never succeeded.
+    verify(storage, never()).create(any(BlobInfo.class), any(byte[].class));
   }
 
   private void expectTable(BigQuery mockBigQuery) {
@@ -247,4 +376,45 @@ public class GcsToBqWriterTest {
         null);
   }
 
+  /**
+   * Utility method that builds a minimal {@link SortedMap} containing exactly one {@link
+   * SinkRecord} → {@link RowToInsert} mapping.
+   *
+   * <p>The map is ordered by Kafka offset via a {@link Comparator}, which is required because
+   * {@link SinkRecord} does not implement {@link Comparable}. In this case the comparator is based
+   * on {@link SinkRecord#kafkaOffset()}.
+   *
+   * <p>The single {@code SinkRecord} created here has:
+   *
+   * <ul>
+   *   <li>topic {@code "t"}
+   *   <li>partition {@code 0}
+   *   <li>offset {@code 1}
+   *   <li>a trivial schema with one field {@code "f"} of type {@code STRING}
+   *   <li>a corresponding {@link Struct} value with {@code f = "v"}
+   * </ul>
+   *
+   * The {@link RowToInsert} mirrors this content in a simple map ({@code {"f":"v"}}).
+   *
+   * <p>This helper is used in unit tests to supply a valid row set to {@link
+   * GcsToBqWriter#writeRows}, without requiring a running Kafka cluster or real BigQuery/GCS
+   * resources.
+   *
+   * @return a {@link SortedMap} with one synthetic record-to-row mapping
+   */
+  private SortedMap<SinkRecord, RowToInsert> oneRow() {
+    // sorted by offset so TreeMap has a comparator
+    Comparator<SinkRecord> byOffset = Comparator.comparingLong(SinkRecord::kafkaOffset);
+    SortedMap<SinkRecord, RowToInsert> rows = new TreeMap<>(byOffset);
+
+    Schema schema = SchemaBuilder.struct().field("f", Schema.STRING_SCHEMA).build();
+    Struct value = new Struct(schema).put("f", "v");
+
+    SinkRecord rec = new SinkRecord("t", 0, null, null, schema, value, 1L, null, null);
+    Map<String, Object> content = new HashMap<>();
+    content.put("f", "v");
+
+    rows.put(rec, RowToInsert.of(content));
+    return rows;
+  }
 }
