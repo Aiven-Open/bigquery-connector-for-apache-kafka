@@ -55,6 +55,7 @@ import com.wepay.kafka.connect.bigquery.utils.MockTime;
 import com.wepay.kafka.connect.bigquery.utils.Time;
 import com.wepay.kafka.connect.bigquery.write.batch.MergeBatches;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageApiBatchModeHandler;
+import com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiBase;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiDefaultStream;
 import java.net.SocketTimeoutException;
 import java.time.Duration;
@@ -94,6 +95,29 @@ public class BigQuerySinkTaskTest {
   @BeforeAll
   public static void initializePropertiesFactory() {
     propertiesFactory = new SinkTaskPropertiesFactory();
+  }
+
+  /**
+   * Utility method for creating a {@link BigQuerySinkTask} configured for testing.
+   *
+   * @param bigQuery        The {@link BigQuery} mock or test instance
+   * @param schemaRetriever The {@link SchemaRetriever} mock or test instance
+   * @param gcs             The {@link Storage} mock or test instance
+   * @param schemaManager   The {@link SchemaManager} mock or test instance
+   * @param storageWriteApi The {@link StorageWriteApiBase} mock or test instance
+   * @param batchHandler    The {@link StorageApiBatchModeHandler} mock or test instance
+   * @param time            The {@link Time} mock or test instance
+   * @return A {@link BigQuerySinkTask} initialized with the given test dependencies
+   */
+  public static BigQuerySinkTask createTestTask(BigQuery bigQuery,
+                                                SchemaRetriever schemaRetriever,
+                                                Storage gcs,
+                                                SchemaManager schemaManager,
+                                                StorageWriteApiBase storageWriteApi,
+                                                StorageApiBatchModeHandler batchHandler,
+                                                Time time) {
+    return new BigQuerySinkTask(bigQuery, schemaRetriever, gcs, schemaManager,
+            storageWriteApi, batchHandler, time);
   }
 
   /**

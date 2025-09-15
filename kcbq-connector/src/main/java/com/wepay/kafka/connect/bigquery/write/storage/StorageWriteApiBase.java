@@ -125,6 +125,22 @@ public abstract class StorageWriteApiBase {
   /**
    * Handles required initialization steps and goes to append records to table
    *
+   * @param tableName  The table to write data to
+   * @param rows       List of pre- and post-conversion records.
+   *                   Converted JSONObjects would be sent to api.
+   *                   Pre-conversion sink records are required for DLQ routing
+   * @param streamName The stream to use to write table to table.
+   *
+   * @deprecated Use {@link #initializeAndWriteRecords(PartitionedTableId, List, String)} instead.
+   */
+  @Deprecated
+  public void initializeAndWriteRecords(TableName tableName, List<ConvertedRecord> rows, String streamName) {
+    initializeAndWriteRecords(TableNameUtils.partitionedTableId(tableName), rows, streamName);
+  }
+
+  /**
+   * Handles required initialization steps and goes to append records to table
+   *
    * @param table      The table to write data to
    * @param rows       List of pre- and post-conversion records.
    *                   Converted JSONObjects would be sent to api.

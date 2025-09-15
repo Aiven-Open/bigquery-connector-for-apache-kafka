@@ -45,6 +45,7 @@ import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiConnectException;
 import com.wepay.kafka.connect.bigquery.utils.MockTime;
+import com.wepay.kafka.connect.bigquery.utils.PartitionedTableId;
 import com.wepay.kafka.connect.bigquery.utils.Time;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageApiBatchModeHandler;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiBatchApplicationStream;
@@ -98,7 +99,8 @@ public class BigQueryStorageApiBatchSinkTaskTest {
     spoofedRecordOffset.set(0);
     mockedOffset.put(new TopicPartition(topic, 0), new OffsetAndMetadata(0));
 
-    doNothing().when(mockedStorageWriteApiBatchStream).initializeAndWriteRecords(any(), any(), eq("dummyStream"));
+    doNothing().when(mockedStorageWriteApiBatchStream)
+            .initializeAndWriteRecords(any(PartitionedTableId.class), any(), eq("dummyStream"));
     doNothing().when(mockedStorageWriteApiBatchStream).shutdown();
     doNothing().when(mockedBatchHandler).refreshStreams();
     when(mockedBatchHandler.updateOffsetsOnStream(any(), any())).thenReturn("dummyStream");
@@ -117,7 +119,7 @@ public class BigQueryStorageApiBatchSinkTaskTest {
     doAnswer(invocationOnMock -> {
       writeThreadStarted.countDown();
       return null;
-    }).when(mockedStorageWriteApiBatchStream).initializeAndWriteRecords(any(), any(), any());
+    }).when(mockedStorageWriteApiBatchStream).initializeAndWriteRecords(any(PartitionedTableId.class), any(), any());
 
     testTask.start(properties);
     testTask.put(Collections.singletonList(spoofSinkRecord()));
@@ -173,7 +175,8 @@ public class BigQueryStorageApiBatchSinkTaskTest {
   @Test
   public void testSimplePutException() throws Exception {
     testTask.start(properties);
-    doThrow(exception).when(mockedStorageWriteApiBatchStream).initializeAndWriteRecords(any(), any(), eq("dummyStream"));
+    doThrow(exception).when(mockedStorageWriteApiBatchStream)
+            .initializeAndWriteRecords(any(PartitionedTableId.class), any(), eq("dummyStream"));
 
     testTask.put(Collections.singletonList(spoofSinkRecord()));
     BigQueryConnectException e = assertThrows(

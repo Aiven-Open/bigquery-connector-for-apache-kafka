@@ -25,8 +25,10 @@ package com.wepay.kafka.connect.bigquery.write.storage;
 
 import com.google.cloud.bigquery.BigQueryException;
 import com.google.cloud.bigquery.TableId;
+import com.google.cloud.bigquery.storage.v1.TableName;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryErrorResponses;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiConnectException;
+import com.wepay.kafka.connect.bigquery.utils.TableNameUtils;
 import com.wepay.kafka.connect.bigquery.utils.Time;
 import java.util.List;
 import java.util.Random;
@@ -56,6 +58,20 @@ public class StorageWriteApiRetryHandler {
   private int additionalRetries;
   private int additionalWait;
   private int currentAttempt;
+
+  /**
+   * @deprecated Use {@link #StorageWriteApiRetryHandler(TableId, List, int, long, Time)} instead.
+   */
+  @Deprecated
+  public StorageWriteApiRetryHandler(
+          TableName table,
+          List<SinkRecord> records,
+          int retry,
+          long retryWait,
+          Time time
+  ) {
+    this(TableNameUtils.tableId(table), records, retry, retryWait, time);
+  }
 
   public StorageWriteApiRetryHandler(
       TableId table,

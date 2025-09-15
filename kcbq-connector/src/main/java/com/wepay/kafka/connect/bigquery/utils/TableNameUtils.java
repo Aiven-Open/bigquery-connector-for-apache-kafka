@@ -52,6 +52,10 @@ public class TableNameUtils {
     return TableId.of(name.getProject(), name.getDataset(), name.getTable());
   }
 
+  public static PartitionedTableId partitionedTableId(TableName name) {
+    return new PartitionedTableId.Builder(tableId(name)).build();
+  }
+
   public static String[] getDataSetAndTableName(BigQuerySinkTaskConfig config, String topic) {
     String tableName;
     Map<String, String> topic2TableMap = config.getTopic2TableMap().orElse(null);
