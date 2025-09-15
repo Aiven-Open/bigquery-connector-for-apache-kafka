@@ -31,8 +31,7 @@
     <parent>
         <groupId>com.wepay.kcbq</groupId>
         <artifactId>kcbq-parent</artifactId>
-        <version>2.9.1-SNAPSHOT</version>
-        <relativePath>..</relativePath>
+        <version>2.9.0</version>
     </parent>
 
     <artifactId>kcbq-api</artifactId>
