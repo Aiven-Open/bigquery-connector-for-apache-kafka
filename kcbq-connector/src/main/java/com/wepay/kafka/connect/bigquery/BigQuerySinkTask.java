@@ -153,7 +153,7 @@ public class BigQuerySinkTask extends SinkTask {
    * @param time              {@link Time} used to wait during backoff periods; should be mocked for testing
    * @see BigQuerySinkTask#BigQuerySinkTask()
    */
-  public BigQuerySinkTask(BigQuery testBigQuery, SchemaRetriever schemaRetriever, Storage testGcs,
+  BigQuerySinkTask(BigQuery testBigQuery, SchemaRetriever schemaRetriever, Storage testGcs,
                           SchemaManager testSchemaManager, StorageWriteApiBase testStorageWriteApi,
                           StorageApiBatchModeHandler testStorageApiBatchHandler, Time time) {
     this.testBigQuery = testBigQuery;

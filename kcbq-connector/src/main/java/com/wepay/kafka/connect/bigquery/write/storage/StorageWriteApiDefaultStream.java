@@ -27,6 +27,7 @@ import com.google.api.core.ApiFuture;
 import com.google.cloud.bigquery.storage.v1.AppendRowsResponse;
 import com.google.cloud.bigquery.storage.v1.BigQueryWriteSettings;
 import com.google.cloud.bigquery.storage.v1.JsonStreamWriter;
+import com.google.cloud.bigquery.storage.v1.TableName;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.protobuf.Descriptors;
 import com.wepay.kafka.connect.bigquery.ErrantRecordHandler;
@@ -145,6 +146,14 @@ public class StorageWriteApiDefaultStream extends StorageWriteApiBase {
     private final PartitionedTableId table;
     private final List<ConvertedRecord> inputRows;
     private JsonStreamWriter jsonStreamWriter;
+
+    /**
+     * @deprecated Use {@link #DefaultStreamWriter(PartitionedTableId, List)} instead.
+     */
+    @Deprecated
+    public DefaultStreamWriter(TableName tableName, List<ConvertedRecord> inputRows) {
+      this(TableNameUtils.partitionedTableId(tableName), inputRows);
+    }
 
     public DefaultStreamWriter(PartitionedTableId table, List<ConvertedRecord> inputRows) {
       this.table = table;

@@ -42,6 +42,7 @@ import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiConnectException;
 import com.wepay.kafka.connect.bigquery.utils.MockTime;
+import com.wepay.kafka.connect.bigquery.utils.PartitionedTableId;
 import com.wepay.kafka.connect.bigquery.utils.Time;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageApiBatchModeHandler;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiDefaultStream;
@@ -87,7 +88,8 @@ public class BigQueryStorageApiSinkTaskTest {
     properties.put(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG, "scratch");
     spoofedRecordOffset.set(0);
 
-    doNothing().when(mockedStorageWriteApiDefaultStream).initializeAndWriteRecords(any(), any(), eq(DEFAULT));
+    doNothing().when(mockedStorageWriteApiDefaultStream)
+            .initializeAndWriteRecords(any(PartitionedTableId.class), any(), eq(DEFAULT));
     doNothing().when(mockedStorageWriteApiDefaultStream).shutdown();
 
     testTask.initialize(sinkTaskContext);
@@ -99,14 +101,16 @@ public class BigQueryStorageApiSinkTaskTest {
     testTask.put(Collections.singletonList(spoofSinkRecord()));
     testTask.flush(Collections.emptyMap());
 
-    verify(mockedStorageWriteApiDefaultStream, times(1)).initializeAndWriteRecords(any(), any(), eq(DEFAULT));
+    verify(mockedStorageWriteApiDefaultStream, times(1))
+            .initializeAndWriteRecords(any(PartitionedTableId.class), any(), eq(DEFAULT));
   }
 
   @Test
   public void testSimplePutException() {
     BigQueryStorageWriteApiConnectException exception = new BigQueryStorageWriteApiConnectException("error 12345");
 
-    doThrow(exception).when(mockedStorageWriteApiDefaultStream).initializeAndWriteRecords(any(), any(), eq(DEFAULT));
+    doThrow(exception).when(mockedStorageWriteApiDefaultStream)
+            .initializeAndWriteRecords(any(PartitionedTableId.class), any(), eq(DEFAULT));
 
     testTask.put(Collections.singletonList(spoofSinkRecord()));
     BigQueryConnectException e = assertThrows(

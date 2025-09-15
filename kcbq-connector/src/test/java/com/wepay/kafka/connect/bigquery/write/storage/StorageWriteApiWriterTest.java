@@ -76,8 +76,11 @@ public class StorageWriteApiWriterTest {
     when(mockedConfig.getRecordConverter()).thenReturn(recordConverter);
     StorageApiBatchModeHandler batchModeHandler = mock(StorageApiBatchModeHandler.class);
     SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(mockedConfig, null, null);
+    PartitionedTableId table = new PartitionedTableId.Builder(
+            TableId.of("test-project", "scratch", "dummy_table")
+    ).build();
     TableWriterBuilder builder = new StorageWriteApiWriter.Builder(
-        mockStreamWriter, null, sinkRecordConverter, batchModeHandler);
+        mockStreamWriter, table, sinkRecordConverter, batchModeHandler);
     @SuppressWarnings("unchecked")
     ArgumentCaptor<List<ConvertedRecord>> records = ArgumentCaptor.forClass(List.class);
     String expectedKafkaKey = "{\"key\":\"12345\"}";
@@ -97,7 +100,7 @@ public class StorageWriteApiWriterTest {
     builder.build().run();
 
     verify(mockStreamWriter, times(1))
-        .initializeAndWriteRecords(any(), records.capture(), any());
+        .initializeAndWriteRecords(any(PartitionedTableId.class), records.capture(), any());
     assertEquals(1, records.getValue().size());
 
     JSONObject actual = records.getValue().get(0).converted();
@@ -151,7 +154,7 @@ public class StorageWriteApiWriterTest {
     // Capture stream name initializeAndWriteRecords was called with
     ArgumentCaptor<String> streamNameCaptor = ArgumentCaptor.forClass(String.class);
     verify(mockStreamWriter, times(1))
-            .initializeAndWriteRecords(any(), any(), streamNameCaptor.capture());
+            .initializeAndWriteRecords(any(PartitionedTableId.class), any(), streamNameCaptor.capture());
 
     assertEquals(expectedStreamName, streamNameCaptor.getValue());
     String tableNameUsedInUpdate = tableNameCaptor.getValue();

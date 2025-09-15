@@ -51,6 +51,21 @@ public class StorageWriteApiWriter implements Runnable {
   Logger logger = LoggerFactory.getLogger(StorageWriteApiWriter.class);
 
   /**
+   * @param tableName    The table to write the records to
+   * @param streamWriter The stream writer to use - Default, Batch etc
+   * @param records      The records to write
+   * @param streamName   The stream to use while writing data
+   * @deprecated Use {@link #StorageWriteApiWriter(PartitionedTableId, StorageWriteApiBase, List, String)} instead.
+   */
+  @Deprecated
+  public StorageWriteApiWriter(TableName tableName,
+                               StorageWriteApiBase streamWriter,
+                               List<ConvertedRecord> records,
+                               String streamName) {
+    this(TableNameUtils.partitionedTableId(tableName), streamWriter, records, streamName);
+  }
+
+  /**
    * @param table        The table to write the records to
    * @param streamWriter The stream writer to use - Default, Batch etc
    * @param records      The records to write
@@ -79,6 +94,17 @@ public class StorageWriteApiWriter implements Runnable {
     private final PartitionedTableId table;
     private final StorageWriteApiBase streamWriter;
     private final StorageApiBatchModeHandler batchModeHandler;
+
+    /**
+     * @deprecated Use {@link #Builder(StorageWriteApiBase, PartitionedTableId, SinkRecordConverter, StorageApiBatchModeHandler)} instead.
+     */
+    @Deprecated
+    public Builder(StorageWriteApiBase streamWriter,
+                   TableName tableName,
+                   SinkRecordConverter recordConverter,
+                   StorageApiBatchModeHandler batchModeHandler) {
+      this(streamWriter, TableNameUtils.partitionedTableId(tableName), recordConverter, batchModeHandler);
+    }
 
     public Builder(StorageWriteApiBase streamWriter,
                    PartitionedTableId table,
