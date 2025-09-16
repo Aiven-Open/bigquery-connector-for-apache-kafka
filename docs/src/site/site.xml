@@ -51,6 +51,7 @@
         <menu name="Using">
             <item name="Design notes" href="designNotes.html"/>
             <item name="Configuration options" href="configuration.html"/>
+            <item name="Write API Partition Decorator Design" href="writeapiPartitionDecorator.html"/>
         </menu>
 
         <menu name="Reports">
