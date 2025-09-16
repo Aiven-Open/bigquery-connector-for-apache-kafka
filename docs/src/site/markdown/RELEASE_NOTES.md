@@ -3,6 +3,31 @@
 
 All releases can be found at https://github.com/Aiven-Open/bigquery-connector-for-apache-kafka/releases
 
+## v2.9.0
+### What's changed
+- Fix retry login in GcsToBqWriter (#112)
+- Update readme (#115)
+- Create and Deploy the website (#102) (#110)
+- Revert GCS Batch loading deprecation
+- Add "deprecation" and "since" data to configuration options. (#103)
+- Add ability to generate a documentation site. (#102)
+- Enforced a minimum of 10 seconds for merge interval (#107)
+- Add checks for BigQuery ingestion failures (#99)
+- Revert deprecating partition decorator syntax (#68)
+- Fix closing writers race condition (#98)
+- Allow opt-in to use original message metadata (#97)
+- Enable client-side request level retries for Storage Write API (#81)
+
+### Co-authored by
+- Brahmesh
+- Claude Warren
+- Davide Armand
+- hasan-cosan
+- Mariia Podgaietska
+
+### Full Changelog
+https://github.com/Aiven-Open/bigquery-connector-for-apache-kafka/compare/v2.8.0...v2.9.0
+
 ## v2.8.0
 ### What's Changed
 - Updated Kafka.Decimal and Debezium.VariableScaleDecimal processing and adjusted tests (#82)
