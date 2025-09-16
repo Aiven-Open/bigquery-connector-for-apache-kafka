@@ -74,14 +74,14 @@ jobs:
         run: |
           git config --local user.name "GitHub Action"
           git config --local user.email "action@github.com"
-          mvn versions:set -DgenerateBackupPoms=false -DnewVersion=${{ github.event.inputs.release_version }} versions:set-property -Dproperty=latestRelease
           mvn -f tools versions:update-parent -DgenerateBackupPoms=false -DparentVersion=${{ github.event.inputs.release_version }} -DskipResolution=true
           mvn -f docs versions:update-parent -DgenerateBackupPoms=false -DparentVersion=${{ github.event.inputs.release_version }} -DskipResolution=true
+          mvn versions:set -DgenerateBackupPoms=false -DnewVersion=${{ github.event.inputs.release_version }} versions:set-property -Dproperty=latestRelease
           git add pom.xml **/pom.xml
           git commit -m "Release version ${{ github.event.inputs.release_version }}"
-          mvn versions:set -DgenerateBackupPoms=false -DnewVersion=${{ github.event.inputs.snapshot_version }}
           mvn -f tools versions:update-parent -DgenerateBackupPoms=false -DparentVersion=${{ github.event.inputs.snapshot_version }} -DskipResolution=true
           mvn -f docs versions:update-parent -DgenerateBackupPoms=false -DparentVersion=${{ github.event.inputs.snapshot_version }} -DskipResolution=true
+          mvn versions:set -DgenerateBackupPoms=false -DnewVersion=${{ github.event.inputs.snapshot_version }}
           git add pom.xml **/pom.xml
           git commit -m "Bump version to ${{ github.event.inputs.snapshot_version }}"
 
