@@ -23,21 +23,23 @@
 
 package com.wepay.kafka.connect.bigquery.write.storage;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.google.cloud.bigquery.TableId;
 import com.google.cloud.bigquery.storage.v1.TableName;
 import com.google.protobuf.ByteString;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkTaskConfig;
 import com.wepay.kafka.connect.bigquery.convert.BigQueryRecordConverter;
 import com.wepay.kafka.connect.bigquery.convert.RecordConverter;
+import com.wepay.kafka.connect.bigquery.utils.PartitionedTableId;
 import com.wepay.kafka.connect.bigquery.utils.SinkRecordConverter;
+import com.wepay.kafka.connect.bigquery.utils.TableNameUtils;
 import com.wepay.kafka.connect.bigquery.write.batch.TableWriterBuilder;
 import java.util.HashSet;
 import java.util.List;
@@ -56,11 +58,11 @@ import org.mockito.Mockito;
 public class StorageWriteApiWriterTest {
   Schema keySchema = SchemaBuilder.struct().field("key", Schema.STRING_SCHEMA).build();
   Schema valueSchema = SchemaBuilder.struct()
-      .field("id", Schema.INT64_SCHEMA)
-      .field("name", Schema.STRING_SCHEMA)
-      .field("available-name", Schema.BOOLEAN_SCHEMA)
-      .field("bytes_check", Schema.BYTES_SCHEMA)
-      .build();
+          .field("id", Schema.INT64_SCHEMA)
+          .field("name", Schema.STRING_SCHEMA)
+          .field("available-name", Schema.BOOLEAN_SCHEMA)
+          .field("bytes_check", Schema.BYTES_SCHEMA)
+          .build();
 
   @Test
   public void testRecordConversion() {
@@ -74,8 +76,11 @@ public class StorageWriteApiWriterTest {
     when(mockedConfig.getRecordConverter()).thenReturn(recordConverter);
     StorageApiBatchModeHandler batchModeHandler = mock(StorageApiBatchModeHandler.class);
     SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(mockedConfig, null, null);
+    PartitionedTableId table = new PartitionedTableId.Builder(
+            TableId.of("test-project", "scratch", "dummy_table")
+    ).build();
     TableWriterBuilder builder = new StorageWriteApiWriter.Builder(
-        mockStreamWriter, null, sinkRecordConverter, batchModeHandler);
+        mockStreamWriter, table, sinkRecordConverter, batchModeHandler);
     @SuppressWarnings("unchecked")
     ArgumentCaptor<List<ConvertedRecord>> records = ArgumentCaptor.forClass(List.class);
     String expectedKafkaKey = "{\"key\":\"12345\"}";
@@ -95,7 +100,7 @@ public class StorageWriteApiWriterTest {
     builder.build().run();
 
     verify(mockStreamWriter, times(1))
-        .initializeAndWriteRecords(any(), records.capture(), any());
+        .initializeAndWriteRecords(any(PartitionedTableId.class), records.capture(), any());
     assertEquals(1, records.getValue().size());
 
     JSONObject actual = records.getValue().get(0).converted();
@@ -113,32 +118,48 @@ public class StorageWriteApiWriterTest {
 
   @Test
   public void testBatchLoadStreamName() {
-    TableName tableName = TableName.of("p", "d", "t");
+    TableId fullTableId = TableId.of("p", "d", "t$20250722");
+    TableId baseTableId = TableId.of("p", "d", "t");
+
+    PartitionedTableId partitionedTableId = mock(PartitionedTableId.class);
+    when(partitionedTableId.getFullTableId()).thenReturn(fullTableId);
+    when(partitionedTableId.getBaseTableId()).thenReturn(baseTableId);
+
+    TableName expectedTableName = TableNameUtils.tableName(baseTableId);
+    String expectedStreamName = expectedTableName.toString() + "_s1";
+
     StorageWriteApiBase mockStreamWriter = Mockito.mock(StorageWriteApiBatchApplicationStream.class);
     BigQuerySinkTaskConfig mockedConfig = Mockito.mock(BigQuerySinkTaskConfig.class);
     when(mockedConfig.getBoolean(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG)).thenReturn(true);
     RecordConverter<Map<String, Object>> recordConverter = new BigQueryRecordConverter(
         false, false);
     when (mockedConfig.getRecordConverter()).thenReturn(recordConverter);
-    StorageApiBatchModeHandler batchModeHandler = mock(StorageApiBatchModeHandler.class);
-    SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(mockedConfig, null, null);
-    ArgumentCaptor<String> streamName = ArgumentCaptor.forClass(String.class);
-    String expectedStreamName = tableName.toString() + "_s1";
-    TableWriterBuilder builder = new StorageWriteApiWriter.Builder(
-        mockStreamWriter, tableName, sinkRecordConverter, batchModeHandler);
+    when(mockedConfig.getKafkaDataFieldName()).thenReturn(Optional.empty());
+    when(mockedConfig.getKafkaKeyFieldName()).thenReturn(Optional.of("i_am_kafka_key"));
+    when(mockedConfig.getBoolean(BigQuerySinkConfig.SANITIZE_FIELD_NAME_CONFIG)).thenReturn(true);
 
-    Mockito.when(mockedConfig.getKafkaDataFieldName()).thenReturn(Optional.empty());
-    Mockito.when(mockedConfig.getKafkaKeyFieldName()).thenReturn(Optional.of("i_am_kafka_key"));
-    Mockito.when(mockedConfig.getBoolean(BigQuerySinkConfig.SANITIZE_FIELD_NAME_CONFIG)).thenReturn(true);
-    when(batchModeHandler.updateOffsetsOnStream(any(), any())).thenReturn(expectedStreamName);
+    // Capture table name passed into updateOffsetOnStream
+    StorageApiBatchModeHandler batchModeHandler = mock(StorageApiBatchModeHandler.class);
+    ArgumentCaptor<String> tableNameCaptor = ArgumentCaptor.forClass(String.class);
+    when(batchModeHandler.updateOffsetsOnStream(tableNameCaptor.capture(), any()))
+            .thenReturn(expectedStreamName);
+
+    SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(mockedConfig, null, null);
+    TableWriterBuilder builder = new StorageWriteApiWriter.Builder(
+            mockStreamWriter, partitionedTableId, sinkRecordConverter, batchModeHandler);
 
     builder.addRow(createRecord("abc", 100), null);
     builder.build().run();
 
+    // Capture stream name initializeAndWriteRecords was called with
+    ArgumentCaptor<String> streamNameCaptor = ArgumentCaptor.forClass(String.class);
     verify(mockStreamWriter, times(1))
-        .initializeAndWriteRecords(any(), any(), streamName.capture());
+            .initializeAndWriteRecords(any(PartitionedTableId.class), any(), streamNameCaptor.capture());
 
-    assertEquals(expectedStreamName, streamName.getValue());
+    assertEquals(expectedStreamName, streamNameCaptor.getValue());
+    String tableNameUsedInUpdate = tableNameCaptor.getValue();
+    assertFalse(tableNameUsedInUpdate.contains("$"), "Partition decorator ($...) should not be used");
+    assertEquals(expectedTableName.toString(), tableNameUsedInUpdate, "Base table name should be used for stream construction");
   }
 
   private SinkRecord createRecord(String topic, long offset) {
