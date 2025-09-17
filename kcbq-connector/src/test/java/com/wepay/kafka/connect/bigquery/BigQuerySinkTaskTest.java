@@ -171,7 +171,7 @@ public class BigQuerySinkTaskTest {
   @Test
   public void testGetRecordTableUsesConfiguredProject() throws Exception {
     Map<String, String> properties = propertiesFactory.getProperties();
-    properties.put(BigQuerySinkConfig.USE_CREDENTIALS_PROJECT_ID_CONFIG, "false");
+    properties.put(BigQuerySinkConfig.USE_CREDENTIALS_PROJECT_ID_CONFIG, "true");
     initialize(properties);
 
     BigQuerySinkTask task = new BigQuerySinkTask(
@@ -200,7 +200,7 @@ public class BigQuerySinkTaskTest {
   @Test
   public void testGetRecordTableUsesCredentialsProject() throws Exception {
     Map<String, String> properties = propertiesFactory.getProperties();
-    properties.put(BigQuerySinkConfig.USE_CREDENTIALS_PROJECT_ID_CONFIG, "true");
+    properties.put(BigQuerySinkConfig.USE_CREDENTIALS_PROJECT_ID_CONFIG, "false");
     initialize(properties);
 
     BigQuerySinkTask task = new BigQuerySinkTask(
@@ -222,6 +222,7 @@ public class BigQuerySinkTaskTest {
         .getDeclaredMethod("getRecordTable", SinkRecord.class);
     m.setAccessible(true);
     PartitionedTableId tableId = (PartitionedTableId) m.invoke(task, record);
+    
     assertNull(tableId.getProject());
   }
 
@@ -1144,10 +1145,7 @@ public class BigQuerySinkTaskTest {
     Table table = mock(Table.class);
     when(table.getDefinition()).thenReturn(mockTableDefinition);
     Map<TableId, Table> tableCache = new HashMap<>();
-    tableCache.put(
-        TableId.of(properties.get(BigQuerySinkConfig.PROJECT_CONFIG), dataset, topic),
-        table
-    );
+    tableCache.put(TableId.of(dataset, topic), table);
     Storage storage = mock(Storage.class);
     BigQuery bigQuery = mock(BigQuery.class);
 
