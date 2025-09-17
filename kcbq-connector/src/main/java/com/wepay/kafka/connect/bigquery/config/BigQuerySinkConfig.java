@@ -407,9 +407,9 @@ public class BigQuerySinkConfig extends AbstractConfig {
   private static final ConfigDef.Type USE_CREDENTIALS_PROJECT_ID_TYPE = ConfigDef.Type.BOOLEAN;
   private static final ConfigDef.Importance USE_CREDENTIALS_PROJECT_ID_IMPORTANCE = ConfigDef.Importance.MEDIUM;
   private static final String USE_CREDENTIALS_PROJECT_ID_DOC =
-    "If true, clients use the project ID from the credentials JSON and tables use the connector's "
-  + "'project' parameter. If false (default), clients use the connector's project parameter and "
-  + "tables use the client project.";
+      "If true, clients use the project ID from the credentials JSON and tables use the connector's "
+          + "'project' parameter. If false (default), clients use the connector's project parameter and "
+          + "tables use the client project.";
   private static final ConfigDef.Type ENABLE_BATCH_MODE_TYPE = ConfigDef.Type.BOOLEAN;
   private static final ConfigDef.Importance ENABLE_BATCH_MODE_IMPORTANCE = ConfigDef.Importance.LOW;
   private static final String ENABLE_BATCH_MODE_DOC = "Use Google's New Storage Write API with batch mode";
