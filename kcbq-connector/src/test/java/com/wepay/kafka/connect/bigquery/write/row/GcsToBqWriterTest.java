@@ -221,7 +221,7 @@ public class GcsToBqWriterTest {
 
     GcsToBqWriter writer =
         new GcsToBqWriter(
-            storage, bigQuery, schemaManager, retries, retryWaitMs, autoCreate,false, mockTime);
+            storage, bigQuery, schemaManager, retries, retryWaitMs, autoCreate, false, mockTime);
 
     long t0 = mockTime.milliseconds();
     writer.writeRows(oneRow(), TableId.of("ds", "tbl"), "bucket", "blob");
