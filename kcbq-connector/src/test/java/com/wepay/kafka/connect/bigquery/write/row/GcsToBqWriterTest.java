@@ -236,7 +236,7 @@ public class GcsToBqWriterTest {
   }
 
   @Test
-  public void schemaUpdateSkippedWhenEnabled() throws Exception {
+  public void schemaUpdatedWhenEnabled() throws Exception {
     int retries = 1;
     long retryWaitMs = 100;
     boolean autoCreate = false;
