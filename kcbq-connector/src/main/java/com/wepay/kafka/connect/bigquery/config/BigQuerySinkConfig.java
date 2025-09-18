@@ -943,32 +943,40 @@ public class BigQuerySinkConfig extends AbstractConfig {
                     BIGQUERY_PARTITION_EXPIRATION_IMPORTANCE,
                     BIGQUERY_PARTITION_EXPIRATION_DOC
             ).define(
-                    new ConfigKeyBuilder<>(USE_STORAGE_WRITE_API_CONFIG)
+                    ExtendedConfigKey.builder(USE_STORAGE_WRITE_API_CONFIG)
                             .type(USE_STORAGE_WRITE_API_TYPE)
                             .defaultValue(USE_STORAGE_WRITE_API_DEFAULT)
                             .importance(USE_STORAGE_WRITE_API_IMPORTANCE)
                             .documentation(USE_STORAGE_WRITE_API_DOC)
                             .dependents(COMMIT_INTERVAL_SEC_CONFIG, ENABLE_BATCH_MODE_CONFIG, BIGQUERY_PARTITION_DECORATOR_CONFIG)
+                            .since("2.6.0")
                             .build()
             ).define(
-                    USE_CREDENTIALS_PROJECT_ID_CONFIG,
-                    USE_CREDENTIALS_PROJECT_ID_TYPE,
-                    USE_CREDENTIALS_PROJECT_ID_DEFAULT,
-                    USE_CREDENTIALS_PROJECT_ID_IMPORTANCE,
-                    USE_CREDENTIALS_PROJECT_ID_DOC
+                    ExtendedConfigKey.builder(USE_CREDENTIALS_PROJECT_ID_CONFIG)
+                            .type(USE_CREDENTIALS_PROJECT_ID_TYPE)
+                            .defaultValue(USE_CREDENTIALS_PROJECT_ID_DEFAULT)
+                            .importance(USE_CREDENTIALS_PROJECT_ID_IMPORTANCE)
+                            .documentation(USE_CREDENTIALS_PROJECT_ID_DOC)
+                            .since("2.7.0")
+                            .build()
             ).define(
-                    ENABLE_BATCH_MODE_CONFIG,
-                    ENABLE_BATCH_MODE_TYPE,
-                    ENABLE_BATCH_MODE_DEFAULT,
-                    ENABLE_BATCH_MODE_IMPORTANCE,
-                    ENABLE_BATCH_MODE_DOC
+                    ExtendedConfigKey.builder(ENABLE_BATCH_MODE_CONFIG)
+                            .type(ENABLE_BATCH_MODE_TYPE)
+                            .defaultValue(ENABLE_BATCH_MODE_DEFAULT)
+                            .importance(ENABLE_BATCH_MODE_IMPORTANCE)
+                            .documentation(ENABLE_BATCH_MODE_DOC)
+                            .since("2.6.0")
+                            .build()
             ).define(
-                    COMMIT_INTERVAL_SEC_CONFIG,
-                    COMMIT_INTERVAL_SEC_TYPE,
-                    COMMIT_INTERVAL_SEC_DEFAULT,
-                    COMMIT_INTERVAL_VALIDATOR,
-                    COMMIT_INTERVAL_SEC_IMPORTANCE,
-                    COMMIT_INTERVAL_SEC_DOC
+
+                    ExtendedConfigKey.builder(COMMIT_INTERVAL_SEC_CONFIG)
+                            .type(COMMIT_INTERVAL_SEC_TYPE)
+                            .defaultValue(COMMIT_INTERVAL_SEC_DEFAULT)
+                            .validator(COMMIT_INTERVAL_VALIDATOR)
+                            .importance(COMMIT_INTERVAL_SEC_IMPORTANCE)
+                            .documentation(COMMIT_INTERVAL_SEC_DOC)
+                            .since("2.6.0")
+                            .build()
             ).define(
                     MAX_RETRIES_CONFIG,
                     MAX_RETRIES_TYPE,
@@ -993,7 +1001,8 @@ public class BigQuerySinkConfig extends AbstractConfig {
                             .importance(ConfigDef.Importance.LOW)
                             .deprecatedInfo(ExtendedConfigKey.DeprecatedInfo.builder().setSince("2.8.0")
                                     .setDescription(String.format("Use %s instead.", DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_CONFIG))
-                            ).build()
+                            )
+                            .since("2.7.0").build()
             ).define(
                     DECIMAL_HANDLING_MODE_CONFIG,
                     DECIMAL_HANDLING_MODE_TYPE,
