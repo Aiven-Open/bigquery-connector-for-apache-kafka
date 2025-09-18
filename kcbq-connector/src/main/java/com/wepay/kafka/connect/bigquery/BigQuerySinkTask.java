@@ -226,15 +226,9 @@ public class BigQuerySinkTask extends SinkTask {
 
   private PartitionedTableId getStorageApiRecordTable(String topic) {
     return topicToPartitionTableId.computeIfAbsent(topic, topicName -> {
+      String project = config.getString(BigQuerySinkConfig.PROJECT_CONFIG);
       String[] datasetAndtableName = TableNameUtils.getDataSetAndTableName(config, topicName);
-      TableId baseTableId;
-      if (useCredentialsProjectId) {
-        baseTableId = TableId.of(datasetAndtableName[0], datasetAndtableName[1]);
-      } else {
-        String project = config.getString(BigQuerySinkConfig.PROJECT_CONFIG);
-        baseTableId = TableId.of(project, datasetAndtableName[0], datasetAndtableName[1]);
-      }
-      return new PartitionedTableId.Builder(baseTableId).build();
+      return new PartitionedTableId.Builder(TableId.of(project, datasetAndtableName[0], datasetAndtableName[1])).build();
     });
 
   }
