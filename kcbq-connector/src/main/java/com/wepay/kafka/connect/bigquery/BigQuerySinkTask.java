@@ -253,7 +253,7 @@ public class BigQuerySinkTask extends SinkTask {
 
 
     String project = null;
-    if (!useCredentialsProjectId) {
+    if (useCredentialsProjectId) {
       project = config.getString(BigQuerySinkConfig.PROJECT_CONFIG);
     }
     TableId baseTableId = project == null
