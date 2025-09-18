@@ -51,6 +51,8 @@
         <menu name="Using">
             <item name="Design notes" href="designNotes.html"/>
             <item name="Configuration options" href="configuration.html"/>
+            <item name="Write API Unknown Fields Design" href="writeapiUnknownFields.html"/>
+            <item name="Write API Best Practices" href="writeapiBestPractices.html"/>
         </menu>
 
         <menu name="Reports">
