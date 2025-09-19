@@ -27,6 +27,7 @@ import com.google.cloud.bigquery.BigQueryError;
 import com.google.cloud.bigquery.BigQueryException;
 import com.google.cloud.bigquery.InsertAllRequest;
 import com.wepay.kafka.connect.bigquery.ErrantRecordHandler;
+import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryErrorResponses;
 import com.wepay.kafka.connect.bigquery.utils.PartitionedTableId;
@@ -54,6 +55,7 @@ public abstract class BigQueryWriter {
   protected final Time time;
   private final int retries;
   private final long retryWaitMs;
+  private final boolean ignoreUnknownFields;
   private final Random random;
   private final ErrantRecordHandler errantRecordHandler;
 
@@ -64,14 +66,38 @@ public abstract class BigQueryWriter {
    *                            an internal service error or a service unavailable error.
    * @param errantRecordHandler used to handle errant records
    * @param time                used to wait during backoff periods
+   * @param config              connector configurations
    */
-  public BigQueryWriter(int retries, long retryWaitMs, ErrantRecordHandler errantRecordHandler, Time time) {
+  public BigQueryWriter(int retries, long retryWaitMs, ErrantRecordHandler errantRecordHandler,
+                        Time time, BigQuerySinkConfig config) {
     this.retries = retries;
     this.retryWaitMs = retryWaitMs;
-
     this.random = new Random();
     this.errantRecordHandler = errantRecordHandler;
     this.time = time;
+    this.ignoreUnknownFields = config.isIgnoreUnknownFields();
+  }
+
+  /**
+   * @param retries             the number of times to retry a request if BQ returns an internal service error
+   *                            or a service unavailable error.
+   * @param retryWaitMs         the amount of time to wait in between reattempting a request if BQ returns
+   *                            an internal service error or a service unavailable error.
+   * @param errantRecordHandler used to handle errant records
+   * @param time                used to wait during backoff periods
+   *
+   * @deprecated This constructor does not support configuration of additional write settings.
+   * Use {@link #BigQueryWriter(int retries, long retryWaitMs, ErrantRecordHandler errantRecordHandler,
+   * Time time, BigQuerySinkConfig config)} instead.
+   */
+  @Deprecated
+  public BigQueryWriter(int retries, long retryWaitMs, ErrantRecordHandler errantRecordHandler, Time time) {
+    this.retries = retries;
+    this.retryWaitMs = retryWaitMs;
+    this.random = new Random();
+    this.errantRecordHandler = errantRecordHandler;
+    this.time = time;
+    this.ignoreUnknownFields = false;
   }
 
   /**
@@ -97,7 +123,7 @@ public abstract class BigQueryWriter {
   protected InsertAllRequest createInsertAllRequest(PartitionedTableId tableId,
                                                     Collection<InsertAllRequest.RowToInsert> rows) {
     return InsertAllRequest.newBuilder(tableId.getFullTableId(), rows)
-        .setIgnoreUnknownValues(false)
+        .setIgnoreUnknownValues(ignoreUnknownFields)
         .setSkipInvalidRows(false)
         .build();
   }
