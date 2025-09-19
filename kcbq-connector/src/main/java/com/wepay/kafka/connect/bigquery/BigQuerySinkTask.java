@@ -142,6 +142,7 @@ public class BigQuerySinkTask extends SinkTask {
   private boolean allowNewBigQueryFields;
   private boolean useCredentialsProjectId;
   private boolean allowRequiredFieldRelaxation;
+  private boolean allowSchemaUnionization;
 
   /**
    * Create a new BigquerySinkTask.
@@ -469,7 +470,6 @@ public class BigQuerySinkTask extends SinkTask {
     Optional<Long> partitionExpiration = config.getPartitionExpirationMs();
     Optional<List<String>> clusteringFieldName = config.getClusteringPartitionFieldNames();
     Optional<TimePartitioning.Type> timePartitioningType = config.getTimePartitioningType();
-    boolean allowSchemaUnionization = config.getBoolean(BigQuerySinkConfig.ALLOW_SCHEMA_UNIONIZATION_CONFIG);
     boolean sanitizeFieldNames = config.getBoolean(BigQuerySinkConfig.SANITIZE_FIELD_NAME_CONFIG);
     return new SchemaManager(schemaRetriever, schemaConverter, getBigQuery(),
         allowNewBigQueryFields, allowRequiredFieldRelaxation, allowSchemaUnionization,
@@ -513,15 +513,20 @@ public class BigQuerySinkTask extends SinkTask {
 
   private GcsToBqWriter getGcsWriter() {
     BigQuery bigQuery = getBigQuery();
-    // schemaManager shall only be needed for creating table hence do not fetch instance if not
-    // needed.
-    SchemaManager schemaManager = autoCreateTables ? getSchemaManager() : null;
+    boolean attemptSchemaUpdate = allowNewBigQueryFields
+        || allowRequiredFieldRelaxation
+        || allowSchemaUnionization;
+    // schemaManager shall only be needed for creating table or performing schema updates hence do
+    // not fetch instance if not needed.
+    boolean needsSchemaManager = autoCreateTables || attemptSchemaUpdate;
+    SchemaManager schemaManager = needsSchemaManager ? getSchemaManager() : null;
     return new GcsToBqWriter(getGcs(),
         bigQuery,
         schemaManager,
         retry,
         retryWait,
         autoCreateTables,
+        attemptSchemaUpdate,
         time);
   }
 
@@ -559,6 +564,7 @@ public class BigQuerySinkTask extends SinkTask {
     retryWait = config.getLong(BigQuerySinkConfig.BIGQUERY_RETRY_WAIT_CONFIG);
     allowNewBigQueryFields = config.getBoolean(BigQuerySinkConfig.ALLOW_NEW_BIGQUERY_FIELDS_CONFIG);
     allowRequiredFieldRelaxation = config.getBoolean(BigQuerySinkConfig.ALLOW_BIGQUERY_REQUIRED_FIELD_RELAXATION_CONFIG);
+    allowSchemaUnionization = config.getBoolean(BigQuerySinkConfig.ALLOW_SCHEMA_UNIONIZATION_CONFIG);
     topicToPartitionTableId = new HashMap<>();
     bigQuery = new AtomicReference<>();
     schemaManager = new AtomicReference<>();

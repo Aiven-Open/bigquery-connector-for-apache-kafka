@@ -41,6 +41,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.SortedMap;
@@ -63,6 +64,7 @@ public class GcsToBqWriter {
   private final Storage storage;
   private final BigQuery bigQuery;
   private final SchemaManager schemaManager;
+  private final boolean attemptSchemaUpdate;
   private final Time time;
   private int retries;
   private long retryWaitMs;
@@ -87,10 +89,12 @@ public class GcsToBqWriter {
                        int retries,
                        long retryWaitMs,
                        boolean autoCreateTables,
+                       boolean attemptSchemaUpdate,
                        Time time) {
     this.storage = storage;
     this.bigQuery = bigQuery;
     this.schemaManager = schemaManager;
+    this.attemptSchemaUpdate = attemptSchemaUpdate;
     this.time = time;
 
     this.retries = retries;
@@ -130,6 +134,8 @@ public class GcsToBqWriter {
       timeout = Duration.ofMillis(retryWaitMs);
     }
 
+    List<SinkRecord> sinkRecords = new ArrayList<>(rows.keySet());
+
     // Check if the table specified exists
     // This error shouldn't be thrown. All tables should be created by the connector at startup
     Table table = executeWithRetry(() -> bigQuery.getTable(tableId), timeout);
@@ -139,7 +145,7 @@ public class GcsToBqWriter {
       logger.info("Table {} was not found. Creating the table automatically.", tableId);
       Boolean created =
           executeWithRetry(
-              () -> schemaManager.createTable(tableId, new ArrayList<>(rows.keySet())), timeout);
+              () -> schemaManager.createTable(tableId, sinkRecords), timeout);
       if (created == null || !created) {
         throw new BigQueryConnectException("Failed to create table " + tableId);
       }
@@ -151,6 +157,22 @@ public class GcsToBqWriter {
       throw new BigQueryConnectException("Failed to lookup table " + tableId);
     }
 
+    if (attemptSchemaUpdate && schemaManager != null && !sinkRecords.isEmpty()) {
+      Boolean schemaUpdated =
+          executeWithRetry(
+              () -> {
+                schemaManager.updateSchema(tableId, sinkRecords);
+                return Boolean.TRUE;
+              },
+              timeout
+          );
+      if (schemaUpdated == null) {
+        throw new ConnectException(
+            String.format("Failed to update schema for table %s within %d re-attempts.", tableId, retries)
+        );
+      }
+    }
+    
     // --- Upload rows to GCS with executeWithRetry (fresh budget for uploads) ---
     Duration uploadTimeout = Duration.ofMillis(Math.max(0L, retryWaitMs * Math.max(1, retries)));
     if (retries == 0) {

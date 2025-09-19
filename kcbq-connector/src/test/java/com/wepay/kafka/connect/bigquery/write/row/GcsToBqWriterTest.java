@@ -27,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -220,7 +221,7 @@ public class GcsToBqWriterTest {
 
     GcsToBqWriter writer =
         new GcsToBqWriter(
-            storage, bigQuery, schemaManager, retries, retryWaitMs, autoCreate, mockTime);
+            storage, bigQuery, schemaManager, retries, retryWaitMs, autoCreate, false, mockTime);
 
     long t0 = mockTime.milliseconds();
     writer.writeRows(oneRow(), TableId.of("ds", "tbl"), "bucket", "blob");
@@ -228,10 +229,37 @@ public class GcsToBqWriterTest {
 
     // One lookup, one upload; no retries, no sleeps → elapsed should be 0
     verify(bigQuery, times(1)).getTable(any(TableId.class));
+    verify(schemaManager, never()).updateSchema(any(TableId.class), anyList());
     verify(storage, times(1)).create(any(BlobInfo.class), any(byte[].class));
-    verifyNoMoreInteractions(storage, bigQuery);
+    verifyNoMoreInteractions(storage, bigQuery, schemaManager);
     assertEquals(0L, elapsed, "no backoff should occur on the happy path");
   }
+
+  @Test
+  public void schemaUpdatedWhenEnabled() throws Exception {
+    int retries = 1;
+    long retryWaitMs = 100;
+    boolean autoCreate = false;
+
+    BigQuery bigQuery = mock(BigQuery.class);
+    when(bigQuery.getTable(any(TableId.class))).thenReturn(mock(Table.class));
+
+    Storage storage = mock(Storage.class);
+    when(storage.create(any(BlobInfo.class), any(byte[].class))).thenReturn(null);
+
+    SchemaManager schemaManager = mock(SchemaManager.class);
+    Time mockTime = new MockTime();
+
+    GcsToBqWriter writer =
+        new GcsToBqWriter(
+            storage, bigQuery, schemaManager, retries, retryWaitMs, autoCreate, true, mockTime);
+
+    writer.writeRows(oneRow(), TableId.of("ds", "tbl"), "bucket", "blob");
+
+    verify(schemaManager, times(1)).updateSchema(any(TableId.class), anyList());
+    verify(storage, times(1)).create(any(BlobInfo.class), any(byte[].class));
+  }
+
 
   @Test
   public void backoffIsCapped() throws Exception {
@@ -254,7 +282,7 @@ public class GcsToBqWriterTest {
 
     GcsToBqWriter writer =
         new GcsToBqWriter(
-            storage, bigQuery, schemaManager, retries, retryWaitMs, autoCreate, mockTime);
+            storage, bigQuery, schemaManager, retries, retryWaitMs, autoCreate, true, mockTime);
 
     long t0 = mockTime.milliseconds();
     writer.writeRows(oneRow(), TableId.of("ds", "tbl"), "bucket", "blob");
@@ -262,6 +290,7 @@ public class GcsToBqWriterTest {
 
     long minExpected = 20_000; // Budget = retries(4) * retryWaitMs(5000) = 20s
     long maxExpected = minExpected + 3 * 1000; // + jitter bound
+    verify(schemaManager, times(1)).updateSchema(any(TableId.class), anyList());
     verify(storage, times(4)).create(any(BlobInfo.class), any(byte[].class));
     assertTrue(elapsed >= minExpected, "elapsed too small: " + elapsed);
     assertTrue(elapsed <= maxExpected, "elapsed too large: " + elapsed);
@@ -297,7 +326,7 @@ public class GcsToBqWriterTest {
 
     GcsToBqWriter writer =
         new GcsToBqWriter(
-            storage, bigQuery, schemaManager, retries, retryWaitMs, autoCreate, mockTime);
+            storage, bigQuery, schemaManager, retries, retryWaitMs, autoCreate, true, mockTime);
 
     // Because lookup never succeeds and the time budget expires, writeRows should fail
     // with a BigQueryConnectException (null table interpreted as lookup failure).
@@ -310,6 +339,8 @@ public class GcsToBqWriterTest {
     // the exact attempt count can vary a little. A stable range is ~6..10 total calls.
     verify(bigQuery, atLeast(6)).getTable(any(TableId.class));
     verify(bigQuery, atMost(10)).getTable(any(TableId.class));
+
+    verify(schemaManager, never()).updateSchema(any(TableId.class), anyList());
 
     // No upload should be attempted since table resolution never succeeded.
     verify(storage, never()).create(any(BlobInfo.class), any(byte[].class));
