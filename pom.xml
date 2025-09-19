@@ -121,6 +121,12 @@
             <email>moirat@wepay.com</email>
             <timezone>America/Los_Angeles</timezone>
         </contributor>
+        <contributor>
+            <url>https://github.com/veliuenal</url>
+            <name>Veli Can Ünal</name>
+            <email>vlcanunal@gmail.com</email>
+            <timezone>Europe/Berlin</timezone>
+        </contributor>        
     </contributors>
 
     <repositories>
