@@ -35,6 +35,7 @@ import com.google.gson.Gson;
 import com.wepay.kafka.connect.bigquery.SchemaManager;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
 import com.wepay.kafka.connect.bigquery.exception.GcsConnectException;
+import com.wepay.kafka.connect.bigquery.utils.GsonUtils;
 import com.wepay.kafka.connect.bigquery.utils.Time;
 import java.io.UnsupportedEncodingException;
 import java.time.Duration;
@@ -60,7 +61,7 @@ public class GcsToBqWriter {
   private static final int WAIT_MAX_JITTER = 1000;
   private static final long MAX_BACKOFF_MS = 10_000L;
   private static final Random random = new Random();
-  private static Gson gson = new Gson();
+  private static final Gson gson = GsonUtils.SAFE_GSON;
   private final Storage storage;
   private final BigQuery bigQuery;
   private final SchemaManager schemaManager;
