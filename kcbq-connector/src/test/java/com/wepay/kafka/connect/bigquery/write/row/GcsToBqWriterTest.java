@@ -26,6 +26,7 @@ package com.wepay.kafka.connect.bigquery.write.row;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Matchers.anyObject;
@@ -38,6 +39,8 @@ import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.atMost;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
+import com.google.gson.Gson;
+import com.google.gson.JsonIOException;
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.Table;
 import com.google.cloud.bigquery.TableId;
@@ -52,16 +55,22 @@ import com.wepay.kafka.connect.bigquery.SinkPropertiesFactory;
 import com.wepay.kafka.connect.bigquery.api.SchemaRetriever;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkTaskConfig;
+import com.wepay.kafka.connect.bigquery.utils.GsonUtils;
 import com.wepay.kafka.connect.bigquery.utils.MockTime;
 import com.wepay.kafka.connect.bigquery.utils.Time;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageApiBatchModeHandler;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiDefaultStream;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
+import java.nio.ByteBuffer;
+import java.util.LinkedHashMap;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.SortedMap;
 import java.util.HashMap;
 import java.util.TreeMap;
+import java.util.Base64;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
@@ -69,8 +78,12 @@ import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.sink.SinkTaskContext;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+
+import io.debezium.data.VariableScaleDecimal;
 
 public class GcsToBqWriterTest {
 
@@ -346,6 +359,82 @@ public class GcsToBqWriterTest {
     verify(storage, never()).create(any(BlobInfo.class), any(byte[].class));
   }
 
+  @Nested
+  @DisplayName("JSON serialization (Gson / ByteBuffer)")
+  class JsonSerializationTests {
+    @Test
+    @DisplayName("Vanilla Gson fails on Debezium VariableScaleDecimal (Java 9+ only)")
+    public void gsonFailsOnByteBuffer() {
+      String specVersion = System.getProperty("java.specification.version", "8");
+      assumeTrue(javaIsAtLeast9(specVersion), "Relevant only on Java 9+");
+
+      byte[] raw = new byte[] {0x01, 0x23, (byte) 0xAB};
+      Schema vsdSchema = VariableScaleDecimal.schema();
+      Struct vsd = new Struct(vsdSchema).put("scale", 6).put("value", ByteBuffer.wrap(raw));
+
+      Map<String, Object> record = new LinkedHashMap<>();
+      record.put("id", 42);
+      record.put("amount", vsd);
+
+      Gson vanilla = new Gson();
+
+      assertThrows(JsonIOException.class, () -> vanilla.toJson(record));
+    }
+
+    @Test
+    @DisplayName("Safe Gson serializes VariableScaleDecimal as base64 (values[0]=scale, values[1]=bytes)")
+    public void safeGsonPassesOnByteBuffer() {
+      byte[] raw = new byte[]{0x01, 0x23, (byte) 0xAB};
+      String expectedB64 = Base64.getEncoder().encodeToString(raw);
+
+      Schema vsdSchema = VariableScaleDecimal.schema();
+      Struct vsd = new Struct(vsdSchema)
+             .put("scale", 6)
+             .put("value", ByteBuffer.wrap(raw));
+
+      Map<String, Object> record = new LinkedHashMap<>();
+      record.put("id", 42);
+      record.put("amount", vsd);
+
+      String json = GsonUtils.SAFE_GSON.toJson(record);
+
+      // Parse back and assert structure: amount.values = [6, "ASOr"]
+      @SuppressWarnings("unchecked")
+      Map<String, Object> parsed = new Gson().fromJson(json, Map.class);
+      @SuppressWarnings("unchecked")
+      Map<String, Object> amount = (Map<String, Object>) parsed.get("amount");
+      @SuppressWarnings("unchecked")
+      java.util.List<Object> values = (java.util.List<Object>) amount.get("values");
+
+      // Gson parses numbers as Double
+      assertEquals(6.0, values.get(0), "scale should be the first element in values[]");
+      assertEquals(expectedB64, values.get(1), "encoded bytes should be the second element");
+      }
+
+    @Test
+    @DisplayName("Safe Gson behaves like vanilla Gson for regular types")
+    public void safeGsonPassesOnRegularTypes() {
+      Map<String, Object> nativeOnly = new LinkedHashMap<>();
+      nativeOnly.put("s", "str");
+      nativeOnly.put("n", 123);
+      nativeOnly.put("b", true);
+      nativeOnly.put("list", Arrays.asList(1, 2, 3));
+
+      Map<String, Object> nested = new LinkedHashMap<>();
+      nested.put("x", 1);
+      nativeOnly.put("obj", nested);
+
+      Gson vanilla = new Gson();
+      String vanillaJson = vanilla.toJson(nativeOnly);
+      String safeJson = GsonUtils.SAFE_GSON.toJson(nativeOnly);
+
+      assertEquals(
+          vanillaJson,
+          safeJson,
+          "SAFE_GSON should behave exactly like vanilla Gson for native types");
+    }
+  }
+
   private void expectTable(BigQuery mockBigQuery) {
     Table mockTable = mock(Table.class);
     when(mockBigQuery.getTable(anyObject())).thenReturn(mockTable);
@@ -447,5 +536,11 @@ public class GcsToBqWriterTest {
 
     rows.put(rec, RowToInsert.of(content));
     return rows;
+  }
+
+  private static boolean javaIsAtLeast9(String specVersion) {
+    if (specVersion.startsWith("1.")) return false; // Java 8 reports "1.8"
+    try { return Integer.parseInt(specVersion.split("\\.")[0]) >= 9; }
+    catch (Exception ignored) { return true; }
   }
 }
