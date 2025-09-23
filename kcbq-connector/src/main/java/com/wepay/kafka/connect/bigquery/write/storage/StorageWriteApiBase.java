@@ -61,6 +61,7 @@ public abstract class StorageWriteApiBase {
   private static final Logger logger = LoggerFactory.getLogger(StorageWriteApiBase.class);
   private static final double RETRY_DELAY_MULTIPLIER = 1.1;
   private static final int MAX_RETRY_DELAY_MINUTES = 1;
+  public static final String TRACE_ID_FORMAT = "AivenKafkaConnector:%s";
   protected final JsonStreamWriterFactory jsonWriterFactory;
   protected final int retry;
   protected final long retryWait;
@@ -298,6 +299,10 @@ public abstract class StorageWriteApiBase {
     return this.writeClient;
   }
 
+  private String generateTraceId() {
+    return String.format(TRACE_ID_FORMAT, "default");
+  }
+
   /**
    * Returns a {@link JsonStreamWriterFactory} for creating configured {@link JsonStreamWriter} instances
    *
@@ -312,7 +317,8 @@ public abstract class StorageWriteApiBase {
             .build();
     return streamOrTableName -> {
       JsonStreamWriter.Builder builder = JsonStreamWriter.newBuilder(streamOrTableName, writeClient)
-              .setRetrySettings(retrySettings);
+              .setRetrySettings(retrySettings)
+              .setTraceId(generateTraceId());
       updateJsonStreamWriterBuilder(builder);
       return builder.build();
     };
