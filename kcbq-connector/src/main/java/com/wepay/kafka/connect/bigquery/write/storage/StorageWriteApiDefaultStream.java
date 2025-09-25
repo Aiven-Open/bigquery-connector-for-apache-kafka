@@ -32,6 +32,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.protobuf.Descriptors;
 import com.wepay.kafka.connect.bigquery.ErrantRecordHandler;
 import com.wepay.kafka.connect.bigquery.SchemaManager;
+import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiConnectException;
 import java.io.IOException;
 import java.util.List;
@@ -54,7 +55,8 @@ public class StorageWriteApiDefaultStream extends StorageWriteApiBase {
                                       boolean autoCreateTables,
                                       ErrantRecordHandler errantRecordHandler,
                                       SchemaManager schemaManager,
-                                      boolean attemptSchemaUpdate) {
+                                      boolean attemptSchemaUpdate,
+                                      BigQuerySinkConfig config) {
     super(
         retry,
         retryWait,
@@ -62,8 +64,33 @@ public class StorageWriteApiDefaultStream extends StorageWriteApiBase {
         autoCreateTables,
         errantRecordHandler,
         schemaManager,
-        attemptSchemaUpdate
+        attemptSchemaUpdate,
+        config
     );
+  }
+
+  /**
+   * @deprecated This constructor does not support configuration of additional write settings.
+   * Use {@link #StorageWriteApiDefaultStream(int retry, long retryWait, BigQueryWriteSettings writeSettings,
+   * boolean autoCreateTables, ErrantRecordHandler errantRecordHandler, SchemaManager schemaManager,
+   * boolean attemptSchemaUpdate, BigQuerySinkConfig config)} instead.
+   */
+  @Deprecated
+  public StorageWriteApiDefaultStream(int retry,
+                                      long retryWait,
+                                      BigQueryWriteSettings writeSettings,
+                                      boolean autoCreateTables,
+                                      ErrantRecordHandler errantRecordHandler,
+                                      SchemaManager schemaManager,
+                                      boolean attemptSchemaUpdate) {
+    super(
+            retry,
+            retryWait,
+            writeSettings,
+            autoCreateTables,
+            errantRecordHandler,
+            schemaManager,
+            attemptSchemaUpdate);
   }
 
   @Override
