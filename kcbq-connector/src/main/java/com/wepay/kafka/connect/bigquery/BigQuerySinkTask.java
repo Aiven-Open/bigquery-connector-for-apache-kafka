@@ -465,7 +465,8 @@ public class BigQuerySinkTask extends SinkTask {
         new MdcContextThreadFactory()
     );
     topicPartitionManager = new TopicPartitionManager();
-    recordTableResolver = new RecordTableResolver(config, mergeBatches, getBigQuery(), upsertDelete, useStorageApiBatchMode);
+    recordTableResolver = new RecordTableResolver(config, mergeBatches, getBigQuery(), upsertDelete,
+            useStorageApiBatchMode, useStorageApi);
 
     if (config.getBoolean(BigQuerySinkTaskConfig.GCS_BQ_TASK_CONFIG)) {
       startGcsToBqLoadTask();
