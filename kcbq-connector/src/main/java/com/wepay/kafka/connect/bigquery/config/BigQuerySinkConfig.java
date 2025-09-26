@@ -526,8 +526,8 @@ public class BigQuerySinkConfig extends AbstractConfig {
       ConfigDef.Importance.HIGH;
   private static final String BIGQUERY_PARTITION_DECORATOR_DOC =
       "Whether or not to append partition decorator to BigQuery table name when inserting records. "
-          + "Default is true. Setting this to true appends partition decorator to table name (e.g. table$yyyyMMdd depending on the configuration set for bigQueryPartitionDecorator). "
-          + "Setting this to false bypasses the logic to append the partition decorator and uses raw table name for inserts.";
+          + "When enabled, a suffix is added to table names (e.g., table$yyyyMMdd); when disabled, raw table names are used. "
+          + "Partition decorators are not supported when using Storage Write API batch mode (enableBatchMode=true).";
   private static final ConfigDef.Type BIGQUERY_TIMESTAMP_PARTITION_FIELD_NAME_TYPE = ConfigDef.Type.STRING;
   private static final String BIGQUERY_TIMESTAMP_PARTITION_FIELD_NAME_DEFAULT = null;
   private static final ConfigDef.Validator BIGQUERY_TIMESTAMP_PARTITION_FIELD_NAME_VALIDATOR = new ConfigDef.NonEmptyString();
@@ -879,11 +879,13 @@ public class BigQuerySinkConfig extends AbstractConfig {
                     BIGQUERY_MESSAGE_TIME_PARTITIONING_IMPORTANCE,
                     BIGQUERY_MESSAGE_TIME_PARTITIONING_DOC
             ).define(
-                    BIGQUERY_PARTITION_DECORATOR_CONFIG,
-                    BIGQUERY_PARTITION_DECORATOR_CONFIG_TYPE,
-                    BIGQUERY_PARTITION_DECORATOR_DEFAULT,
-                    BIGQUERY_PARTITION_DECORATOR_IMPORTANCE,
-                    BIGQUERY_PARTITION_DECORATOR_DOC
+                    ExtendedConfigKey.builder(BIGQUERY_PARTITION_DECORATOR_CONFIG)
+                            .type(BIGQUERY_PARTITION_DECORATOR_CONFIG_TYPE)
+                            .defaultValue(BIGQUERY_PARTITION_DECORATOR_DEFAULT)
+                            .importance(BIGQUERY_PARTITION_DECORATOR_IMPORTANCE)
+                            .documentation(BIGQUERY_PARTITION_DECORATOR_DOC)
+                            .dependents(ENABLE_BATCH_MODE_CONFIG)
+                            .build()
             ).define(
                     BIGQUERY_TIMESTAMP_PARTITION_FIELD_NAME_CONFIG,
                     BIGQUERY_TIMESTAMP_PARTITION_FIELD_NAME_TYPE,
@@ -948,7 +950,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
                             .defaultValue(USE_STORAGE_WRITE_API_DEFAULT)
                             .importance(USE_STORAGE_WRITE_API_IMPORTANCE)
                             .documentation(USE_STORAGE_WRITE_API_DOC)
-                            .dependents(COMMIT_INTERVAL_SEC_CONFIG, ENABLE_BATCH_MODE_CONFIG, BIGQUERY_PARTITION_DECORATOR_CONFIG)
+                            .dependents(COMMIT_INTERVAL_SEC_CONFIG, ENABLE_BATCH_MODE_CONFIG)
                             .since("2.6.0")
                             .build()
             ).define(

@@ -43,7 +43,7 @@ public class ConfigDefBeanTests {
 
     @Test
     public void testParents() {
-        List<String> expected = Arrays.asList(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG, BigQuerySinkConfig.DELETE_ENABLED_CONFIG, BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG);
+        List<String> expected = Arrays.asList(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG, BigQuerySinkConfig.DELETE_ENABLED_CONFIG, BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG);
         List<ConfigKeyBean> parents = underTest.parents();
         Collections.sort(expected);
         assertEquals(expected, parents.stream().map(ConfigKeyBean::getName).collect(Collectors.toList()));
@@ -59,7 +59,7 @@ public class ConfigDefBeanTests {
     @Test
     public void testDependents() {
         List<String> expected = Arrays.asList(BigQuerySinkConfig.MERGE_INTERVAL_MS_CONFIG, BigQuerySinkConfig.INTERMEDIATE_TABLE_SUFFIX_CONFIG, BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, BigQuerySinkConfig.ENABLE_BATCH_MODE_CONFIG,
-                BigQuerySinkConfig.COMMIT_INTERVAL_SEC_CONFIG, BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG, BigQuerySinkConfig.KAFKA_KEY_FIELD_NAME_CONFIG);
+                BigQuerySinkConfig.COMMIT_INTERVAL_SEC_CONFIG, BigQuerySinkConfig.KAFKA_KEY_FIELD_NAME_CONFIG);
         List<ConfigKeyBean> deps = underTest.dependents();
         Collections.sort(expected);
         assertEquals(expected, deps.stream().map(ConfigKeyBean::getName).collect(Collectors.toList()));

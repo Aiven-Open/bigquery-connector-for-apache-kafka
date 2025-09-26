@@ -26,7 +26,6 @@ package com.wepay.kafka.connect.bigquery;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -44,10 +43,7 @@ import com.google.cloud.bigquery.InsertAllRequest;
 import com.google.cloud.bigquery.InsertAllResponse;
 import com.google.cloud.bigquery.LegacySQLTypeName;
 import com.google.cloud.bigquery.QueryJobConfiguration;
-import com.google.cloud.bigquery.StandardTableDefinition;
 import com.google.cloud.bigquery.Table;
-import com.google.cloud.bigquery.TableId;
-import com.google.cloud.bigquery.TimePartitioning;
 import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.Storage;
 import com.wepay.kafka.connect.bigquery.api.SchemaRetriever;
@@ -56,16 +52,15 @@ import com.wepay.kafka.connect.bigquery.convert.logicaltype.DebeziumLogicalConve
 import com.wepay.kafka.connect.bigquery.convert.logicaltype.KafkaLogicalConverters;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
 import com.wepay.kafka.connect.bigquery.utils.MockTime;
-import com.wepay.kafka.connect.bigquery.utils.PartitionedTableId;
 import com.wepay.kafka.connect.bigquery.utils.Time;
 import com.wepay.kafka.connect.bigquery.write.batch.MergeBatches;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageApiBatchModeHandler;
+import com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiBase;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiDefaultStream;
 import java.net.SocketTimeoutException;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.RejectedExecutionException;
@@ -100,6 +95,29 @@ public class BigQuerySinkTaskTest {
   @BeforeAll
   public static void initializePropertiesFactory() {
     propertiesFactory = new SinkTaskPropertiesFactory();
+  }
+
+  /**
+   * Utility method for creating a {@link BigQuerySinkTask} configured for testing.
+   *
+   * @param bigQuery        The {@link BigQuery} mock or test instance
+   * @param schemaRetriever The {@link SchemaRetriever} mock or test instance
+   * @param gcs             The {@link Storage} mock or test instance
+   * @param schemaManager   The {@link SchemaManager} mock or test instance
+   * @param storageWriteApi The {@link StorageWriteApiBase} mock or test instance
+   * @param batchHandler    The {@link StorageApiBatchModeHandler} mock or test instance
+   * @param time            The {@link Time} mock or test instance
+   * @return A {@link BigQuerySinkTask} initialized with the given test dependencies
+   */
+  public static BigQuerySinkTask createTestTask(BigQuery bigQuery,
+                                                SchemaRetriever schemaRetriever,
+                                                Storage gcs,
+                                                SchemaManager schemaManager,
+                                                StorageWriteApiBase storageWriteApi,
+                                                StorageApiBatchModeHandler batchHandler,
+                                                Time time) {
+    return new BigQuerySinkTask(bigQuery, schemaRetriever, gcs, schemaManager,
+            storageWriteApi, batchHandler, time);
   }
 
   /**
@@ -167,65 +185,6 @@ public class BigQuerySinkTaskTest {
     DebeziumLogicalConverters.initialize(config);
     KafkaLogicalConverters.initialize(config);
   }
-
-  @Test
-  public void testGetRecordTableUsesConfiguredProject() throws Exception {
-    Map<String, String> properties = propertiesFactory.getProperties();
-    properties.put(BigQuerySinkConfig.USE_CREDENTIALS_PROJECT_ID_CONFIG, "true");
-    initialize(properties);
-
-    BigQuerySinkTask task = new BigQuerySinkTask(
-        mock(BigQuery.class),
-        mock(SchemaRetriever.class),
-        mock(Storage.class),
-        mock(SchemaManager.class),
-        new HashMap<>(),
-        mockedStorageWriteApiDefaultStream,
-        mockedBatchHandler,
-        time
-    );
-    task.initialize(mock(SinkTaskContext.class));
-    task.start(properties);
-
-    SinkRecord record = spoofSinkRecord("kcbq-test", "field", "value",
-        TimestampType.NO_TIMESTAMP_TYPE, null);
-    java.lang.reflect.Method m = BigQuerySinkTask.class
-        .getDeclaredMethod("getRecordTable", SinkRecord.class);
-    m.setAccessible(true);
-    PartitionedTableId tableId = (PartitionedTableId) m.invoke(task, record);
-
-    assertEquals("test-project", tableId.getProject());
-  }
-
-  @Test
-  public void testGetRecordTableUsesCredentialsProject() throws Exception {
-    Map<String, String> properties = propertiesFactory.getProperties();
-    properties.put(BigQuerySinkConfig.USE_CREDENTIALS_PROJECT_ID_CONFIG, "false");
-    initialize(properties);
-
-    BigQuerySinkTask task = new BigQuerySinkTask(
-        mock(BigQuery.class),
-        mock(SchemaRetriever.class),
-        mock(Storage.class),
-        mock(SchemaManager.class),
-        new HashMap<>(),
-        mockedStorageWriteApiDefaultStream,
-        mockedBatchHandler,
-        time
-    );
-    task.initialize(mock(SinkTaskContext.class));
-    task.start(properties);
-
-    SinkRecord record = spoofSinkRecord("kcbq-test", "field", "value",
-        TimestampType.NO_TIMESTAMP_TYPE, null);
-    java.lang.reflect.Method m = BigQuerySinkTask.class
-        .getDeclaredMethod("getRecordTable", SinkRecord.class);
-    m.setAccessible(true);
-    PartitionedTableId tableId = (PartitionedTableId) m.invoke(task, record);
-    
-    assertNull(tableId.getProject());
-  }
-
 
   /**
    * Utility method for spoofing SinkRecords that should be passed to SinkTask.put()
@@ -311,14 +270,12 @@ public class BigQuerySinkTaskTest {
 
     SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
     SchemaManager schemaManager = mock(SchemaManager.class);
-    Map<TableId, Table> cache = new HashMap<>();
 
     BigQuerySinkTask testTask = new BigQuerySinkTask(
         bigQuery,
         schemaRetriever,
         storage,
         schemaManager,
-        cache,
         mockedStorageWriteApiDefaultStream,
         mockedBatchHandler,
         time
@@ -356,14 +313,12 @@ public class BigQuerySinkTaskTest {
 
     SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
     SchemaManager schemaManager = mock(SchemaManager.class);
-    Map<TableId, Table> cache = new HashMap<>();
 
     BigQuerySinkTask testTask = new BigQuerySinkTask(
         bigQuery,
         schemaRetriever,
         storage,
         schemaManager,
-        cache,
         mockedStorageWriteApiDefaultStream,
         mockedBatchHandler,
         time
@@ -403,14 +358,12 @@ public class BigQuerySinkTaskTest {
 
     SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
     SchemaManager schemaManager = mock(SchemaManager.class);
-    Map<TableId, Table> cache = new HashMap<>();
 
     BigQuerySinkTask testTask = new BigQuerySinkTask(
         bigQuery,
         schemaRetriever,
         storage,
         schemaManager,
-        cache,
         mockedStorageWriteApiDefaultStream,
         mockedBatchHandler,
         time
@@ -434,14 +387,12 @@ public class BigQuerySinkTaskTest {
 
     SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
     SchemaManager schemaManager = mock(SchemaManager.class);
-    Map<TableId, Table> cache = new HashMap<>();
 
     BigQuerySinkTask testTask = new BigQuerySinkTask(
         bigQuery,
         schemaRetriever,
         storage,
         schemaManager,
-        cache,
         mockedStorageWriteApiDefaultStream,
         mockedBatchHandler,
         time
@@ -467,14 +418,12 @@ public class BigQuerySinkTaskTest {
 
     SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
     SchemaManager schemaManager = mock(SchemaManager.class);
-    Map<TableId, Table> cache = new HashMap<>();
 
     BigQuerySinkTask testTask = new BigQuerySinkTask(
         bigQuery,
         schemaRetriever,
         storage,
         schemaManager,
-        cache,
         mockedStorageWriteApiDefaultStream,
         mockedBatchHandler,
         time
@@ -485,193 +434,6 @@ public class BigQuerySinkTaskTest {
     SinkRecord emptyRecord = spoofSinkRecord(topic, simpleSchema, null);
 
     testTask.put(Collections.singletonList(emptyRecord));
-  }
-
-  @Test
-  public void testPutWhenPartitioningOnMessageTime() {
-    final String topic = "test-topic";
-
-    Map<String, String> properties = propertiesFactory.getProperties();
-    properties.put(BigQuerySinkConfig.TOPICS_CONFIG, topic);
-    properties.put(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG, "scratch");
-    properties.put(BigQuerySinkConfig.BIGQUERY_MESSAGE_TIME_PARTITIONING_CONFIG, "true");
-    initialize(properties);
-
-    BigQuery bigQuery = mock(BigQuery.class);
-    Table mockTable = mock(Table.class);
-    when(bigQuery.getTable(any())).thenReturn(mockTable);
-
-    Storage storage = mock(Storage.class);
-    SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
-    InsertAllResponse insertAllResponse = mock(InsertAllResponse.class);
-
-    when(bigQuery.insertAll(anyObject())).thenReturn(insertAllResponse);
-    when(insertAllResponse.hasErrors()).thenReturn(false);
-
-    SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
-    SchemaManager schemaManager = mock(SchemaManager.class);
-    Map<TableId, Table> cache = new HashMap<>();
-
-    BigQuerySinkTask testTask = new BigQuerySinkTask(
-        bigQuery,
-        schemaRetriever,
-        storage,
-        schemaManager,
-        cache,
-        mockedStorageWriteApiDefaultStream,
-        mockedBatchHandler,
-        time
-    );
-    testTask.initialize(sinkTaskContext);
-    testTask.start(properties);
-
-    testTask.put(Collections.singletonList(spoofSinkRecord(topic, "value", "message text",
-        TimestampType.CREATE_TIME, 1509007584334L)));
-    testTask.flush(Collections.emptyMap());
-    ArgumentCaptor<InsertAllRequest> argument = ArgumentCaptor.forClass(InsertAllRequest.class);
-
-    verify(bigQuery, times(1)).insertAll(argument.capture());
-    assertEquals("test-topic$20171026", argument.getValue().getTable().getTable());
-  }
-
-  @Test
-  public void testPutWhenPartitioningIsSetToTrue() {
-    final String topic = "test-topic";
-
-    Map<String, String> properties = propertiesFactory.getProperties();
-    properties.put(BigQuerySinkConfig.TOPICS_CONFIG, topic);
-    properties.put(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG, "scratch");
-    properties.put(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG, "true");
-    properties.put(BigQuerySinkConfig.BIGQUERY_MESSAGE_TIME_PARTITIONING_CONFIG, "true");
-    initialize(properties);
-
-    BigQuery bigQuery = mock(BigQuery.class);
-    Table mockTable = mock(Table.class);
-    when(bigQuery.getTable(any())).thenReturn(mockTable);
-
-    Storage storage = mock(Storage.class);
-    SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
-    InsertAllResponse insertAllResponse = mock(InsertAllResponse.class);
-
-    when(bigQuery.insertAll(anyObject())).thenReturn(insertAllResponse);
-    when(insertAllResponse.hasErrors()).thenReturn(false);
-
-    SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
-    SchemaManager schemaManager = mock(SchemaManager.class);
-    Map<TableId, Table> cache = new HashMap<>();
-
-    BigQuerySinkTask testTask = new BigQuerySinkTask(
-        bigQuery,
-        schemaRetriever,
-        storage,
-        schemaManager,
-        cache,
-        mockedStorageWriteApiDefaultStream,
-        mockedBatchHandler,
-        time
-    );
-    testTask.initialize(sinkTaskContext);
-    testTask.start(properties);
-
-    testTask.put(Collections.singletonList(spoofSinkRecord(topic, "value", "message text",
-        TimestampType.CREATE_TIME, 1509007584334L)));
-    testTask.flush(Collections.emptyMap());
-    ArgumentCaptor<InsertAllRequest> argument = ArgumentCaptor.forClass(InsertAllRequest.class);
-
-    verify(bigQuery, times(1)).insertAll(argument.capture());
-    assertEquals("test-topic$20171026", argument.getValue().getTable().getTable());
-  }
-
-  @Test
-  public void testPutWhenPartitioningIsSetToFalse() {
-    final String topic = "test-topic";
-
-    Map<String, String> properties = propertiesFactory.getProperties();
-    properties.put(BigQuerySinkConfig.TOPICS_CONFIG, topic);
-    properties.put(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG, "scratch");
-    properties.put(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG, "false");
-    initialize(properties);
-
-    BigQuery bigQuery = mock(BigQuery.class);
-    Table mockTable = mock(Table.class);
-    when(bigQuery.getTable(any())).thenReturn(mockTable);
-
-    Storage storage = mock(Storage.class);
-    SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
-    InsertAllResponse insertAllResponse = mock(InsertAllResponse.class);
-
-    when(bigQuery.insertAll(anyObject())).thenReturn(insertAllResponse);
-    when(insertAllResponse.hasErrors()).thenReturn(false);
-
-    SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
-    SchemaManager schemaManager = mock(SchemaManager.class);
-    Map<TableId, Table> cache = new HashMap<>();
-
-    BigQuerySinkTask testTask = new BigQuerySinkTask(
-        bigQuery,
-        schemaRetriever,
-        storage,
-        schemaManager,
-        cache,
-        mockedStorageWriteApiDefaultStream,
-        mockedBatchHandler,
-        time
-    );
-    testTask.initialize(sinkTaskContext);
-    testTask.start(properties);
-    testTask.put(Collections.singletonList(spoofSinkRecord(topic, "value", "message text",
-        TimestampType.CREATE_TIME, 1509007584334L)));
-    testTask.flush(Collections.emptyMap());
-    ArgumentCaptor<InsertAllRequest> argument = ArgumentCaptor.forClass(InsertAllRequest.class);
-
-    verify(bigQuery, times(1)).insertAll(argument.capture());
-    assertEquals("test-topic", argument.getValue().getTable().getTable());
-  }
-
-  // Make sure a connect exception is thrown when the message has no timestamp type
-  @Test
-  public void testPutWhenPartitioningOnMessageTimeWhenNoTimestampType() {
-    final String topic = "test-topic";
-
-    Map<String, String> properties = propertiesFactory.getProperties();
-    properties.put(BigQuerySinkConfig.TOPICS_CONFIG, topic);
-    properties.put(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG, "scratch");
-    properties.put(BigQuerySinkConfig.BIGQUERY_MESSAGE_TIME_PARTITIONING_CONFIG, "true");
-    initialize(properties);
-
-    BigQuery bigQuery = mock(BigQuery.class);
-    Table mockTable = mock(Table.class);
-    when(bigQuery.getTable(any())).thenReturn(mockTable);
-
-    Storage storage = mock(Storage.class);
-    SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
-    InsertAllResponse insertAllResponse = mock(InsertAllResponse.class);
-
-    when(bigQuery.insertAll(anyObject())).thenReturn(insertAllResponse);
-    when(insertAllResponse.hasErrors()).thenReturn(false);
-
-    SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
-    SchemaManager schemaManager = mock(SchemaManager.class);
-    Map<TableId, Table> cache = new HashMap<>();
-
-    BigQuerySinkTask testTask = new BigQuerySinkTask(
-        bigQuery,
-        schemaRetriever,
-        storage,
-        schemaManager,
-        cache,
-        mockedStorageWriteApiDefaultStream,
-        mockedBatchHandler,
-        time
-    );
-    testTask.initialize(sinkTaskContext);
-    testTask.start(properties);
-
-    assertThrows(
-        ConnectException.class,
-        () -> testTask.put(Collections.singletonList(spoofSinkRecord(topic, "value", "message text",
-          TimestampType.NO_TIMESTAMP_TYPE, null)))
-    );
   }
 
   @Test
@@ -699,7 +461,6 @@ public class BigQuerySinkTaskTest {
 
     SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
     SchemaManager schemaManager = mock(SchemaManager.class);
-    Map<TableId, Table> cache = new HashMap<>();
     Field keyField = Field.of(key, LegacySQLTypeName.STRING);
     Field valueField = Field.of(value, LegacySQLTypeName.STRING);
     com.google.cloud.bigquery.Schema intermediateSchema = com.google.cloud.bigquery.Schema.of(
@@ -735,7 +496,6 @@ public class BigQuerySinkTaskTest {
         schemaRetriever,
         storage,
         schemaManager,
-        cache,
         mockedStorageWriteApiDefaultStream,
         mockedBatchHandler,
         time
@@ -784,14 +544,12 @@ public class BigQuerySinkTaskTest {
 
     SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
     SchemaManager schemaManager = mock(SchemaManager.class);
-    Map<TableId, Table> cache = new HashMap<>();
 
     BigQuerySinkTask testTask = new BigQuerySinkTask(
         bigQuery,
         schemaRetriever,
         storage,
         schemaManager,
-        cache,
         mockedStorageWriteApiDefaultStream,
         mockedBatchHandler,
         time
@@ -821,7 +579,6 @@ public class BigQuerySinkTaskTest {
 
     SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
     SchemaManager schemaManager = mock(SchemaManager.class);
-    Map<TableId, Table> cache = new HashMap<>();
 
     SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
     BigQuerySinkTask testTask = new BigQuerySinkTask(
@@ -829,7 +586,6 @@ public class BigQuerySinkTaskTest {
         schemaRetriever,
         storage,
         schemaManager,
-        cache,
         mockedStorageWriteApiDefaultStream,
         mockedBatchHandler,
         time
@@ -853,7 +609,6 @@ public class BigQuerySinkTaskTest {
 
     SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
     SchemaManager schemaManager = mock(SchemaManager.class);
-    Map<TableId, Table> cache = new HashMap<>();
 
     SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
     BigQuerySinkTask testTask = new BigQuerySinkTask(
@@ -861,7 +616,6 @@ public class BigQuerySinkTaskTest {
         schemaRetriever,
         storage,
         schemaManager,
-        cache,
         mockedStorageWriteApiDefaultStream,
         mockedBatchHandler,
         time
@@ -908,14 +662,12 @@ public class BigQuerySinkTaskTest {
 
     SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
     SchemaManager schemaManager = mock(SchemaManager.class);
-    Map<TableId, Table> cache = new HashMap<>();
 
     BigQuerySinkTask testTask = new BigQuerySinkTask(
         bigQuery,
         schemaRetriever,
         storage,
         schemaManager,
-        cache,
         mockedStorageWriteApiDefaultStream,
         mockedBatchHandler,
         time
@@ -958,14 +710,12 @@ public class BigQuerySinkTaskTest {
 
     SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
     SchemaManager schemaManager = mock(SchemaManager.class);
-    Map<TableId, Table> cache = new HashMap<>();
 
     BigQuerySinkTask testTask = new BigQuerySinkTask(
         bigQuery,
         schemaRetriever,
         storage,
         schemaManager,
-        cache,
         mockedStorageWriteApiDefaultStream,
         mockedBatchHandler,
         time
@@ -1009,14 +759,12 @@ public class BigQuerySinkTaskTest {
 
     SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
     SchemaManager schemaManager = mock(SchemaManager.class);
-    Map<TableId, Table> cache = new HashMap<>();
 
     BigQuerySinkTask testTask = new BigQuerySinkTask(
         bigQuery,
         schemaRetriever,
         storage,
         schemaManager,
-        cache,
         mockedStorageWriteApiDefaultStream,
         mockedBatchHandler,
         time
@@ -1057,14 +805,12 @@ public class BigQuerySinkTaskTest {
 
     SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
     SchemaManager schemaManager = mock(SchemaManager.class);
-    Map<TableId, Table> cache = new HashMap<>();
 
     BigQuerySinkTask testTask = new BigQuerySinkTask(
         bigQuery,
         schemaRetriever,
         storage,
         schemaManager,
-        cache,
         mockedStorageWriteApiDefaultStream,
         mockedBatchHandler,
         time
@@ -1101,7 +847,6 @@ public class BigQuerySinkTaskTest {
 
     SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
     SchemaManager schemaManager = mock(SchemaManager.class);
-    Map<TableId, Table> cache = new HashMap<>();
 
     SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
     BigQuerySinkTask testTask = new BigQuerySinkTask(
@@ -1109,7 +854,6 @@ public class BigQuerySinkTaskTest {
         schemaRetriever,
         storage,
         schemaManager,
-        cache,
         mockedStorageWriteApiDefaultStream,
         mockedBatchHandler,
         time
@@ -1125,48 +869,6 @@ public class BigQuerySinkTaskTest {
     assertThrows(
         ConnectException.class,
         () -> testTask.flush(Collections.emptyMap())
-    );
-  }
-
-  @Test
-  public void testTimePartitioningIncompatibleWithDecoratorSyntax() {
-    final String topic = "t1";
-    final String dataset = "d";
-
-    Map<String, String> properties = propertiesFactory.getProperties();
-    properties.put(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG, "true");
-    properties.put(BigQuerySinkConfig.BIGQUERY_MESSAGE_TIME_PARTITIONING_CONFIG, "true");
-    properties.put(BigQuerySinkConfig.TOPICS_CONFIG, topic);
-    properties.put(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG, dataset);
-    initialize(properties);
-
-    StandardTableDefinition mockTableDefinition = mock(StandardTableDefinition.class);
-    when(mockTableDefinition.getTimePartitioning()).thenReturn(TimePartitioning.of(TimePartitioning.Type.HOUR));
-    Table table = mock(Table.class);
-    when(table.getDefinition()).thenReturn(mockTableDefinition);
-    Map<TableId, Table> tableCache = new HashMap<>();
-    tableCache.put(TableId.of(dataset, topic), table);
-    Storage storage = mock(Storage.class);
-    BigQuery bigQuery = mock(BigQuery.class);
-
-    BigQuerySinkTask testTask = new BigQuerySinkTask(
-        bigQuery,
-        null,
-        storage,
-        null,
-        tableCache,
-        mockedStorageWriteApiDefaultStream,
-        mockedBatchHandler,
-        time
-    );
-
-    SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
-    testTask.initialize(sinkTaskContext);
-    testTask.start(properties);
-
-    assertThrows(
-        ConnectException.class,
-        () -> testTask.put(Collections.singleton(spoofSinkRecord(topic, "f1", "v1", TimestampType.CREATE_TIME, 1L)))
     );
   }
 
@@ -1199,7 +901,6 @@ public class BigQuerySinkTaskTest {
 
     SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
     SchemaManager schemaManager = mock(SchemaManager.class);
-    Map<TableId, Table> cache = new HashMap<>();
 
     Storage storage = mock(Storage.class);
     BigQuerySinkTask testTask = new BigQuerySinkTask(
@@ -1207,7 +908,6 @@ public class BigQuerySinkTaskTest {
         schemaRetriever,
         storage,
         schemaManager,
-        cache,
         mockedStorageWriteApiDefaultStream,
         mockedBatchHandler,
         time

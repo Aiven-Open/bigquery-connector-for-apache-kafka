@@ -25,13 +25,9 @@ package com.wepay.kafka.connect.bigquery.write.storage;
 
 import com.google.cloud.bigquery.TableId;
 import com.google.cloud.bigquery.storage.v1.TableName;
-import com.wepay.kafka.connect.bigquery.api.KafkaSchemaRecordType;
-import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
-import com.wepay.kafka.connect.bigquery.config.BigQuerySinkTaskConfig;
-import com.wepay.kafka.connect.bigquery.convert.KafkaDataBuilder;
-import com.wepay.kafka.connect.bigquery.convert.RecordConverter;
-import com.wepay.kafka.connect.bigquery.utils.FieldNameSanitizer;
+import com.wepay.kafka.connect.bigquery.utils.PartitionedTableId;
 import com.wepay.kafka.connect.bigquery.utils.SinkRecordConverter;
+import com.wepay.kafka.connect.bigquery.utils.TableNameUtils;
 import com.wepay.kafka.connect.bigquery.write.batch.TableWriterBuilder;
 import java.util.ArrayList;
 import java.util.List;
@@ -49,7 +45,7 @@ public class StorageWriteApiWriter implements Runnable {
 
   public static final String DEFAULT = "default";
   private final StorageWriteApiBase streamWriter;
-  private final TableName tableName;
+  private final PartitionedTableId table;
   private final List<ConvertedRecord> records;
   private final String streamName;
   Logger logger = LoggerFactory.getLogger(StorageWriteApiWriter.class);
@@ -59,11 +55,26 @@ public class StorageWriteApiWriter implements Runnable {
    * @param streamWriter The stream writer to use - Default, Batch etc
    * @param records      The records to write
    * @param streamName   The stream to use while writing data
+   * @deprecated Use {@link #StorageWriteApiWriter(PartitionedTableId, StorageWriteApiBase, List, String)} instead.
    */
-  public StorageWriteApiWriter(TableName tableName, StorageWriteApiBase streamWriter, List<ConvertedRecord> records, String streamName) {
+  @Deprecated
+  public StorageWriteApiWriter(TableName tableName,
+                               StorageWriteApiBase streamWriter,
+                               List<ConvertedRecord> records,
+                               String streamName) {
+    this(TableNameUtils.partitionedTableId(tableName), streamWriter, records, streamName);
+  }
+
+  /**
+   * @param table        The table to write the records to
+   * @param streamWriter The stream writer to use - Default, Batch etc
+   * @param records      The records to write
+   * @param streamName   The stream to use while writing data
+   */
+  public StorageWriteApiWriter(PartitionedTableId table, StorageWriteApiBase streamWriter, List<ConvertedRecord> records, String streamName) {
     this.streamWriter = streamWriter;
     this.records = records;
-    this.tableName = tableName;
+    this.table = table;
     this.streamName = streamName;
   }
 
@@ -74,22 +85,33 @@ public class StorageWriteApiWriter implements Runnable {
       return;
     }
     logger.debug("Putting {} records into {} stream", records.size(), streamName);
-    streamWriter.initializeAndWriteRecords(tableName, records, streamName);
+    streamWriter.initializeAndWriteRecords(table, records, streamName);
   }
 
   public static class Builder implements TableWriterBuilder {
     private final List<ConvertedRecord> records = new ArrayList<>();
     private final SinkRecordConverter recordConverter;
-    private final TableName tableName;
+    private final PartitionedTableId table;
     private final StorageWriteApiBase streamWriter;
     private final StorageApiBatchModeHandler batchModeHandler;
 
+    /**
+     * @deprecated Use {@link #Builder(StorageWriteApiBase, PartitionedTableId, SinkRecordConverter, StorageApiBatchModeHandler)} instead.
+     */
+    @Deprecated
     public Builder(StorageWriteApiBase streamWriter,
                    TableName tableName,
                    SinkRecordConverter recordConverter,
                    StorageApiBatchModeHandler batchModeHandler) {
+      this(streamWriter, TableNameUtils.partitionedTableId(tableName), recordConverter, batchModeHandler);
+    }
+
+    public Builder(StorageWriteApiBase streamWriter,
+                   PartitionedTableId table,
+                   SinkRecordConverter recordConverter,
+                   StorageApiBatchModeHandler batchModeHandler) {
       this.streamWriter = streamWriter;
-      this.tableName = tableName;
+      this.table = table;
       this.recordConverter = recordConverter;
       this.batchModeHandler = batchModeHandler;
     }
@@ -122,9 +144,10 @@ public class StorageWriteApiWriter implements Runnable {
     public Runnable build() {
       String streamName = DEFAULT;
       if (records.size() > 0 && streamWriter instanceof StorageWriteApiBatchApplicationStream) {
+        TableName tableName = TableNameUtils.tableName(table.getBaseTableId());
         streamName = batchModeHandler.updateOffsetsOnStream(tableName.toString(), records);
       }
-      return new StorageWriteApiWriter(tableName, streamWriter, records, streamName);
+      return new StorageWriteApiWriter(table, streamWriter, records, streamName);
     }
 
     private JSONObject getJsonFromMap(Map<String, Object> map) {

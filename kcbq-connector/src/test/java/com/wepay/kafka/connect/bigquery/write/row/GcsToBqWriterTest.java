@@ -50,6 +50,7 @@ import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageException;
 import com.wepay.kafka.connect.bigquery.BigQuerySinkTask;
+import com.wepay.kafka.connect.bigquery.BigQuerySinkTaskTest;
 import com.wepay.kafka.connect.bigquery.SchemaManager;
 import com.wepay.kafka.connect.bigquery.SinkPropertiesFactory;
 import com.wepay.kafka.connect.bigquery.api.SchemaRetriever;
@@ -113,14 +114,12 @@ public class GcsToBqWriterTest {
 
     SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
     SchemaManager schemaManager = mock(SchemaManager.class);
-    Map<TableId, Table> cache = new HashMap<>();
 
-    BigQuerySinkTask testTask = new BigQuerySinkTask(
+    BigQuerySinkTask testTask = BigQuerySinkTaskTest.createTestTask(
         bigQuery,
         schemaRetriever,
         storage,
         schemaManager,
-        cache,
         mockedStorageWriteApiDefaultStream,
         mockedBatchHandler,
         time
@@ -148,18 +147,16 @@ public class GcsToBqWriterTest {
 
     SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
     SchemaManager schemaManager = mock(SchemaManager.class);
-    Map<TableId, Table> cache = new HashMap<>();
 
     when(storage.create((BlobInfo) anyObject(), (byte[]) anyObject()))
         .thenThrow(new StorageException(500, "internal server error")) // throw first time
         .thenReturn(null); // return second time. (we don't care about the result.)
 
-    BigQuerySinkTask testTask = new BigQuerySinkTask(
+    BigQuerySinkTask testTask = BigQuerySinkTaskTest.createTestTask(
         bigQuery,
         schemaRetriever,
         storage,
         schemaManager,
-        cache,
         mockedStorageWriteApiDefaultStream,
         mockedBatchHandler,
         time
@@ -187,17 +184,15 @@ public class GcsToBqWriterTest {
 
     SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
     SchemaManager schemaManager = mock(SchemaManager.class);
-    Map<TableId, Table> cache = new HashMap<>();
 
     when(storage.create((BlobInfo) anyObject(), (byte[]) anyObject()))
         .thenThrow(new StorageException(500, "internal server error"));
 
-    BigQuerySinkTask testTask = new BigQuerySinkTask(
+    BigQuerySinkTask testTask = BigQuerySinkTaskTest.createTestTask(
         bigQuery,
         schemaRetriever,
         storage,
         schemaManager,
-        cache,
         mockedStorageWriteApiDefaultStream,
         mockedBatchHandler,
         time
