@@ -47,7 +47,7 @@ public class StorageWriteApiRetryHandler {
   private static final int ADDITIONAL_RETRIES_TABLE_CREATE_UPDATE = 30;
   private static final int ADDITIONAL_RETRIES_WAIT_TABLE_CREATE_UPDATE = 30000;
 
-  private final TableName table;
+  private final TableId table;
   private final List<SinkRecord> records;
   private final Random random;
   private final int userConfiguredRetry;
@@ -59,8 +59,22 @@ public class StorageWriteApiRetryHandler {
   private int additionalWait;
   private int currentAttempt;
 
+  /**
+   * @deprecated Use {@link #StorageWriteApiRetryHandler(TableId, List, int, long, Time)} instead.
+   */
+  @Deprecated
   public StorageWriteApiRetryHandler(
-      TableName table,
+          TableName table,
+          List<SinkRecord> records,
+          int retry,
+          long retryWait,
+          Time time
+  ) {
+    this(TableNameUtils.tableId(table), records, retry, retryWait, time);
+  }
+
+  public StorageWriteApiRetryHandler(
+      TableId table,
       List<SinkRecord> records,
       int retry,
       long retryWait,
@@ -95,10 +109,6 @@ public class StorageWriteApiRetryHandler {
     this.additionalWait = ADDITIONAL_RETRIES_WAIT_TABLE_CREATE_UPDATE;
   }
 
-  private TableId tableId() {
-    return TableNameUtils.tableId(table);
-  }
-
   private void waitRandomTime() throws InterruptedException {
     time.sleep(userConfiguredRetryWait + additionalWait + random.nextInt(1000));
   }
@@ -126,7 +136,7 @@ public class StorageWriteApiRetryHandler {
    */
   public void attemptTableOperation(BiConsumer<TableId, List<SinkRecord>> tableOperation) {
     try {
-      tableOperation.accept(tableId(), records);
+      tableOperation.accept(table, records);
       // Table takes time to be available for after creation
       setAdditionalRetriesAndWait();
     } catch (BigQueryException exception) {
@@ -137,7 +147,7 @@ public class StorageWriteApiRetryHandler {
         return;
       }
       throw new BigQueryStorageWriteApiConnectException(
-          "Failed to create table " + tableId(), exception);
+          "Failed to create table " + table, exception);
     }
   }
 

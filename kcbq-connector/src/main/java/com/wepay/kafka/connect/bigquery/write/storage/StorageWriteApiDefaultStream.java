@@ -33,6 +33,8 @@ import com.google.protobuf.Descriptors;
 import com.wepay.kafka.connect.bigquery.ErrantRecordHandler;
 import com.wepay.kafka.connect.bigquery.SchemaManager;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiConnectException;
+import com.wepay.kafka.connect.bigquery.utils.PartitionedTableId;
+import com.wepay.kafka.connect.bigquery.utils.TableNameUtils;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
@@ -100,10 +102,10 @@ public class StorageWriteApiDefaultStream extends StorageWriteApiBase {
    * @return JSONStreamWriter which would be used to write data to bigquery table
    */
   @VisibleForTesting
-  JsonStreamWriter getDefaultStream(TableName table, List<ConvertedRecord> rows) {
-    String tableName = table.toString();
+  JsonStreamWriter getDefaultStream(PartitionedTableId table, List<ConvertedRecord> rows) {
+    String tableName = TableNameUtils.tableName(table.getFullTableId()).toString();
     return tableToStream.computeIfAbsent(tableName, t -> {
-      StorageWriteApiRetryHandler retryHandler = new StorageWriteApiRetryHandler(table, getSinkRecords(rows), retry, retryWait, time);
+      StorageWriteApiRetryHandler retryHandler = new StorageWriteApiRetryHandler(table.getBaseTableId(), getSinkRecords(rows), retry, retryWait, time);
       do {
         try {
           return jsonWriterFactory.create(tableName);
@@ -132,21 +134,29 @@ public class StorageWriteApiDefaultStream extends StorageWriteApiBase {
 
   @Override
   protected StreamWriter streamWriter(
-      TableName tableName,
+      PartitionedTableId table,
       String streamName,
       List<ConvertedRecord> records
   ) {
-    return new DefaultStreamWriter(tableName, records);
+    return new DefaultStreamWriter(table, records);
   }
 
   class DefaultStreamWriter implements StreamWriter {
 
-    private final TableName tableName;
+    private final PartitionedTableId table;
     private final List<ConvertedRecord> inputRows;
     private JsonStreamWriter jsonStreamWriter;
 
+    /**
+     * @deprecated Use {@link #DefaultStreamWriter(PartitionedTableId, List)} instead.
+     */
+    @Deprecated
     public DefaultStreamWriter(TableName tableName, List<ConvertedRecord> inputRows) {
-      this.tableName = tableName;
+      this(TableNameUtils.partitionedTableId(tableName), inputRows);
+    }
+
+    public DefaultStreamWriter(PartitionedTableId table, List<ConvertedRecord> inputRows) {
+      this.table = table;
       this.inputRows = inputRows;
     }
 
@@ -155,7 +165,7 @@ public class StorageWriteApiDefaultStream extends StorageWriteApiBase {
         JSONArray rows
     ) throws Descriptors.DescriptorValidationException, IOException {
       if (jsonStreamWriter == null) {
-        jsonStreamWriter = getDefaultStream(tableName, inputRows);
+        jsonStreamWriter = getDefaultStream(table, inputRows);
       }
       return jsonStreamWriter.append(rows);
     }
@@ -167,7 +177,7 @@ public class StorageWriteApiDefaultStream extends StorageWriteApiBase {
 
     @Override
     public void refresh() {
-      closeAndDelete(tableName.toString());
+      closeAndDelete(TableNameUtils.tableName(table.getFullTableId()).toString());
       jsonStreamWriter = null;
     }
 

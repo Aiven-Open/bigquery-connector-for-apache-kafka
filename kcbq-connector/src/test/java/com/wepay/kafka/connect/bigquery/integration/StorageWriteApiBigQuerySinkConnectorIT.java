@@ -32,16 +32,19 @@ import static org.apache.kafka.connect.runtime.ConnectorConfig.KEY_CONVERTER_CLA
 import static org.apache.kafka.connect.runtime.ConnectorConfig.TASKS_MAX_CONFIG;
 import static org.apache.kafka.connect.runtime.ConnectorConfig.VALUE_CONVERTER_CLASS_CONFIG;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.BigQueryException;
 import com.google.cloud.bigquery.Field;
 import com.google.cloud.bigquery.FieldList;
 import com.google.cloud.bigquery.StandardSQLTypeName;
+import com.google.cloud.bigquery.TimePartitioning;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.integration.utils.BigQueryTestUtils;
 import com.wepay.kafka.connect.bigquery.integration.utils.SchemaRegistryTestUtils;
 import com.wepay.kafka.connect.bigquery.integration.utils.TableClearer;
+import com.wepay.kafka.connect.bigquery.integration.utils.TimePartitioningTestUtils;
 import com.wepay.kafka.connect.bigquery.retrieve.IdentitySchemaRetriever;
 import io.confluent.connect.avro.AvroConverter;
 import io.debezium.time.Date;
@@ -60,6 +63,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongFunction;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
+import java.util.stream.Stream;
+
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaAndValue;
 import org.apache.kafka.connect.data.SchemaBuilder;
@@ -77,6 +82,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -167,10 +175,13 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
     stopConnect();
   }
 
-  @Test
-  public void testBaseJson() throws InterruptedException {
+  @ParameterizedTest
+  @MethodSource("testArguments")
+  public void testBaseJson(String testCase, boolean usePartitionDecorator) throws InterruptedException {
+    assumeTrue(!(isBatchMode() && usePartitionDecorator), "Skipping partition decorator test in batch mode");
+
     // create topic in Kafka
-    final String topic = suffixedTableOrTopic("storage-api-append-json");
+    final String topic = suffixedTableOrTopic("storage-api-append-json" + testCase);
     final String table = sanitizedTable(topic);
 
     // create topic
@@ -189,7 +200,10 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
     props.put(KEY_CONVERTER_CLASS_CONFIG + "." + JsonConverterConfig.SCHEMAS_ENABLE_CONFIG, "false");
     props.put(VALUE_CONVERTER_CLASS_CONFIG, JsonConverter.class.getName());
     props.put(VALUE_CONVERTER_CLASS_CONFIG + "." + JsonConverterConfig.SCHEMAS_ENABLE_CONFIG, "false");
+    props.put(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG, "false");
     props.remove(BigQuerySinkConfig.KAFKA_KEY_FIELD_NAME_CONFIG);
+    props.put(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG, String.valueOf(usePartitionDecorator));
+
     // start a sink connector
     connect.configureConnector(CONNECTOR_NAME, props);
 
@@ -197,7 +211,7 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
     waitForConnectorToStart(CONNECTOR_NAME, TASKS_MAX);
 
     // Instantiate the converters we'll use to send records to the connector
-    initialiseJsonConverters();
+    initialiseJsonConverters(false);
 
     //produce records
     produceJsonRecords(topic);
@@ -214,6 +228,13 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
     }
 
     assertEquals(expectedRows(), testRows.stream().map(row -> row.get(0)).collect(Collectors.toSet()));
+  }
+
+  public static Stream<Arguments> testArguments() {
+    return Stream.of(
+            Arguments.of("with-partition-decorator", true),
+            Arguments.of("without-partition-decorator", false)
+    );
   }
 
   @Test
@@ -342,7 +363,7 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
     waitForConnectorToStart(CONNECTOR_NAME, TASKS_MAX);
 
     // Instantiate the converters we'll use to send records to the connector
-    initialiseJsonConverters();
+    initialiseJsonConverters(false);
 
     //produce records
     produceJsonRecords(topic);
@@ -359,6 +380,39 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
     }
 
     assertEquals(expectedRows(), testRows.stream().map(row -> row.get(0)).collect(Collectors.toSet()));
+  }
+
+  @Test
+  public void testPartitioningByMessageTimestamp() throws InterruptedException {
+    assumeTrue(!isBatchMode(), "Skipping test in batch mode");
+
+    final String topic = suffixedTableOrTopic("storage-api-message-timestamp-partitioning");
+    final String table = sanitizedTable(topic);
+    connect.kafka().createTopic(topic, TASKS_MAX);
+
+    TableClearer.clearTables(bigQuery, dataset(), table);
+
+    Map<String, String> props = configs(topic);
+    props.put(BigQuerySinkConfig.BIGQUERY_MESSAGE_TIME_PARTITIONING_CONFIG, "true");
+    props.put(KEY_CONVERTER_CLASS_CONFIG, JsonConverter.class.getName());
+    props.put(VALUE_CONVERTER_CLASS_CONFIG, JsonConverter.class.getName());
+    props.remove(BigQuerySinkConfig.KAFKA_KEY_FIELD_NAME_CONFIG, KAFKA_FIELD_NAME);
+    connect.configureConnector(CONNECTOR_NAME, props);
+
+    waitForConnectorToStart(CONNECTOR_NAME, TASKS_MAX);
+
+    long testStartTime = System.currentTimeMillis();
+
+    initialiseJsonConverters(true);
+
+    TimePartitioningTestUtils.produceRecordsWithTimestamps(connect, topic, NUM_RECORDS_PRODUCED, testStartTime, TimePartitioning.Type.DAY, valueConverter);
+
+    waitForCommittedRecords(CONNECTOR_NAME, topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
+
+    for (int i = -1; i < 2; i++) {
+      long partitionTime = TimePartitioningTestUtils.computeTimestamp(TimePartitioning.Type.DAY, testStartTime, i);
+      TimePartitioningTestUtils.assertPartitionContainsData(bigQuery, dataset(), table, TimePartitioning.Type.DAY, partitionTime);
+    }
   }
 
   @Test
@@ -757,14 +811,14 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
     }
   }
 
-  private void initialiseJsonConverters() {
-    keyConverter = converter(true);
-    valueConverter = converter(false);
+  private void initialiseJsonConverters(boolean schemasEnable) {
+    keyConverter = converter(true, schemasEnable);
+    valueConverter = converter(false, schemasEnable);
   }
 
-  private Converter converter(boolean isKey) {
+  private Converter converter(boolean isKey, boolean schemasEnable) {
     Map<String, Object> props = new HashMap<>();
-    props.put(JsonConverterConfig.SCHEMAS_ENABLE_CONFIG, false);
+    props.put(JsonConverterConfig.SCHEMAS_ENABLE_CONFIG, schemasEnable);
     Converter result = new JsonConverter();
     result.configure(props, isKey);
     return result;
@@ -872,4 +926,7 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
     return suffixedTableOrTopic(baseName);
   }
 
+  protected boolean isBatchMode() {
+    return false;
+  }
 }
