@@ -36,19 +36,17 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import com.google.cloud.bigquery.BigQuery;
-import com.google.cloud.bigquery.Table;
-import com.google.cloud.bigquery.TableId;
 import com.google.cloud.storage.Storage;
 import com.wepay.kafka.connect.bigquery.api.SchemaRetriever;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiConnectException;
 import com.wepay.kafka.connect.bigquery.utils.MockTime;
+import com.wepay.kafka.connect.bigquery.utils.PartitionedTableId;
 import com.wepay.kafka.connect.bigquery.utils.Time;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageApiBatchModeHandler;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiDefaultStream;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
@@ -75,11 +73,10 @@ public class BigQueryStorageApiSinkTaskTest {
   SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
   SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
   SchemaManager schemaManager = mock(SchemaManager.class);
-  Map<TableId, Table> cache = new HashMap<>();
   Time time = new MockTime();
   StorageApiBatchModeHandler storageApiBatchHandler = mock(StorageApiBatchModeHandler.class);
   BigQuerySinkTask testTask = new BigQuerySinkTask(
-      bigQuery, schemaRetriever, storage, schemaManager, cache, mockedStorageWriteApiDefaultStream, storageApiBatchHandler, time);
+      bigQuery, schemaRetriever, storage, schemaManager, mockedStorageWriteApiDefaultStream, storageApiBatchHandler, time);
 
   @BeforeEach
   public void setUp() {
@@ -91,7 +88,8 @@ public class BigQueryStorageApiSinkTaskTest {
     properties.put(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG, "scratch");
     spoofedRecordOffset.set(0);
 
-    doNothing().when(mockedStorageWriteApiDefaultStream).initializeAndWriteRecords(any(), any(), eq(DEFAULT));
+    doNothing().when(mockedStorageWriteApiDefaultStream)
+            .initializeAndWriteRecords(any(PartitionedTableId.class), any(), eq(DEFAULT));
     doNothing().when(mockedStorageWriteApiDefaultStream).shutdown();
 
     testTask.initialize(sinkTaskContext);
@@ -103,14 +101,16 @@ public class BigQueryStorageApiSinkTaskTest {
     testTask.put(Collections.singletonList(spoofSinkRecord()));
     testTask.flush(Collections.emptyMap());
 
-    verify(mockedStorageWriteApiDefaultStream, times(1)).initializeAndWriteRecords(any(), any(), eq(DEFAULT));
+    verify(mockedStorageWriteApiDefaultStream, times(1))
+            .initializeAndWriteRecords(any(PartitionedTableId.class), any(), eq(DEFAULT));
   }
 
   @Test
   public void testSimplePutException() {
     BigQueryStorageWriteApiConnectException exception = new BigQueryStorageWriteApiConnectException("error 12345");
 
-    doThrow(exception).when(mockedStorageWriteApiDefaultStream).initializeAndWriteRecords(any(), any(), eq(DEFAULT));
+    doThrow(exception).when(mockedStorageWriteApiDefaultStream)
+            .initializeAndWriteRecords(any(PartitionedTableId.class), any(), eq(DEFAULT));
 
     testTask.put(Collections.singletonList(spoofSinkRecord()));
     BigQueryConnectException e = assertThrows(

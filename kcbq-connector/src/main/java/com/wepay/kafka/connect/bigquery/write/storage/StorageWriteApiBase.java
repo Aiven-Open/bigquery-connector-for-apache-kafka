@@ -38,6 +38,8 @@ import com.wepay.kafka.connect.bigquery.SchemaManager;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiConnectException;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiErrorResponses;
+import com.wepay.kafka.connect.bigquery.utils.PartitionedTableId;
+import com.wepay.kafka.connect.bigquery.utils.TableNameUtils;
 import com.wepay.kafka.connect.bigquery.utils.Time;
 import com.wepay.kafka.connect.bigquery.write.RecordBatches;
 import java.io.IOException;
@@ -62,6 +64,7 @@ public abstract class StorageWriteApiBase {
   private static final Logger logger = LoggerFactory.getLogger(StorageWriteApiBase.class);
   private static final double RETRY_DELAY_MULTIPLIER = 1.1;
   private static final int MAX_RETRY_DELAY_MINUTES = 1;
+  public static final String TRACE_ID_FORMAT = "AivenKafkaConnector:%s";
   protected final JsonStreamWriterFactory jsonWriterFactory;
   protected final int retry;
   protected final long retryWait;
@@ -150,7 +153,7 @@ public abstract class StorageWriteApiBase {
   public abstract void preShutdown();
 
   protected abstract StreamWriter streamWriter(
-      TableName tableName,
+      PartitionedTableId table,
       String streamName,
       List<ConvertedRecord> records
   );
@@ -171,12 +174,29 @@ public abstract class StorageWriteApiBase {
    *                   Converted JSONObjects would be sent to api.
    *                   Pre-conversion sink records are required for DLQ routing
    * @param streamName The stream to use to write table to table.
+   *
+   * @deprecated Use {@link #initializeAndWriteRecords(PartitionedTableId, List, String)} instead.
    */
+  @Deprecated
   public void initializeAndWriteRecords(TableName tableName, List<ConvertedRecord> rows, String streamName) {
-    StorageWriteApiRetryHandler retryHandler = new StorageWriteApiRetryHandler(tableName, getSinkRecords(rows), retry, retryWait, time);
+    initializeAndWriteRecords(TableNameUtils.partitionedTableId(tableName), rows, streamName);
+  }
+
+  /**
+   * Handles required initialization steps and goes to append records to table
+   *
+   * @param table      The table to write data to
+   * @param rows       List of pre- and post-conversion records.
+   *                   Converted JSONObjects would be sent to api.
+   *                   Pre-conversion sink records are required for DLQ routing
+   * @param streamName The stream to use to write table to table.
+   */
+  public void initializeAndWriteRecords(PartitionedTableId table, List<ConvertedRecord> rows, String streamName) {
+    TableName tableName = TableNameUtils.tableName(table.getFullTableId());
+    StorageWriteApiRetryHandler retryHandler = new StorageWriteApiRetryHandler(table.getBaseTableId(), getSinkRecords(rows), retry, retryWait, time);
     logger.debug("Sending {} records to write Api Application stream {}", rows.size(), streamName);
     RecordBatches<ConvertedRecord> batches = new RecordBatches<>(rows);
-    StreamWriter writer = streamWriter(tableName, streamName, rows);
+    StreamWriter writer = streamWriter(table, streamName, rows);
     while (!batches.completed()) {
       List<ConvertedRecord> batch = batches.currentBatch();
 
@@ -194,7 +214,7 @@ public abstract class StorageWriteApiBase {
             Map<Integer, String> rowErrorMapping = Collections.singletonMap(
                 0, e.getMessage()
             );
-            batch = maybeHandleDlqRoutingAndFilterRecords(batch, rowErrorMapping, tableName.getTable());
+            batch = maybeHandleDlqRoutingAndFilterRecords(batch, rowErrorMapping, table.getBaseTableId().getTable());
             if (!batch.isEmpty()) {
               retryHandler.maybeRetry("write to table " + tableName);
             }
@@ -205,7 +225,7 @@ public abstract class StorageWriteApiBase {
             logger.debug("Reducing batch size for table {} from {} to {}", tableName, previousSize, batch.size());
           }
         } catch (MalformedRowsException e) {
-          batch = maybeHandleDlqRoutingAndFilterRecords(batch, e.getRowErrorMapping(), tableName.getTable());
+          batch = maybeHandleDlqRoutingAndFilterRecords(batch, e.getRowErrorMapping(), table.getBaseTableId().getTable());
           if (!batch.isEmpty()) {
             // TODO: Does this actually make sense? Should we count this as part of our retry logic?
             //       As long as we're guaranteed that the number of rows in the batch is decreasing, it
@@ -341,6 +361,10 @@ public abstract class StorageWriteApiBase {
     return this.writeClient;
   }
 
+  private String generateTraceId() {
+    return String.format(TRACE_ID_FORMAT, "default");
+  }
+
   /**
    * Returns a {@link JsonStreamWriterFactory} for creating configured {@link JsonStreamWriter} instances
    *
@@ -357,6 +381,7 @@ public abstract class StorageWriteApiBase {
       JsonStreamWriter.Builder builder = JsonStreamWriter.newBuilder(streamOrTableName, writeClient)
               .setRetrySettings(retrySettings)
               .setIgnoreUnknownFields(ignoreUnknownFields);
+              .setTraceId(generateTraceId());
       updateJsonStreamWriterBuilder(builder);
       return builder.build();
     };
