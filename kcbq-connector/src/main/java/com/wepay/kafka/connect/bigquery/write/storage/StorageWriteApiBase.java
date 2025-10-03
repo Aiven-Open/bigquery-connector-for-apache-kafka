@@ -380,7 +380,7 @@ public abstract class StorageWriteApiBase {
     return streamOrTableName -> {
       JsonStreamWriter.Builder builder = JsonStreamWriter.newBuilder(streamOrTableName, writeClient)
               .setRetrySettings(retrySettings)
-              .setIgnoreUnknownFields(ignoreUnknownFields);
+              .setIgnoreUnknownFields(ignoreUnknownFields)
               .setTraceId(generateTraceId());
       updateJsonStreamWriterBuilder(builder);
       return builder.build();
