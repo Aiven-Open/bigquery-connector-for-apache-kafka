@@ -205,7 +205,8 @@ public class BigQuerySinkConfig extends AbstractConfig {
   public static final String MAX_RETRIES_CONFIG = "max.retries";
   public static final String ENABLE_RETRIES_CONFIG = "enableRetries";
   public static final Boolean ENABLE_RETRIES_DEFAULT = true;
-
+  public static final String IGNORE_UNKNOWN_FIELDS_CONFIG = "ignoreUnknownFields";
+  public static final Boolean IGNORE_UNKNOWN_FIELDS_DEFAULT = false;
   private static final ConfigDef.Type TOPICS_TYPE = ConfigDef.Type.LIST;
   private static final ConfigDef.Importance TOPICS_IMPORTANCE = ConfigDef.Importance.HIGH;
   private static final String TOPICS_GROUP = "Common";
@@ -565,7 +566,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
   private static final ConfigDef.Type CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_TYPE = ConfigDef.Type.BOOLEAN;
   private static final Boolean CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_DEFAULT = false;
   private static final ConfigDef.Importance CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_IMPORTANCE =
-      ConfigDef.Importance.MEDIUM;   
+      ConfigDef.Importance.MEDIUM;
   private static final ConfigDef.Type TIME_PARTITIONING_TYPE_TYPE = ConfigDef.Type.STRING;
   private static final ConfigDef.Importance TIME_PARTITIONING_TYPE_IMPORTANCE = ConfigDef.Importance.LOW;
   private static final List<String> TIME_PARTITIONING_TYPES = Stream.concat(
@@ -605,6 +606,11 @@ public class BigQuerySinkConfig extends AbstractConfig {
   private static final String MAX_RETRIES_DOC = "The maximum number of times to retry on retriable errors before failing the task.";
   private static final ConfigDef.Type ENABLE_RETRIES_TYPE = ConfigDef.Type.BOOLEAN;
   private static final ConfigDef.Importance ENABLE_RETRIES_IMPORTANCE = ConfigDef.Importance.MEDIUM;
+  private static final ConfigDef.Type IGNORE_UNKNOWN_FIELDS_TYPE = ConfigDef.Type.BOOLEAN;
+  private static final ConfigDef.Importance IGNORE_UNKNOWN_FIELDS_IMPORTANCE = ConfigDef.Importance.LOW;
+  private static final String IGNORE_UNKNOWN_FIELDS_DOC = "Whether fields in a record that are not present in the "
+          + "BigQuery table schema should be ignored during ingestion. When enabled, unknown fields will be silently "
+          + "dropped instead of causing the record to be rejected.\n";
   private static final List<MultiPropertyValidator<BigQuerySinkConfig>> MULTI_PROPERTY_VALIDATIONS = new ArrayList<>();
 
   static {
@@ -986,6 +992,14 @@ public class BigQuerySinkConfig extends AbstractConfig {
                     MAX_RETRIES_VALIDATOR,
                     MAX_RETRIES_IMPORTANCE,
                     MAX_RETRIES_DOC
+            ).define(
+                    ExtendedConfigKey.builder(IGNORE_UNKNOWN_FIELDS_CONFIG)
+                            .type(IGNORE_UNKNOWN_FIELDS_TYPE)
+                            .defaultValue(IGNORE_UNKNOWN_FIELDS_DEFAULT)
+                            .importance(IGNORE_UNKNOWN_FIELDS_IMPORTANCE)
+                            .documentation(IGNORE_UNKNOWN_FIELDS_DOC)
+                            .since("2.10.0")
+                            .build()
             ).defineInternal(
                     ENABLE_RETRIES_CONFIG,
                     ENABLE_RETRIES_TYPE,
@@ -1105,7 +1119,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
   public boolean getShouldConvertDebeziumTimestampToInteger() {
     return getBoolean(CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_CONFIG);
   }
-  
+
   /**
    * Return a new instance of the configured Schema Converter.
    *
@@ -1209,6 +1223,10 @@ public class BigQuerySinkConfig extends AbstractConfig {
 
   public boolean isUpsertDeleteEnabled() {
     return getBoolean(UPSERT_ENABLED_CONFIG) || getBoolean(DELETE_ENABLED_CONFIG);
+  }
+
+  public boolean isIgnoreUnknownFields() {
+    return getBoolean(BigQuerySinkConfig.IGNORE_UNKNOWN_FIELDS_CONFIG);
   }
 
   public Optional<TimePartitioning.Type> getTimePartitioningType() {

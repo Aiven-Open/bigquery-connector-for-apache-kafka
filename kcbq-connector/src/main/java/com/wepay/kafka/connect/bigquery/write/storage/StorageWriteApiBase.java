@@ -35,6 +35,7 @@ import com.google.cloud.bigquery.storage.v1.TableName;
 import com.google.common.annotations.VisibleForTesting;
 import com.wepay.kafka.connect.bigquery.ErrantRecordHandler;
 import com.wepay.kafka.connect.bigquery.SchemaManager;
+import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiConnectException;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiErrorResponses;
 import com.wepay.kafka.connect.bigquery.utils.PartitionedTableId;
@@ -68,6 +69,7 @@ public abstract class StorageWriteApiBase {
   protected final int retry;
   protected final long retryWait;
   private final boolean autoCreateTables;
+  private final boolean ignoreUnknownFields;
   private final BigQueryWriteSettings writeSettings;
   private final boolean attemptSchemaUpdate;
   protected SchemaManager schemaManager;
@@ -82,7 +84,47 @@ public abstract class StorageWriteApiBase {
    * @param writeSettings       Write Settings for stream which carry authentication and other header information
    * @param autoCreateTables    boolean flag set if table should be created automatically
    * @param errantRecordHandler Used to handle errant records
+   * @param config              Connector configurations
    */
+  protected StorageWriteApiBase(int retry,
+                                long retryWait,
+                                BigQueryWriteSettings writeSettings,
+                                boolean autoCreateTables,
+                                ErrantRecordHandler errantRecordHandler,
+                                SchemaManager schemaManager,
+                                boolean attemptSchemaUpdate,
+                                BigQuerySinkConfig config) {
+    this.retry = retry;
+    this.retryWait = retryWait;
+    this.autoCreateTables = autoCreateTables;
+    this.writeSettings = writeSettings;
+    this.errantRecordHandler = errantRecordHandler;
+    this.schemaManager = schemaManager;
+    this.attemptSchemaUpdate = attemptSchemaUpdate;
+    this.ignoreUnknownFields = config.isIgnoreUnknownFields();
+    try {
+      this.writeClient = getWriteClient();
+    } catch (IOException e) {
+      logger.error("Failed to create Big Query Storage Write API write client due to {}", e.getMessage());
+      throw new BigQueryStorageWriteApiConnectException("Failed to create Big Query Storage Write API write client", e);
+    }
+    this.jsonWriterFactory = getJsonWriterFactory();
+    this.time = Time.SYSTEM;
+  }
+
+  /**
+   * @param retry               How many retries to make in the event of a retriable error.
+   * @param retryWait           How long to wait in between retries.
+   * @param writeSettings       Write Settings for stream which carry authentication and other header information
+   * @param autoCreateTables    boolean flag set if table should be created automatically
+   * @param errantRecordHandler Used to handle errant records
+   *
+   * @deprecated This constructor does not support does not support configuration of additional write settings.
+   * Use {@link #StorageWriteApiBase(int retry, long retryWait, BigQueryWriteSettings writeSettings,
+   * boolean autoCreateTables, ErrantRecordHandler errantRecordHandler, SchemaManager schemaManager,
+   * boolean attemptSchemaUpdate, BigQuerySinkConfig config)} instead.
+   */
+  @Deprecated
   protected StorageWriteApiBase(int retry,
                                 long retryWait,
                                 BigQueryWriteSettings writeSettings,
@@ -97,6 +139,7 @@ public abstract class StorageWriteApiBase {
     this.errantRecordHandler = errantRecordHandler;
     this.schemaManager = schemaManager;
     this.attemptSchemaUpdate = attemptSchemaUpdate;
+    this.ignoreUnknownFields = false;
     try {
       this.writeClient = getWriteClient();
     } catch (IOException e) {
@@ -337,6 +380,7 @@ public abstract class StorageWriteApiBase {
     return streamOrTableName -> {
       JsonStreamWriter.Builder builder = JsonStreamWriter.newBuilder(streamOrTableName, writeClient)
               .setRetrySettings(retrySettings)
+              .setIgnoreUnknownFields(ignoreUnknownFields)
               .setTraceId(generateTraceId());
       updateJsonStreamWriterBuilder(builder);
       return builder.build();

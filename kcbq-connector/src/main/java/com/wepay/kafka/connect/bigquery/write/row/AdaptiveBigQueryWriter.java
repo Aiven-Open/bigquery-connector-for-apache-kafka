@@ -31,6 +31,7 @@ import com.google.cloud.bigquery.InsertAllResponse;
 import com.google.cloud.bigquery.TableId;
 import com.wepay.kafka.connect.bigquery.ErrantRecordHandler;
 import com.wepay.kafka.connect.bigquery.SchemaManager;
+import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryErrorResponses;
 import com.wepay.kafka.connect.bigquery.exception.ExpectedInterruptException;
@@ -68,7 +69,36 @@ public class AdaptiveBigQueryWriter extends BigQueryWriter {
    * @param autoCreateTables    Whether tables should be automatically created
    * @param errantRecordHandler Used to handle errant records
    * @param time                used to wait during backoff periods
+   * @param config              Connector configurations
    */
+  public AdaptiveBigQueryWriter(BigQuery bigQuery,
+                                SchemaManager schemaManager,
+                                int retry,
+                                long retryWait,
+                                boolean autoCreateTables,
+                                ErrantRecordHandler errantRecordHandler,
+                                Time time,
+                                BigQuerySinkConfig config) {
+    super(retry, retryWait, errantRecordHandler, time, config);
+    this.bigQuery = bigQuery;
+    this.schemaManager = schemaManager;
+    this.autoCreateTables = autoCreateTables;
+  }
+
+  /**
+   * @param bigQuery            Used to send write requests to BigQuery.
+   * @param schemaManager       Used to update BigQuery tables.
+   * @param retry               How many retries to make in the event of a 500/503 error.
+   * @param retryWait           How long to wait in between retries.
+   * @param autoCreateTables    Whether tables should be automatically created
+   * @param errantRecordHandler Used to handle errant records
+   * @param time                used to wait during backoff periods
+   *
+   * @deprecated This constructor does not support configuration of additional write settings.
+   * Use {@link #AdaptiveBigQueryWriter(BigQuery bigQuery, SchemaManager schemaManager, int retry, long retryWait,
+   * boolean autoCreateTables, ErrantRecordHandler errantRecordHandler, Time time, BigQuerySinkConfig config)}.
+   */
+  @Deprecated
   public AdaptiveBigQueryWriter(BigQuery bigQuery,
                                 SchemaManager schemaManager,
                                 int retry,

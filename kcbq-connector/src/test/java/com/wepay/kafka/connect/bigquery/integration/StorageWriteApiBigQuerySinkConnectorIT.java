@@ -329,6 +329,101 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
   }
 
   @Test
+  public void testRecordWithUnknownFieldFails() throws InterruptedException {
+    // create topic in Kafka
+    final String topic = suffixedTableOrTopic("storage-api-json-extra-field-fails");
+    final String table = sanitizedTable(topic);
+
+    // create topic
+    connect.kafka().createTopic(topic, TASKS_MAX);
+
+    // clean table
+    TableClearer.clearTables(bigQuery, dataset(), table);
+
+    // create the table with an incomplete schema
+    createTable(table, true);
+
+    // setup props for the sink connector
+    Map<String, String> props = configs(topic);
+
+    // use the JSON converter with schemas enabled
+    props.put(KEY_CONVERTER_CLASS_CONFIG, JsonConverter.class.getName());
+    props.put(KEY_CONVERTER_CLASS_CONFIG + "." + JsonConverterConfig.SCHEMAS_ENABLE_CONFIG, "false");
+    props.put(VALUE_CONVERTER_CLASS_CONFIG, JsonConverter.class.getName());
+    props.put(VALUE_CONVERTER_CLASS_CONFIG + "." + JsonConverterConfig.SCHEMAS_ENABLE_CONFIG, "false");
+    props.remove(BigQuerySinkConfig.KAFKA_KEY_FIELD_NAME_CONFIG);
+
+    // start a sink connector
+    connect.configureConnector(CONNECTOR_NAME, props);
+
+    // wait for tasks to spin up
+    waitForConnectorToStart(CONNECTOR_NAME, TASKS_MAX);
+
+    // Instantiate the converters we'll use to send records to the connector
+    initialiseJsonConverters(false);
+
+    //produce records
+    produceJsonRecords(topic);
+    connect.assertions().assertConnectorIsRunningAndTasksHaveFailed(
+            CONNECTOR_NAME,
+            TASKS_MAX,
+            "Tasks should have failed when writing record with fields not present"
+                    + "in target table." );
+  }
+
+  @Test
+  public void testRecordWithUnknownFieldWhenIgnoreEnabled() throws InterruptedException {
+    // create topic in Kafka
+    final String topic = suffixedTableOrTopic("storage-api-json-extra-field");
+    final String table = sanitizedTable(topic);
+
+    // create topic
+    connect.kafka().createTopic(topic, TASKS_MAX);
+
+    // clean table
+    TableClearer.clearTables(bigQuery, dataset(), table);
+
+    // create the table with the incomplete schema
+    createTable(table, true);
+
+    // setup props for the sink connector
+    Map<String, String> props = configs(topic);
+
+    // use the JSON converter with schemas enabled
+    props.put(KEY_CONVERTER_CLASS_CONFIG, JsonConverter.class.getName());
+    props.put(KEY_CONVERTER_CLASS_CONFIG + "." + JsonConverterConfig.SCHEMAS_ENABLE_CONFIG, "false");
+    props.put(VALUE_CONVERTER_CLASS_CONFIG, JsonConverter.class.getName());
+    props.put(VALUE_CONVERTER_CLASS_CONFIG + "." + JsonConverterConfig.SCHEMAS_ENABLE_CONFIG, "false");
+    props.remove(BigQuerySinkConfig.KAFKA_KEY_FIELD_NAME_CONFIG);
+
+    props.put(BigQuerySinkConfig.IGNORE_UNKNOWN_FIELDS_CONFIG, "true");
+
+    // start a sink connector
+    connect.configureConnector(CONNECTOR_NAME, props);
+
+    // wait for tasks to spin up
+    waitForConnectorToStart(CONNECTOR_NAME, TASKS_MAX);
+
+    // Instantiate the converters we'll use to send records to the connector
+    initialiseJsonConverters(false);
+
+    //produce records
+    produceJsonRecords(topic);
+
+    // wait for tasks to write to BigQuery and commit offsets for their records
+    waitForCommittedRecords(CONNECTOR_NAME, topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
+
+    List<List<Object>> testRows;
+    try {
+      testRows = readAllRows(bigQuery, table, "f1");
+    } catch (InterruptedException e) {
+      throw new RuntimeException(e);
+    }
+
+    assertEquals(expectedRows(), testRows.stream().map(row -> row.get(0)).collect(Collectors.toSet()));
+  }
+
+  @Test
   public void testTopicsRegex() throws InterruptedException {
     // create topic in Kafka
     final String topic = suffixedTableOrTopic("storage-api-append-json-topics-regex");

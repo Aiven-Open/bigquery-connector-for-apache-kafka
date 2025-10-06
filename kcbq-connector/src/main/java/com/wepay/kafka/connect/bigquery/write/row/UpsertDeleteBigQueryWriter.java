@@ -28,6 +28,7 @@ import com.google.cloud.bigquery.BigQueryException;
 import com.google.cloud.bigquery.TableId;
 import com.wepay.kafka.connect.bigquery.ErrantRecordHandler;
 import com.wepay.kafka.connect.bigquery.SchemaManager;
+import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
 import com.wepay.kafka.connect.bigquery.utils.PartitionedTableId;
 import com.wepay.kafka.connect.bigquery.utils.Time;
@@ -53,7 +54,47 @@ public class UpsertDeleteBigQueryWriter extends AdaptiveBigQueryWriter {
    *                                        table
    * @param errantRecordHandler             Used to handle errant records
    * @param time                            used to wait during backoff periods
+   * @param config                          Connector configurations
    */
+  public UpsertDeleteBigQueryWriter(BigQuery bigQuery,
+                                    SchemaManager schemaManager,
+                                    int retry,
+                                    long retryWait,
+                                    boolean autoCreateTables,
+                                    Map<TableId, TableId> intermediateToDestinationTables,
+                                    ErrantRecordHandler errantRecordHandler,
+                                    Time time,
+                                    BigQuerySinkConfig config) {
+    // Hardcode autoCreateTables to true in the superclass so that intermediate tables will be
+    // automatically created
+    // The super class will handle all of the logic for writing to, creating, and updating
+    // intermediate tables; this class will handle logic for creating/updating the destination table
+    super(bigQuery, schemaManager.forIntermediateTables(), retry, retryWait, true,
+            errantRecordHandler, time, config);
+    this.schemaManager = schemaManager;
+    this.autoCreateTables = autoCreateTables;
+    this.intermediateToDestinationTables = intermediateToDestinationTables;
+  }
+
+  /**
+   * @param bigQuery                        Used to send write requests to BigQuery.
+   * @param schemaManager                   Used to update BigQuery tables.
+   * @param retry                           How many retries to make in the event of a 500/503 error.
+   * @param retryWait                       How long to wait in between retries.
+   * @param autoCreateTables                Whether destination tables should be automatically created
+   * @param intermediateToDestinationTables A mapping used to determine the destination table for
+   *                                        given intermediate tables; used for create/update
+   *                                        operations in order to propagate them to the destination
+   *                                        table
+   * @param errantRecordHandler             Used to handle errant records
+   * @param time                            used to wait during backoff periods
+   *
+   * @deprecated This constructor does not support configuration of additional write settings.
+   * Use {@link #UpsertDeleteBigQueryWriter(BigQuery bigQuery, SchemaManager schemaManager, int retry,
+   * long retryWait, boolean autoCreateTables, Map intermediateToDestinationTables,
+   * ErrantRecordHandler errantRecordHandler, Time time, BigQuerySinkConfig config)} instead.
+   */
+  @Deprecated
   public UpsertDeleteBigQueryWriter(BigQuery bigQuery,
                                     SchemaManager schemaManager,
                                     int retry,
@@ -66,7 +107,8 @@ public class UpsertDeleteBigQueryWriter extends AdaptiveBigQueryWriter {
     // automatically created
     // The super class will handle all of the logic for writing to, creating, and updating
     // intermediate tables; this class will handle logic for creating/updating the destination table
-    super(bigQuery, schemaManager.forIntermediateTables(), retry, retryWait, true, errantRecordHandler, time);
+    super(bigQuery, schemaManager.forIntermediateTables(), retry, retryWait, true,
+            errantRecordHandler, time);
     this.schemaManager = schemaManager;
     this.autoCreateTables = autoCreateTables;
     this.intermediateToDestinationTables = intermediateToDestinationTables;

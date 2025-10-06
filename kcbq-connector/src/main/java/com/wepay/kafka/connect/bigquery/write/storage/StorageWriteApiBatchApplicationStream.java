@@ -31,6 +31,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.protobuf.Descriptors;
 import com.wepay.kafka.connect.bigquery.ErrantRecordHandler;
 import com.wepay.kafka.connect.bigquery.SchemaManager;
+import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiConnectException;
 import com.wepay.kafka.connect.bigquery.utils.PartitionedTableId;
 import com.wepay.kafka.connect.bigquery.utils.TableNameUtils;
@@ -88,7 +89,8 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiBase {
       boolean autoCreateTables,
       ErrantRecordHandler errantRecordHandler,
       SchemaManager schemaManager,
-      boolean attemptSchemaUpdate) {
+      boolean attemptSchemaUpdate,
+      BigQuerySinkConfig config) {
     super(
         retry,
         retryWait,
@@ -96,8 +98,38 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiBase {
         autoCreateTables,
         errantRecordHandler,
         schemaManager,
-        attemptSchemaUpdate
+        attemptSchemaUpdate,
+        config
     );
+    streams = new ConcurrentHashMap<>();
+    currentStreams = new ConcurrentHashMap<>();
+    tableLocks = new ConcurrentHashMap<>();
+    streamLocks = new ConcurrentHashMap<>();
+  }
+
+  /**
+   * @deprecated This constructor does not support configuration of additional write settings.
+   * Use {@link #StorageWriteApiBatchApplicationStream(int retry, long retryWait, BigQueryWriteSettings writeSettings,
+   * boolean autoCreateTables, ErrantRecordHandler errantRecordHandler, SchemaManager schemaManager,
+   * boolean attemptSchemaUpdate, BigQuerySinkConfig config)} instead.
+   */
+  @Deprecated
+  public StorageWriteApiBatchApplicationStream(
+          int retry,
+          long retryWait,
+          BigQueryWriteSettings writeSettings,
+          boolean autoCreateTables,
+          ErrantRecordHandler errantRecordHandler,
+          SchemaManager schemaManager,
+          boolean attemptSchemaUpdate) {
+    super(
+            retry,
+            retryWait,
+            writeSettings,
+            autoCreateTables,
+            errantRecordHandler,
+            schemaManager,
+            attemptSchemaUpdate);
     streams = new ConcurrentHashMap<>();
     currentStreams = new ConcurrentHashMap<>();
     tableLocks = new ConcurrentHashMap<>();
