@@ -360,7 +360,7 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
     waitForConnectorToStart(CONNECTOR_NAME, TASKS_MAX);
 
     // Instantiate the converters we'll use to send records to the connector
-    initialiseJsonConverters();
+    initialiseJsonConverters(false);
 
     //produce records
     produceJsonRecords(topic);
@@ -405,7 +405,7 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
     waitForConnectorToStart(CONNECTOR_NAME, TASKS_MAX);
 
     // Instantiate the converters we'll use to send records to the connector
-    initialiseJsonConverters();
+    initialiseJsonConverters(false);
 
     //produce records
     produceJsonRecords(topic);
