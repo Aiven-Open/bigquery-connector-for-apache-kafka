@@ -325,7 +325,7 @@
             <plugin>
                 <groupId>org.apache.rat</groupId>
                 <artifactId>apache-rat-plugin</artifactId>
-                <version>0.16.1</version>
+                <version>0.17-SNAPSHOT</version>
                 <executions>
                     <execution>
                         <id>rat-checks</id>
