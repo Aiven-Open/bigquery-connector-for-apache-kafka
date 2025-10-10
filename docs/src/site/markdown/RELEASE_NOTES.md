@@ -3,6 +3,34 @@
 
 All releases can be found at https://github.com/Aiven-Open/bigquery-connector-for-apache-kafka/releases
 
+## v2.10.0
+### What's changed
+ - Add ability to ignore unknown fields in kafka messages (#88)
+ - skip test on kcbq-api build (#142)
+ - Enable partition decorator syntax for Storage Write API (#69)
+ - Specify Trace ID to enable BigQuery to track traffic originating from this connector. (#141)
+ - Add ByteBuffer TypeAdapter to avoid reflection crash on Java 9+ (#140)
+ - Add feature to update table schemas for GCStoBQ load jobs (#134)
+ - Enable connection pooling on Storage Write API Default Stream (#89)
+ - Update contributors list (#138)
+ - Add design doc for WriteAPI partition decorator support (#135)
+ - Add design doc and best practice doc (#136)
+ - Add since tags to some configuration options
+ - Update project id of BQ target table when useCredentialsProjectId is enabled (#123)
+ - Bump version to 2.10.0-SNAPSHOT
+
+### Co-authored by
+ - Aindriú Lavelle
+ - Claude Warren
+ - hasan-cosan
+ - Mariia Podgaietska
+ - minsungoh
+ - Siddharth Agrawal
+ - Veli Can Ünal
+
+### Full Changelog
+https://github.com/Aiven-Open/bigquery-connector-for-apache-kafka/compare/v2.9.0...v2.10.0
+
 ## v2.9.0
 ### What's changed
 - Fix retry login in GcsToBqWriter (#112)
