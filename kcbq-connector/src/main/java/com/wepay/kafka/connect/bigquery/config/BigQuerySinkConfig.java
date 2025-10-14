@@ -1200,22 +1200,22 @@ public class BigQuerySinkConfig extends AbstractConfig {
   }
 
   /**
-   * If the connector is configured to load Kafka data into BigQuery, this config defines
-   * the name of the kafka data field. A structure is created under the field name to contain
-   * kafka data schema including topic, offset, partition and insertTime.
+   * If the connector is configured to load Kafka keys into BigQuery, this config defines
+   * the name of the kafka key field. A structure is created under the field name to contain
+   * a topic's Kafka key schema.
    *
-   * @return Field name of Kafka Data to be used in BigQuery
+   * @return Field name of Kafka Key to be used in BigQuery
    */
   public Optional<String> getKafkaKeyFieldName() {
     return Optional.ofNullable(getString(KAFKA_KEY_FIELD_NAME_CONFIG));
   }
 
   /**
-   * If the connector is configured to load Kafka keys into BigQuery, this config defines
-   * the name of the kafka key field. A structure is created under the field name to contain
-   * a topic's Kafka key schema.
+   * If the connector is configured to load Kafka data into BigQuery, this config defines
+   * the name of the kafka data field. A structure is created under the field name to contain
+   * kafka data schema including topic, offset, partition and insertTime.
    *
-   * @return Field name of Kafka Key to be used in BigQuery
+   * @return Field name of Kafka Data to be used in BigQuery
    */
   public Optional<String> getKafkaDataFieldName() {
     return Optional.ofNullable(getString(KAFKA_DATA_FIELD_NAME_CONFIG));
