@@ -24,11 +24,9 @@
 package com.wepay.kafka.connect.bigquery;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyObject;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -41,6 +39,7 @@ import com.google.cloud.bigquery.BigQueryError;
 import com.google.cloud.bigquery.BigQueryException;
 import com.google.cloud.bigquery.Field;
 import com.google.cloud.bigquery.LegacySQLTypeName;
+import com.google.cloud.bigquery.QueryJobConfiguration;
 import com.google.cloud.bigquery.Schema;
 import com.google.cloud.bigquery.TableId;
 import com.google.cloud.bigquery.TableResult;
@@ -374,7 +373,7 @@ public class MergeQueriesTest {
 
     TableResult tableResultReponse = mock(TableResult.class);
     BigQueryError jobInternalError = new BigQueryError("jobInternalError", null, "The job encountered an internal error during execution and was unable to complete successfully.");
-    when(bigQuery.query(anyObject()))
+    when(bigQuery.query(any(QueryJobConfiguration.class)))
         .thenThrow(new BigQueryException(400, "mock job internal error", jobInternalError))
         .thenReturn(tableResultReponse);
     when(mergeBatches.destinationTableFor(INTERMEDIATE_TABLE)).thenReturn(DESTINATION_TABLE);
@@ -386,7 +385,7 @@ public class MergeQueriesTest {
       runnable.run();
       latch.countDown();
       return null;
-    }).when(executor).execute(any());
+    }).when(executor).execute(any(Runnable.class));
     MergeQueries mergeQueries = spy(mergeQueries(false, true, true));
 
     // Act
@@ -394,7 +393,7 @@ public class MergeQueriesTest {
 
     // Assert
     latch.await();
-    verify(bigQuery, times(3)).query(anyObject());
+    verify(bigQuery, times(3)).query(any(QueryJobConfiguration.class));
   }
 
   @Test
@@ -405,7 +404,7 @@ public class MergeQueriesTest {
 
     TableResult tableResultReponse = mock(TableResult.class);
     BigQueryError jobInternalError = new BigQueryError("invalidQuery", null, "Could not serialize access to table my_table due to concurrent update");
-    when(bigQuery.query(anyObject()))
+    when(bigQuery.query(any(QueryJobConfiguration.class)))
         .thenThrow(new BigQueryException(400, "mock invalid query", jobInternalError))
         .thenReturn(tableResultReponse);
     when(mergeBatches.destinationTableFor(INTERMEDIATE_TABLE)).thenReturn(DESTINATION_TABLE);
@@ -417,7 +416,7 @@ public class MergeQueriesTest {
       runnable.run();
       latch.countDown();
       return null;
-    }).when(executor).execute(any());
+    }).when(executor).execute(any(Runnable.class));
     MergeQueries mergeQueries = mergeQueries(false, true, true);
 
     // Act
@@ -425,7 +424,7 @@ public class MergeQueriesTest {
 
     // Assert
     latch.await();
-    verify(bigQuery, times(3)).query(anyObject());
+    verify(bigQuery, times(3)).query(any(QueryJobConfiguration.class));
   }
 
   @Test
@@ -434,7 +433,7 @@ public class MergeQueriesTest {
     mergeBatches.addToBatch(TEST_SINK_RECORD, INTERMEDIATE_TABLE, new HashMap<>());
 
     BigQueryError jobInternalError = new BigQueryError("invalidQuery", null, "Could not serialize access to table my_table due to concurrent update");
-    when(bigQuery.query(anyObject()))
+    when(bigQuery.query(any(QueryJobConfiguration.class)))
         .thenThrow(new BigQueryException(400, "mock invalid query", jobInternalError));
     when(mergeBatches.destinationTableFor(INTERMEDIATE_TABLE)).thenReturn(DESTINATION_TABLE);
     when(mergeBatches.incrementBatch(INTERMEDIATE_TABLE)).thenReturn(0);
@@ -445,7 +444,7 @@ public class MergeQueriesTest {
       runnable.run();
       latch.countDown();
       return null;
-    }).when(executor).execute(any());
+    }).when(executor).execute(any(Runnable.class));
     MergeQueries mergeQueries = mergeQueries(false, true, true);
 
     assertThrows(

@@ -25,6 +25,7 @@ package com.wepay.kafka.connect.bigquery.write.row;
 
 import com.google.cloud.BaseServiceException;
 import com.google.cloud.bigquery.BigQuery;
+import com.google.cloud.bigquery.BigQueryException;
 import com.google.cloud.bigquery.InsertAllRequest.RowToInsert;
 import com.google.cloud.bigquery.Table;
 import com.google.cloud.bigquery.TableId;
@@ -123,6 +124,7 @@ public class GcsToBqWriter {
    * @param bucketName the GCS bucket to write to.
    * @param blobName   the name of the GCS blob to write.
    * @throws InterruptedException if interrupted.
+   * @throws BigQueryException on BigQuery error.
    */
   public void writeRows(SortedMap<SinkRecord, RowToInsert> rows,
                         TableId tableId,
