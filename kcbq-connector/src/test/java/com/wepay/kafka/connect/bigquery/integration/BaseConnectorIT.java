@@ -123,7 +123,7 @@ public abstract class BaseConnectorIT {
         WorkerConfig.PLUGIN_DISCOVERY_CONFIG, "HYBRID_WARN");
 
     Properties brokerProps = new Properties();
-    brokerProps.put(KafkaConfig.MessageMaxBytesProp(), 10 * 1024 * 1024);
+    brokerProps.put("message.max.bytes", 10 * 1024 * 1024);
 
     connect = new EmbeddedConnectCluster.Builder()
         .name("kcbq-connect-cluster")
