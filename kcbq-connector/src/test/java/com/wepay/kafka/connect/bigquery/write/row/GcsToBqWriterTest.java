@@ -29,7 +29,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.Matchers.anyObject;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -71,7 +70,6 @@ import java.util.HashMap;
 import java.util.TreeMap;
 import java.util.Base64;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
@@ -130,7 +128,7 @@ public class GcsToBqWriterTest {
         Collections.singletonList(spoofSinkRecord(topic, 0, 0, "some_field", "some_value")));
     testTask.flush(Collections.emptyMap());
 
-    verify(storage, times(1)).create((BlobInfo) anyObject(), (byte[]) anyObject());
+    verify(storage, times(1)).create(any(BlobInfo.class), any(byte[].class));
   }
 
   @Test
@@ -148,7 +146,7 @@ public class GcsToBqWriterTest {
     SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
     SchemaManager schemaManager = mock(SchemaManager.class);
 
-    when(storage.create((BlobInfo) anyObject(), (byte[]) anyObject()))
+    when(storage.create(any(BlobInfo.class), any(byte[].class)))
         .thenThrow(new StorageException(500, "internal server error")) // throw first time
         .thenReturn(null); // return second time. (we don't care about the result.)
 
@@ -167,7 +165,7 @@ public class GcsToBqWriterTest {
         Collections.singletonList(spoofSinkRecord(topic, 0, 0, "some_field", "some_value")));
     testTask.flush(Collections.emptyMap());
 
-    verify(storage, times(2)).create((BlobInfo) anyObject(), (byte[]) anyObject());
+    verify(storage, times(2)).create(any(BlobInfo.class), any(byte[].class));
   }
 
   @Test
@@ -185,7 +183,7 @@ public class GcsToBqWriterTest {
     SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
     SchemaManager schemaManager = mock(SchemaManager.class);
 
-    when(storage.create((BlobInfo) anyObject(), (byte[]) anyObject()))
+    when(storage.create(any(BlobInfo.class), any(byte[].class)))
         .thenThrow(new StorageException(500, "internal server error"));
 
     BigQuerySinkTask testTask = BigQuerySinkTaskTest.createTestTask(
@@ -206,7 +204,7 @@ public class GcsToBqWriterTest {
         () -> testTask.flush(Collections.emptyMap())
     );
     // Budget = 3 * 2000ms = 6000ms → 2 sleeps → 3 total attempts
-    verify(storage, times(3)).create((BlobInfo) anyObject(), (byte[]) anyObject());
+    verify(storage, times(3)).create(any(BlobInfo.class), any(byte[].class));
   }
 
   @Test
@@ -432,7 +430,7 @@ public class GcsToBqWriterTest {
 
   private void expectTable(BigQuery mockBigQuery) {
     Table mockTable = mock(Table.class);
-    when(mockBigQuery.getTable(anyObject())).thenReturn(mockTable);
+    when(mockBigQuery.getTable(any(TableId.class))).thenReturn(mockTable);
   }
 
   /**

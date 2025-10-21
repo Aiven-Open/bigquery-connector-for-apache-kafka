@@ -235,6 +235,7 @@ public class SchemaManager {
    * @param table   The BigQuery table to create.
    * @param records The sink records used to determine the schema.
    * @return whether the table had to be created; if the table already existed, will return false
+   * @throws BigQueryException on non-recoverable BigQuery error.
    */
   public boolean createTable(TableId table, List<SinkRecord> records) {
     synchronized (lock(tableCreateLocks, table)) {

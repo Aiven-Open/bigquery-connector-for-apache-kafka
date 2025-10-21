@@ -27,7 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Matchers.anyObject;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -39,6 +39,7 @@ import com.google.cloud.bigquery.BigQueryException;
 import com.google.cloud.bigquery.InsertAllRequest;
 import com.google.cloud.bigquery.InsertAllResponse;
 import com.google.cloud.bigquery.Table;
+import com.google.cloud.bigquery.TableId;
 import com.google.cloud.storage.Storage;
 import com.wepay.kafka.connect.bigquery.BigQuerySinkTask;
 import com.wepay.kafka.connect.bigquery.BigQuerySinkTaskTest;
@@ -87,14 +88,14 @@ public class BigQueryWriterTest {
 
     BigQuery bigQuery = mock(BigQuery.class);
     Table mockTable = mock(Table.class);
-    when(bigQuery.getTable(any())).thenReturn(mockTable);
+    when(bigQuery.getTable(any(TableId.class))).thenReturn(mockTable);
 
     InsertAllResponse insertAllResponse = mock(InsertAllResponse.class);
     when(insertAllResponse.hasErrors()).thenReturn(false);
     when(insertAllResponse.getInsertErrors()).thenReturn(Collections.emptyMap());
 
     //first attempt (success)
-    when(bigQuery.insertAll(anyObject()))
+    when(bigQuery.insertAll(any(InsertAllRequest.class)))
         .thenReturn(insertAllResponse);
 
     SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
@@ -119,7 +120,7 @@ public class BigQueryWriterTest {
         Collections.singletonList(spoofSinkRecord(topic, 0, 0, "some_field", "some_value")));
     testTask.flush(Collections.emptyMap());
 
-    verify(bigQuery, times(1)).insertAll(anyObject());
+    verify(bigQuery, times(1)).insertAll(any(InsertAllRequest.class));
   }
 
   @Test
@@ -139,7 +140,7 @@ public class BigQueryWriterTest {
     BigQueryError error = new BigQueryError("notFound", "global", errorMessage);
     BigQueryException nonExistentTableException = new BigQueryException(404, errorMessage, error);
 
-    when(bigQuery.insertAll(anyObject())).thenThrow(nonExistentTableException).thenReturn(insertAllResponse);
+    when(bigQuery.insertAll(any(InsertAllRequest.class))).thenThrow(nonExistentTableException).thenReturn(insertAllResponse);
 
     SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
 
@@ -162,8 +163,8 @@ public class BigQueryWriterTest {
         Collections.singletonList(spoofSinkRecord(topic, 0, 0, "some_field", "some_value")));
     testTask.flush(Collections.emptyMap());
 
-    verify(schemaManager, times(1)).createTable(anyObject(), anyObject());
-    verify(bigQuery, times(2)).insertAll(anyObject());
+    verify(schemaManager, times(1)).createTable(any(TableId.class), anyList());
+    verify(bigQuery, times(2)).insertAll(any(InsertAllRequest.class));
   }
 
   @Test
@@ -182,7 +183,7 @@ public class BigQueryWriterTest {
 
     BigQueryException missTableException = new BigQueryException(404, "Table is missing");
 
-    when(bigQuery.insertAll(anyObject())).thenThrow(missTableException).thenReturn(insertAllResponse);
+    when(bigQuery.insertAll(any(InsertAllRequest.class))).thenThrow(missTableException).thenReturn(insertAllResponse);
 
     SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
 
@@ -230,7 +231,7 @@ public class BigQueryWriterTest {
     when(bigQuery.getTable(any())).thenReturn(mockTable);
 
     //first attempt (partial failure); second attempt (success)
-    when(bigQuery.insertAll(anyObject()))
+    when(bigQuery.insertAll(any(InsertAllRequest.class)))
         .thenReturn(insertAllResponseWithError)
         .thenReturn(insertAllResponseNoError);
 
@@ -291,7 +292,7 @@ public class BigQueryWriterTest {
     when(bigQuery.getTable(any())).thenReturn(mockTable);
 
     //first attempt (complete failure); second attempt (not expected)
-    when(bigQuery.insertAll(anyObject()))
+    when(bigQuery.insertAll(any(InsertAllRequest.class)))
         .thenReturn(insertAllResponseWithError);
 
     List<SinkRecord> sinkRecordList = new ArrayList<>();

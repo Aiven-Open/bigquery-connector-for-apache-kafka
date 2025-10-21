@@ -29,7 +29,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyObject;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -44,6 +43,7 @@ import com.google.cloud.bigquery.InsertAllResponse;
 import com.google.cloud.bigquery.LegacySQLTypeName;
 import com.google.cloud.bigquery.QueryJobConfiguration;
 import com.google.cloud.bigquery.Table;
+import com.google.cloud.bigquery.TableId;
 import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.Storage;
 import com.wepay.kafka.connect.bigquery.api.SchemaRetriever;
@@ -58,7 +58,6 @@ import com.wepay.kafka.connect.bigquery.write.storage.StorageApiBatchModeHandler
 import com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiBase;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiDefaultStream;
 import java.net.SocketTimeoutException;
-import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
@@ -258,7 +257,7 @@ public class BigQuerySinkTaskTest {
 
     BigQuery bigQuery = mock(BigQuery.class);
     Table mockTable = mock(Table.class);
-    when(bigQuery.getTable(any())).thenReturn(mockTable);
+    when(bigQuery.getTable(any(TableId.class))).thenReturn(mockTable);
 
     Storage storage = mock(Storage.class);
 
@@ -308,7 +307,7 @@ public class BigQuerySinkTaskTest {
     SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
     InsertAllResponse insertAllResponse = mock(InsertAllResponse.class);
 
-    when(bigQuery.insertAll(anyObject())).thenReturn(insertAllResponse);
+    when(bigQuery.insertAll(any())).thenReturn(insertAllResponse);
     when(insertAllResponse.hasErrors()).thenReturn(false);
 
     SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
@@ -332,7 +331,7 @@ public class BigQuerySinkTaskTest {
     ArgumentCaptor<BlobInfo> blobInfo = ArgumentCaptor.forClass(BlobInfo.class);
     testTask.flush(Collections.emptyMap());
 
-    verify(storage, times(repeats)).create(blobInfo.capture(), (byte[]) anyObject());
+    verify(storage, times(repeats)).create(blobInfo.capture(), any(byte[].class));
     assertEquals(repeats, blobInfo.getAllValues().stream().map(info -> info.getBlobId().getName()).collect(Collectors.toSet()).size());
   }
 
@@ -353,7 +352,7 @@ public class BigQuerySinkTaskTest {
     SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
     InsertAllResponse insertAllResponse = mock(InsertAllResponse.class);
 
-    when(bigQuery.insertAll(anyObject())).thenReturn(insertAllResponse);
+    when(bigQuery.insertAll(any())).thenReturn(insertAllResponse);
     when(insertAllResponse.hasErrors()).thenReturn(false);
 
     SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
@@ -456,7 +455,7 @@ public class BigQuerySinkTaskTest {
     SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
 
     InsertAllResponse insertAllResponse = mock(InsertAllResponse.class);
-    when(bigQuery.insertAll(anyObject())).thenReturn(insertAllResponse);
+    when(bigQuery.insertAll(any())).thenReturn(insertAllResponse);
     when(insertAllResponse.hasErrors()).thenReturn(false);
 
     SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
@@ -533,12 +532,12 @@ public class BigQuerySinkTaskTest {
 
     BigQuery bigQuery = mock(BigQuery.class);
     Table mockTable = mock(Table.class);
-    when(bigQuery.getTable(any())).thenReturn(mockTable);
+    when(bigQuery.getTable(any(TableId.class))).thenReturn(mockTable);
 
     Storage storage = mock(Storage.class);
     String error = "Cannot add required fields to an existing schema.";
     SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
-    when(bigQuery.insertAll(any()))
+    when(bigQuery.insertAll(any(InsertAllRequest.class)))
         .thenThrow(
             new BigQueryException(400, error, new BigQueryError("invalid", "global", error)));
 
@@ -603,7 +602,7 @@ public class BigQuerySinkTaskTest {
     Storage storage = mock(Storage.class);
 
     BigQuery bigQuery = mock(BigQuery.class);
-    when(bigQuery.insertAll(any()))
+    when(bigQuery.insertAll(any(InsertAllRequest.class)))
         .thenThrow(
             new BigQueryException(400, "Oops", new BigQueryError("invalid", "global", "oops")));
 
@@ -655,7 +654,7 @@ public class BigQuerySinkTaskTest {
     initialize(properties);
 
     BigQuery bigQuery = mock(BigQuery.class);
-    when(bigQuery.getTable(any())).thenThrow(new BigQueryException(new SocketTimeoutException("mock timeout")));
+    when(bigQuery.getTable(any(TableId.class))).thenThrow(new BigQueryException(new SocketTimeoutException("mock timeout")));
 
     Storage storage = mock(Storage.class);
     SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
@@ -694,12 +693,12 @@ public class BigQuerySinkTaskTest {
 
     BigQuery bigQuery = mock(BigQuery.class);
     Table mockTable = mock(Table.class);
-    when(bigQuery.getTable(any())).thenReturn(mockTable);
+    when(bigQuery.getTable(any(TableId.class))).thenReturn(mockTable);
 
     Storage storage = mock(Storage.class);
 
     InsertAllResponse insertAllResponse = mock(InsertAllResponse.class);
-    when(bigQuery.insertAll(anyObject()))
+    when(bigQuery.insertAll(any(InsertAllRequest.class)))
         .thenThrow(new BigQueryException(500, "mock 500"))
         .thenThrow(new BigQueryException(502, "mock 502"))
         .thenThrow(new BigQueryException(503, "mock 503"))
@@ -725,7 +724,7 @@ public class BigQuerySinkTaskTest {
     testTask.put(Collections.singletonList(spoofSinkRecord(topic)));
     testTask.flush(Collections.emptyMap());
 
-    verify(bigQuery, times(4)).insertAll(anyObject());
+    verify(bigQuery, times(4)).insertAll(any(InsertAllRequest.class));
   }
 
   @Test
@@ -742,14 +741,14 @@ public class BigQuerySinkTaskTest {
 
     BigQuery bigQuery = mock(BigQuery.class);
     Table mockTable = mock(Table.class);
-    when(bigQuery.getTable(any())).thenReturn(mockTable);
+    when(bigQuery.getTable(any(TableId.class))).thenReturn(mockTable);
 
     Storage storage = mock(Storage.class);
 
     InsertAllResponse insertAllResponse = mock(InsertAllResponse.class);
     BigQueryError quotaExceededError = new BigQueryError("quotaExceeded", null, null);
     BigQueryError rateLimitExceededError = new BigQueryError("rateLimitExceeded", null, null);
-    when(bigQuery.insertAll(anyObject()))
+    when(bigQuery.insertAll(any(InsertAllRequest.class)))
         .thenThrow(new BigQueryException(403, "mock quota exceeded", quotaExceededError))
         .thenThrow(new BigQueryException(403, "mock rate limit exceeded", rateLimitExceededError))
         .thenReturn(insertAllResponse);
@@ -774,7 +773,7 @@ public class BigQuerySinkTaskTest {
     testTask.put(Collections.singletonList(spoofSinkRecord(topic)));
     testTask.flush(Collections.emptyMap());
 
-    verify(bigQuery, times(3)).insertAll(anyObject());
+    verify(bigQuery, times(3)).insertAll(any(InsertAllRequest.class));
   }
 
   @Test
@@ -791,13 +790,13 @@ public class BigQuerySinkTaskTest {
 
     BigQuery bigQuery = mock(BigQuery.class);
     Table mockTable = mock(Table.class);
-    when(bigQuery.getTable(any())).thenReturn(mockTable);
+    when(bigQuery.getTable(any(TableId.class))).thenReturn(mockTable);
 
     Storage storage = mock(Storage.class);
 
     InsertAllResponse insertAllResponse = mock(InsertAllResponse.class);
     BigQueryError quotaExceededError = new BigQueryError("quotaExceeded", null, null);
-    when(bigQuery.insertAll(anyObject()))
+    when(bigQuery.insertAll(any(InsertAllRequest.class)))
         .thenThrow(new BigQueryException(403, "mock quota exceeded", quotaExceededError));
     when(insertAllResponse.hasErrors()).thenReturn(false);
 
@@ -837,7 +836,7 @@ public class BigQuerySinkTaskTest {
 
     BigQuery bigQuery = mock(BigQuery.class);
     Table mockTable = mock(Table.class);
-    when(bigQuery.getTable(any())).thenReturn(mockTable);
+    when(bigQuery.getTable(any(TableId.class))).thenReturn(mockTable);
 
     Storage storage = mock(Storage.class);
     InsertAllResponse fakeResponse = mock(InsertAllResponse.class);
@@ -891,12 +890,12 @@ public class BigQuerySinkTaskTest {
 
     BigQuery bigQuery = mock(BigQuery.class);
     Table mockTable = mock(Table.class);
-    when(bigQuery.getTable(any())).thenReturn(mockTable);
+    when(bigQuery.getTable(any(TableId.class))).thenReturn(mockTable);
 
     SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
     InsertAllResponse insertAllResponse = mock(InsertAllResponse.class);
 
-    when(bigQuery.insertAll(anyObject())).thenReturn(insertAllResponse);
+    when(bigQuery.insertAll(any(InsertAllRequest.class))).thenReturn(insertAllResponse);
     when(insertAllResponse.hasErrors()).thenReturn(false);
 
     SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);

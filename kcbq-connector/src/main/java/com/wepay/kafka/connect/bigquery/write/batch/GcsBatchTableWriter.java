@@ -25,10 +25,13 @@ package com.wepay.kafka.connect.bigquery.write.batch;
 
 import com.google.cloud.bigquery.InsertAllRequest.RowToInsert;
 import com.google.cloud.bigquery.TableId;
+import com.wepay.kafka.connect.bigquery.ErrantRecordHandler;
 import com.wepay.kafka.connect.bigquery.convert.RecordConverter;
 import com.wepay.kafka.connect.bigquery.utils.SinkRecordConverter;
 import com.wepay.kafka.connect.bigquery.write.row.GcsToBqWriter;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import org.apache.kafka.connect.errors.ConnectException;
@@ -50,6 +53,7 @@ public class GcsBatchTableWriter implements Runnable {
 
   private final SortedMap<SinkRecord, RowToInsert> rows;
   private final GcsToBqWriter writer;
+  private final ErrantRecordHandler errantRecordHandler;
 
   /**
    * @param rows         The list of rows that should be written through GCS
@@ -63,22 +67,25 @@ public class GcsBatchTableWriter implements Runnable {
                               GcsToBqWriter writer,
                               TableId tableId,
                               String bucketName,
-                              String baseBlobName) {
+                              String baseBlobName,
+                              ErrantRecordHandler errantRecordHandler) {
     this.tableId = tableId;
     this.bucketName = bucketName;
     this.blobName = baseBlobName;
-
     this.rows = rows;
     this.writer = writer;
+    this.errantRecordHandler = errantRecordHandler;
   }
 
   @Override
   public void run() {
     try {
       writer.writeRows(rows, tableId, bucketName, blobName);
-    } catch (ConnectException ex) {
+    } catch (RuntimeException ex) {
+      errantRecordHandler.reportErrantRecords(rows.keySet(), ex);
       throw new ConnectException("Failed to write rows to GCS", ex);
     } catch (InterruptedException ex) {
+      errantRecordHandler.reportErrantRecords(rows.keySet(), ex);
       throw new ConnectException("Thread interrupted while batch writing", ex);
     }
   }
@@ -92,22 +99,25 @@ public class GcsBatchTableWriter implements Runnable {
     private final SortedMap<SinkRecord, RowToInsert> rows;
     private final SinkRecordConverter recordConverter;
     private final GcsToBqWriter writer;
-    private String blobName;
+    private final String blobName;
+    private final ErrantRecordHandler errantRecordHandler;
 
     /**
      * Create a {@link GcsBatchTableWriter.Builder}.
      *
-     * @param writer          the {@link GcsToBqWriter} to use.
-     * @param tableId         The bigquery table to be written to.
-     * @param gcsBucketName   The GCS bucket to write to.
-     * @param gcsBlobName     The name of the GCS blob to write.
-     * @param recordConverter the {@link RecordConverter} to use.
+     * @param writer              the {@link GcsToBqWriter} to use.
+     * @param tableId             The bigquery table to be written to.
+     * @param gcsBucketName       The GCS bucket to write to.
+     * @param gcsBlobName         The name of the GCS blob to write.
+     * @param recordConverter     the {@link RecordConverter} to use.
+     * @param errantRecordHandler the handler for records that can not be written.
      */
     public Builder(GcsToBqWriter writer,
                    TableId tableId,
                    String gcsBucketName,
                    String gcsBlobName,
-                   SinkRecordConverter recordConverter) {
+                   SinkRecordConverter recordConverter,
+                   ErrantRecordHandler errantRecordHandler) {
 
       this.bucketName = gcsBucketName;
       this.blobName = gcsBlobName;
@@ -117,6 +127,7 @@ public class GcsBatchTableWriter implements Runnable {
           .thenComparing(SinkRecord::kafkaOffset));
       this.recordConverter = recordConverter;
       this.writer = writer;
+      this.errantRecordHandler = errantRecordHandler;
     }
 
     @Override
@@ -126,7 +137,7 @@ public class GcsBatchTableWriter implements Runnable {
 
     @Override
     public GcsBatchTableWriter build() {
-      return new GcsBatchTableWriter(rows, writer, tableId, bucketName, blobName);
+      return new GcsBatchTableWriter(rows, writer, tableId, bucketName, blobName, errantRecordHandler);
     }
   }
 }

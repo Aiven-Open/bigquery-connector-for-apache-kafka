@@ -26,8 +26,9 @@ package com.wepay.kafka.connect.bigquery;
 import static com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiWriter.DEFAULT;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
@@ -89,7 +90,7 @@ public class BigQueryStorageApiSinkTaskTest {
     spoofedRecordOffset.set(0);
 
     doNothing().when(mockedStorageWriteApiDefaultStream)
-            .initializeAndWriteRecords(any(PartitionedTableId.class), any(), eq(DEFAULT));
+            .initializeAndWriteRecords(any(PartitionedTableId.class), anyList(), eq(DEFAULT));
     doNothing().when(mockedStorageWriteApiDefaultStream).shutdown();
 
     testTask.initialize(sinkTaskContext);
@@ -102,7 +103,7 @@ public class BigQueryStorageApiSinkTaskTest {
     testTask.flush(Collections.emptyMap());
 
     verify(mockedStorageWriteApiDefaultStream, times(1))
-            .initializeAndWriteRecords(any(PartitionedTableId.class), any(), eq(DEFAULT));
+            .initializeAndWriteRecords(any(PartitionedTableId.class), anyList(), eq(DEFAULT));
   }
 
   @Test
@@ -110,7 +111,7 @@ public class BigQueryStorageApiSinkTaskTest {
     BigQueryStorageWriteApiConnectException exception = new BigQueryStorageWriteApiConnectException("error 12345");
 
     doThrow(exception).when(mockedStorageWriteApiDefaultStream)
-            .initializeAndWriteRecords(any(PartitionedTableId.class), any(), eq(DEFAULT));
+            .initializeAndWriteRecords(any(PartitionedTableId.class), anyList(), eq(DEFAULT));
 
     testTask.put(Collections.singletonList(spoofSinkRecord()));
     BigQueryConnectException e = assertThrows(

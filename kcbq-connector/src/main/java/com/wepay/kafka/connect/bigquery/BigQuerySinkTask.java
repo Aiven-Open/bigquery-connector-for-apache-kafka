@@ -242,7 +242,8 @@ public class BigQuerySinkTask extends SinkTask {
                 table.getBaseTableId(),
                 config.getString(BigQuerySinkConfig.GCS_BUCKET_NAME_CONFIG),
                 gcsBlobName,
-                recordConverter);
+                recordConverter,
+                errantRecordHandler);
           } else {
             TableWriter.Builder simpleTableWriterBuilder =
                 new TableWriter.Builder(bigQueryWriter, table, recordConverter);
