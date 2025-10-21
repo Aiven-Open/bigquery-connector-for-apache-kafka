@@ -20,6 +20,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package com.wepay.kafka.connect.bigquery.write.batch;
 
 import com.google.cloud.bigquery.BigQuery;
