@@ -1,16 +1,35 @@
+/*
+ * Copyright 2024 Copyright 2022 Aiven Oy and
+ * bigquery-connector-for-apache-kafka project contributors
+ *
+ * This software contains code derived from the Confluent BigQuery
+ * Kafka Connector, Copyright Confluent, Inc, which in turn
+ * contains code derived from the WePay BigQuery Kafka Connector,
+ * Copyright WePay, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 package com.wepay.kafka.connect.bigquery.write.batch;
 
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.BigQueryException;
 import com.google.cloud.bigquery.InsertAllRequest;
-import com.google.cloud.bigquery.Table;
 import com.google.cloud.bigquery.TableId;
-import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.Storage;
 import com.google.common.util.concurrent.Futures;
 import com.wepay.kafka.connect.bigquery.ErrantRecordHandler;
 import com.wepay.kafka.connect.bigquery.SchemaManager;
-import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
 import com.wepay.kafka.connect.bigquery.utils.MockTime;
 import com.wepay.kafka.connect.bigquery.utils.SinkRecordConverter;
 import com.wepay.kafka.connect.bigquery.utils.Time;
@@ -22,26 +41,17 @@ import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
-import java.util.SortedMap;
-import java.util.TreeMap;
 import java.util.concurrent.Future;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class GcsBatchTableWriterTest {
-    private GcsBatchTableWriter underTest;
-    private final String bucketName = "test-bucket";
-    private final String baseBlobName = "testBlobName";
     private final TableId tableId = TableId.of("dataset", "table");
 
 
@@ -91,6 +101,8 @@ public class GcsBatchTableWriterTest {
         SinkRecordConverter recordConverter = mock(SinkRecordConverter.class);
         when(recordConverter.getRecordRow(any(SinkRecord.class), any(TableId.class))).thenReturn(rowToInsert);
 
+        final String bucketName = "test-bucket";
+        final String baseBlobName = "testBlobName";
         GcsBatchTableWriter.Builder builder = new GcsBatchTableWriter.Builder(writer, tableId, bucketName, baseBlobName, recordConverter, errantRecordHandler);
 
         for (int i =0; i < 10; i++) {
