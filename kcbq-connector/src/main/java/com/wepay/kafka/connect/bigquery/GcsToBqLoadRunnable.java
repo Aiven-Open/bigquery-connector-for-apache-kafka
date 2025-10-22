@@ -24,13 +24,7 @@
 package com.wepay.kafka.connect.bigquery;
 
 import com.google.api.gax.paging.Page;
-import com.google.cloud.bigquery.BigQuery;
-import com.google.cloud.bigquery.BigQueryException;
-import com.google.cloud.bigquery.FormatOptions;
-import com.google.cloud.bigquery.Job;
-import com.google.cloud.bigquery.JobInfo;
-import com.google.cloud.bigquery.LoadJobConfiguration;
-import com.google.cloud.bigquery.TableId;
+import com.google.cloud.bigquery.*;
 import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.Bucket;
@@ -260,15 +254,15 @@ public class GcsToBqLoadRunnable implements Runnable {
       Job job = jobEntry.getKey();
       logger.debug("Checking next job: {}", job.getJobId());
 
-      JobStatus jobStatus = bigQuery.getJob(job.getJobId()).getStatus();
+      job = bigQuery.getJob(job.getJobId());
       try {
-        if (job.isDone()) {
-          logger.trace("Job is marked done: id={}, status={}", job.getJobId(), jobStatus);
-          if (jobStatus.getError() == null) {
+        if (job.getStatus().getState() == JobStatus.State.DONE) {
+          logger.trace("Job is marked done: id={}, status={}", job.getJobId(), (job.getStatus());
+          if (job.getStatus().getError() == null) {
             processSuccessfulJob(job, jobEntry.getValue());
             successCount++;
           } else {
-            processFailedJob(job, jobStatus, jobEntry.getValue());
+            processFailedJob(job, jobEntry.getValue());
             failureCount++;
           }
           jobIterator.remove();
@@ -277,7 +271,7 @@ public class GcsToBqLoadRunnable implements Runnable {
       } catch (BigQueryException ex) {
         // log a message.
         logger.warn("GCS to BQ load job failed", ex);
-        processFailedJob(job, jobStatus, jobEntry.getValue());
+        processFailedJob(job, jobEntry.getValue());
         failureCount++;
         jobIterator.remove();
         logger.trace("Job is removed from iterator: {}", job.getJobId());
@@ -295,12 +289,12 @@ public class GcsToBqLoadRunnable implements Runnable {
     logger.trace("Completed blobs marked as deletable: {}", blobIdsToDelete);
   }
 
-  private void processFailedJob(final Job job, final JobStatus jobStatus , final List<BlobId> blobsNotCompleted) {
-    logger.warn("Job {} failed with {}", job.getJobId(), jobStatus.getError());
-    if (jobStatus.getExecutionErrors().isEmpty()) {
+  private void processFailedJob(final Job job, final List<BlobId> blobsNotCompleted) {
+    logger.warn("Job {} failed with {}", job.getJobId(), (job.getStatus().getError());
+    if ((job.getStatus().getExecutionErrors().isEmpty()) {
       logger.warn("No additional errors associated with job {}", job.getJobId());
     } else {
-      logger.warn("Additional errors associated with job {}: {}", job.getJobId(), jobStatus.getExecutionErrors());
+      logger.warn("Additional errors associated with job {}: {}", job.getJobId(), (job.getStatus().getExecutionErrors());
     }
     logger.warn("Blobs in job {}: {}", job.getJobId(), blobsNotCompleted);
     // unclaim blobs
