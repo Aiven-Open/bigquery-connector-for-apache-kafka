@@ -123,7 +123,7 @@ public class GcsToBqLoadRunnableTest {
 
   @ParameterizedTest
   @MethodSource("checkJobsData")
-  void testCheckJobsFailure(Job job, List<BlobId> blobIds, int activeCount, int claimedCount, int deletableCount) {
+  void testCheckJobsFailure(String name, Job job, List<BlobId> blobIds, int activeCount, int claimedCount, int deletableCount) {
     BigQuery bigQuery = mock(BigQuery.class);
     Bucket bucket = mock(Bucket.class);
     final Map<Job, List<BlobId>> activeJobs = new HashMap<>();
@@ -151,14 +151,14 @@ public class GcsToBqLoadRunnableTest {
     when(job.getStatus().getState()).thenReturn(JobStatus.State.DONE);
     when(jobStatus.getError()).thenReturn(error);
     when(jobStatus.getExecutionErrors()).thenReturn(Collections.singletonList(new BigQueryError("executionError","location", "message", "debugInfo")));
-    args.add(Arguments.of( job, Collections.singletonList(blob), 0, 0, 0));
+    args.add(Arguments.of(job.getJobId().getJob(), job, Collections.singletonList(blob), 0, 0, 0));
 
     job = createJob("goodCompleted");
     blob = BlobId.of("bucket", "blob2");
     jobStatus = mock(JobStatus.class);
     when(job.getStatus()).thenReturn(jobStatus);
     when(job.getStatus().getState()).thenReturn(JobStatus.State.DONE);
-    args.add(Arguments.of( job, Collections.singletonList(blob), 0, 0, 1));
+    args.add(Arguments.of(job.getJobId().getJob(), job, Collections.singletonList(blob), 0, 0, 1));
 
     job = createJob("exception");
     blob = BlobId.of("bucket", "blob3");
@@ -166,14 +166,14 @@ public class GcsToBqLoadRunnableTest {
     jobStatus = mock(JobStatus.class);
     when(job.getStatus()).thenReturn(jobStatus);
     when(job.getStatus().getState()).thenThrow(BigQueryException.class);
-    args.add(Arguments.of( job, Collections.singletonList(blob), 0, 0, 0));
+    args.add(Arguments.of(job.getJobId().getJob(), job, Collections.singletonList(blob), 0, 0, 0));
 
     job = createJob("stillRunning");
     blob = BlobId.of("bucket", "blob2");
     jobStatus = mock(JobStatus.class);
     when(job.getStatus()).thenReturn(jobStatus);
     when(job.getStatus().getState()).thenReturn(JobStatus.State.PENDING);
-    args.add(Arguments.of( job, Collections.singletonList(blob), 1, 1, 0));
+    args.add(Arguments.of(job.getJobId().getJob(), job, Collections.singletonList(blob), 1, 1, 0));
     return args;
   }
 
