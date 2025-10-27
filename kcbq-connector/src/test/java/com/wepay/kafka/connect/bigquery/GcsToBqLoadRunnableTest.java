@@ -124,12 +124,11 @@ public class GcsToBqLoadRunnableTest {
   @ParameterizedTest
   @MethodSource("checkJobsData")
   void testCheckJobsFailure(Job job, List<BlobId> blobIds, int activeCount, int claimedCount, int deletableCount) {
-    Bucket bucket = mock(Bucket.class);
     BigQuery bigQuery = mock(BigQuery.class);
+    Bucket bucket = mock(Bucket.class);
     final Map<Job, List<BlobId>> activeJobs = new HashMap<>();
     final Set<BlobId> deletableBlobIds = new HashSet<>();
     final Set<BlobId> claimedBlobIds = new HashSet<>(blobIds);
-
     when(bigQuery.getJob(job.getJobId())).thenReturn(job);
 
     activeJobs.put(job, blobIds);
