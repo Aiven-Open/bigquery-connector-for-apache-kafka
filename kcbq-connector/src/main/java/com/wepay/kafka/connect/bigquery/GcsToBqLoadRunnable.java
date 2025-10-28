@@ -29,6 +29,7 @@ import com.google.cloud.bigquery.BigQueryException;
 import com.google.cloud.bigquery.FormatOptions;
 import com.google.cloud.bigquery.Job;
 import com.google.cloud.bigquery.JobInfo;
+import com.google.cloud.bigquery.JobStatus;
 import com.google.cloud.bigquery.LoadJobConfiguration;
 import com.google.cloud.bigquery.TableId;
 import com.google.cloud.storage.Blob;
@@ -260,8 +261,9 @@ public class GcsToBqLoadRunnable implements Runnable {
       Job job = jobEntry.getKey();
       logger.debug("Checking next job: {}", job.getJobId());
 
+      job = bigQuery.getJob(job.getJobId());
       try {
-        if (job.isDone()) {
+        if (job.getStatus().getState() == JobStatus.State.DONE) {
           logger.trace("Job is marked done: id={}, status={}", job.getJobId(), job.getStatus());
           if (job.getStatus().getError() == null) {
             processSuccessfulJob(job, jobEntry.getValue());

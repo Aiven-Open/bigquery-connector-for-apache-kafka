@@ -25,7 +25,6 @@ package com.wepay.kafka.connect.bigquery;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -130,6 +129,7 @@ public class GcsToBqLoadRunnableTest {
     final Map<Job, List<BlobId>> activeJobs = new HashMap<>();
     final Set<BlobId> deletableBlobIds = new HashSet<>();
     final Set<BlobId> claimedBlobIds = new HashSet<>(blobIds);
+    when(bigQuery.getJob(job.getJobId())).thenReturn(job);
 
     activeJobs.put(job, blobIds);
 
@@ -145,19 +145,19 @@ public class GcsToBqLoadRunnableTest {
 
     Job job = createJob("errorInProcessing");
     BlobId blob = BlobId.of("bucket", "blob1");
-    when(job.isDone()).thenReturn(true);
     BigQueryError error = new BigQueryError("reason","location", "message", "debugInfo");
     JobStatus jobStatus = mock(JobStatus.class);
+    when(job.getStatus()).thenReturn(jobStatus);
+    when(job.getStatus().getState()).thenReturn(JobStatus.State.DONE);
     when(jobStatus.getError()).thenReturn(error);
     when(jobStatus.getExecutionErrors()).thenReturn(Collections.singletonList(new BigQueryError("executionError","location", "message", "debugInfo")));
-    when(job.getStatus()).thenReturn(jobStatus);
     args.add(Arguments.of(job.getJobId().getJob(), job, Collections.singletonList(blob), 0, 0, 0));
 
-     job = createJob("goodCompleted");
-     blob = BlobId.of("bucket", "blob2");
-    when(job.isDone()).thenReturn(true);
+    job = createJob("goodCompleted");
+    blob = BlobId.of("bucket", "blob2");
     jobStatus = mock(JobStatus.class);
     when(job.getStatus()).thenReturn(jobStatus);
+    when(job.getStatus().getState()).thenReturn(JobStatus.State.DONE);
     args.add(Arguments.of(job.getJobId().getJob(), job, Collections.singletonList(blob), 0, 0, 1));
 
     job = createJob("exception");
@@ -165,12 +165,14 @@ public class GcsToBqLoadRunnableTest {
     when(job.isDone()).thenThrow(BigQueryException.class);
     jobStatus = mock(JobStatus.class);
     when(job.getStatus()).thenReturn(jobStatus);
+    when(job.getStatus().getState()).thenThrow(BigQueryException.class);
     args.add(Arguments.of(job.getJobId().getJob(), job, Collections.singletonList(blob), 0, 0, 0));
 
     job = createJob("stillRunning");
     blob = BlobId.of("bucket", "blob2");
     jobStatus = mock(JobStatus.class);
     when(job.getStatus()).thenReturn(jobStatus);
+    when(job.getStatus().getState()).thenReturn(JobStatus.State.PENDING);
     args.add(Arguments.of(job.getJobId().getJob(), job, Collections.singletonList(blob), 1, 1, 0));
     return args;
   }
