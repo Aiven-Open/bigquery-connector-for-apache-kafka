@@ -3,6 +3,22 @@
 
 All releases can be found at https://github.com/Aiven-Open/bigquery-connector-for-apache-kafka/releases
 
+## v2.10.1
+### What's changed
+- Fix potential silent data loss caused by stale BigQuery load job status not being refreshed (#155)
+- Fix data loss from BigQuery write exception during GCSBatchTableWriter run (#153)
+- Fix documentation error: the comments were attached to the wrong functions (#150)
+- Bump version to 2.11.0-SNAPSHOT
+
+### Co-authored by
+- Claude Warren
+- Gyllsdorff
+- Pammi-Jyothi
+- Ryan Skraba
+
+### Full Changelog
+https://github.com/Aiven-Open/bigquery-connector-for-apache-kafka/compare/v2.10.0...v2.10.1
+
 ## v2.10.0
 ### What's changed
 - Add ability to ignore unknown fields in kafka messages (#88)
