@@ -37,7 +37,7 @@
     </modules>
 
     <properties>
-        <latestRelease>2.10.1</latestRelease>
+        <latestRelease>2.10.0</latestRelease>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <java.version>8</java.version>
