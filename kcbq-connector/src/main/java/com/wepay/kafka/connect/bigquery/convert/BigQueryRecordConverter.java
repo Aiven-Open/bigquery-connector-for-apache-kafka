@@ -207,7 +207,7 @@ public class BigQueryRecordConverter implements RecordConverter<Map<String, Obje
       case FLOAT32:
         return useStorageWriteApi
             ? ((Float) kafkaConnectObject).doubleValue()
-            : kafkaConnectObject;
+            : convertFloat(kafkaConnectObject);
       case INT8:
         return useStorageWriteApi
             ? ((Byte) kafkaConnectObject).intValue()
@@ -287,9 +287,9 @@ public class BigQueryRecordConverter implements RecordConverter<Map<String, Obje
 
   /**
    * Converts a kafka connect {@link Double} into a value that can be stored into BigQuery
-   * If this.shouldDonvertSpecialDouble is true, special values are converted as follows:
+   * If this.shouldConvertSpecialDouble is true, special values are converted as follows:
    * Double.POSITIVE_INFINITY -> Double.MAX_VALUE
-   * Doulbe.NEGATIVE_INFINITY -> Double.MIN_VALUE
+   * Double.NEGATIVE_INFINITY -> Double.MIN_VALUE
    * Double.NaN               -> Double.MIN_VALUE
    *
    * @param kafkaConnectDouble The Kafka Connect value to convert.
@@ -305,6 +305,30 @@ public class BigQueryRecordConverter implements RecordConverter<Map<String, Obje
       }
     }
     return kafkaConnectDouble;
+  }
+
+  /**
+   * Converts a kafka connect {@link Float} into a value that can be stored into BigQuery
+   * If this.shouldConvertSpecialDouble is true, special values are converted as follows:
+   * Float.POSITIVE_INFINITY -> Float.MAX_VALUE
+   * Float.NEGATIVE_INFINITY -> Float.MIN_VALUE
+   * Float.NaN               -> Float.MIN_VALUE
+   *
+   * @param kafkaConnectObject The Kafka Connect value to convert.
+   *
+   * @return The resulting Float value to put in BigQuery.
+   */
+  private Object convertFloat(Object kafkaConnectObject) {
+    if (shouldConvertSpecialDouble) {
+      Float kafkaConnectFloat = (Float) kafkaConnectObject;
+      if (kafkaConnectFloat.equals(Float.POSITIVE_INFINITY)) {
+        return Float.MAX_VALUE;
+      } else if (kafkaConnectFloat.equals(Float.NEGATIVE_INFINITY)
+          || Float.isNaN(kafkaConnectFloat)) {
+        return Float.MIN_VALUE;
+      }
+    }
+    return kafkaConnectObject;
   }
 
   private Object convertBytes(Object kafkaConnectObject) {
