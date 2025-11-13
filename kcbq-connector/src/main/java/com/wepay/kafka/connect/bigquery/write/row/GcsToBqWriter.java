@@ -144,16 +144,22 @@ public class GcsToBqWriter {
     Table table = executeWithRetry(() -> bigQuery.getTable(tableId), timeout);
     boolean lookupSuccess = table != null;
 
-    if (autoCreateTables && !lookupSuccess) {
-      logger.info("Table {} was not found. Creating the table automatically.", tableId);
-      Boolean created =
-          executeWithRetry(
-              () -> schemaManager.createTable(tableId, sinkRecords), timeout);
-      if (created == null || !created) {
-        throw new BigQueryConnectException("Failed to create table " + tableId);
-      }
-      table = executeWithRetry(() -> bigQuery.getTable(tableId), timeout);
-      lookupSuccess = table != null;
+    if (!lookupSuccess) {
+        if (autoCreateTables) {
+            logger.info("Table {} was not found. Creating the table automatically.", tableId);
+            Boolean created =
+                    executeWithRetry(
+                            () -> schemaManager.createTable(tableId, sinkRecords), timeout);
+            if (created == null) {
+                throw new BigQueryConnectException("Failed to create table " + tableId);
+            }
+            table = executeWithRetry(() -> bigQuery.getTable(tableId), timeout);
+            lookupSuccess = table != null;
+        } else {
+            time.sleep(retryWaitMs);
+            table = executeWithRetry(() -> bigQuery.getTable(tableId), timeout);
+            lookupSuccess = table != null;
+        }
     }
 
     if (!lookupSuccess) {
