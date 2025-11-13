@@ -145,34 +145,32 @@ public class GcsToBqWriter {
     boolean lookupSuccess = table != null;
 
     if (!lookupSuccess) {
-        if (autoCreateTables) {
-            logger.info("Table {} was not found. Creating the table automatically.", tableId);
-            Boolean created =
-                    executeWithRetry(
-                            () -> schemaManager.createTable(tableId, sinkRecords), timeout);
-            if (created == null) {
-                throw new BigQueryConnectException("Failed to create table " + tableId);
-            }
+      if (autoCreateTables) {
+        logger.info("Table {} was not found. Creating the table automatically.", tableId);
+        Boolean created =
+              executeWithRetry(
+                      () -> schemaManager.createTable(tableId, sinkRecords), timeout);
+        if (created == null) {
+          throw new BigQueryConnectException("Failed to create table " + tableId);
+        }
 
-        } else {
-            time.sleep(retryWaitMs);
-        }
-        table = executeWithRetry(() -> bigQuery.getTable(tableId), timeout);
-        lookupSuccess = table != null;
-        if (!lookupSuccess) {
-            throw new BigQueryConnectException("Failed to lookup table " + tableId);
-        }
+      } else {
+        time.sleep(retryWaitMs);
+      }
+      table = executeWithRetry(() -> bigQuery.getTable(tableId), timeout);
+      lookupSuccess = table != null;
+      if (!lookupSuccess) {
+        throw new BigQueryConnectException("Failed to lookup table " + tableId);
+      }
     }
 
     if (attemptSchemaUpdate && schemaManager != null && !sinkRecords.isEmpty()) {
-      Boolean schemaUpdated =
-          executeWithRetry(
-              () -> {
-                schemaManager.updateSchema(tableId, sinkRecords);
-                return Boolean.TRUE;
-              },
-              timeout
-          );
+      Boolean schemaUpdated = executeWithRetry(() -> {
+            schemaManager.updateSchema(tableId, sinkRecords);
+            return Boolean.TRUE;
+          },
+          timeout
+        );
       if (schemaUpdated == null) {
         throw new BigQueryConnectException(
             String.format("Failed to update schema for table %s within %d re-attempts.", tableId, retries)
@@ -312,9 +310,9 @@ public class GcsToBqWriter {
         }
         attempt++;
       } catch (RuntimeException e) {
-          String msg = "Operation failed during executeWithRetry: " + e.getMessage();
-          logger.error(msg);
-          throw new BigQueryConnectException(msg, e);
+        String msg = "Operation failed during executeWithRetry: " + e.getMessage();
+        logger.error(msg);
+        throw new BigQueryConnectException(msg, e);
       }
     }
   }
