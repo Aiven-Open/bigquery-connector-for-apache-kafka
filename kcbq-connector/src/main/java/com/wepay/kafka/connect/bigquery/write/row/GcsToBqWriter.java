@@ -255,7 +255,7 @@ public class GcsToBqWriter {
    * @param func the operation to execute
    * @param timeout maximum time to keep retrying (sleep is clamped by remaining time)
    * @return result of the function, or {@code null} if timeout expires before a successful call
-   * @throws RuntimeException if thrown by func and not a retryable BaseServiceException
+   * @throws BigQueryConnectException if thrown by func and not a retryable BaseServiceException
    */
   private <T> T executeWithRetry(Supplier<T> func, Duration timeout) throws InterruptedException {
     final long start = time.milliseconds(); // explicit clock to compute remaining
