@@ -144,33 +144,35 @@ public class GcsToBqWriter {
     Table table = executeWithRetry(() -> bigQuery.getTable(tableId), timeout);
     boolean lookupSuccess = table != null;
 
-    if (autoCreateTables && !lookupSuccess) {
-      logger.info("Table {} was not found. Creating the table automatically.", tableId);
-      Boolean created =
-          executeWithRetry(
-              () -> schemaManager.createTable(tableId, sinkRecords), timeout);
-      if (created == null || !created) {
-        throw new BigQueryConnectException("Failed to create table " + tableId);
+    if (!lookupSuccess) {
+      if (autoCreateTables) {
+        logger.info("Table {} was not found. Creating the table automatically.", tableId);
+        Boolean created =
+              executeWithRetry(
+                      () -> schemaManager.createTable(tableId, sinkRecords), timeout);
+        if (created == null) {
+          throw new BigQueryConnectException("Failed to create table " + tableId);
+        }
+
+      } else {
+        time.sleep(retryWaitMs);
       }
       table = executeWithRetry(() -> bigQuery.getTable(tableId), timeout);
       lookupSuccess = table != null;
-    }
-
-    if (!lookupSuccess) {
-      throw new BigQueryConnectException("Failed to lookup table " + tableId);
+      if (!lookupSuccess) {
+        throw new BigQueryConnectException("Failed to lookup table " + tableId);
+      }
     }
 
     if (attemptSchemaUpdate && schemaManager != null && !sinkRecords.isEmpty()) {
-      Boolean schemaUpdated =
-          executeWithRetry(
-              () -> {
-                schemaManager.updateSchema(tableId, sinkRecords);
-                return Boolean.TRUE;
-              },
-              timeout
-          );
+      Boolean schemaUpdated = executeWithRetry(() -> {
+            schemaManager.updateSchema(tableId, sinkRecords);
+            return Boolean.TRUE;
+          },
+          timeout
+        );
       if (schemaUpdated == null) {
-        throw new ConnectException(
+        throw new BigQueryConnectException(
             String.format("Failed to update schema for table %s within %d re-attempts.", tableId, retries)
         );
       }
@@ -199,7 +201,7 @@ public class GcsToBqWriter {
 
     // If executeWithRetry timed out (budget exhausted) it returns null → fail like before
     if (uploaded == null) {
-      throw new ConnectException(
+      throw new BigQueryConnectException(
         String.format("Failed to load %d rows into GCS within %d re-attempts.", rows.size(), retries)
       );
     }
@@ -253,6 +255,7 @@ public class GcsToBqWriter {
    * @param func the operation to execute
    * @param timeout maximum time to keep retrying (sleep is clamped by remaining time)
    * @return result of the function, or {@code null} if timeout expires before a successful call
+   * @throws BigQueryConnectException if thrown by func and not a retryable BaseServiceException
    */
   private <T> T executeWithRetry(Supplier<T> func, Duration timeout) throws InterruptedException {
     final long start = time.milliseconds(); // explicit clock to compute remaining
@@ -265,13 +268,15 @@ public class GcsToBqWriter {
         return func.get();
       } catch (BaseServiceException e) {
         if (!e.isRetryable()) {
-          logger.error("Non-retryable exception on attempt {}", attempt + 1, e);
-          throw e;
+          String msg = String.format("Non-retryable exception on attempt %s.", attempt + 1);
+          logger.error(msg);
+          throw new BigQueryConnectException(msg, e);
         }
         if (attempt >= retries) {
           // Out of configured retries
-          logger.error("Operation failed after {} attempts (no retries left).", attempt + 1);
-          throw e;
+          String msg = String.format("Operation failed after %s attempts (no retries left).", attempt + 1);
+          logger.error(msg);
+          throw new BigQueryConnectException(msg, e);
         }
 
         // Compute next backoff = min(MAX_BACKOFF_MS, retryWaitMs * 2^attempt)
@@ -283,8 +288,9 @@ public class GcsToBqWriter {
           long elapsed = time.milliseconds() - start;
           long remaining = budget - elapsed;
           if (remaining <= 0) {
-            logger.error("Timeout expired after {} attempts within {} ms budget.", attempt + 1, budget);
-            return null;
+            String msg = String.format("Timeout expired after %s attempts within %s ms budget.", attempt + 1, budget);
+            logger.error(msg);
+            throw new BigQueryConnectException(msg, e);
           }
           delay = Math.min(delay, Math.max(0L, remaining));
         }
@@ -303,6 +309,10 @@ public class GcsToBqWriter {
           time.sleep(delay);
         }
         attempt++;
+      } catch (RuntimeException e) {
+        String msg = "Operation failed during executeWithRetry: " + e.getMessage();
+        logger.error(msg);
+        throw new BigQueryConnectException(msg, e);
       }
     }
   }

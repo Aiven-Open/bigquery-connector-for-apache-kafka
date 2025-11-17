@@ -23,12 +23,15 @@
 
 package com.wepay.kafka.connect.bigquery.write.row;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -38,6 +41,7 @@ import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.atMost;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
+import com.google.cloud.bigquery.TableInfo;
 import com.google.gson.Gson;
 import com.google.gson.JsonIOException;
 import com.google.cloud.bigquery.BigQuery;
@@ -61,6 +65,8 @@ import com.wepay.kafka.connect.bigquery.utils.Time;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageApiBatchModeHandler;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiDefaultStream;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
+
+
 import java.nio.ByteBuffer;
 import java.util.LinkedHashMap;
 import java.util.Collections;
@@ -83,6 +89,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import io.debezium.data.VariableScaleDecimal;
+import org.mockito.stubbing.OngoingStubbing;
 
 public class GcsToBqWriterTest {
 
@@ -91,11 +98,16 @@ public class GcsToBqWriterTest {
   private static StorageWriteApiDefaultStream mockedStorageWriteApiDefaultStream = mock(StorageWriteApiDefaultStream.class);
   private static StorageApiBatchModeHandler mockedBatchHandler = mock(StorageApiBatchModeHandler.class);
 
+  private static final TableId tableId = TableId.of("ds", "tbl");
+  private static final Table table = mock(Table.class);
+
   private final Time time = new MockTime();
 
   @BeforeAll
   public static void initializePropertiesFactory() {
     propertiesFactory = new SinkPropertiesFactory();
+    when(table.getTableId()).thenReturn(tableId);
+
   }
 
   @Test
@@ -230,7 +242,7 @@ public class GcsToBqWriterTest {
             storage, bigQuery, schemaManager, retries, retryWaitMs, autoCreate, false, mockTime);
 
     long t0 = mockTime.milliseconds();
-    writer.writeRows(oneRow(), TableId.of("ds", "tbl"), "bucket", "blob");
+    writer.writeRows(oneRow(), tableId, "bucket", "blob");
     long elapsed = mockTime.milliseconds() - t0;
 
     // One lookup, one upload; no retries, no sleeps → elapsed should be 0
@@ -260,7 +272,7 @@ public class GcsToBqWriterTest {
         new GcsToBqWriter(
             storage, bigQuery, schemaManager, retries, retryWaitMs, autoCreate, true, mockTime);
 
-    writer.writeRows(oneRow(), TableId.of("ds", "tbl"), "bucket", "blob");
+    writer.writeRows(oneRow(), tableId, "bucket", "blob");
 
     verify(schemaManager, times(1)).updateSchema(any(TableId.class), anyList());
     verify(storage, times(1)).create(any(BlobInfo.class), any(byte[].class));
@@ -291,7 +303,7 @@ public class GcsToBqWriterTest {
             storage, bigQuery, schemaManager, retries, retryWaitMs, autoCreate, true, mockTime);
 
     long t0 = mockTime.milliseconds();
-    writer.writeRows(oneRow(), TableId.of("ds", "tbl"), "bucket", "blob");
+    writer.writeRows(oneRow(), tableId, "bucket", "blob");
     long elapsed = mockTime.milliseconds() - t0;
 
     long minExpected = 20_000; // Budget = retries(4) * retryWaitMs(5000) = 20s
@@ -338,7 +350,7 @@ public class GcsToBqWriterTest {
     // with a BigQueryConnectException (null table interpreted as lookup failure).
     assertThrows(
         BigQueryConnectException.class,
-        () -> writer.writeRows(oneRow(), TableId.of("ds", "tbl"), "bucket", "blob"));
+        () -> writer.writeRows(oneRow(), tableId, "bucket", "blob"));
 
     // We expect multiple getTable() attempts until budget expires.
     // Because jitter can vary up to 1s per sleep and sleeps are clamped by remaining budget,
@@ -351,6 +363,183 @@ public class GcsToBqWriterTest {
     // No upload should be attempted since table resolution never succeeded.
     verify(storage, never()).create(any(BlobInfo.class), any(byte[].class));
   }
+
+
+    /**
+     * A mocked SchemaManager.
+     * @param createTable value for {@code createTable()} call.  null == exception, else value.
+     * @param schemaUpdate value for {@code updateSchema()} call. null == exception, false = BQException, true = success
+     * @return A mock schema manager
+     */
+  private SchemaManager mockSchemaManager(Boolean createTable, Boolean schemaUpdate) {
+      SchemaManager schemaManager = mock(SchemaManager.class);
+
+      if (createTable == null) {
+          doThrow(new IllegalArgumentException("SchemaManager create table failed")).when(schemaManager).createTable(eq(tableId), anyList());
+      } else {
+          when(schemaManager.createTable(eq(tableId), anyList())).thenReturn(createTable);
+      }
+
+      if (schemaUpdate == null) {
+          doThrow(new UnsupportedOperationException("SchemaManager threw exception")).when(schemaManager).updateSchema(any(), anyList());
+      } else if (!schemaUpdate) {
+          doThrow(new BigQueryConnectException("SchemaManager schema update failed")).when(schemaManager).updateSchema(any(), anyList());
+      }
+      return schemaManager;
+  }
+
+    /**
+     * Create a mocked big query.
+     * @param falseCount the number of times to report the files is not found.
+     * @param hasTable if true a table is returned on the falseCount + 1 request.
+     * @return a mocked BigQuery.
+     */
+    private BigQuery mockBigQuery(int falseCount, boolean hasTable) {
+        BigQuery bigQuery = mock(BigQuery.class);
+        OngoingStubbing<Table> stub = when(bigQuery.getTable(eq(tableId)));
+        for (int i = 0; i < falseCount; i++) {
+            stub = stub.thenReturn(null);
+        }
+        if (hasTable) {
+            stub.thenReturn(table);
+        }
+
+        return bigQuery;
+    }
+
+
+    /**
+     * A mocked Storage.
+     * @param retryError null = no error, true = retryable error, false = non-retryable error.
+     * @return a mocked storage that succeeds or fails beased on retryError flag.
+     */
+    private Storage mockStorage(Boolean retryError) {
+        Storage storage = mock(Storage.class);
+        if (retryError != null) {
+            StorageException storageException = retryError ? new StorageException(500, "it failed") : new StorageException(400, "it failed");
+            when(storage.create(any(BlobInfo.class), any(byte[].class))).thenThrow(storageException);
+        }
+        return storage;
+    }
+
+
+    @Test
+  void writeRowsCreateTableTest() {
+      final int retries = 4;
+      final long retryWaitMs = 100L;
+      final boolean attemptSchemaUpdate = false;
+
+      Time mockTime = new MockTime(); // virtual clock; sleep() advances time but doesn’t block
+
+      // BigQuery does not have the table, schema manager should not be called, any call the schema manager will result in an exception.
+      String msg = assertThrows(BigQueryConnectException.class, () -> new GcsToBqWriter(mockStorage(null), mockBigQuery(1, false), mockSchemaManager(null, null),
+                      retries, retryWaitMs, false, attemptSchemaUpdate, mockTime).writeRows(oneRow(), tableId, "bucket", "blob"),
+              "no table, schema manager exception"
+      ).getMessage();
+      assertEquals("Failed to lookup table " + tableId, msg);
+
+      // BigQuery does not have the table.  Schema manager will return true
+      msg = assertThrows(BigQueryConnectException.class, () -> new GcsToBqWriter(mockStorage(null), mockBigQuery(1, false), mockSchemaManager(true, null),
+                      retries, retryWaitMs, true, attemptSchemaUpdate, mockTime).writeRows(oneRow(), tableId, "bucket", "blob"),
+              "no table, schema manager reports success").getMessage();
+      assertEquals("Failed to lookup table " + tableId, msg);
+
+      // BigQuery does not have the table.  Schema manager will return false
+      msg = assertThrows(BigQueryConnectException.class, () -> new GcsToBqWriter(mockStorage(null), mockBigQuery(1, false), mockSchemaManager(false, null),
+                      retries, retryWaitMs, true, attemptSchemaUpdate, mockTime).writeRows(oneRow(), tableId, "bucket", "blob"),
+              "no table, schema manager reports failure").getMessage();
+      assertEquals("Failed to lookup table " + tableId, msg);
+
+      // BigQuery does not have the table, schema manager will throw an exception.
+      msg = assertThrows(BigQueryConnectException.class, () -> new GcsToBqWriter(mockStorage(null), mockBigQuery(1, false), mockSchemaManager(null, null),
+                      retries, retryWaitMs, true, attemptSchemaUpdate, mockTime).writeRows(oneRow(), tableId, "bucket", "blob"),
+              "no table, schema manager exception"
+      ).getMessage();
+      assertEquals("Operation failed during executeWithRetry: SchemaManager create table failed", msg);
+
+      // BigQuery does not have the table on the first call, but will on second call.  Schema manager will return false
+      assertDoesNotThrow(() ->
+                      new GcsToBqWriter(mockStorage(null), mockBigQuery(1, true), mockSchemaManager(false, null),
+                              retries, retryWaitMs, true, attemptSchemaUpdate, mockTime).writeRows(oneRow(), tableId, "bucket", "blob"),
+              "not table then table, schema manager did not create table");
+
+      assertDoesNotThrow(() -> new GcsToBqWriter(mockStorage(null), mockBigQuery(1, true), mockSchemaManager(true, null),
+                      retries, retryWaitMs, true, attemptSchemaUpdate, mockTime).writeRows(oneRow(), tableId, "bucket", "blob"),
+              "not table then table, schema manager did create table");
+
+      // BigQuery does not have the table on the first call, but will on second call.  Schema manager should not be called, any call the schema manager will result in an exception.
+      assertDoesNotThrow(() -> new GcsToBqWriter(mockStorage(null), mockBigQuery(1, true), mockSchemaManager(null, null),
+                      retries, retryWaitMs, false, attemptSchemaUpdate, mockTime).writeRows(oneRow(), tableId, "bucket", "blob"),
+              "not table then table, schema manager exception");
+
+  }
+
+    @Test
+    void writeRowsUpdateSchemaTest() {
+        final int retries = 4;
+        final long retryWaitMs = 100L;
+
+        Time mockTime = new MockTime(); // virtual clock; sleep() advances time but doesn’t block
+
+        // schema update throws exception.
+        String msg = assertThrows(BigQueryConnectException.class, () -> new GcsToBqWriter(mockStorage(null), mockBigQuery(0, true),
+                        mockSchemaManager(null, null),
+                        retries, retryWaitMs, false, true, mockTime).writeRows(oneRow(), tableId, "bucket", "blob"),
+                "schema manager update failed"
+        ).getMessage();
+        assertEquals("Operation failed during executeWithRetry: SchemaManager threw exception", msg);
+
+        // schema update returns false
+        msg = assertThrows(BigQueryConnectException.class, () -> new GcsToBqWriter(mockStorage(null), mockBigQuery(0, true),
+                        mockSchemaManager(null, false),
+                        retries, retryWaitMs, false, true, mockTime).writeRows(oneRow(), tableId, "bucket", "blob"),
+                "schema manager update failed"
+        ).getMessage();
+        assertEquals("Operation failed during executeWithRetry: SchemaManager schema update failed", msg);
+
+        final SchemaManager schemaManager = mock(SchemaManager.class);
+        doThrow(new BigQueryException(500, "it failed")).when(schemaManager).updateSchema(any(), anyList());
+        msg = assertThrows(BigQueryConnectException.class,() -> new GcsToBqWriter(mockStorage(null), mockBigQuery(0, true), schemaManager,
+                        retries, retryWaitMs, false, true, mockTime).writeRows(oneRow(), tableId, "bucket", "blob"),
+                "schema manager update faild with timeout").getMessage();
+        assertTrue(msg.startsWith("Timeout expired after "));
+
+        // schema update returns true
+        assertDoesNotThrow(() -> new GcsToBqWriter(mockStorage(null), mockBigQuery(0, true), mockSchemaManager(null, true),
+                        retries, retryWaitMs, false, true, mockTime).writeRows(oneRow(), tableId, "bucket", "blob"),
+                "schema manager update succeeded"
+        );
+    }
+
+    @Test
+    void writeRowsUploadData() {
+        final int retries = 4;
+        final long retryWaitMs = 100L;
+
+        Time mockTime = new MockTime(); // virtual clock; sleep() advances time but doesn’t block
+
+        BigQuery bq = mockBigQuery(0, true);
+
+        // storage succeeds.
+        assertDoesNotThrow(() -> new GcsToBqWriter(mockStorage(null), bq, null,
+                        retries, retryWaitMs, false, false, mockTime).writeRows(oneRow(), tableId, "bucket", "blob"),
+                "upload succeeded"
+        );
+
+        // storage throws retryable error
+        String msg = assertThrows(BigQueryConnectException.class, () -> new GcsToBqWriter(mockStorage(true), mockBigQuery(0, true), mockSchemaManager(null, true),
+                        retries, retryWaitMs, false, false, mockTime).writeRows(oneRow(), tableId, "bucket", "blob"),
+                "upload failed -- retry"
+        ).getMessage();
+        assertTrue(msg.startsWith("Timeout expired after"));
+
+        // storage throws non-retryable error.
+        msg = assertThrows(BigQueryConnectException.class, () -> new GcsToBqWriter(mockStorage(false), mockBigQuery(0, true), mockSchemaManager(null, true),
+                        retries, retryWaitMs, false, false, mockTime).writeRows(oneRow(), tableId, "bucket", "blob"),
+                "upload failed -- no retry"
+        ).getMessage();
+        assertEquals("Non-retryable exception on attempt 1.", msg);
+    }
 
   @Nested
   @DisplayName("JSON serialization (Gson / ByteBuffer)")
