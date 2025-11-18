@@ -3,6 +3,24 @@
 
 All releases can be found at https://github.com/Aiven-Open/bigquery-connector-for-apache-kafka/releases
 
+## V2.10.2
+### What's changed
+- Fix serializing Infinity/NaN for Floats when convertDoubleSpecialValues is enabled (#162)
+- Fix bug with SchemaManager causing records to be placed on DLQ (#163)
+- Update documentation for DECIMAL_HANDLING_MODE_CONFIG (#156)
+
+### Co-authored by
+- Aindriú Lavelle
+- Claude Warren
+- Erik Gustafsson
+- GitHub Action
+- HieuNT
+- Ryan Skraba
+
+
+### Full Changelog
+https://github.com/Aiven-Open/bigquery-connector-for-apache-kafka/compare/v2.10.1...v2.10.2
+
 ## v2.10.1
 ### What's changed
 - Fix potential silent data loss caused by stale BigQuery load job status not being refreshed (#155)
