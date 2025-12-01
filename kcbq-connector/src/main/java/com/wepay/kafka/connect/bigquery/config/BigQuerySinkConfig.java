@@ -1018,6 +1018,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
                             .deprecatedInfo(ExtendedConfigKey.DeprecatedInfo.builder().setSince("2.8.0")
                                     .setDescription(String.format("Use %s instead.", DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_CONFIG))
                             )
+                            .documentation("")
                             .since("2.7.0").build()
             ).define(
                     DECIMAL_HANDLING_MODE_CONFIG,
