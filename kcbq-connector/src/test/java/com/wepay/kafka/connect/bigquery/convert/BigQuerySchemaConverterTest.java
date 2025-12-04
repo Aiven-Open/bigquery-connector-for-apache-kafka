@@ -42,6 +42,7 @@ import org.apache.kafka.connect.data.Decimal;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Timestamp;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -63,6 +64,14 @@ public class BigQuerySchemaConverterTest {
   void resetValues() {
     allFieldsNullable = false;
     sanitizeFieldNames = false;
+    DebeziumLogicalConverters.remove();
+    KafkaLogicalConverters.remove();
+  }
+
+  @AfterAll
+  static void cleanUpConverters() {
+    DebeziumLogicalConverters.remove();
+    KafkaLogicalConverters.remove();
   }
 
   private static BigQuerySinkConfig testingConfig(boolean convertDebeziumTimestamp, BigQuerySinkConfig.DecimalHandlingMode varibaleScaleDecimalMode, BigQuerySinkConfig.DecimalHandlingMode decimalMode) {

@@ -79,7 +79,7 @@ public class LogicalConverterRegistry {
    * Determines if a converter is registered with the logical type name.
    *
    * @param typeName the logical type name.
-   * @return }{@code true} if there is a converter registered, {@code false} otherwise.
+   * @return {@code true} if there is a converter registered, {@code false} otherwise.
    */
   public static boolean isRegisteredLogicalType(String typeName) {
     return typeName != null && converterMap.containsKey(typeName);
