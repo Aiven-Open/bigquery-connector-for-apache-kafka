@@ -25,6 +25,7 @@ package com.wepay.kafka.connect.bigquery.convert.logicaltype;
 
 import com.google.cloud.bigquery.Field;
 import com.google.cloud.bigquery.LegacySQLTypeName;
+import com.google.common.annotations.VisibleForTesting;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.exception.ConversionConnectException;
 import io.debezium.data.VariableScaleDecimal;
@@ -52,14 +53,32 @@ public class DebeziumLogicalConverters {
   private static final int MICROS_IN_SEC = 1000000;
   private static final int MICROS_IN_MILLI = 1000;
 
+  /**
+   * Initialize the LogicalConverterRegistry with the DebeziumLogicalConverters.
+   *
+   * @param config the configuration to use.
+   */
   public static void initialize(final BigQuerySinkConfig config) {
-    LogicalConverterRegistry.register(Date.SCHEMA_NAME, new DateConverter());
-    LogicalConverterRegistry.register(MicroTime.SCHEMA_NAME, new MicroTimeConverter());
-    LogicalConverterRegistry.register(MicroTimestamp.SCHEMA_NAME, new MicroTimestampConverter());
-    LogicalConverterRegistry.register(Time.SCHEMA_NAME, new TimeConverter());
-    LogicalConverterRegistry.register(ZonedTimestamp.SCHEMA_NAME, new ZonedTimestampConverter());
-    LogicalConverterRegistry.register(Timestamp.SCHEMA_NAME, new TimestampConverter(config.getShouldConvertDebeziumTimestampToInteger()));
-    LogicalConverterRegistry.register(VariableScaleDecimal.LOGICAL_NAME, new VariableScaleDecimalConverter(config.getVariableScaleDecimalHandlingMode()));
+    LogicalConverterRegistry.registerIfAbsent(Date.SCHEMA_NAME, new DateConverter());
+    LogicalConverterRegistry.registerIfAbsent(MicroTime.SCHEMA_NAME, new MicroTimeConverter());
+    LogicalConverterRegistry.registerIfAbsent(MicroTimestamp.SCHEMA_NAME, new MicroTimestampConverter());
+    LogicalConverterRegistry.registerIfAbsent(Time.SCHEMA_NAME, new TimeConverter());
+    LogicalConverterRegistry.registerIfAbsent(ZonedTimestamp.SCHEMA_NAME, new ZonedTimestampConverter());
+    LogicalConverterRegistry.registerIfAbsent(Timestamp.SCHEMA_NAME, new TimestampConverter(config.getShouldConvertDebeziumTimestampToInteger()));
+    LogicalConverterRegistry.registerIfAbsent(VariableScaleDecimal.LOGICAL_NAME, new VariableScaleDecimalConverter(config.getVariableScaleDecimalHandlingMode()));
+  }
+
+  /**
+   * Remove the DebeziumLogicalConverters from the LogicalConverterRegistry.
+   */
+  public static void remove() {
+    LogicalConverterRegistry.unregister(Date.SCHEMA_NAME);
+    LogicalConverterRegistry.unregister(MicroTime.SCHEMA_NAME);
+    LogicalConverterRegistry.unregister(MicroTimestamp.SCHEMA_NAME);
+    LogicalConverterRegistry.unregister(Time.SCHEMA_NAME);
+    LogicalConverterRegistry.unregister(ZonedTimestamp.SCHEMA_NAME);
+    LogicalConverterRegistry.unregister(Timestamp.SCHEMA_NAME);
+    LogicalConverterRegistry.unregister(VariableScaleDecimal.LOGICAL_NAME);
   }
 
   private DebeziumLogicalConverters() {

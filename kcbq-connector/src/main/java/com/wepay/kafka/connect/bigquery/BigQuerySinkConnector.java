@@ -73,8 +73,6 @@ public class BigQuerySinkConnector extends SinkConnector {
     logger.trace("connector.start()");
     configProperties = properties;
     config = new BigQuerySinkConfig(properties);
-    DebeziumLogicalConverters.initialize(config);
-    KafkaLogicalConverters.initialize(config);
   }
 
   @Override

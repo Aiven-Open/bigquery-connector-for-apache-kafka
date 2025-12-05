@@ -55,6 +55,7 @@ import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.data.Timestamp;
 import org.apache.kafka.connect.sink.SinkRecord;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -71,7 +72,16 @@ public class BigQueryRecordConverterTest {
   void resetValues() {
     shouldConvertDouble = true;
     useStorageWriteApiConfig = false;
+    DebeziumLogicalConverters.remove();
+    KafkaLogicalConverters.remove();
   }
+
+  @AfterAll
+  static void cleanUpConverters() {
+    DebeziumLogicalConverters.remove();
+    KafkaLogicalConverters.remove();
+  }
+
 
   private static SinkRecord spoofSinkRecord(Schema schema, Object struct, boolean isKey) {
     if (isKey) {

@@ -52,11 +52,23 @@ public class KafkaLogicalConverters {
   private static final int MAX_NUMERIC_PRECISION = 38;
   private static final int MAX_NUMERIC_SCALE = 9;
 
+  /**
+   * Initialize the LogicalConverterRegistry with the KafkaLogicalConverters.
+   *
+   * @param config the configuration to use.
+   */
   public static void initialize(final BigQuerySinkConfig config) {
-    LogicalConverterRegistry.register(Date.LOGICAL_NAME, new DateConverter());
-    LogicalConverterRegistry.register(Decimal.LOGICAL_NAME, new DecimalConverter(config.getDecimalHandlingMode()));
-    LogicalConverterRegistry.register(Timestamp.LOGICAL_NAME, new TimestampConverter());
-    LogicalConverterRegistry.register(Time.LOGICAL_NAME, new TimeConverter());
+    LogicalConverterRegistry.registerIfAbsent(Date.LOGICAL_NAME, new DateConverter());
+    LogicalConverterRegistry.registerIfAbsent(Decimal.LOGICAL_NAME, new DecimalConverter(config.getDecimalHandlingMode()));
+    LogicalConverterRegistry.registerIfAbsent(Timestamp.LOGICAL_NAME, new TimestampConverter());
+    LogicalConverterRegistry.registerIfAbsent(Time.LOGICAL_NAME, new TimeConverter());
+  }
+
+  public static void remove() {
+    LogicalConverterRegistry.unregister(Date.LOGICAL_NAME);
+    LogicalConverterRegistry.unregister(Decimal.LOGICAL_NAME);
+    LogicalConverterRegistry.unregister(Timestamp.LOGICAL_NAME);
+    LogicalConverterRegistry.unregister(Time.LOGICAL_NAME);
   }
 
   private KafkaLogicalConverters() {
