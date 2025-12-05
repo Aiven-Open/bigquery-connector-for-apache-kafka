@@ -3,6 +3,17 @@
 
 All releases can be found at https://github.com/Aiven-Open/bigquery-connector-for-apache-kafka/releases
 
+## v2.10.3
+### What's changed
+ - fix: populate LogicalConverterRegistry in Task
+
+### Co-authored by
+ - Claude Warren
+
+
+### Full Changelog
+https://github.com/Aiven-Open/bigquery-connector-for-apache-kafka/compare/v2.10.2...v2.10.3
+
 ## v2.10.2
 ### What's changed
 - Fix serializing Infinity/NaN for Floats when convertDoubleSpecialValues is enabled (#162)
