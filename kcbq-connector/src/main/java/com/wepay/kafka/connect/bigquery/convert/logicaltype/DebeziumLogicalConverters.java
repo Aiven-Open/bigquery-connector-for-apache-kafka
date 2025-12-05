@@ -268,11 +268,11 @@ public class DebeziumLogicalConverters {
         case RECORD:
           return kafkaConnectObject;
         case FLOAT:
-          return VariableScaleDecimal.toLogical(struct).doubleValue();
+          return VariableScaleDecimal.toLogical(struct).toDouble();
         case NUMERIC:
         case BIGNUMERIC:
         default:
-          return VariableScaleDecimal.toLogical(struct);
+          return VariableScaleDecimal.toLogical(struct).getWrappedValue();
       }
     }
 
