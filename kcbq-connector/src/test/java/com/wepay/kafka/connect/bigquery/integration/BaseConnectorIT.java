@@ -64,6 +64,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -73,11 +74,13 @@ import kafka.server.KafkaConfig;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.config.internals.BrokerSecurityConfigs;
 import org.apache.kafka.common.utils.Utils;
 import org.apache.kafka.connect.runtime.AbstractStatus;
 import org.apache.kafka.connect.runtime.WorkerConfig;
 import org.apache.kafka.connect.runtime.rest.entities.ConnectorStateInfo;
 import org.apache.kafka.connect.util.clusters.EmbeddedConnectCluster;
+import org.apache.kafka.server.config.ServerConfigs;
 import org.apache.kafka.test.NoRetryException;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -123,7 +126,7 @@ public abstract class BaseConnectorIT {
         WorkerConfig.PLUGIN_DISCOVERY_CONFIG, "HYBRID_WARN");
 
     Properties brokerProps = new Properties();
-    brokerProps.put(KafkaConfig.MessageMaxBytesProp(), 10 * 1024 * 1024);
+    brokerProps.put(ServerConfigs.MESSAGE_MAX_BYTES_CONFIG, 10 * 1024 * 1024);
 
     connect = new EmbeddedConnectCluster.Builder()
         .name("kcbq-connect-cluster")
