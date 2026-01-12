@@ -27,10 +27,6 @@ import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.PROJECT
 import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.USE_CREDENTIALS_PROJECT_ID_CONFIG;
 import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG;
 
-import com.google.api.client.json.GenericJson;
-import com.google.api.client.json.JsonObjectParser;
-import com.google.api.client.json.gson.GsonFactory;
-import com.google.api.client.util.ArrayMap;
 import com.google.api.gax.core.FixedCredentialsProvider;
 import com.google.api.gax.rpc.FixedHeaderProvider;
 import com.google.api.gax.rpc.HeaderProvider;
@@ -40,23 +36,20 @@ import com.google.cloud.bigquery.BigQueryOptions;
 import com.google.cloud.bigquery.storage.v1.BigQueryWriteSettings;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageOptions;
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
 import com.google.common.io.ByteStreams;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiConnectException;
-import io.aiven.kafka.utils.VersionInfo;
+import io.aiven.commons.google.auth.GCPValidator;
+import io.aiven.commons.system.VersionInfo;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -171,7 +164,7 @@ public abstract class GcpClientBuilder<ClientT> {
     }
 
     try {
-        validateCredentialJson(credentialsBytes);
+      GCPValidator.validateCredentialJson(credentialsBytes);
       InputStream credentialsStream = new ByteArrayInputStream(credentialsBytes);
       return useStorageWriteApi
           ? GoogleCredentials.fromStream(credentialsStream).createScoped(scopes)
@@ -183,82 +176,6 @@ public abstract class GcpClientBuilder<ClientT> {
 
   protected abstract ClientT doBuild(String project, GoogleCredentials credentials);
 
-
-
-    /**
-     * Validate the JSON credential information.
-     *
-     *
-     * @param credentialsBytes the bytes for the JSON document.
-     * @throws IOException on IO error
-     * @see <a herf="https://docs.cloud.google.com/docs/authentication/client-libraries#java_1">Security requirements when using credential configurations from an external source</a>
-     */
-  @VisibleForTesting
-  static void validateCredentialJson(byte[] credentialsBytes) throws IOException {
-      JsonObjectParser parser = new JsonObjectParser(GsonFactory.getDefaultInstance());
-      GenericJson fileContents =
-              parser.parseAndClose(new ByteArrayInputStream(credentialsBytes), StandardCharsets.UTF_8, GenericJson.class);
-
-      // while the documentation referenced in the javadoc above mentiones 'token_url' several of the builders use 'token_uri' instead.
-      for (String fieldName : new String[]{"token_url", "token_uri"}) {
-          if (fileContents.containsKey(fieldName)) {
-              String urlStr = fileContents.get(fieldName).toString();
-              if (!urlStr.equals("https://sts.googleapis.com/v1/token")) {
-                  throw new IllegalArgumentException(fieldName + " must have the value: 'https://sts.googleapis.com/v1/token'");
-              }
-          }
-      }
-      if (fileContents.containsKey("service_account_impersonation_url")) {
-          final String impersonationUrl = fileContents.get("service_account_impersonation_url").toString();
-          if (!(impersonationUrl.startsWith("https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/")
-                  && impersonationUrl.endsWith(":generateAccessToken"))) {
-              throw new IllegalArgumentException(String.format("'%s' is not an allowed value for service_account_impersonation_url", impersonationUrl));
-          }
-      }
-
-      if (fileContents.containsKey("credential_source")) {
-          Map<String, Object> credSource = (Map<String, Object>) fileContents.get("credential_source");
-          if (credSource.containsKey("file")) {
-              EnvCheck.throwIfNotAllowed(EnvCheck.Type.FILE, credSource.get("file").toString());
-          }
-          if (credSource.containsKey("url")) {
-              EnvCheck.throwIfNotAllowed(EnvCheck.Type.URI, credSource.get("url").toString());
-          }
-          if (credSource.containsKey("executable")) {
-              Map<String, Object> executable = (Map<String, Object>) credSource.get("executable");
-              if (executable.containsKey("command")) {
-                  EnvCheck.throwIfNotAllowed(EnvCheck.Type.CMD, executable.get("command").toString());
-              }
-          }
-          if (credSource.containsKey("aws")) {
-              Map<String, Object> aws = (Map<String, Object>) credSource.get("aws");
-              if (aws.containsKey("url")) {
-                  final List<String> validAwsUrls = Arrays.asList("https://169.254.169.254/latest/meta-data/iam/security-credentials",
-                          "https://[fd00:ec2::254]/latest/meta-data/iam/security-credentials");
-                  String awsUrl = aws.get("url").toString();
-                  if (!validAwsUrls.contains(awsUrl)) {
-                      throw new IllegalArgumentException("credential_source.aws.url must be one of '" + String.join("', '", validAwsUrls) + "'");
-                  }
-              }
-              if (aws.containsKey("region_url")) {
-                  final List<String> validAwsRegionUrls = Arrays.asList("http://169.254.169.254/latest/meta-data/placement/availability-zone",
-                          "http://[fd00:ec2::254]/latest/meta-data/placement/availability-zone");
-                  String awsUrl = aws.get("region_url").toString();
-                  if (!validAwsRegionUrls.contains(awsUrl)) {
-                      throw new IllegalArgumentException("credential_source.aws.region_url must be one of '" + String.join("', '", validAwsRegionUrls) + "'");
-                  }
-              }
-              if (aws.containsKey("imdsv2_session_token_url")) {
-                  final List<String> tokenUrls = Arrays.asList("http://169.254.169.254/latest/api/token",
-                          "http://[fd00:ec2::254]/latest/api/token");
-                  String awsUrl = aws.get("imdsv2_session_token_url").toString();
-                  if (!tokenUrls.contains(awsUrl)) {
-                      throw new IllegalArgumentException("credential_source.aws.imdsv2_session_token_url must be one of '" + String.join("', '", tokenUrls) + "'");
-                  }
-              }
-          }
-      }
-  }
 
   public enum KeySource {
     FILE, JSON, APPLICATION_DEFAULT

@@ -37,7 +37,7 @@
     <artifactId>kcbq-connector</artifactId>
     <name>kafka-connect-bigquery</name>
     <organization>
-        <name>Aiven</name>
+        <name>Aiven, OY</name>
         <url>https://www.aiven.io</url>
     </organization>
     <properties>
@@ -47,8 +47,12 @@
     <dependencies>
         <dependency>
             <groupId>io.aiven.commons</groupId>
-            <artifactId>kafka-config</artifactId>
-            <version>0.0.1-SNAPSHOT</version>
+            <artifactId>google-utils</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>io.aiven.commons</groupId>
+            <artifactId>system</artifactId>
         </dependency>
 
         <dependency>
@@ -59,7 +63,11 @@
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-core</artifactId>
-            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
         </dependency>
 
         <dependency>
@@ -234,7 +242,6 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
-                <version>3.4.2</version>
                 <configuration>
                     <archive>
                         <manifest>
@@ -244,6 +251,13 @@
                         </manifest>
                         <manifestEntries>
                             <url>${project.url}</url>
+                            <Main-Class>oio.aiven.kafka.utils.VersionInfo</Main-Class>
+                            <Specification-Title>Apache Kafka Connector</Specification-Title>
+                            <Specification-Vendor>apache.org</Specification-Vendor>
+                            <Specification-Version>${kafka.version}</Specification-Version>
+                            <Implementation-Title>${project.name}</Implementation-Title>
+                            <Implementation-Vendor>${project.organization.name}</Implementation-Vendor>
+                            <Implementation-Version>${project.version}</Implementation-Version>
                         </manifestEntries>
                     </archive>
                 </configuration>
