@@ -60,6 +60,7 @@ import java.util.stream.Stream;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.sink.ErrantRecordReporter;
 import org.apache.kafka.connect.sink.SinkRecord;
+import org.json.JSONArray;
 import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -136,7 +137,7 @@ public class StorageWriteApiDefaultStreamTest {
     defaultStream.time = time;
     defaultStream.errantRecordHandler = mockedErrantRecordHandler;
     doReturn(mockedStreamWriter).when(defaultStream).getDefaultStream(any(), any());
-    when(mockedStreamWriter.append(ArgumentMatchers.any())).thenReturn(mockedResponse);
+    when(mockedStreamWriter.append(ArgumentMatchers.any(JSONArray.class))).thenReturn(mockedResponse);
     doReturn(true).when(mockedSchemaManager).createTable(any(), any());
     doNothing().when(mockedSchemaManager).updateSchema(any(), any());
     when(mockedErrantRecordHandler.getErrantRecordReporter()).thenReturn(mockedErrantReporter);

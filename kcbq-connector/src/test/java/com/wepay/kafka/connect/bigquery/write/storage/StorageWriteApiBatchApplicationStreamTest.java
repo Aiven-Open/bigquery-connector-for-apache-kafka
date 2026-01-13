@@ -64,6 +64,7 @@ import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.sink.ErrantRecordReporter;
 import org.apache.kafka.connect.sink.SinkRecord;
+import org.json.JSONArray;
 import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -149,7 +150,7 @@ public class StorageWriteApiBatchApplicationStreamTest {
     doNothing().when(mockedSchemaManager).updateSchema(any(), any());
     doReturn(true).when(mockedSchemaManager).createTable(any(), any());
 
-    when(mockedJsonWriter.append(any())).thenReturn(mockedResponse);
+    when(mockedJsonWriter.append(any(JSONArray.class))).thenReturn(mockedResponse);
     when(mockedStream.getAutoCreateTables()).thenReturn(true);
     when(mockedApplicationStream1.canTransitionToNonActive()).thenReturn(true);
     when(mockedApplicationStream1.isInactive()).thenReturn(true);

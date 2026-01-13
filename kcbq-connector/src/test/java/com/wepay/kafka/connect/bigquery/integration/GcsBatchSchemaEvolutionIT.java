@@ -34,11 +34,10 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.Field;
 import com.google.cloud.bigquery.LegacySQLTypeName;
-import com.google.cloud.bigquery.StandardTableDefinition;
 import com.google.cloud.bigquery.Table;
 import com.google.cloud.bigquery.TableId;
-import com.google.cloud.bigquery.TableInfo;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
+import com.wepay.kafka.connect.bigquery.integration.utils.BigQueryTestUtils;
 import com.wepay.kafka.connect.bigquery.integration.utils.BucketClearer;
 import com.wepay.kafka.connect.bigquery.integration.utils.SchemaRegistryTestUtils;
 import com.wepay.kafka.connect.bigquery.integration.utils.TableClearer;
@@ -250,7 +249,7 @@ public class GcsBatchSchemaEvolutionIT extends BaseConnectorIT {
         Field.newBuilder("id", LegacySQLTypeName.INTEGER).setMode(Field.Mode.REQUIRED).build(),
         Field.newBuilder("category", LegacySQLTypeName.STRING).setMode(Field.Mode.REQUIRED).build()
     );
-    bigQuery.create(TableInfo.newBuilder(tableId, StandardTableDefinition.of(schema)).build());
+    BigQueryTestUtils.createPartitionedTable(bigQuery, dataset(), table, schema);
   }
 
   private void waitForRowCount(long expected) throws InterruptedException {

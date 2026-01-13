@@ -176,7 +176,6 @@ public abstract class GcpClientBuilder<ClientT> {
 
   protected abstract ClientT doBuild(String project, GoogleCredentials credentials);
 
-
   public enum KeySource {
     FILE, JSON, APPLICATION_DEFAULT
   }

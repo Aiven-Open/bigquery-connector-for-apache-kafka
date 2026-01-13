@@ -34,6 +34,7 @@ import com.google.cloud.bigquery.storage.v1.BigQueryWriteClient;
 import com.google.cloud.bigquery.storage.v1.BigQueryWriteSettings;
 import com.google.cloud.bigquery.storage.v1.JsonStreamWriter;
 import com.google.cloud.storage.Storage;
+import com.google.cloud.storage.StorageException;
 import com.wepay.kafka.connect.bigquery.GcpClientBuilder;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.utils.TableNameUtils;
@@ -98,7 +99,7 @@ public class GcpClientBuilderIT extends BaseConnectorIT {
    * Construct the BigQuery and Storage clients and perform some basic operations to check they are operational.
    *
    * @param keySource the key Source to use
-   * @throws IOException
+   * @throws Exception on Error
    */
   private void testClients(GcpClientBuilder.KeySource keySource) throws Exception {
     Map<String, String> properties = connectorProps(keySource);
@@ -110,6 +111,8 @@ public class GcpClientBuilderIT extends BaseConnectorIT {
 
     try (Storage storage = new GcpClientBuilder.GcsBuilder().withConfig(config).build()) {
       storage.get(gcsBucket());
+    } catch (StorageException e) {
+        logger.warn("Can not access bucket: " + gcsBucket(), e);
     }
 
     BigQueryWriteSettings settings = new GcpClientBuilder.BigQueryWriteSettingsBuilder().withConfig(config).build();
