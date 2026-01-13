@@ -260,9 +260,7 @@ public class BigQuerySinkConnectorIT {
       messageReaderProps.put("value.schema", schemaString);
       messageReaderProps.put("topic", topic);
       messageReader.init(messageReaderProps);
-      //messageReader.init(dataStream, messageReaderProps);
       Iterator<ProducerRecord<byte[], byte[]>> iter = messageReader.readRecords(dataStream);
-      //ProducerRecord<byte[], byte[]> message = messageReader..readMessage();
       while (iter.hasNext()) {
         ProducerRecord<byte[], byte[]> message = iter.next();
         try {

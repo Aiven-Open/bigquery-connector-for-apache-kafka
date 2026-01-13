@@ -385,7 +385,7 @@ public abstract class BaseConnectorIT {
 
   private String readEnvVar(String var) {
     String result = System.getenv(var);
-    if (StringUtils.isAllEmpty(result)) {
+    if (StringUtils.isEmpty(result)) {
       throw new IllegalStateException(String.format(
           "Environment variable '%s' must be supplied to run integration tests",
           var));
