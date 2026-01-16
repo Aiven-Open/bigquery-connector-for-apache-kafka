@@ -37,11 +37,14 @@ import com.google.cloud.bigquery.storage.v1.BigQueryWriteSettings;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageOptions;
 import com.google.common.collect.Lists;
+import com.google.common.io.ByteStreams;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiConnectException;
-import io.aiven.kafka.utils.VersionInfo;
+import io.aiven.commons.google.auth.GCPValidator;
+import io.aiven.commons.system.VersionInfo;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -134,15 +137,17 @@ public abstract class GcpClientBuilder<ClientT> {
       Objects.requireNonNull(project, "Project must be defined to build a GCP client");
     }    
 
-    InputStream credentialsStream;
+    byte[] credentialsBytes;
     switch (keySource) {
       case JSON:
-        credentialsStream = new ByteArrayInputStream(key.getBytes(StandardCharsets.UTF_8));
+        credentialsBytes = key.getBytes(StandardCharsets.UTF_8);
         break;
       case FILE:
         try {
           logger.debug("Attempting to open file {} for service account json key", key);
-          credentialsStream = new FileInputStream(key);
+          ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+          ByteStreams.copy(new FileInputStream(key), outputStream);
+          credentialsBytes = outputStream.toByteArray();
         } catch (IOException e) {
           throw new BigQueryConnectException("Failed to access JSON key file", e);
         }
@@ -159,6 +164,8 @@ public abstract class GcpClientBuilder<ClientT> {
     }
 
     try {
+      GCPValidator.validateCredentialJson(credentialsBytes);
+      InputStream credentialsStream = new ByteArrayInputStream(credentialsBytes);
       return useStorageWriteApi
           ? GoogleCredentials.fromStream(credentialsStream).createScoped(scopes)
           : GoogleCredentials.fromStream(credentialsStream);

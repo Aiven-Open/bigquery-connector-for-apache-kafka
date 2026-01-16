@@ -24,7 +24,7 @@
 
 package com.wepay.kafka.connect.bigquery.integration;
 
-import io.aiven.kafka.utils.VersionInfo;
+import io.aiven.commons.system.VersionInfo;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;

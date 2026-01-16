@@ -35,11 +35,14 @@ import com.wepay.kafka.connect.bigquery.retrieve.IdentitySchemaRetriever;
 import com.wepay.kafka.connect.bigquery.utils.FieldNameSanitizer;
 import io.confluent.connect.avro.AvroConverter;
 import io.confluent.kafka.formatter.AvroMessageReader;
+
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -47,7 +50,6 @@ import java.util.Scanner;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import kafka.common.MessageReader;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerConfig;
@@ -63,9 +65,7 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
 
 @Tag("integration")
 @Disabled("Broken in change from 2.5.5 to 2.6.0")
@@ -245,29 +245,33 @@ public class BigQuerySinkConnectorIT {
 
     String testCaseDir = "integration_test_cases/" + testCase + "/";
 
+    try (
     InputStream schemaStream = BigQuerySinkConnectorIT.class.getClassLoader()
         .getResourceAsStream(testCaseDir + "schema.json");
-    Scanner schemaScanner = new Scanner(schemaStream).useDelimiter("\\A");
-    String schemaString = schemaScanner.next();
-
-    Properties messageReaderProps = new Properties();
-    messageReaderProps.put(SCHEMA_REGISTRY_URL_CONFIG, schemaRegistryUrl);
-    messageReaderProps.put("value.schema", schemaString);
-    messageReaderProps.put("topic", topic);
     InputStream dataStream = BigQuerySinkConnectorIT.class.getClassLoader()
-        .getResourceAsStream(testCaseDir + "data.json");
-    MessageReader messageReader = new AvroMessageReader();
-    messageReader.init(dataStream, messageReaderProps);
+            .getResourceAsStream(testCaseDir + "data.json");
+    AvroMessageReader messageReader = new AvroMessageReader()
+    ) {
+      Scanner schemaScanner = new Scanner(schemaStream).useDelimiter("\\A");
+      String schemaString = schemaScanner.next();
 
-    ProducerRecord<byte[], byte[]> message = messageReader.readMessage();
-    while (message != null) {
-      try {
-        valueProducer.send(message).get(1, TimeUnit.SECONDS);
-        numRecordsProduced++;
-      } catch (InterruptedException | ExecutionException | TimeoutException e) {
-        throw new RuntimeException(e);
+      Properties messageReaderProps = new Properties();
+      messageReaderProps.put(SCHEMA_REGISTRY_URL_CONFIG, schemaRegistryUrl);
+      messageReaderProps.put("value.schema", schemaString);
+      messageReaderProps.put("topic", topic);
+      messageReader.init(messageReaderProps);
+      Iterator<ProducerRecord<byte[], byte[]>> iter = messageReader.readRecords(dataStream);
+      while (iter.hasNext()) {
+        ProducerRecord<byte[], byte[]> message = iter.next();
+        try {
+          valueProducer.send(message).get(1, TimeUnit.SECONDS);
+          numRecordsProduced++;
+        } catch (InterruptedException | ExecutionException | TimeoutException e) {
+          throw new RuntimeException(e);
+        }
       }
-      message = messageReader.readMessage();
+    } catch (IOException e) {
+        throw new RuntimeException(e);
     }
   }
 

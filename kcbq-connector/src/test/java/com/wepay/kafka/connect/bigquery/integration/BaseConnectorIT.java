@@ -69,7 +69,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
-import kafka.server.KafkaConfig;
+
+import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
@@ -78,6 +79,7 @@ import org.apache.kafka.connect.runtime.AbstractStatus;
 import org.apache.kafka.connect.runtime.WorkerConfig;
 import org.apache.kafka.connect.runtime.rest.entities.ConnectorStateInfo;
 import org.apache.kafka.connect.util.clusters.EmbeddedConnectCluster;
+import org.apache.kafka.server.config.ServerConfigs;
 import org.apache.kafka.test.NoRetryException;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -123,7 +125,7 @@ public abstract class BaseConnectorIT {
         WorkerConfig.PLUGIN_DISCOVERY_CONFIG, "HYBRID_WARN");
 
     Properties brokerProps = new Properties();
-    brokerProps.put(KafkaConfig.MessageMaxBytesProp(), 10 * 1024 * 1024);
+    brokerProps.put(ServerConfigs.MESSAGE_MAX_BYTES_CONFIG, 10 * 1024 * 1024);
 
     connect = new EmbeddedConnectCluster.Builder()
         .name("kcbq-connect-cluster")
@@ -337,7 +339,6 @@ public abstract class BaseConnectorIT {
    *
    * @param name     the name of the connector
    * @param numTasks the minimum number of tasks that are expected
-   * @return the time this method discovered the connector has started, in milliseconds past epoch
    * @throws InterruptedException if this was interrupted
    */
   protected void waitForConnectorToStart(String name, int numTasks) throws InterruptedException {
@@ -353,7 +354,8 @@ public abstract class BaseConnectorIT {
    *
    * @param connectorName the connector
    * @param numTasks      the minimum number of tasks
-   * @return true if the connector and tasks are in RUNNING state; false otherwise
+   * @return an Optional {@code true} if the connector and tasks are in RUNNING state; {@code false} if they are not and
+   * an empty Optional if there was an Exception thrown.
    */
   protected Optional<Boolean> assertConnectorAndTasksRunning(String connectorName, int numTasks) {
     try {
@@ -364,7 +366,7 @@ public abstract class BaseConnectorIT {
           && info.tasks().stream().allMatch(s -> s.state().equals(AbstractStatus.State.RUNNING.toString()));
       return Optional.of(result);
     } catch (Exception e) {
-      logger.debug("Could not check connector state info.", e);
+      logger.warn("Could not check connector state info.", e);
       return Optional.empty();
     }
   }
@@ -383,16 +385,16 @@ public abstract class BaseConnectorIT {
 
   private String readEnvVar(String var) {
     String result = System.getenv(var);
-    if (result == null) {
+    if (StringUtils.isEmpty(result)) {
       throw new IllegalStateException(String.format(
           "Environment variable '%s' must be supplied to run integration tests",
           var));
     }
-    return result;
+    return result.trim();
   }
 
   private String readEnvVar(String var, String defaultVal) {
-    return System.getenv().getOrDefault(var, defaultVal);
+    return System.getenv().getOrDefault(var, defaultVal).trim();
   }
 
   protected String keyFile() {
@@ -418,7 +420,7 @@ public abstract class BaseConnectorIT {
   }
 
   protected String gcsBucket() {
-    return readEnvVar(GCS_BUCKET_ENV_VAR);
+    return readEnvVar(GCS_BUCKET_ENV_VAR).trim();
   }
 
   protected String gcsFolder() {

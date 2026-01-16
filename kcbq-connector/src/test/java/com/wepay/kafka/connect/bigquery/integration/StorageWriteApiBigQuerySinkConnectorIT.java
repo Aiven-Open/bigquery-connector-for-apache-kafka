@@ -785,7 +785,6 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
   }
 
   private void produceAvroRecords(String topic, long numRecords, int valueSize) {
-    // AAAAAAAAAAAAAAAAAAAAAAAAAAA
     String largeField = String.join("", Collections.nCopies(valueSize, "A"));
 
     Schema largeValueSchema = SchemaBuilder.struct()

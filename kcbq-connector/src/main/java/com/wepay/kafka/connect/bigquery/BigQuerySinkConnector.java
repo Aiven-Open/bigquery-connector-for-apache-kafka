@@ -25,9 +25,7 @@ package com.wepay.kafka.connect.bigquery;
 
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkTaskConfig;
-import com.wepay.kafka.connect.bigquery.convert.logicaltype.DebeziumLogicalConverters;
-import com.wepay.kafka.connect.bigquery.convert.logicaltype.KafkaLogicalConverters;
-import io.aiven.kafka.utils.VersionInfo;
+import io.aiven.commons.system.VersionInfo;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
