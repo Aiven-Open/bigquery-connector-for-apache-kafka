@@ -9,6 +9,18 @@ of [Apache Kafka Connect](https://kafka.apache.org/documentation.html#connect).
 The Kafka Connect BigQuery Connector documentation is available online at https://aiven-open.github.io/bigquery-connector-for-apache-kafka/.
 The site contains a complete list of the configuration options as well as information about the project.
 
+### Configuration notes
+
+If the configuration includes a JSON GCP credential structure that uses a `credential_source` entry, one of the following environment variables must be set.
+
+| Source Type | Environment Variable            |
+|-------------|---------------------------------|
+| file        | io.aiven.commons.envcheck.files |
+| url         | io.aiven.commons.envcheck.uri   |
+| executable  | io.aiven.commons.envcheck.cmd   |
+
+The environment variables contain a comma separated list of valid entries for each type.  If the environment variable is not set, or the JSON value is not found in the environment variable, the value will be prohibited and an exception thrown before the connector starts. 
+
 ## History
 
 This connector was [originally developed by WePay](https://github.com/wepay/kafka-connect-bigquery).
