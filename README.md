@@ -21,6 +21,21 @@ If the configuration includes a JSON GCP credential structure that uses a `crede
 
 The environment variables contain a comma separated list of valid entries for each type.  If the environment variable is not set, or the JSON value is not found in the environment variable, the value will be prohibited and an exception thrown before the connector starts. 
 
+As an example, to access https://example.com/credentials.cgi the environment variable `io.aiven.commons.envcheck.uri` would need to contain the URL:
+
+```
+export io.aiven.commons.envcheck.uri=https://example.com/credentials.cgi
+# start the kafka processes
+```
+
+To add an additional URL, for example `https://example.net/credentials.cgi` the export would look like:
+
+```
+export io.aiven.commons.envcheck.uri=https://example.com/credentials.cgi,https://example.net/credentials.cgi 
+# start the kafka processes
+```
+
+
 ## History
 
 This connector was [originally developed by WePay](https://github.com/wepay/kafka-connect-bigquery).
