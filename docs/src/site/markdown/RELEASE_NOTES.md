@@ -3,6 +3,30 @@
 
 All releases can be found at https://github.com/Aiven-Open/bigquery-connector-for-apache-kafka/releases
 
+## v2.11.0
+### What's changed
+- Fix for CVE-2026-23529
+- Updated versions
+    - Java 8 -> 17
+    - confluent 7.6.0 -> 7.9.5
+    - jackson 2.14.2 -> 2.20.1
+    - kafka 3.6.1 -> 3.8.1
+- Introducted
+    - aiven-commons:system:1.0.0
+    - aiven-commons:google-utils:1.0.0
+- updated README
+
+
+### Co-authored by
+- Aindriú Lavelle
+- Audrey Budryte
+- Claude Warren
+
+
+### Full Changelog
+https://github.com/Aiven-Open/bigquery-connector-for-apache-kafka/compare/v2.10.3...v2.11.0
+
+
 ## v2.10.3
 ### What's changed
  - fix: populate LogicalConverterRegistry in Task
@@ -24,7 +48,6 @@ https://github.com/Aiven-Open/bigquery-connector-for-apache-kafka/compare/v2.10.
 - Aindriú Lavelle
 - Claude Warren
 - Erik Gustafsson
-- GitHub Action
 - HieuNT
 - Ryan Skraba
 
