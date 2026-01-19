@@ -783,6 +783,29 @@ public class SchemaManagerTest {
     );
   }
 
+  /**
+   * Tests the case where the existing schema contains fields that the records do not have.
+   */
+  @Test
+  public void testUpdateWithSmallerSchema() {
+    com.google.cloud.bigquery.Schema existingSchema = com.google.cloud.bigquery.Schema.of(
+            Field.newBuilder("f1", LegacySQLTypeName.BOOLEAN).setMode(Field.Mode.REQUIRED).build(),
+            Field.newBuilder("f2", LegacySQLTypeName.INTEGER).setMode(Field.Mode.NULLABLE).build()
+    );
+
+    Schema incomingSchema = SchemaBuilder.struct().field("f1", Schema.BOOLEAN_SCHEMA).build();
+    List<SinkRecord> incomingSinkRecords = ImmutableList.of(recordWithValueSchema(incomingSchema));
+    TableId tableId = mock(TableId.class);
+    Table table = tableWithSchema(existingSchema);
+    when(mockBigQuery.getTable(tableId)).thenReturn(table);
+
+    BigQuerySchemaConverter converter = new BigQuerySchemaConverter(false, true);
+    SchemaManager schemaManager = createSchemaManager(true, false, false, true, converter);
+
+    com.google.cloud.bigquery.Schema validatedSchema = schemaManager.getAndValidateProposedSchema(tableId, incomingSinkRecords);
+    assertNotNull(validatedSchema.getFields().get("f2"));
+  }
+
   @Test
   public void testUpdateWithRegularAndTombstoneRecords() {
     com.google.cloud.bigquery.Schema existingSchema = com.google.cloud.bigquery.Schema.of(
