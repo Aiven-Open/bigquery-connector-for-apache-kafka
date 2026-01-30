@@ -3,6 +3,17 @@
 
 All releases can be found at https://github.com/Aiven-Open/bigquery-connector-for-apache-kafka/releases
 
+## v2.12.0
+### What's changed
+- upgraded to google-utils v1.1.0 and system v1.1.0
+
+
+### Co-authored by
+- Claude Warren
+
+### Full Changelog
+https://github.com/Aiven-Open/bigquery-connector-for-apache-kafka/compare/v2.11.0...v2.12.0
+
 ## v2.11.0
 ### What's changed
 - Fix for CVE-2026-23529
