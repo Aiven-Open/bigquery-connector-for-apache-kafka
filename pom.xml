@@ -41,8 +41,8 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <java.version>17</java.version>
-        <aiven.commons.system.version>1.0.0</aiven.commons.system.version>
-        <aiven.commons.google-utils.version>1.0.0</aiven.commons.google-utils.version>
+        <aiven.commons.system.version>1.1.0</aiven.commons.system.version>
+        <aiven.commons.google-utils.version>1.1.0</aiven.commons.google-utils.version>
         <com.google.guava.version>32.0.1-jre</com.google.guava.version>
         <com.google.re2j.version>1.7</com.google.re2j.version>
         <com.google.auto.value.version>1.10.2</com.google.auto.value.version>
