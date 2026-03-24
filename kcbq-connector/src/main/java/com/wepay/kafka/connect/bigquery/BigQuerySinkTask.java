@@ -229,6 +229,7 @@ public class BigQuerySinkTask extends SinkTask {
                 storageApiWriter,
                 table,
                 recordConverter,
+                config,
                 batchHandler
             );
           } else if (config.getList(BigQuerySinkConfig.ENABLE_BATCH_CONFIG).contains(record.topic())) {
@@ -351,11 +352,15 @@ public class BigQuerySinkTask extends SinkTask {
     Optional<List<String>> clusteringFieldName = config.getClusteringPartitionFieldNames();
     Optional<TimePartitioning.Type> timePartitioningType = config.getTimePartitioningType();
     boolean sanitizeFieldNames = config.getBoolean(BigQuerySinkConfig.SANITIZE_FIELD_NAME_CONFIG);
+    boolean kafkaKeyAsPrimaryKey = config.isUpsertEnabled()
+        && config.getBoolean(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG);
+
     return new SchemaManager(schemaRetriever, schemaConverter, getBigQuery(),
         allowNewBigQueryFields, allowRequiredFieldRelaxation, allowSchemaUnionization,
         sanitizeFieldNames,
         kafkaKeyFieldName, kafkaDataFieldName,
-        timestampPartitionFieldName, partitionExpiration, clusteringFieldName, timePartitioningType);
+        timestampPartitionFieldName, partitionExpiration, clusteringFieldName, timePartitioningType,
+        kafkaKeyAsPrimaryKey);
   }
 
   private BigQueryWriter getBigQueryWriter(ErrantRecordHandler errantRecordHandler) {

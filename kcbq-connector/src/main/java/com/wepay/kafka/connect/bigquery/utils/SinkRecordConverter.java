@@ -122,7 +122,9 @@ public class SinkRecordConverter {
   }
 
   public Map<String, Object> getRegularRow(SinkRecord record) {
-    Map<String, Object> result = recordConverter.convertRecord(record, KafkaSchemaRecordType.VALUE);
+    Map<String, Object> result = config.getBoolean(config.DELETE_ENABLED_CONFIG) && record.value() == null
+        ? new HashMap<>()
+        : recordConverter.convertRecord(record, KafkaSchemaRecordType.VALUE);
 
     config.getKafkaDataFieldName().ifPresent(fieldName -> {
       Map<String, Object> kafkaDataField = config.getBoolean(config.USE_STORAGE_WRITE_API_CONFIG)
@@ -133,7 +135,11 @@ public class SinkRecordConverter {
 
     config.getKafkaKeyFieldName().ifPresent(fieldName -> {
       Map<String, Object> keyData = recordConverter.convertRecord(record, KafkaSchemaRecordType.KEY);
-      result.put(fieldName, keyData);
+      if (fieldName.isEmpty()) {
+        result.putAll(keyData);
+      } else {
+        result.put(fieldName, keyData);
+      }
     });
 
     return maybeSanitize(result);
