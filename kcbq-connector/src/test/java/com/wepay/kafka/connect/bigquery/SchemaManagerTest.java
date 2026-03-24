@@ -121,7 +121,7 @@ public class SchemaManagerTest {
     when(mockKafkaSchema.doc()).thenReturn(testDoc);
 
     TableInfo tableInfo = schemaManager
-        .constructTableInfo(tableId, fakeBigQuerySchema, testDoc, true);
+        .constructTableInfo(tableId, new SchemaManager.SchemaAndPrimaryKeyColumns(fakeBigQuerySchema, java.util.Collections.emptyList()), testDoc, true);
 
     assertEquals(
         testDoc,
@@ -151,7 +151,7 @@ public class SchemaManagerTest {
     when(mockKafkaSchema.doc()).thenReturn(testDoc);
 
     TableInfo tableInfo = schemaManager
-        .constructTableInfo(tableId, fakeBigQuerySchema, testDoc, true);
+        .constructTableInfo(tableId, new SchemaManager.SchemaAndPrimaryKeyColumns(fakeBigQuerySchema, java.util.Collections.emptyList()), testDoc, true);
 
     assertEquals(
         testDoc,
@@ -184,7 +184,7 @@ public class SchemaManagerTest {
     when(mockKafkaSchema.doc()).thenReturn(testDoc);
 
     TableInfo tableInfo = schemaManager
-        .constructTableInfo(tableId, fakeBigQuerySchema, testDoc, true);
+        .constructTableInfo(tableId, new SchemaManager.SchemaAndPrimaryKeyColumns(fakeBigQuerySchema, java.util.Collections.emptyList()), testDoc, true);
 
     assertEquals(
         testDoc,
@@ -208,7 +208,7 @@ public class SchemaManagerTest {
     when(mockKafkaSchema.doc()).thenReturn(testDoc);
 
     TableInfo tableInfo = schemaManager
-        .constructTableInfo(tableId, fakeBigQuerySchema, testDoc, true);
+        .constructTableInfo(tableId, new SchemaManager.SchemaAndPrimaryKeyColumns(fakeBigQuerySchema, java.util.Collections.emptyList()), testDoc, true);
 
     assertEquals(
         testDoc,
@@ -232,7 +232,7 @@ public class SchemaManagerTest {
     when(mockKafkaSchema.doc()).thenReturn(testDoc);
 
     TableInfo tableInfo = schemaManager
-        .constructTableInfo(tableId, fakeBigQuerySchema, testDoc, false);
+        .constructTableInfo(tableId, new SchemaManager.SchemaAndPrimaryKeyColumns(fakeBigQuerySchema, java.util.Collections.emptyList()), testDoc, false);
 
     assertEquals(
         testDoc,
@@ -258,7 +258,7 @@ public class SchemaManagerTest {
     when(mockKafkaSchema.doc()).thenReturn(testDoc);
 
     TableInfo tableInfo = schemaManager
-        .constructTableInfo(tableId, fakeBigQuerySchema, testDoc, true);
+        .constructTableInfo(tableId, new SchemaManager.SchemaAndPrimaryKeyColumns(fakeBigQuerySchema, java.util.Collections.emptyList()), testDoc, true);
 
     assertEquals(
         testDoc,
@@ -280,7 +280,7 @@ public class SchemaManagerTest {
         false, 0L, 1, sinkConfig);
 
     tableInfo = schemaManager
-        .constructTableInfo(tableId, fakeBigQuerySchema, testDoc, false);
+        .constructTableInfo(tableId, new SchemaManager.SchemaAndPrimaryKeyColumns(fakeBigQuerySchema, java.util.Collections.emptyList()), testDoc, false);
     definition = tableInfo.getDefinition();
     assertNull(
         ((StandardTableDefinition) tableInfo.getDefinition()).getTimePartitioning(),
@@ -301,7 +301,7 @@ public class SchemaManagerTest {
     when(mockKafkaSchema.doc()).thenReturn(testDoc);
 
     TableInfo tableInfo = schemaManager
-        .constructTableInfo(tableId, fakeBigQuerySchema, testDoc, true);
+        .constructTableInfo(tableId, new SchemaManager.SchemaAndPrimaryKeyColumns(fakeBigQuerySchema, java.util.Collections.emptyList()), testDoc, true);
 
     assertEquals(
         testDoc,
@@ -334,7 +334,7 @@ public class SchemaManagerTest {
     when(mockKafkaSchema.doc()).thenReturn(testDoc);
 
     TableInfo tableInfo = schemaManager
-        .constructTableInfo(tableId, fakeBigQuerySchema, testDoc, true);
+        .constructTableInfo(tableId, new SchemaManager.SchemaAndPrimaryKeyColumns(fakeBigQuerySchema, java.util.Collections.emptyList()), testDoc, true);
 
     assertEquals(
         testDoc,
@@ -368,7 +368,7 @@ public class SchemaManagerTest {
     when(mockKafkaSchema.doc()).thenReturn(testDoc);
 
     TableInfo tableInfo = schemaManager
-        .constructTableInfo(tableId, fakeBigQuerySchema, testDoc, true);
+        .constructTableInfo(tableId, new SchemaManager.SchemaAndPrimaryKeyColumns(fakeBigQuerySchema, java.util.Collections.emptyList()), testDoc, true);
 
     assertEquals(
         testDoc,
@@ -398,7 +398,7 @@ public class SchemaManagerTest {
     when(mockKafkaSchema.doc()).thenReturn(testDoc);
 
     TableInfo tableInfo = schemaManager
-        .constructTableInfo(tableId, fakeBigQuerySchema, testDoc, false);
+        .constructTableInfo(tableId, new SchemaManager.SchemaAndPrimaryKeyColumns(fakeBigQuerySchema, java.util.Collections.emptyList()), testDoc, false);
 
     assertEquals(
         testDoc,
@@ -426,7 +426,7 @@ public class SchemaManagerTest {
     when(mockKafkaSchema.doc()).thenReturn(testDoc);
 
     TableInfo tableInfo = schemaManager
-        .constructTableInfo(tableId, fakeBigQuerySchema, testDoc, true);
+        .constructTableInfo(tableId, new SchemaManager.SchemaAndPrimaryKeyColumns(fakeBigQuerySchema, java.util.Collections.emptyList()), testDoc, true);
 
     assertEquals(
         testDoc,
@@ -448,7 +448,7 @@ public class SchemaManagerTest {
         false, 0L, 1, sinkConfig);
 
     tableInfo = schemaManager
-        .constructTableInfo(tableId, fakeBigQuerySchema, testDoc, false);
+        .constructTableInfo(tableId, new SchemaManager.SchemaAndPrimaryKeyColumns(fakeBigQuerySchema, java.util.Collections.emptyList()), testDoc, false);
     definition = tableInfo.getDefinition();
     assertNull(
         definition.getClustering(),
@@ -880,7 +880,7 @@ public class SchemaManagerTest {
   /**
    * Creates a configuration that allows setting of specific values.
    * @param overrides overrides for defaults.
-   * @return a SchemaManagerTestConfig implementaiton.
+   * @return a SchemaManagerTestConfig implementation.
    */
   private static SchemaManagerTestConfig createConfig(Map<String, String> overrides) {
     Map<String, String> properties = new HashMap<>();
@@ -967,7 +967,7 @@ public class SchemaManagerTest {
     }
 
     com.google.cloud.bigquery.Schema proposedSchema =
-        schemaManager.getAndValidateProposedSchema(tableId, incomingSinkRecords);
+        schemaManager.getAndValidateProposedSchema(tableId, incomingSinkRecords).getSchema();
 
     if (expectedSchema != null) {
       assertEquals(expectedSchema, proposedSchema);

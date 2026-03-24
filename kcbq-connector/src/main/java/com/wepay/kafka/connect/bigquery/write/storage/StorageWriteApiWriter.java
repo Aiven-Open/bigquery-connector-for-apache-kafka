@@ -25,11 +25,13 @@ package com.wepay.kafka.connect.bigquery.write.storage;
 
 import com.google.cloud.bigquery.TableId;
 import com.google.cloud.bigquery.storage.v1.TableName;
+import com.wepay.kafka.connect.bigquery.config.BigQuerySinkTaskConfig;
 import com.wepay.kafka.connect.bigquery.utils.PartitionedTableId;
 import com.wepay.kafka.connect.bigquery.utils.SinkRecordConverter;
 import com.wepay.kafka.connect.bigquery.utils.TableNameUtils;
 import com.wepay.kafka.connect.bigquery.write.batch.TableWriterBuilder;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -104,6 +106,7 @@ public class StorageWriteApiWriter implements Runnable {
   public static class Builder implements TableWriterBuilder {
     private final List<ConvertedRecord> records = new ArrayList<>();
     private final SinkRecordConverter recordConverter;
+    private final BigQuerySinkTaskConfig config;
     private final PartitionedTableId table;
     private final StorageWriteApiBase streamWriter;
     private final StorageApiBatchModeHandler batchModeHandler;
@@ -117,16 +120,26 @@ public class StorageWriteApiWriter implements Runnable {
                    TableName tableName,
                    SinkRecordConverter recordConverter,
                    StorageApiBatchModeHandler batchModeHandler) {
-      this(streamWriter, TableNameUtils.partitionedTableId(tableName), recordConverter, batchModeHandler);
+      this(streamWriter, TableNameUtils.partitionedTableId(tableName), recordConverter, null, batchModeHandler);
+    }
+
+    @Deprecated
+    public Builder(StorageWriteApiBase streamWriter,
+                   PartitionedTableId table,
+                   SinkRecordConverter recordConverter,
+                   StorageApiBatchModeHandler batchModeHandler) {
+      this(streamWriter, table, recordConverter, null, batchModeHandler);
     }
 
     public Builder(StorageWriteApiBase streamWriter,
                    PartitionedTableId table,
                    SinkRecordConverter recordConverter,
+                   BigQuerySinkTaskConfig config,
                    StorageApiBatchModeHandler batchModeHandler) {
       this.streamWriter = streamWriter;
       this.table = table;
       this.recordConverter = recordConverter;
+      this.config = config;
       this.batchModeHandler = batchModeHandler;
     }
 
@@ -175,7 +188,18 @@ public class StorageWriteApiWriter implements Runnable {
         TableName tableName = TableNameUtils.tableName(table.getBaseTableId());
         streamName = batchModeHandler.updateOffsetsOnStream(tableName.toString(), records);
       }
-      return new StorageWriteApiWriter(table, streamWriter, records, streamName, recordConverter, ulidSupplier);
+
+      final List<ConvertedRecord> recordsToWrite;
+      if (config != null && config.isUpsertEnabled()) {
+        Map<Object, ConvertedRecord> compactedRecords = new LinkedHashMap<>(16, 0.75f, true);
+        for (ConvertedRecord convertedRecord : records) {
+          compactedRecords.put(convertedRecord.original().key(), convertedRecord);
+        }
+        recordsToWrite = new ArrayList<>(compactedRecords.values());
+      } else {
+        recordsToWrite = this.records;
+      }
+      return new StorageWriteApiWriter(table, streamWriter, recordsToWrite, streamName, recordConverter, ulidSupplier);
     }
   }
 }

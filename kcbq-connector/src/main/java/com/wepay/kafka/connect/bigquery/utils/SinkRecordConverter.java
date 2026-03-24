@@ -181,8 +181,14 @@ public final class SinkRecordConverter {
     config.getKafkaDataFieldName().ifPresent(fieldName ->
             result.put(fieldName, buildKafkaDataRecord(record, writeAttemptId)));
 
-    config.getKafkaKeyFieldName().ifPresent(fieldName ->
-            result.put(fieldName, recordConverter.convertRecord(record, KafkaSchemaRecordType.KEY)));
+    config.getKafkaKeyFieldName().ifPresent(fieldName -> {
+      Map<String, Object> keyData = recordConverter.convertRecord(record, KafkaSchemaRecordType.KEY);
+      if (fieldName.isEmpty()) {
+        result.putAll(keyData);
+      } else {
+        result.put(fieldName, keyData);
+      }
+    });
 
     return maybeSanitize(result);
   }

@@ -231,6 +231,7 @@ public class BigQuerySinkTask extends SinkTask {
                 storageApiWriter,
                 table,
                 recordConverter,
+                config,
                 batchHandler
             );
             if (trackPutAttempts) {
