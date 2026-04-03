@@ -1,0 +1,8 @@
+**/.git
+**/.github
+**/target
+**/.idea
+**/*.iml
+**/.vscode
+**/node_modules
+**/.DS_Store

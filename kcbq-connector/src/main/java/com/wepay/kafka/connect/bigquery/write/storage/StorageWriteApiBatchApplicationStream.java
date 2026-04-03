@@ -34,6 +34,7 @@ import com.wepay.kafka.connect.bigquery.SchemaManager;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiConnectException;
 import com.wepay.kafka.connect.bigquery.utils.PartitionedTableId;
+import com.wepay.kafka.connect.bigquery.utils.SinkRecordConnectOffsets;
 import com.wepay.kafka.connect.bigquery.utils.TableNameUtils;
 import java.io.IOException;
 import java.util.HashMap;
@@ -411,7 +412,9 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiBase {
     Map<TopicPartition, OffsetAndMetadata> offsets = new HashMap<>();
     records.forEach(record -> {
       SinkRecord sr = record.original();
-      offsets.put(new TopicPartition(sr.topic(), sr.kafkaPartition()), new OffsetAndMetadata(sr.kafkaOffset() + 1));
+      offsets.put(
+          SinkRecordConnectOffsets.topicPartitionForCommit(sr),
+          new OffsetAndMetadata(SinkRecordConnectOffsets.nextOffsetExclusiveForCommit(sr)));
     });
 
     return offsets;

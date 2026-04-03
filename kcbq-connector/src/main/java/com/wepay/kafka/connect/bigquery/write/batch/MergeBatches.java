@@ -34,6 +34,7 @@ import com.google.common.collect.Maps;
 import com.wepay.kafka.connect.bigquery.MergeQueries;
 import com.wepay.kafka.connect.bigquery.exception.ExpectedInterruptException;
 import com.wepay.kafka.connect.bigquery.utils.FieldNameSanitizer;
+import com.wepay.kafka.connect.bigquery.utils.SinkRecordConnectOffsets;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -360,11 +361,11 @@ public class MergeBatches {
 
     public void recordOffsetFor(SinkRecord record) {
       offsets.put(
-          new TopicPartition(record.topic(), record.kafkaPartition()),
+          SinkRecordConnectOffsets.topicPartitionForCommit(record),
           // Use the offset of the record plus one here since that'll be the offset that we'll
           // resume at if/when this record is the last-committed record and then the task is
           // restarted
-          record.kafkaOffset() + 1);
+          SinkRecordConnectOffsets.nextOffsetExclusiveForCommit(record));
     }
 
     /**
