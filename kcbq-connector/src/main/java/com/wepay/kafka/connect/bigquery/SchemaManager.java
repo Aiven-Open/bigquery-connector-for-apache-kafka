@@ -55,7 +55,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
@@ -757,17 +756,7 @@ public class SchemaManager {
       com.google.cloud.bigquery.Schema keySchema = schemaConverter.convertSchema(kafkaKeySchema);
       if (kafkaKeyFieldName.get().isEmpty()) {
         // TODO: Gracefully handle collisions with value/TPO field names
-	// Deduplicate: skip key fields already present in the value schema.
-        // When using Debezium with ExtractNewRecordState SMT, the value payload already
-        // contains all columns (including primary keys), so a naive addAll() of the
-        // flattened key schema produces duplicate field names and BigQuery rejects
-        // the CREATE TABLE with "Field X already exists in schema".
-        Set<String> existingFieldNames = fields.stream()
-            .map(Field::getName)
-            .collect(Collectors.toSet());
-        keySchema.getFields().stream()
-            .filter(kf -> !existingFieldNames.contains(kf.getName()))
-            .forEach(fields::add);
+        fields.addAll(keySchema.getFields());
         primaryKeyColumns = keySchema.getFields().stream()
             .map(Field::getName)
             .collect(Collectors.toList());
