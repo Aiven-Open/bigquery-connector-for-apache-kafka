@@ -235,7 +235,7 @@ public class SchemaManager {
   public void createOrUpdateTable(TableId table, List<SinkRecord> records) {
     synchronized (lock(tableCreateLocks, table)) {
       if (bigQuery.getTable(table) == null) {
-        logger.debug("{} doesn't exist; creating instead of updating", table(table));
+        logger.info("{} doesn't exist; creating instead of updating", table(table));
         if (createTable(table, records)) {
           return;
         }
@@ -243,7 +243,7 @@ public class SchemaManager {
     }
 
     // Table already existed; attempt to update instead
-    logger.debug("{} already exists; updating instead of creating", table(table));
+    logger.info("{} already exists; updating instead of creating", table(table));
     updateSchema(table, records);
   }
 
@@ -309,7 +309,7 @@ public class SchemaManager {
           handleConcurrentSchemaUpdateFailure(table, records, tableInfo, e);
         }
       } else {
-        logger.debug("Skipping update of {} since current schema should be compatible", table(table));
+        logger.info("Skipping update of {} since current schema should be compatible", table(table));
       }
     }
   }
@@ -358,7 +358,7 @@ public class SchemaManager {
       try {
         TableInfo retryTableInfo = getTableInfo(table, records, false);
         bigQuery.update(retryTableInfo);
-        logger.debug("Successfully updated {} on concurrent-update retry (attempt {}/{}).",
+        logger.info("Successfully updated {} on concurrent-update retry (attempt {}/{}).",
             table(table), attempt, concurrentSchemaUpdateMaxRetries);
         schemaCache.put(table, retryTableInfo.getDefinition().getSchema());
         return;
