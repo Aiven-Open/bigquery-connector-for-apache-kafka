@@ -351,11 +351,18 @@ public class BigQuerySinkTask extends SinkTask {
     Optional<List<String>> clusteringFieldName = config.getClusteringPartitionFieldNames();
     Optional<TimePartitioning.Type> timePartitioningType = config.getTimePartitioningType();
     boolean sanitizeFieldNames = config.getBoolean(BigQuerySinkConfig.SANITIZE_FIELD_NAME_CONFIG);
+    boolean allowConcurrentSchemaUpdates =
+        config.getBoolean(BigQuerySinkConfig.ALLOW_CONCURRENT_SCHEMA_UPDATES_CONFIG);
+    long concurrentSchemaUpdateRetryWaitMs =
+        config.getLong(BigQuerySinkConfig.CONCURRENT_SCHEMA_UPDATE_RETRY_WAIT_MS_CONFIG);
+    int concurrentSchemaUpdateMaxRetries =
+        config.getInt(BigQuerySinkConfig.CONCURRENT_SCHEMA_UPDATE_MAX_RETRIES_CONFIG);
     return new SchemaManager(schemaRetriever, schemaConverter, getBigQuery(),
         allowNewBigQueryFields, allowRequiredFieldRelaxation, allowSchemaUnionization,
         sanitizeFieldNames,
         kafkaKeyFieldName, kafkaDataFieldName,
-        timestampPartitionFieldName, partitionExpiration, clusteringFieldName, timePartitioningType);
+        timestampPartitionFieldName, partitionExpiration, clusteringFieldName, timePartitioningType,
+        allowConcurrentSchemaUpdates, concurrentSchemaUpdateRetryWaitMs, concurrentSchemaUpdateMaxRetries);
   }
 
   private BigQueryWriter getBigQueryWriter(ErrantRecordHandler errantRecordHandler) {
