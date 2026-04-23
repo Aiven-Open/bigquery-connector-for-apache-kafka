@@ -120,6 +120,7 @@ public class BigQuerySinkTask extends SinkTask {
   private KcbqThreadPoolExecutor executor;
   private int remainingRetries;
   private boolean enableRetries;
+  private boolean trackPutAttempts;
   private ErrantRecordHandler errantRecordHandler;
   private boolean useStorageApi;
   private boolean useStorageApiBatchMode;
@@ -281,6 +282,9 @@ public class BigQuerySinkTask extends SinkTask {
 
   @Override
   public void put(Collection<SinkRecord> records) {
+    if (trackPutAttempts) {
+      recordConverter.setCurrentPutAttemptId(UUID.randomUUID().toString());
+    }
     try {
       writeSinkRecords(records);
       remainingRetries = config.getInt(BigQuerySinkConfig.MAX_RETRIES_CONFIG);
@@ -492,6 +496,7 @@ public class BigQuerySinkTask extends SinkTask {
     recordConverter = getConverter(config);
     remainingRetries = config.getInt(BigQuerySinkConfig.MAX_RETRIES_CONFIG);
     enableRetries = config.getBoolean(BigQuerySinkConfig.ENABLE_RETRIES_CONFIG);
+    trackPutAttempts = config.getBoolean(BigQuerySinkConfig.TRACK_PUT_ATTEMPTS_CONFIG);
   }
 
   private void initializeStorageApiMode() {

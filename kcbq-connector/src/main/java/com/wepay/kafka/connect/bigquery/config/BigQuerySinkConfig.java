@@ -107,6 +107,8 @@ public class BigQuerySinkConfig extends AbstractConfig {
       + " with the same name as the topic name would be created";
   public static final String SANITIZE_FIELD_NAME_CONFIG = "sanitizeFieldNames";
   public static final Boolean SANITIZE_FIELD_NAME_DEFAULT = false;
+  public static final String TRACK_PUT_ATTEMPTS_CONFIG = "trackPutAttempts";
+  public static final Boolean TRACK_PUT_ATTEMPTS_DEFAULT = false;
   public static final String KAFKA_KEY_FIELD_NAME_CONFIG = "kafkaKeyFieldName";
   public static final String KAFKA_KEY_FIELD_NAME_DEFAULT = null;
   public static final String KAFKA_DATA_FIELD_NAME_CONFIG = "kafkaDataFieldName";
@@ -350,6 +352,16 @@ public class BigQuerySinkConfig extends AbstractConfig {
           + "If the field name starts with a digit, the sanitizer will add an underscore in "
           + "front of field name. Note: field a.b and a_b will have same value after sanitizing, "
           + "and might cause key duplication error.";
+  private static final ConfigDef.Type TRACK_PUT_ATTEMPTS_TYPE = ConfigDef.Type.BOOLEAN;
+  private static final ConfigDef.Importance TRACK_PUT_ATTEMPTS_IMPORTANCE = ConfigDef.Importance.LOW;
+  private static final String TRACK_PUT_ATTEMPTS_DOC =
+      "When true and kafkaDataFieldName is set, a 'putAttemptId' field (STRING, NULLABLE) is added "
+          + "to the Kafka metadata struct in every BigQuery row. Each invocation of put() by the "
+          + "Kafka Connect framework generates a fresh UUID for this field, making it possible to "
+          + "distinguish rows written in different put() attempts from rows written in the same "
+          + "attempt. Useful for downstream deduplication of raw CDC tables. Has no effect if "
+          + "kafkaDataFieldName is not configured. Enabling this on an existing table requires "
+          + "allowNewBigQueryFields=true. Default false (disabled).";
   private static final ConfigDef.Type KAFKA_KEY_FIELD_NAME_TYPE = ConfigDef.Type.STRING;
   private static final ConfigDef.Validator KAFKA_KEY_FIELD_NAME_VALIDATOR = new ConfigDef.NonEmptyString();
   private static final ConfigDef.Importance KAFKA_KEY_FIELD_NAME_IMPORTANCE = ConfigDef.Importance.LOW;
@@ -635,6 +647,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
     super(config, properties);
     logDeprecationWarnings();
     KafkaDataBuilder.setUseOriginalValues(getBoolean(PRESERVE_KAFKA_TOPIC_PARTITION_OFFSET__CONFIG));
+    KafkaDataBuilder.setTrackPutAttempts(getBoolean(TRACK_PUT_ATTEMPTS_CONFIG));
   }
 
   public BigQuerySinkConfig(Map<String, String> properties) {
@@ -750,6 +763,12 @@ public class BigQuerySinkConfig extends AbstractConfig {
                     SANITIZE_FIELD_NAME_DEFAULT,
                     SANITIZE_FIELD_NAME_IMPORTANCE,
                     SANITIZE_FIELD_NAME_DOC
+            ).define(
+                    TRACK_PUT_ATTEMPTS_CONFIG,
+                    TRACK_PUT_ATTEMPTS_TYPE,
+                    TRACK_PUT_ATTEMPTS_DEFAULT,
+                    TRACK_PUT_ATTEMPTS_IMPORTANCE,
+                    TRACK_PUT_ATTEMPTS_DOC
             ).define(
                     KAFKA_KEY_FIELD_NAME_CONFIG,
                     KAFKA_KEY_FIELD_NAME_TYPE,

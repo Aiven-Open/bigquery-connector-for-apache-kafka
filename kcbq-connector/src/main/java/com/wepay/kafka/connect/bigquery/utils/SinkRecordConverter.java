@@ -54,6 +54,10 @@ public class SinkRecordConverter {
   private final boolean useMessageTimeDatePartitioning;
   private final boolean usePartitionDecorator;
 
+  /** Set by {@link com.wepay.kafka.connect.bigquery.BigQuerySinkTask#put} at the start of each
+   * put() invocation when {@code trackPutAttempts} is enabled. Null otherwise. */
+  private volatile String currentPutAttemptId = null;
+
 
   public SinkRecordConverter(BigQuerySinkTaskConfig config,
                              MergeBatches mergeBatches, MergeQueries mergeQueries) {
@@ -67,6 +71,18 @@ public class SinkRecordConverter {
         config.getBoolean(config.BIGQUERY_MESSAGE_TIME_PARTITIONING_CONFIG);
     this.usePartitionDecorator =
         config.getBoolean(config.BIGQUERY_PARTITION_DECORATOR_CONFIG);
+  }
+
+  /**
+   * Called by {@link com.wepay.kafka.connect.bigquery.BigQuerySinkTask#put} once per put()
+   * invocation, before any rows are constructed. The ID is embedded in each row's kafka metadata
+   * struct when {@code trackPutAttempts} is enabled, allowing downstream consumers to distinguish
+   * rows produced by different put() attempts.
+   *
+   * @param id UUID string for the current put() invocation, or {@code null} to clear.
+   */
+  public void setCurrentPutAttemptId(String id) {
+    this.currentPutAttemptId = id;
   }
 
   public InsertAllRequest.RowToInsert getRecordRow(SinkRecord record, TableId table) {
@@ -85,7 +101,7 @@ public class SinkRecordConverter {
 
     if (convertedValue != null) {
       config.getKafkaDataFieldName().ifPresent(
-          fieldName -> convertedValue.put(fieldName, KafkaDataBuilder.buildKafkaDataRecord(record))
+          fieldName -> convertedValue.put(fieldName, KafkaDataBuilder.buildKafkaDataRecord(record, currentPutAttemptId))
       );
     }
 
@@ -126,8 +142,8 @@ public class SinkRecordConverter {
 
     config.getKafkaDataFieldName().ifPresent(fieldName -> {
       Map<String, Object> kafkaDataField = config.getBoolean(config.USE_STORAGE_WRITE_API_CONFIG)
-          ? KafkaDataBuilder.buildKafkaDataRecordStorageApi(record)
-          : KafkaDataBuilder.buildKafkaDataRecord(record);
+          ? KafkaDataBuilder.buildKafkaDataRecordStorageApi(record, currentPutAttemptId)
+          : KafkaDataBuilder.buildKafkaDataRecord(record, currentPutAttemptId);
       result.put(fieldName, kafkaDataField);
     });
 
