@@ -352,7 +352,7 @@ public class BigQuerySinkTask extends SinkTask {
     Optional<TimePartitioning.Type> timePartitioningType = config.getTimePartitioningType();
     boolean sanitizeFieldNames = config.getBoolean(BigQuerySinkConfig.SANITIZE_FIELD_NAME_CONFIG);
     boolean mediateConcurrentSchemaUpdates =
-        config.getBoolean(BigQuerySinkConfig.ALLOW_CONCURRENT_SCHEMA_UPDATES_CONFIG);
+        config.getBoolean(BigQuerySinkConfig.MEDIATE_CONCURRENT_SCHEMA_UPDATES_CONFIG);
     long concurrentSchemaUpdateRetryWaitMs =
         config.getLong(BigQuerySinkConfig.CONCURRENT_SCHEMA_UPDATE_RETRY_WAIT_MS_CONFIG);
     int concurrentSchemaUpdateMaxRetries =

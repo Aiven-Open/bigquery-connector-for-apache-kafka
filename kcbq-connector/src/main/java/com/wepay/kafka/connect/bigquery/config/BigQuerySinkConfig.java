@@ -158,7 +158,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
   public static final Integer BIGQUERY_RETRY_DEFAULT = 0;
   public static final String BIGQUERY_RETRY_WAIT_CONFIG = "bigQueryRetryWait";
   public static final Long BIGQUERY_RETRY_WAIT_DEFAULT = 1000L;
-  public static final String ALLOW_CONCURRENT_SCHEMA_UPDATES_CONFIG = "mediateConcurrentSchemaUpdates";
+  public static final String MEDIATE_CONCURRENT_SCHEMA_UPDATES_CONFIG = "mediateConcurrentSchemaUpdates";
   public static final Boolean ALLOW_CONCURRENT_SCHEMA_UPDATES_DEFAULT = false;
   public static final String CONCURRENT_SCHEMA_UPDATE_RETRY_WAIT_MS_CONFIG = "concurrentSchemaUpdateRetryWaitMs";
   public static final Long CONCURRENT_SCHEMA_UPDATE_RETRY_WAIT_MS_DEFAULT = 10000L;
@@ -913,7 +913,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
                     BIGQUERY_RETRY_WAIT_IMPORTANCE,
                     BIGQUERY_RETRY_WAIT_DOC
             ).define(
-                    ALLOW_CONCURRENT_SCHEMA_UPDATES_CONFIG,
+                    MEDIATE_CONCURRENT_SCHEMA_UPDATES_CONFIG,
                     ALLOW_CONCURRENT_SCHEMA_UPDATES_TYPE,
                     ALLOW_CONCURRENT_SCHEMA_UPDATES_DEFAULT,
                     ALLOW_CONCURRENT_SCHEMA_UPDATES_IMPORTANCE,
