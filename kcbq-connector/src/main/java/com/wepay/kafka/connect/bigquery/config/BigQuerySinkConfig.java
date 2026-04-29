@@ -531,13 +531,14 @@ public class BigQuerySinkConfig extends AbstractConfig {
           + "the current batch. Default false (disabled).";
   private static final ConfigDef.Type CONCURRENT_SCHEMA_UPDATE_RETRY_WAIT_MS_TYPE = ConfigDef.Type.LONG;
   private static final ConfigDef.Validator CONCURRENT_SCHEMA_UPDATE_RETRY_WAIT_MS_VALIDATOR =
-      ConfigDef.Range.atLeast(0);
+      ConfigDef.Range.between(0, 300_000);
   private static final ConfigDef.Importance CONCURRENT_SCHEMA_UPDATE_RETRY_WAIT_MS_IMPORTANCE =
       ConfigDef.Importance.MEDIUM;
   private static final String CONCURRENT_SCHEMA_UPDATE_RETRY_WAIT_MS_DOC =
       "Milliseconds to wait between each retry attempt when mediateConcurrentSchemaUpdates is true. "
           + "After a failed schema update, the connector waits this long before re-reading the BigQuery "
-          + "table schema and retrying. Applied before every attempt, including the first. Default 5000.";
+          + "table schema and retrying. Applied before every attempt, including the first. "
+          + "Must be between 0 and 300000 (5 minutes). Default 10000.";
   private static final ConfigDef.Type CONCURRENT_SCHEMA_UPDATE_MAX_RETRIES_TYPE = ConfigDef.Type.INT;
   private static final ConfigDef.Validator CONCURRENT_SCHEMA_UPDATE_MAX_RETRIES_VALIDATOR =
       ConfigDef.Range.atLeast(1);
