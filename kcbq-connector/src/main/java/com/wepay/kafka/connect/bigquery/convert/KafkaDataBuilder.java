@@ -66,9 +66,9 @@ public class KafkaDataBuilder {
   /**
    * When true, a per-put() attempt ULID is embedded as {@code putAttemptId} inside the kafka
    * metadata struct, and the BQ schema for that struct includes the field. Controlled by
-   * {@code trackPutAttempts} connector config.
+   * {@code TRACK_PUT_ATTEMPTS} connector config.
    */
-  private static boolean trackPutAttempts = false;
+  private static boolean TRACK_PUT_ATTEMPTS = false;
 
   static {
     boolean kafkaConnectApiPost36;
@@ -116,7 +116,7 @@ public class KafkaDataBuilder {
    * @param track whether to track put() attempt IDs.
    */
   public static void setTrackPutAttempts(boolean track) {
-    trackPutAttempts = track;
+    TRACK_PUT_ATTEMPTS = track;
   }
 
   /**
@@ -146,7 +146,7 @@ public class KafkaDataBuilder {
     List<Field> subFields = new ArrayList<>(
         Arrays.asList(topicField, partitionField, offsetField, insertTimeField));
 
-    if (trackPutAttempts) {
+    if (TRACK_PUT_ATTEMPTS) {
       subFields.add(com.google.cloud.bigquery.Field.newBuilder(
               KAFKA_DATA_PUT_ATTEMPT_ID_FIELD_NAME, LegacySQLTypeName.STRING)
           .setMode(com.google.cloud.bigquery.Field.Mode.NULLABLE).build());
@@ -183,7 +183,7 @@ public class KafkaDataBuilder {
 
   /**
    * Construct a map of Kafka Data record. Backward-compatible overload; does not include
-   * {@code putAttemptId} even when {@code trackPutAttempts} is enabled.
+   * {@code putAttemptId} even when {@code TRACK_PUT_ATTEMPTS} is enabled.
    *
    * @param kafkaConnectRecord Kafka sink record to build kafka data from.
    * @return HashMap which contains the values of kafka topic, partition, offset, and insertTime.
@@ -195,7 +195,7 @@ public class KafkaDataBuilder {
   /**
    * Construct a map of Kafka Data record, optionally including a put-attempt identifier.
    *
-   * <p>When {@code trackPutAttempts} is enabled and {@code putAttemptId} is non-null, the map
+   * <p>When {@code TRACK_PUT_ATTEMPTS} is enabled and {@code putAttemptId} is non-null, the map
    * includes a {@code putAttemptId} entry so that rows constructed during different
    * {@code put()} invocations can be distinguished downstream.
    *
@@ -212,7 +212,7 @@ public class KafkaDataBuilder {
     kafkaData.put(KAFKA_DATA_PARTITION_FIELD_NAME, maybeGetOriginalKafkaPartition(kafkaConnectRecord));
     kafkaData.put(KAFKA_DATA_OFFSET_FIELD_NAME, maybeGetOriginalKafkaOffset(kafkaConnectRecord));
     kafkaData.put(KAFKA_DATA_INSERT_TIME_FIELD_NAME, System.currentTimeMillis() / 1000.0);
-    if (trackPutAttempts && putAttemptId != null) {
+    if (TRACK_PUT_ATTEMPTS && putAttemptId != null) {
       kafkaData.put(KAFKA_DATA_PUT_ATTEMPT_ID_FIELD_NAME, putAttemptId);
     }
     return kafkaData;
@@ -246,7 +246,7 @@ public class KafkaDataBuilder {
     kafkaData.put(KAFKA_DATA_PARTITION_FIELD_NAME, maybeGetOriginalKafkaPartition(kafkaConnectRecord));
     kafkaData.put(KAFKA_DATA_OFFSET_FIELD_NAME, maybeGetOriginalKafkaOffset(kafkaConnectRecord));
     kafkaData.put(KAFKA_DATA_INSERT_TIME_FIELD_NAME, System.currentTimeMillis() * 1000);
-    if (trackPutAttempts && putAttemptId != null) {
+    if (TRACK_PUT_ATTEMPTS && putAttemptId != null) {
       kafkaData.put(KAFKA_DATA_PUT_ATTEMPT_ID_FIELD_NAME, putAttemptId);
     }
     return kafkaData;
