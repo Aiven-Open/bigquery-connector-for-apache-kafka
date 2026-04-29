@@ -178,6 +178,10 @@
             <groupId>com.google.re2j</groupId>
             <artifactId>re2j</artifactId>
         </dependency>
+        <dependency>
+            <groupId>de.huxhorn.sulky</groupId>
+            <artifactId>de.huxhorn.sulky.ulid</artifactId>
+        </dependency>
     </dependencies>
 
     <build>

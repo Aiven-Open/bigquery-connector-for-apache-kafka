@@ -59,6 +59,7 @@ import com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiBase;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiBatchApplicationStream;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiDefaultStream;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiWriter;
+import de.huxhorn.sulky.ulid.ULID;
 import io.aiven.commons.system.VersionInfo;
 import java.time.Instant;
 import java.util.Arrays;
@@ -69,7 +70,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -98,7 +98,8 @@ public class BigQuerySinkTask extends SinkTask {
   private final BigQuery testBigQuery;
   private final Storage testGcs;
   private final SchemaManager testSchemaManager;
-  private final UUID uuid = UUID.randomUUID();
+  private static final ULID ULID_GENERATOR = new ULID();
+  private final String uuid = ULID_GENERATOR.nextULID();
   private final StorageWriteApiBase testStorageWriteApi;
   private final StorageApiBatchModeHandler testStorageApiBatchHandler;
   private final Time time;
@@ -283,7 +284,7 @@ public class BigQuerySinkTask extends SinkTask {
   @Override
   public void put(Collection<SinkRecord> records) {
     if (trackPutAttempts) {
-      recordConverter.setCurrentPutAttemptId(UUID.randomUUID().toString());
+      recordConverter.setCurrentPutAttemptId(ULID_GENERATOR.nextULID());
     }
     try {
       writeSinkRecords(records);

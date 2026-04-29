@@ -64,7 +64,7 @@ public class KafkaDataBuilder {
   private static boolean USE_ORIGINAL_VALUES = false;
 
   /**
-   * When true, a per-put() attempt UUID is embedded as {@code putAttemptId} inside the kafka
+   * When true, a per-put() attempt ULID is embedded as {@code putAttemptId} inside the kafka
    * metadata struct, and the BQ schema for that struct includes the field. Controlled by
    * {@code trackPutAttempts} connector config.
    */
@@ -200,7 +200,7 @@ public class KafkaDataBuilder {
    * {@code put()} invocations can be distinguished downstream.
    *
    * @param kafkaConnectRecord Kafka sink record to build kafka data from.
-   * @param putAttemptId UUID string generated at the start of the enclosing {@code put()} call,
+   * @param putAttemptId ULID string generated at the start of the enclosing {@code put()} call,
    *                     or {@code null} to omit the field.
    * @return HashMap which contains the values of kafka topic, partition, offset, insertTime,
    *         and optionally putAttemptId.
@@ -234,7 +234,7 @@ public class KafkaDataBuilder {
    * a put-attempt identifier.
    *
    * @param kafkaConnectRecord Kafka sink record to build kafka data from.
-   * @param putAttemptId UUID string generated at the start of the enclosing {@code put()} call,
+   * @param putAttemptId ULID string generated at the start of the enclosing {@code put()} call,
    *                     or {@code null} to omit the field.
    * @return HashMap which contains the values of kafka topic, partition, offset, insertTime in
    *         microseconds, and optionally putAttemptId.

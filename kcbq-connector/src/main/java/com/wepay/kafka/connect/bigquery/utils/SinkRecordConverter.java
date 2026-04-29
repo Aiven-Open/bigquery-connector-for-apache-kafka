@@ -79,7 +79,7 @@ public class SinkRecordConverter {
    * struct when {@code trackPutAttempts} is enabled, allowing downstream consumers to distinguish
    * rows produced by different put() attempts.
    *
-   * @param id UUID string for the current put() invocation, or {@code null} to clear.
+   * @param id ULID string for the current put() invocation, or {@code null} to clear.
    */
   public void setCurrentPutAttemptId(String id) {
     this.currentPutAttemptId = id;

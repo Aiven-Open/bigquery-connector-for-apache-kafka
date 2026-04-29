@@ -357,7 +357,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
   private static final String TRACK_PUT_ATTEMPTS_DOC =
       "When true and kafkaDataFieldName is set, a 'putAttemptId' field (STRING, NULLABLE) is added "
           + "to the Kafka metadata struct in every BigQuery row. Each invocation of put() by the "
-          + "Kafka Connect framework generates a fresh UUID for this field, making it possible to "
+          + "Kafka Connect framework generates a fresh ULID for this field, making it possible to "
           + "distinguish rows written in different put() attempts from rows written in the same "
           + "attempt. Useful for downstream deduplication of raw CDC tables. Has no effect if "
           + "kafkaDataFieldName is not configured. Enabling this on an existing table requires "
