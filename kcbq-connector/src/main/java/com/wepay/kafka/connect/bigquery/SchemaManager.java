@@ -81,7 +81,7 @@ public class SchemaManager {
   private final ConcurrentMap<TableId, Object> tableCreateLocks;
   private final ConcurrentMap<TableId, Object> tableUpdateLocks;
   private final ConcurrentMap<TableId, com.google.cloud.bigquery.Schema> schemaCache;
-  private final boolean allowConcurrentSchemaUpdates;
+  private final boolean mediateConcurrentSchemaUpdates;
   private final long concurrentSchemaUpdateRetryWaitMs;
   private final int concurrentSchemaUpdateMaxRetries;
 
@@ -119,7 +119,7 @@ public class SchemaManager {
       Optional<Long> partitionExpiration,
       Optional<List<String>> clusteringFieldName,
       Optional<TimePartitioning.Type> timePartitioningType,
-      boolean allowConcurrentSchemaUpdates,
+      boolean mediateConcurrentSchemaUpdates,
       long concurrentSchemaUpdateRetryWaitMs,
       int concurrentSchemaUpdateMaxRetries) {
     this(
@@ -136,7 +136,7 @@ public class SchemaManager {
         partitionExpiration,
         clusteringFieldName,
         timePartitioningType,
-        allowConcurrentSchemaUpdates,
+        mediateConcurrentSchemaUpdates,
         concurrentSchemaUpdateRetryWaitMs,
         concurrentSchemaUpdateMaxRetries,
         false,
@@ -159,7 +159,7 @@ public class SchemaManager {
       Optional<Long> partitionExpiration,
       Optional<List<String>> clusteringFieldName,
       Optional<TimePartitioning.Type> timePartitioningType,
-      boolean allowConcurrentSchemaUpdates,
+      boolean mediateConcurrentSchemaUpdates,
       long concurrentSchemaUpdateRetryWaitMs,
       int concurrentSchemaUpdateMaxRetries,
       boolean intermediateTables,
@@ -179,7 +179,7 @@ public class SchemaManager {
     this.partitionExpiration = partitionExpiration;
     this.clusteringFieldName = clusteringFieldName;
     this.timePartitioningType = timePartitioningType;
-    this.allowConcurrentSchemaUpdates = allowConcurrentSchemaUpdates;
+    this.mediateConcurrentSchemaUpdates = mediateConcurrentSchemaUpdates;
     this.concurrentSchemaUpdateRetryWaitMs = concurrentSchemaUpdateRetryWaitMs;
     this.concurrentSchemaUpdateMaxRetries = concurrentSchemaUpdateMaxRetries;
     this.intermediateTables = intermediateTables;
@@ -203,7 +203,7 @@ public class SchemaManager {
         partitionExpiration,
         clusteringFieldName,
         timePartitioningType,
-        allowConcurrentSchemaUpdates,
+        mediateConcurrentSchemaUpdates,
         concurrentSchemaUpdateRetryWaitMs,
         concurrentSchemaUpdateMaxRetries,
         true,
@@ -303,7 +303,7 @@ public class SchemaManager {
           logger.debug("Successfully updated {}", table(table));
           schemaCache.put(table, tableInfo.getDefinition().getSchema());
         } catch (BigQueryException e) {
-          if (!allowConcurrentSchemaUpdates) {
+          if (!mediateConcurrentSchemaUpdates) {
             throw e;
           }
           handleConcurrentSchemaUpdateFailure(table, records, tableInfo, e);

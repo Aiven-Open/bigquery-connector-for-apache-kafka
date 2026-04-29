@@ -158,7 +158,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
   public static final Integer BIGQUERY_RETRY_DEFAULT = 0;
   public static final String BIGQUERY_RETRY_WAIT_CONFIG = "bigQueryRetryWait";
   public static final Long BIGQUERY_RETRY_WAIT_DEFAULT = 1000L;
-  public static final String ALLOW_CONCURRENT_SCHEMA_UPDATES_CONFIG = "allowConcurrentSchemaUpdates";
+  public static final String ALLOW_CONCURRENT_SCHEMA_UPDATES_CONFIG = "mediateConcurrentSchemaUpdates";
   public static final Boolean ALLOW_CONCURRENT_SCHEMA_UPDATES_DEFAULT = false;
   public static final String CONCURRENT_SCHEMA_UPDATE_RETRY_WAIT_MS_CONFIG = "concurrentSchemaUpdateRetryWaitMs";
   public static final Long CONCURRENT_SCHEMA_UPDATE_RETRY_WAIT_MS_DEFAULT = 10000L;
@@ -535,7 +535,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
   private static final ConfigDef.Importance CONCURRENT_SCHEMA_UPDATE_RETRY_WAIT_MS_IMPORTANCE =
       ConfigDef.Importance.MEDIUM;
   private static final String CONCURRENT_SCHEMA_UPDATE_RETRY_WAIT_MS_DOC =
-      "Milliseconds to wait between each retry attempt when allowConcurrentSchemaUpdates is true. "
+      "Milliseconds to wait between each retry attempt when mediateConcurrentSchemaUpdates is true. "
           + "After a failed schema update, the connector waits this long before re-reading the BigQuery "
           + "table schema and retrying. Applied before every attempt, including the first. Default 5000.";
   private static final ConfigDef.Type CONCURRENT_SCHEMA_UPDATE_MAX_RETRIES_TYPE = ConfigDef.Type.INT;
@@ -544,7 +544,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
   private static final ConfigDef.Importance CONCURRENT_SCHEMA_UPDATE_MAX_RETRIES_IMPORTANCE =
       ConfigDef.Importance.MEDIUM;
   private static final String CONCURRENT_SCHEMA_UPDATE_MAX_RETRIES_DOC =
-      "Maximum number of retry attempts for schema updates when allowConcurrentSchemaUpdates is true. "
+      "Maximum number of retry attempts for schema updates when mediateConcurrentSchemaUpdates is true. "
           + "Before each attempt the connector waits concurrentSchemaUpdateRetryWaitMs milliseconds, "
           + "re-reads the BigQuery table schema, and checks whether it is already compatible. "
           + "Must be at least 1. Default 3.";

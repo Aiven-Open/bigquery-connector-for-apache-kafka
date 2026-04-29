@@ -856,12 +856,12 @@ public class SchemaManagerTest {
 
   private SchemaManager createSchemaManagerWithConcurrentRetry(
       boolean allowNewFields, boolean allowFieldRelaxation,
-      boolean allowConcurrentSchemaUpdates, long concurrentRetryWaitMs, int maxRetries) {
+      boolean mediateConcurrentSchemaUpdates, long concurrentRetryWaitMs, int maxRetries) {
     return new SchemaManager(new IdentitySchemaRetriever(), mockSchemaConverter, mockBigQuery,
         allowNewFields, allowFieldRelaxation, false, false,
         Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
         Optional.of(TimePartitioning.Type.DAY),
-        allowConcurrentSchemaUpdates, concurrentRetryWaitMs, maxRetries);
+        mediateConcurrentSchemaUpdates, concurrentRetryWaitMs, maxRetries);
   }
 
   private void testGetAndValidateProposedSchema(
