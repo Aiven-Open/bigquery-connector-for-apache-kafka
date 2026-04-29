@@ -538,7 +538,9 @@ public class BigQuerySinkConfig extends AbstractConfig {
       "Milliseconds to wait between each retry attempt when mediateConcurrentSchemaUpdates is true. "
           + "After a failed schema update, the connector waits this long before re-reading the BigQuery "
           + "table schema and retrying. Applied before every attempt, including the first. "
-          + "Must be between 0 and 300000 (5 minutes). Default 10000.";
+          + "Must be between 0 and 300000 (5 minutes). Default 10000. "
+          + "WARNING: BigQuery allows at most 5 table metadata update requests per 10 seconds per table. "
+          + "Setting this value too low across multiple connector instances may exhaust that quota and cause repeated failures.";
   private static final ConfigDef.Type CONCURRENT_SCHEMA_UPDATE_MAX_RETRIES_TYPE = ConfigDef.Type.INT;
   private static final ConfigDef.Validator CONCURRENT_SCHEMA_UPDATE_MAX_RETRIES_VALIDATOR =
       ConfigDef.Range.atLeast(1);
