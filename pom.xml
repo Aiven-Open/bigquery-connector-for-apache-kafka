@@ -54,6 +54,7 @@
         <kafka.scala.version>2.12</kafka.scala.version>
         <slf4j.version>1.7.26</slf4j.version>
         <caffeine.version>2.8.6</caffeine.version>
+        <de.huxhorn.sulky.ulid.version>8.3.0</de.huxhorn.sulky.ulid.version>
 
         <junit.version>5.10.2</junit.version>
         <mockito.version>5.20.0</mockito.version>
@@ -346,6 +347,11 @@
                 <groupId>com.google.re2j</groupId>
                 <artifactId>re2j</artifactId>
                 <version>${com.google.re2j.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>de.huxhorn.sulky</groupId>
+                <artifactId>de.huxhorn.sulky.ulid</artifactId>
+                <version>${de.huxhorn.sulky.ulid.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.apache.maven.plugins</groupId>
