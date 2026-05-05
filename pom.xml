@@ -70,6 +70,8 @@
         <velocity.core.version>2.4.1</velocity.core.version>
         <velocity.tools.version>3.1</velocity.tools.version>
 
+        <rat.plugin.version>0.18</rat.plugin.version>
+
         <main.dir>${project.basedir}</main.dir>
         <skip.unit.tests>${maven.test.skip}</skip.unit.tests>
     </properties>
@@ -362,7 +364,7 @@
             <dependency>
                 <groupId>org.apache.rat</groupId>
                 <artifactId>apache-rat-plugin</artifactId>
-                <version>0.17</version>
+                <version>${rat.plugin.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
@@ -370,7 +372,7 @@
         <dependency>
             <groupId>org.apache.rat</groupId>
             <artifactId>apache-rat-plugin</artifactId>
-            <version>0.17</version>
+            <version>${rat.plugin.version}</version>
         </dependency>
         <dependency>
             <groupId>com.google.cloud</groupId>
@@ -391,7 +393,7 @@
             <plugin>
                 <groupId>org.apache.rat</groupId>
                 <artifactId>apache-rat-plugin</artifactId>
-                <version>0.17</version>
+                <version>${rat.plugin.version}</version>
                 <executions>
                     <execution>
                         <id>rat-checks</id>
@@ -403,14 +405,15 @@
                 </executions>
                 <configuration>
                     <excludeSubProjects>false</excludeSubProjects>
-                    <!-- <configurationNoDefaults>true</configurationNoDefaults> -->
                     <config>big-query-rat-config.xml</config>
+                    <inputExcludes>
                     <inputExclude>**/*.vm</inputExclude>
                         <inputExclude>**/*.properties</inputExclude>
                         <inputExclude>LICENSE.md</inputExclude>
                         <inputExclude>README.md</inputExclude>
-                        <inputExclude>/docs/**</inputExclude>
+                        <inputExclude>docs/**</inputExclude>
                         <inputExclude>**/META-INF/services/**</inputExclude>
+                    </inputExcludes>
                 </configuration>
             </plugin>
             <plugin>
