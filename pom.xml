@@ -70,6 +70,8 @@
         <velocity.core.version>2.4.1</velocity.core.version>
         <velocity.tools.version>3.1</velocity.tools.version>
 
+        <rat.plugin.version>0.18</rat.plugin.version>
+
         <main.dir>${project.basedir}</main.dir>
         <skip.unit.tests>${maven.test.skip}</skip.unit.tests>
     </properties>
@@ -129,7 +131,7 @@
             <name>Veli Can Ünal</name>
             <email>vlcanunal@gmail.com</email>
             <timezone>Europe/Berlin</timezone>
-        </contributor>        
+        </contributor>
     </contributors>
 
     <repositories>
@@ -359,9 +361,19 @@
                 <version>3.3.1</version>
                 <type>maven-plugin</type>
             </dependency>
+            <dependency>
+                <groupId>org.apache.rat</groupId>
+                <artifactId>apache-rat-plugin</artifactId>
+                <version>${rat.plugin.version}</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
     <dependencies>
+        <dependency>
+            <groupId>org.apache.rat</groupId>
+            <artifactId>apache-rat-plugin</artifactId>
+            <version>${rat.plugin.version}</version>
+        </dependency>
         <dependency>
             <groupId>com.google.cloud</groupId>
             <artifactId>google-cloud-bigquerystorage</artifactId>
@@ -379,47 +391,29 @@
     <build>
         <plugins>
             <plugin>
-                <groupId>com.mycila</groupId>
-                <artifactId>license-maven-plugin</artifactId>
-                <version>3.0</version>
+                <groupId>org.apache.rat</groupId>
+                <artifactId>apache-rat-plugin</artifactId>
+                <version>${rat.plugin.version}</version>
+                <executions>
+                    <execution>
+                        <id>rat-checks</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
                 <configuration>
-                    <inlineHeader>
-Copyright 2024 Copyright 2022 Aiven Oy and
-bigquery-connector-for-apache-kafka project contributors
-
-This software contains code derived from the Confluent BigQuery
-Kafka Connector, Copyright Confluent, Inc, which in turn
-contains code derived from the WePay BigQuery Kafka Connector,
-Copyright WePay, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing,
-software distributed under the License is distributed on an
-"AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-KIND, either express or implied.  See the License for the
-specific language governing permissions and limitations
-under the License.
-                    </inlineHeader>
-                    <headerDefinitions>
-                        <headerDefinition>${main.dir}/config/copyright/custom-header-styles.xml</headerDefinition>
-                    </headerDefinitions>
-                    <mapping>
-                        <java>CUSTOM_JAVA_STYLE</java>
-                        <Jenkinsfile>JENKINSFILE_STYLE</Jenkinsfile>
-                    </mapping>
-                    <excludes>
-                        <exclude>**/*.vm</exclude>
-                        <exclude>**/*.properties</exclude>
-                        <exclude>LICENSE.md</exclude>
-                        <exclude>*.log</exclude>
-                        <exclude>config/checkstyle/google_checks.xml</exclude>
-                        <exclude>**/VersionInfo.java</exclude>
-                    </excludes>
+                    <excludeSubProjects>false</excludeSubProjects>
+                    <config>big-query-rat-config.xml</config>
+                    <inputExcludes>
+                    <inputExclude>**/*.vm</inputExclude>
+                        <inputExclude>**/*.properties</inputExclude>
+                        <inputExclude>LICENSE.md</inputExclude>
+                        <inputExclude>README.md</inputExclude>
+                        <inputExclude>docs/**</inputExclude>
+                        <inputExclude>**/META-INF/services/**</inputExclude>
+                    </inputExcludes>
                 </configuration>
             </plugin>
             <plugin>
