@@ -1,0 +1,104 @@
+#
+# Copyright 2026 Aiven Oy and project contributors
+#
+#    Licensed under the Apache License, Version 2.0 (the "License");
+#    you may not use this file except in compliance with the License.
+#    You may obtain a copy of the License at
+#
+#    https://www.apache.org/licenses/LICENSE-2.0
+#
+#    Unless required by applicable law or agreed to in writing,
+#    software distributed under the License is distributed on an
+#    "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+#    KIND, either express or implied.  See the License for the
+#    specific language governing permissions and limitations
+#    under the License.
+#
+#  SPDX-License-Identifier: Apache-2.0
+
+name: Create release PR
+on:
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: "Release version '0.1.2' (without 'v')"
+        required: true
+      snapshot_version:
+        description: "Next SNAPSHOT version '0.2.0-SNAPSHOT' (without 'v')"
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  create_release_pr:
+    name: Create release PR (job)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check versions
+        run: |
+          echo "Checking release version..."
+          if echo ${{ github.event.inputs.release_version }} | grep '^[0-9]+\.[0-9]+\.[0-9]+\(-\(alpha\|beta\|rc[0-9]\+\)\)\?\$' > /dev/null; then
+            echo "Release version is invalid"
+            exit 1
+          fi
+
+          echo "Checking snapshot version..."
+          if echo ${{ github.event.inputs.snapshot_version }} | grep '^[0-9]+\.[0-9]+\.[0-9]+-SNAPSHOT\$' > /dev/null; then
+            echo "Snapshot version is invalid"
+            exit 1
+          fi
+
+      - name: Checkout main
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Extract version info
+        run: |
+          echo "version=$(mvn -q -Dexec.executable=echo -Dexec.args='${project.version}' --non-recursive exec:exec)" >> $GITHUB_OUTPUT;
+          echo "java_version=$(mvn -q -Dexec.executable=echo -Dexec.args='${java.version}' --non-recursive exec:exec)" >> $GITHUB_OUTPUT;
+          echo "# DO NOT SQUASH COMMITS" >  /tmp/release_body.txt
+          if [[ `grep -c "^## " CHANGE_LOG.md` -gt 1 ]]
+          then
+            grep -B 999 -m2 "^## " CHANGE_LOG.md | head -n -1 >> /tmp/release_body.txt
+          else
+            cat CHANGE_LOG.md >> /tmp/release_body.txt
+          fi
+        id: project
+
+      - name: Set up Java ${{ steps.project.outputs.java_version }}
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'adopt'
+          java-version: ${{ steps.project.outputs.java_version }}
+          cache: maven
+
+      - name: Create release commits
+        run: |
+          git config --local user.name "GitHub Action"
+          git config --local user.email "action@github.com"
+          mvn -e -B -V -ntp versions:set versions:update-child-modules versions:set-property -Dproperty=latestRelease -DgenerateBackupPoms=false -DnewVersion=${{ github.event.inputs.release_version }} 
+          mvn -e -B -V -ntp spotless:apply enforcer:enforce -Denforcer.rules=requireReleaseDeps
+          git add pom.xml **/pom.xml
+          git commit -m "Release version ${{ github.event.inputs.release_version }}"
+          git tag -a "v${{ steps.project.outputs.version }}" -m "Release version ${{ steps.project.outputs.version }}"
+    
+          mvn -e -B -V -ntp versions:set versions:update-child-modules -DgenerateBackupPoms=false -DnewVersion=${{ github.event.inputs.snapshot_version }}
+          mvn -e -B -V -ntp spotless:apply
+          git add pom.xml **/pom.xml
+          git commit -m "Bump version to ${{ github.event.inputs.snapshot_version }}"
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v8
+        with:
+          sign-commits: true
+          branch: release-${{ github.event.inputs.release_version }}
+          delete-branch: true
+          draft: true
+          title: Release version ${{ github.event.inputs.release_version }}
+          body-path: /tmp/release_body.txt
+
