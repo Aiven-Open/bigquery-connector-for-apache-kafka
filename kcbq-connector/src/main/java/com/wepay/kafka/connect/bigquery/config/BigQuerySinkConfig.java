@@ -160,6 +160,12 @@ public class BigQuerySinkConfig extends AbstractConfig {
   public static final Integer BIGQUERY_RETRY_DEFAULT = 0;
   public static final String BIGQUERY_RETRY_WAIT_CONFIG = "bigQueryRetryWait";
   public static final Long BIGQUERY_RETRY_WAIT_DEFAULT = 1000L;
+  public static final String MEDIATE_CONCURRENT_SCHEMA_UPDATES_CONFIG = "mediateConcurrentSchemaUpdates";
+  public static final Boolean ALLOW_CONCURRENT_SCHEMA_UPDATES_DEFAULT = false;
+  public static final String CONCURRENT_SCHEMA_UPDATE_RETRY_WAIT_MS_CONFIG = "concurrentSchemaUpdateRetryWaitMs";
+  public static final Long CONCURRENT_SCHEMA_UPDATE_RETRY_WAIT_MS_DEFAULT = 10000L;
+  public static final String CONCURRENT_SCHEMA_UPDATE_MAX_RETRIES_CONFIG = "concurrentSchemaUpdateMaxRetries";
+  public static final Integer CONCURRENT_SCHEMA_UPDATE_MAX_RETRIES_DEFAULT = 3;
   public static final String BIGQUERY_MESSAGE_TIME_PARTITIONING_CONFIG =
       "bigQueryMessageTimePartitioning";
   public static final Boolean BIGQUERY_MESSAGE_TIME_PARTITIONING_DEFAULT = false;
@@ -526,6 +532,37 @@ public class BigQuerySinkConfig extends AbstractConfig {
           + "exceeded error retry attempts. "
           + "For GCS batch load(see enableBatchLoad): base delay for exponential backoff with jitter (capped at 10s). "
           + "For other writers: constant wait time between retries.";
+  private static final ConfigDef.Type ALLOW_CONCURRENT_SCHEMA_UPDATES_TYPE = ConfigDef.Type.BOOLEAN;
+  private static final ConfigDef.Importance ALLOW_CONCURRENT_SCHEMA_UPDATES_IMPORTANCE =
+      ConfigDef.Importance.MEDIUM;
+  private static final String ALLOW_CONCURRENT_SCHEMA_UPDATES_DOC =
+      "When true, enables a retry-and-reconcile path for schema updates to handle concurrent schema "
+          + "changes from multiple connector instances writing to the same BigQuery table. On a schema "
+          + "update failure, the connector waits concurrentSchemaUpdateRetryWaitMs milliseconds, "
+          + "re-reads the table schema from BigQuery, and checks whether it is already compatible with "
+          + "the current batch. Default false (disabled).";
+  private static final ConfigDef.Type CONCURRENT_SCHEMA_UPDATE_RETRY_WAIT_MS_TYPE = ConfigDef.Type.LONG;
+  private static final ConfigDef.Validator CONCURRENT_SCHEMA_UPDATE_RETRY_WAIT_MS_VALIDATOR =
+      ConfigDef.Range.between(0, 300_000);
+  private static final ConfigDef.Importance CONCURRENT_SCHEMA_UPDATE_RETRY_WAIT_MS_IMPORTANCE =
+      ConfigDef.Importance.MEDIUM;
+  private static final String CONCURRENT_SCHEMA_UPDATE_RETRY_WAIT_MS_DOC =
+      "Milliseconds to wait between each retry attempt when mediateConcurrentSchemaUpdates is true. "
+          + "After a failed schema update, the connector waits this long before re-reading the BigQuery "
+          + "table schema and retrying. Applied before every attempt, including the first. "
+          + "Must be between 0 and 300000 (5 minutes). Default 10000. "
+          + "WARNING: BigQuery allows at most 5 table metadata update requests per 10 seconds per table. "
+          + "Setting this value too low across multiple connector instances may exhaust that quota and cause repeated failures.";
+  private static final ConfigDef.Type CONCURRENT_SCHEMA_UPDATE_MAX_RETRIES_TYPE = ConfigDef.Type.INT;
+  private static final ConfigDef.Validator CONCURRENT_SCHEMA_UPDATE_MAX_RETRIES_VALIDATOR =
+      ConfigDef.Range.atLeast(1);
+  private static final ConfigDef.Importance CONCURRENT_SCHEMA_UPDATE_MAX_RETRIES_IMPORTANCE =
+      ConfigDef.Importance.MEDIUM;
+  private static final String CONCURRENT_SCHEMA_UPDATE_MAX_RETRIES_DOC =
+      "Maximum number of retry attempts for schema updates when mediateConcurrentSchemaUpdates is true. "
+          + "Before each attempt the connector waits concurrentSchemaUpdateRetryWaitMs milliseconds, "
+          + "re-reads the BigQuery table schema, and checks whether it is already compatible. "
+          + "Must be at least 1. Default 3.";
   private static final ConfigDef.Type BIGQUERY_MESSAGE_TIME_PARTITIONING_CONFIG_TYPE =
       ConfigDef.Type.BOOLEAN;
   private static final ConfigDef.Importance BIGQUERY_MESSAGE_TIME_PARTITIONING_IMPORTANCE =
@@ -897,6 +934,26 @@ public class BigQuerySinkConfig extends AbstractConfig {
                     BIGQUERY_RETRY_WAIT_VALIDATOR,
                     BIGQUERY_RETRY_WAIT_IMPORTANCE,
                     BIGQUERY_RETRY_WAIT_DOC
+            ).define(
+                    MEDIATE_CONCURRENT_SCHEMA_UPDATES_CONFIG,
+                    ALLOW_CONCURRENT_SCHEMA_UPDATES_TYPE,
+                    ALLOW_CONCURRENT_SCHEMA_UPDATES_DEFAULT,
+                    ALLOW_CONCURRENT_SCHEMA_UPDATES_IMPORTANCE,
+                    ALLOW_CONCURRENT_SCHEMA_UPDATES_DOC
+            ).define(
+                    CONCURRENT_SCHEMA_UPDATE_RETRY_WAIT_MS_CONFIG,
+                    CONCURRENT_SCHEMA_UPDATE_RETRY_WAIT_MS_TYPE,
+                    CONCURRENT_SCHEMA_UPDATE_RETRY_WAIT_MS_DEFAULT,
+                    CONCURRENT_SCHEMA_UPDATE_RETRY_WAIT_MS_VALIDATOR,
+                    CONCURRENT_SCHEMA_UPDATE_RETRY_WAIT_MS_IMPORTANCE,
+                    CONCURRENT_SCHEMA_UPDATE_RETRY_WAIT_MS_DOC
+            ).define(
+                    CONCURRENT_SCHEMA_UPDATE_MAX_RETRIES_CONFIG,
+                    CONCURRENT_SCHEMA_UPDATE_MAX_RETRIES_TYPE,
+                    CONCURRENT_SCHEMA_UPDATE_MAX_RETRIES_DEFAULT,
+                    CONCURRENT_SCHEMA_UPDATE_MAX_RETRIES_VALIDATOR,
+                    CONCURRENT_SCHEMA_UPDATE_MAX_RETRIES_IMPORTANCE,
+                    CONCURRENT_SCHEMA_UPDATE_MAX_RETRIES_DOC
             ).define(
                     BIGQUERY_MESSAGE_TIME_PARTITIONING_CONFIG,
                     BIGQUERY_MESSAGE_TIME_PARTITIONING_CONFIG_TYPE,

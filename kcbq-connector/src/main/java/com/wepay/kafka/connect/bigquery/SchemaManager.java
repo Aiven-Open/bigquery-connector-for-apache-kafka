@@ -81,6 +81,9 @@ public class SchemaManager {
   private final ConcurrentMap<TableId, Object> tableCreateLocks;
   private final ConcurrentMap<TableId, Object> tableUpdateLocks;
   private final ConcurrentMap<TableId, com.google.cloud.bigquery.Schema> schemaCache;
+  private final boolean mediateConcurrentSchemaUpdates;
+  private final long concurrentSchemaUpdateRetryWaitMs;
+  private final int concurrentSchemaUpdateMaxRetries;
 
   /**
    * @param schemaRetriever                Used to determine the Kafka Connect Schema that should be used for a
@@ -115,7 +118,10 @@ public class SchemaManager {
       Optional<String> timestampPartitionFieldName,
       Optional<Long> partitionExpiration,
       Optional<List<String>> clusteringFieldName,
-      Optional<TimePartitioning.Type> timePartitioningType) {
+      Optional<TimePartitioning.Type> timePartitioningType,
+      boolean mediateConcurrentSchemaUpdates,
+      long concurrentSchemaUpdateRetryWaitMs,
+      int concurrentSchemaUpdateMaxRetries) {
     this(
         schemaRetriever,
         schemaConverter,
@@ -130,6 +136,9 @@ public class SchemaManager {
         partitionExpiration,
         clusteringFieldName,
         timePartitioningType,
+        mediateConcurrentSchemaUpdates,
+        concurrentSchemaUpdateRetryWaitMs,
+        concurrentSchemaUpdateMaxRetries,
         false,
         new ConcurrentHashMap<>(),
         new ConcurrentHashMap<>(),
@@ -150,6 +159,9 @@ public class SchemaManager {
       Optional<Long> partitionExpiration,
       Optional<List<String>> clusteringFieldName,
       Optional<TimePartitioning.Type> timePartitioningType,
+      boolean mediateConcurrentSchemaUpdates,
+      long concurrentSchemaUpdateRetryWaitMs,
+      int concurrentSchemaUpdateMaxRetries,
       boolean intermediateTables,
       ConcurrentMap<TableId, Object> tableCreateLocks,
       ConcurrentMap<TableId, Object> tableUpdateLocks,
@@ -167,6 +179,9 @@ public class SchemaManager {
     this.partitionExpiration = partitionExpiration;
     this.clusteringFieldName = clusteringFieldName;
     this.timePartitioningType = timePartitioningType;
+    this.mediateConcurrentSchemaUpdates = mediateConcurrentSchemaUpdates;
+    this.concurrentSchemaUpdateRetryWaitMs = concurrentSchemaUpdateRetryWaitMs;
+    this.concurrentSchemaUpdateMaxRetries = concurrentSchemaUpdateMaxRetries;
     this.intermediateTables = intermediateTables;
     this.tableCreateLocks = tableCreateLocks;
     this.tableUpdateLocks = tableUpdateLocks;
@@ -188,6 +203,9 @@ public class SchemaManager {
         partitionExpiration,
         clusteringFieldName,
         timePartitioningType,
+        mediateConcurrentSchemaUpdates,
+        concurrentSchemaUpdateRetryWaitMs,
+        concurrentSchemaUpdateMaxRetries,
         true,
         tableCreateLocks,
         tableUpdateLocks,
@@ -217,7 +235,7 @@ public class SchemaManager {
   public void createOrUpdateTable(TableId table, List<SinkRecord> records) {
     synchronized (lock(tableCreateLocks, table)) {
       if (bigQuery.getTable(table) == null) {
-        logger.debug("{} doesn't exist; creating instead of updating", table(table));
+        logger.info("{} doesn't exist; creating instead of updating", table(table));
         if (createTable(table, records)) {
           return;
         }
@@ -225,7 +243,7 @@ public class SchemaManager {
     }
 
     // Table already existed; attempt to update instead
-    logger.debug("{} already exists; updating instead of creating", table(table));
+    logger.info("{} already exists; updating instead of creating", table(table));
     updateSchema(table, records);
   }
 
@@ -277,15 +295,88 @@ public class SchemaManager {
       }
 
       if (!schemaCache.get(table).equals(tableInfo.getDefinition().getSchema())) {
+
         logger.info("Attempting to update {} with schema {}",
             table(table), tableInfo.getDefinition().getSchema());
-        bigQuery.update(tableInfo);
-        logger.debug("Successfully updated {}", table(table));
-        schemaCache.put(table, tableInfo.getDefinition().getSchema());
+        try {
+          bigQuery.update(tableInfo);
+          logger.debug("Successfully updated {}", table(table));
+          schemaCache.put(table, tableInfo.getDefinition().getSchema());
+        } catch (BigQueryException e) {
+          if (!mediateConcurrentSchemaUpdates) {
+            throw e;
+          }
+          handleConcurrentSchemaUpdateFailure(table, records, tableInfo, e);
+        }
       } else {
-        logger.debug("Skipping update of {} since current schema should be compatible", table(table));
+        logger.info("Skipping update of {} since current schema should be compatible", table(table));
       }
     }
+  }
+
+  private void handleConcurrentSchemaUpdateFailure(
+      TableId table,
+      List<SinkRecord> records,
+      TableInfo firstAttemptTableInfo,
+      BigQueryException originalException) {
+
+    logger.warn(
+        "Schema update failed for {} ({}); another connector may have updated the schema concurrently. "
+            + "Will retry up to {} time(s) with {} ms wait between attempts.",
+        table(table), originalException.getMessage(),
+        concurrentSchemaUpdateMaxRetries, concurrentSchemaUpdateRetryWaitMs);
+
+    com.google.cloud.bigquery.Schema proposedSchema = firstAttemptTableInfo.getDefinition().getSchema();
+    BigQueryException lastException = originalException;
+
+    for (int attempt = 1; attempt <= concurrentSchemaUpdateMaxRetries; attempt++) {
+
+      if (concurrentSchemaUpdateRetryWaitMs > 0) {
+        try {
+          Thread.sleep(concurrentSchemaUpdateRetryWaitMs);
+        } catch (InterruptedException ie) {
+          Thread.currentThread().interrupt();
+          throw new BigQueryConnectException(
+              "Interrupted while waiting for concurrent schema update reconciliation for " + table(table), ie);
+        }
+      }
+
+      com.google.cloud.bigquery.Schema currentBqSchema = readTableSchema(table);
+      schemaCache.put(table, currentBqSchema);
+
+      if (proposedSchema.equals(currentBqSchema)) {
+        logger.info(
+            "Schema for {} was already updated by another connector instance (attempt {}/{}). "
+                + "Reconciled; continuing.",
+            table(table), attempt, concurrentSchemaUpdateMaxRetries);
+        return;
+      }
+
+      logger.info(
+          "Schema for {} still differs after wait (attempt {}/{}); retrying update with latest BQ schema as base...",
+          table(table), attempt, concurrentSchemaUpdateMaxRetries);
+      try {
+        TableInfo retryTableInfo = getTableInfo(table, records, false);
+        bigQuery.update(retryTableInfo);
+        logger.info("Successfully updated {} on concurrent-update retry (attempt {}/{}).",
+            table(table), attempt, concurrentSchemaUpdateMaxRetries);
+        schemaCache.put(table, retryTableInfo.getDefinition().getSchema());
+        return;
+      } catch (BigQueryException retryEx) {
+        lastException = retryEx;
+        logger.warn("Schema update retry {}/{} failed for {}: {}",
+            attempt, concurrentSchemaUpdateMaxRetries, table(table), retryEx.getMessage());
+      }
+    }
+
+    logger.error(
+        "Schema update failed for {} after {} retry attempt(s) and concurrent schema update reconciliation.",
+        table(table), concurrentSchemaUpdateMaxRetries);
+    throw new BigQueryConnectException(
+        String.format(
+            "Failed to update schema for %s after %d concurrent schema update retry attempt(s)",
+            table(table), concurrentSchemaUpdateMaxRetries),
+        lastException);
   }
 
   /**

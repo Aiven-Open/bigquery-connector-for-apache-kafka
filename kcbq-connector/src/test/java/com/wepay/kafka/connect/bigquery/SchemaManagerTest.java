@@ -27,11 +27,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.google.cloud.bigquery.BigQuery;
+import com.google.cloud.bigquery.BigQueryException;
 import com.google.cloud.bigquery.Field;
 import com.google.cloud.bigquery.Field.Mode;
 import com.google.cloud.bigquery.LegacySQLTypeName;
@@ -92,7 +95,8 @@ public class SchemaManagerTest {
     Optional<String> kafkaDataFieldName = Optional.of("kafkaData");
     SchemaManager schemaManager = new SchemaManager(mockSchemaRetriever, mockSchemaConverter,
         mockBigQuery, false, false, false, false, kafkaKeyFieldName, kafkaDataFieldName,
-        Optional.empty(), Optional.empty(), Optional.empty(), Optional.of(TimePartitioning.Type.DAY));
+        Optional.empty(), Optional.empty(), Optional.empty(), Optional.of(TimePartitioning.Type.DAY),
+        false, 0L, 1);
 
     when(mockSchemaConverter.convertSchema(mockKafkaSchema)).thenReturn(fakeBigQuerySchema);
     when(mockKafkaSchema.doc()).thenReturn(testDoc);
@@ -120,7 +124,8 @@ public class SchemaManagerTest {
     Optional<String> testField = Optional.of("testField");
     SchemaManager schemaManager = new SchemaManager(mockSchemaRetriever, mockSchemaConverter,
         mockBigQuery, false, false, false, false, Optional.empty(), Optional.empty(), testField,
-        Optional.empty(), Optional.empty(), Optional.of(TimePartitioning.Type.DAY));
+        Optional.empty(), Optional.empty(), Optional.of(TimePartitioning.Type.DAY),
+        false, 0L, 1);
 
     when(mockSchemaConverter.convertSchema(mockKafkaSchema)).thenReturn(fakeBigQuerySchema);
     when(mockKafkaSchema.doc()).thenReturn(testDoc);
@@ -151,7 +156,8 @@ public class SchemaManagerTest {
   public void testAlternativeTimestampPartitionType() {
     SchemaManager schemaManager = new SchemaManager(mockSchemaRetriever, mockSchemaConverter,
         mockBigQuery, false, false, false, false, Optional.empty(), Optional.empty(), Optional.empty(),
-        Optional.empty(), Optional.empty(), Optional.of(TimePartitioning.Type.HOUR));
+        Optional.empty(), Optional.empty(), Optional.of(TimePartitioning.Type.HOUR),
+        false, 0L, 1);
 
     when(mockSchemaConverter.convertSchema(mockKafkaSchema)).thenReturn(fakeBigQuerySchema);
     when(mockKafkaSchema.doc()).thenReturn(testDoc);
@@ -173,7 +179,8 @@ public class SchemaManagerTest {
   public void testNoTimestampPartitionType() {
     SchemaManager schemaManager = new SchemaManager(mockSchemaRetriever, mockSchemaConverter,
         mockBigQuery, false, false, false, false, Optional.empty(), Optional.empty(), Optional.empty(),
-        Optional.empty(), Optional.empty(), Optional.empty());
+        Optional.empty(), Optional.empty(), Optional.empty(),
+        false, 0L, 1);
 
     when(mockSchemaConverter.convertSchema(mockKafkaSchema)).thenReturn(fakeBigQuerySchema);
     when(mockKafkaSchema.doc()).thenReturn(testDoc);
@@ -195,7 +202,8 @@ public class SchemaManagerTest {
     Optional<String> testField = Optional.of("testField");
     SchemaManager schemaManager = new SchemaManager(mockSchemaRetriever, mockSchemaConverter,
         mockBigQuery, false, false, false, false, Optional.empty(), Optional.empty(), testField,
-        Optional.empty(), Optional.empty(), Optional.of(TimePartitioning.Type.DAY));
+        Optional.empty(), Optional.empty(), Optional.of(TimePartitioning.Type.DAY),
+        false, 0L, 1);
 
     when(mockSchemaConverter.convertSchema(mockKafkaSchema)).thenReturn(fakeBigQuerySchema);
     when(mockKafkaSchema.doc()).thenReturn(testDoc);
@@ -219,7 +227,8 @@ public class SchemaManagerTest {
     Optional<String> testField = Optional.of("testField");
     SchemaManager schemaManager = new SchemaManager(mockSchemaRetriever, mockSchemaConverter,
         mockBigQuery, false, false, false, false, Optional.empty(), Optional.empty(), testField,
-        Optional.empty(), Optional.empty(), Optional.of(TimePartitioning.Type.DAY));
+        Optional.empty(), Optional.empty(), Optional.of(TimePartitioning.Type.DAY),
+        false, 0L, 1);
 
     when(mockSchemaConverter.convertSchema(mockKafkaSchema)).thenReturn(fakeBigQuerySchema);
     when(mockKafkaSchema.doc()).thenReturn(testDoc);
@@ -243,7 +252,8 @@ public class SchemaManagerTest {
     Optional<String> updateField = Optional.of("testUpdateField");
     schemaManager = new SchemaManager(mockSchemaRetriever, mockSchemaConverter,
         mockBigQuery, false, false, false, false, Optional.empty(), Optional.empty(), updateField, Optional.empty(), Optional.empty(),
-        Optional.of(TimePartitioning.Type.DAY));
+        Optional.of(TimePartitioning.Type.DAY),
+        false, 0L, 1);
 
     tableInfo = schemaManager
         .constructTableInfo(tableId, fakeBigQuerySchema, testDoc, false);
@@ -259,7 +269,8 @@ public class SchemaManagerTest {
     Optional<Long> testExpirationMs = Optional.of(86400000L);
     SchemaManager schemaManager = new SchemaManager(mockSchemaRetriever, mockSchemaConverter,
         mockBigQuery, false, false, false, false, Optional.empty(), Optional.empty(), Optional.empty(),
-        testExpirationMs, Optional.empty(), Optional.of(TimePartitioning.Type.DAY));
+        testExpirationMs, Optional.empty(), Optional.of(TimePartitioning.Type.DAY),
+        false, 0L, 1);
 
     when(mockSchemaConverter.convertSchema(mockKafkaSchema)).thenReturn(fakeBigQuerySchema);
     when(mockKafkaSchema.doc()).thenReturn(testDoc);
@@ -290,7 +301,8 @@ public class SchemaManagerTest {
     Optional<String> testField = Optional.of("testField");
     SchemaManager schemaManager = new SchemaManager(mockSchemaRetriever, mockSchemaConverter,
         mockBigQuery, false, false, false, false, Optional.empty(), Optional.empty(), testField,
-        testExpirationMs, Optional.empty(), Optional.of(TimePartitioning.Type.DAY));
+        testExpirationMs, Optional.empty(), Optional.of(TimePartitioning.Type.DAY),
+        false, 0L, 1);
 
     when(mockSchemaConverter.convertSchema(mockKafkaSchema)).thenReturn(fakeBigQuerySchema);
     when(mockKafkaSchema.doc()).thenReturn(testDoc);
@@ -322,7 +334,8 @@ public class SchemaManagerTest {
     Optional<List<String>> testField = Optional.of(Arrays.asList("column1", "column2"));
     SchemaManager schemaManager = new SchemaManager(mockSchemaRetriever, mockSchemaConverter,
         mockBigQuery, false, false, false, false, Optional.empty(), Optional.empty(), timestampPartitionFieldName,
-        Optional.empty(), testField, Optional.of(TimePartitioning.Type.DAY));
+        Optional.empty(), testField, Optional.of(TimePartitioning.Type.DAY),
+        false, 0L, 1);
 
     when(mockSchemaConverter.convertSchema(mockKafkaSchema)).thenReturn(fakeBigQuerySchema);
     when(mockKafkaSchema.doc()).thenReturn(testDoc);
@@ -350,7 +363,8 @@ public class SchemaManagerTest {
     Optional<List<String>> testField = Optional.of(Arrays.asList("column1", "column2"));
     SchemaManager schemaManager = new SchemaManager(mockSchemaRetriever, mockSchemaConverter,
         mockBigQuery, false, false, false, false, Optional.empty(), Optional.empty(), timestampPartitionFieldName,
-        Optional.empty(), testField, Optional.of(TimePartitioning.Type.DAY));
+        Optional.empty(), testField, Optional.of(TimePartitioning.Type.DAY),
+        false, 0L, 1);
 
     when(mockSchemaConverter.convertSchema(mockKafkaSchema)).thenReturn(fakeBigQuerySchema);
     when(mockKafkaSchema.doc()).thenReturn(testDoc);
@@ -376,7 +390,8 @@ public class SchemaManagerTest {
     Optional<List<String>> testField = Optional.of(Arrays.asList("column1", "column2"));
     SchemaManager schemaManager = new SchemaManager(mockSchemaRetriever, mockSchemaConverter,
         mockBigQuery, false, false, false, false, Optional.empty(), Optional.empty(), timestampPartitionFieldName,
-        Optional.empty(), testField, Optional.of(TimePartitioning.Type.DAY));
+        Optional.empty(), testField, Optional.of(TimePartitioning.Type.DAY),
+        false, 0L, 1);
 
     when(mockSchemaConverter.convertSchema(mockKafkaSchema)).thenReturn(fakeBigQuerySchema);
     when(mockKafkaSchema.doc()).thenReturn(testDoc);
@@ -400,7 +415,8 @@ public class SchemaManagerTest {
     Optional<List<String>> updateTestField = Optional.of(Arrays.asList("column3", "column4"));
     schemaManager = new SchemaManager(mockSchemaRetriever, mockSchemaConverter,
         mockBigQuery, false, false, false, false, Optional.empty(), Optional.empty(), timestampPartitionFieldName,
-        Optional.empty(), updateTestField, Optional.of(TimePartitioning.Type.DAY));
+        Optional.empty(), updateTestField, Optional.of(TimePartitioning.Type.DAY),
+        false, 0L, 1);
 
     tableInfo = schemaManager
         .constructTableInfo(tableId, fakeBigQuerySchema, testDoc, false);
@@ -825,7 +841,8 @@ public class SchemaManagerTest {
     return new SchemaManager(new IdentitySchemaRetriever(), converter, mockBigQuery,
         allowNewFields, allowFieldRelaxation, allowUnionization, sanitizeFieldNames,
         Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
-        Optional.of(TimePartitioning.Type.DAY));
+        Optional.of(TimePartitioning.Type.DAY),
+        false, 0L, 1);
   }
 
   private SchemaManager createSchemaManager(
@@ -833,7 +850,18 @@ public class SchemaManagerTest {
     return new SchemaManager(new IdentitySchemaRetriever(), mockSchemaConverter, mockBigQuery,
         allowNewFields, allowFieldRelaxation, allowUnionization, false,
         Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
-        Optional.of(TimePartitioning.Type.DAY));
+        Optional.of(TimePartitioning.Type.DAY),
+        false, 0L, 1);
+  }
+
+  private SchemaManager createSchemaManagerWithConcurrentRetry(
+      boolean allowNewFields, boolean allowFieldRelaxation,
+      boolean mediateConcurrentSchemaUpdates, long concurrentRetryWaitMs, int maxRetries) {
+    return new SchemaManager(new IdentitySchemaRetriever(), mockSchemaConverter, mockBigQuery,
+        allowNewFields, allowFieldRelaxation, false, false,
+        Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+        Optional.of(TimePartitioning.Type.DAY),
+        mediateConcurrentSchemaUpdates, concurrentRetryWaitMs, maxRetries);
   }
 
   private void testGetAndValidateProposedSchema(
@@ -1026,6 +1054,129 @@ public class SchemaManagerTest {
       assertEquals(sanitizedName, actualSchema.getFields().get(sanitizedName).getName());
     }
     assertEquals("embedded_invalid", actualSchema.getFields().get("embedded").getSubFields().get(0).getName());
+  }
+
+  @Test
+  public void testConcurrentUpdateReconciled() {
+    com.google.cloud.bigquery.Schema existingSchema = com.google.cloud.bigquery.Schema.of(
+        Field.newBuilder("f1", LegacySQLTypeName.BOOLEAN).setMode(Field.Mode.NULLABLE).build()
+    );
+    com.google.cloud.bigquery.Schema proposedSchema = com.google.cloud.bigquery.Schema.of(
+        Field.newBuilder("f1", LegacySQLTypeName.BOOLEAN).setMode(Field.Mode.NULLABLE).build(),
+        Field.newBuilder("f2", LegacySQLTypeName.STRING).setMode(Field.Mode.NULLABLE).build()
+    );
+    // Pre-create mocks before any when() chain to avoid UnfinishedStubbingException
+    Table existingTable = tableWithSchema(existingSchema);
+    Table reconciledTable = tableWithSchema(proposedSchema);
+
+    when(mockSchemaConverter.convertSchema(mockKafkaSchema)).thenReturn(proposedSchema);
+    when(mockBigQuery.getTable(tableId))
+        .thenReturn(existingTable)    // getAndValidateProposedSchema
+        .thenReturn(existingTable)    // updateSchema cache miss
+        // retry loop attempt 1:
+        .thenReturn(reconciledTable); // reconcile check: proposed == current → reconciled, no further update
+    when(mockBigQuery.update(any(TableInfo.class)))
+        .thenThrow(new BigQueryException(409, "concurrent modification"));
+
+    // maxRetries=1: one loop iteration is sufficient to demonstrate reconcile
+    SchemaManager schemaManager = createSchemaManagerWithConcurrentRetry(true, false, true, 0L, 1);
+    List<SinkRecord> records = Collections.singletonList(recordWithValueSchema(mockKafkaSchema));
+
+    // Should not throw — another connector already applied the proposed schema
+    schemaManager.updateSchema(tableId, records);
+
+    verify(mockBigQuery, times(1)).update(any(TableInfo.class));
+  }
+
+  @Test
+  public void testConcurrentUpdateRetrySucceeds() {
+    com.google.cloud.bigquery.Schema existingSchema = com.google.cloud.bigquery.Schema.of(
+        Field.newBuilder("f1", LegacySQLTypeName.BOOLEAN).setMode(Field.Mode.NULLABLE).build()
+    );
+    com.google.cloud.bigquery.Schema proposedSchema = com.google.cloud.bigquery.Schema.of(
+        Field.newBuilder("f1", LegacySQLTypeName.BOOLEAN).setMode(Field.Mode.NULLABLE).build(),
+        Field.newBuilder("f2", LegacySQLTypeName.STRING).setMode(Field.Mode.NULLABLE).build()
+    );
+    Table existingTable = tableWithSchema(existingSchema);
+    Table successTable = mock(Table.class);
+
+    when(mockSchemaConverter.convertSchema(mockKafkaSchema)).thenReturn(proposedSchema);
+    when(mockBigQuery.getTable(tableId))
+        .thenReturn(existingTable)   // getAndValidateProposedSchema
+        .thenReturn(existingTable)   // updateSchema cache miss
+        // retry loop attempt 1:
+        .thenReturn(existingTable)   // reconcile check: not equal → attempt update
+        .thenReturn(existingTable);  // retry getAndValidateProposedSchema (inside getTableInfo)
+    when(mockBigQuery.update(any(TableInfo.class)))
+        .thenThrow(new BigQueryException(409, "concurrent modification")) // initial attempt
+        .thenReturn(successTable);                                         // loop attempt 1
+
+    // maxRetries=1: the single retry attempt succeeds
+    SchemaManager schemaManager = createSchemaManagerWithConcurrentRetry(true, false, true, 0L, 1);
+    List<SinkRecord> records = Collections.singletonList(recordWithValueSchema(mockKafkaSchema));
+
+    // Should not throw — retry succeeds
+    schemaManager.updateSchema(tableId, records);
+
+    verify(mockBigQuery, times(2)).update(any(TableInfo.class));
+  }
+
+  @Test
+  public void testConcurrentUpdateRetryFails() {
+    com.google.cloud.bigquery.Schema existingSchema = com.google.cloud.bigquery.Schema.of(
+        Field.newBuilder("f1", LegacySQLTypeName.BOOLEAN).setMode(Field.Mode.NULLABLE).build()
+    );
+    com.google.cloud.bigquery.Schema proposedSchema = com.google.cloud.bigquery.Schema.of(
+        Field.newBuilder("f1", LegacySQLTypeName.BOOLEAN).setMode(Field.Mode.NULLABLE).build(),
+        Field.newBuilder("f2", LegacySQLTypeName.STRING).setMode(Field.Mode.NULLABLE).build()
+    );
+    Table existingTable = tableWithSchema(existingSchema);
+
+    when(mockSchemaConverter.convertSchema(mockKafkaSchema)).thenReturn(proposedSchema);
+    when(mockBigQuery.getTable(tableId))
+        .thenReturn(existingTable)   // getAndValidateProposedSchema
+        .thenReturn(existingTable)   // updateSchema cache miss
+        // retry loop attempt 1:
+        .thenReturn(existingTable)   // reconcile check: not equal → attempt update
+        .thenReturn(existingTable);  // retry getAndValidateProposedSchema
+    when(mockBigQuery.update(any(TableInfo.class)))
+        .thenThrow(new BigQueryException(409, "concurrent modification")); // all attempts throw
+
+    // maxRetries=1: one retry attempt exhausted → BigQueryConnectException
+    SchemaManager schemaManager = createSchemaManagerWithConcurrentRetry(true, false, true, 0L, 1);
+    List<SinkRecord> records = Collections.singletonList(recordWithValueSchema(mockKafkaSchema));
+
+    assertThrows(BigQueryConnectException.class, () -> schemaManager.updateSchema(tableId, records));
+
+    verify(mockBigQuery, times(2)).update(any(TableInfo.class));
+  }
+
+  @Test
+  public void testConcurrentUpdateDisabledRethrowsBigQueryException() {
+    com.google.cloud.bigquery.Schema existingSchema = com.google.cloud.bigquery.Schema.of(
+        Field.newBuilder("f1", LegacySQLTypeName.BOOLEAN).setMode(Field.Mode.NULLABLE).build()
+    );
+    com.google.cloud.bigquery.Schema proposedSchema = com.google.cloud.bigquery.Schema.of(
+        Field.newBuilder("f1", LegacySQLTypeName.BOOLEAN).setMode(Field.Mode.NULLABLE).build(),
+        Field.newBuilder("f2", LegacySQLTypeName.STRING).setMode(Field.Mode.NULLABLE).build()
+    );
+    Table existingTable = tableWithSchema(existingSchema);
+
+    when(mockSchemaConverter.convertSchema(mockKafkaSchema)).thenReturn(proposedSchema);
+    when(mockBigQuery.getTable(tableId))
+        .thenReturn(existingTable)   // getAndValidateProposedSchema
+        .thenReturn(existingTable);  // updateSchema cache miss
+    when(mockBigQuery.update(any(TableInfo.class)))
+        .thenThrow(new BigQueryException(409, "concurrent modification"));
+
+    // Flag disabled: no retry loop is entered regardless of maxRetries
+    SchemaManager schemaManager = createSchemaManagerWithConcurrentRetry(true, false, false, 0L, 3);
+    List<SinkRecord> records = Collections.singletonList(recordWithValueSchema(mockKafkaSchema));
+
+    // BigQueryException propagates directly, unwrapped
+    assertThrows(BigQueryException.class, () -> schemaManager.updateSchema(tableId, records));
+
+    verify(mockBigQuery, times(1)).update(any(TableInfo.class));
   }
 
   private com.google.cloud.bigquery.Schema makeNullable(com.google.cloud.bigquery.Schema s) {
