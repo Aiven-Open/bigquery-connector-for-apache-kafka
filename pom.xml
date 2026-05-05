@@ -47,7 +47,7 @@
         <com.google.re2j.version>1.7</com.google.re2j.version>
         <com.google.auto.value.version>1.10.2</com.google.auto.value.version>
         <confluent.version>7.9.5</confluent.version>
-        <debezium.version>0.6.2</debezium.version>
+        <debezium.version>2.3.0.Final</debezium.version>
         <jackson.version>2.20.1</jackson.version>
         <jetty.version>9.4.56.v20240826</jetty.version>
         <kafka.version>3.8.1</kafka.version>
