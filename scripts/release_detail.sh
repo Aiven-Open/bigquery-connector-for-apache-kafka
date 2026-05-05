@@ -1,18 +1,12 @@
 #!/bin/bash
 #
-# Copyright 2024 Copyright 2022 Aiven Oy and
-# bigquery-connector-for-apache-kafka project contributors
-#
-# This software contains code derived from the Confluent BigQuery
-# Kafka Connector, Copyright Confluent, Inc, which in turn
-# contains code derived from the WePay BigQuery Kafka Connector,
-# Copyright WePay, Inc.
+# Copyright 2026 Aiven Oy and project contributors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-# http://www.apache.org/licenses/LICENSE-2.0
+# https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing,
 # software distributed under the License is distributed on an
@@ -21,23 +15,54 @@
 # specific language governing permissions and limitations
 # under the License.
 #
+#        SPDX-License-Identifier: Apache-2.0
+#
 
 git fetch origin
-if [ -z $1 ]
+if [ -z $2 ]
 then
-  echo "Must provide final version"
+  echo "Must provide start tag and final version"
   exit 1
 fi
 
-startTag=`grep latestRelease pom.xml | cut -f2 -d">" | cut -f1 -d"<"`
-endTag=${1}
+startTag=${1}
+endVersion=${2}
 
-start=`git rev-parse v${startTag}`
-end=`git rev-parse HEAD`
-commits=${start}...${end}
-printf "## v%s\n### What's changed\n" ${endTag}
-git log --format=' - %s'  ${commits}
+start=`git rev-parse ${startTag}`;
+if [ ${start} == ${startTag} ]
+then
+  echo ${startTag} is not a valid git tag for this repository
+  exit 1
+fi
 
-printf "\n\n### Co-authored by\n"
-git log --format=' - %an'  ${commits} | sort -u
-printf "\n\n### Full Changelog\nhttps://github.com/Aiven-Open/bigquery-connector-for-apache-kafka/compare/v${startTag}...v${endTag}\n\n"
+end=`git rev-parse HEAD`;
+commits=${start}...${end};
+echo '## v'${endVersion} > /tmp/proposed_changelog.txt;
+echo '### What is changed' >> /tmp/proposed_changelog.txt;
+echo ' ' >> /tmp/proposed_changelog.txt;
+git log --format=' - %s'  ${commits} >> /tmp/proposed_changelog.txt;
+echo ' ' >> /tmp/proposed_changelog.txt;
+echo ' ' >> /tmp/proposed_changelog.txt;
+echo '### Co-authored by' >> /tmp/proposed_changelog.txt;
+echo ' ' >> /tmp/proposed_changelog.txt;
+git log --format=' - %an'  ${commits} | sort -u  >> /tmp/proposed_changelog.txt;
+echo ' ' >> /tmp/proposed_changelog.txt;
+echo ' ' >> /tmp/proposed_changelog.txt;
+echo '### Full Changelog' >> /tmp/proposed_changelog.txt;
+echo 'https://github.com/Aiven-Open/salesforce-connector-for-apache-kafka/compare/'${startTag}'...v'${endVersion}  >> /tmp/proposed_changelog.txt;
+echo ' ' >> /tmp/proposed_changelog.txt
+touch CHANGE_LOG.md
+cat /tmp/proposed_changelog.txt CHANGE_LOG.md >> /tmp/CHANGE_LOG.md
+mv /tmp/CHANGE_LOG.md CHANGE_LOG.md
+
+git checkout -b changelog-${endVersion}
+
+git add CHANGE_LOG.md
+git commit -m "Changelog for ${startTag} to v${endVersion}"
+git push --set-upstream origin changelog-${endVersion}
+
+mvn -P pre-release-check verify
+if [[ $? -eq 1 ]]
+then
+  echo "Fix issues with the build and rerun 'mvn -P pre-release-check verify'"
+fi
