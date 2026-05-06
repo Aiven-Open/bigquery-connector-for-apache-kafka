@@ -411,6 +411,7 @@
                         <inputExclude>**/*.properties</inputExclude>
                         <inputExclude>LICENSE.md</inputExclude>
                         <inputExclude>README.md</inputExclude>
+                        <inputExclude>CHANGE_LOG.md</inputExclude>
                         <inputExclude>docs/**</inputExclude>
                         <inputExclude>**/META-INF/services/**</inputExclude>
                     </inputExcludes>
