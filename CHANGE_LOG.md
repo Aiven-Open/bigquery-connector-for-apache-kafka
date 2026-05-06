@@ -16,5 +16,5 @@
  
  
 ### Full Changelog
-https://github.com/Aiven-Open/salesforce-connector-for-apache-kafka/compare/v2.12.0...v2.13.0
+https://github.com/Aiven-Open/bigquery-connector-for-apache-kafka/compare/v2.12.0...v2.13.0
  
