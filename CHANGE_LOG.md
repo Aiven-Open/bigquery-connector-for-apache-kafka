@@ -7,14 +7,11 @@
  - Fix license check issue (#39)
  - Fix: Retry-and-reconcile for concurrent schema update failures in GCS to BQ Load (#188)
  - Add putAttemptId to kafka metadata struct for put()-level retry deduplication (#189)
- - Bump version to 2.13.0-SNAPSHOT
  
  
 ### Co-authored by
  
  - Claude Warren
- - dependabot[bot]
- - GitHub Action
  - Veli Can Ünal
  
  
