@@ -2,7 +2,7 @@
 ### What is changed
  
  - Update jackson-core and jetty versions (#192)
- - updates to release scripting (#191)
+ - update release scripting (#191)
  - Bump org.apache.kafka:kafka-clients from 3.8.1 to 3.9.2 (#44)
  - Fix license check issue (#39)
  - Fix: Retry-and-reconcile for concurrent schema update failures in GCS to BQ Load (#188)
