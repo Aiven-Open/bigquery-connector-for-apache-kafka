@@ -82,13 +82,12 @@ jobs:
           git config --local user.name "GitHub Action"
           git config --local user.email "action@github.com"
           mvn -e -B -V -ntp versions:set versions:update-child-modules versions:set-property -Dproperty=latestRelease -DgenerateBackupPoms=false -DnewVersion=${{ github.event.inputs.release_version }} 
-          mvn -e -B -V -ntp spotless:apply enforcer:enforce -Denforcer.rules=requireReleaseDeps
+          mvn -e -B -V -ntp enforcer:enforce -Denforcer.rules=requireReleaseDeps
           git add pom.xml **/pom.xml
           git commit -m "Release version ${{ github.event.inputs.release_version }}"
           git tag -a "v${{ steps.project.outputs.version }}" -m "Release version ${{ steps.project.outputs.version }}"
     
           mvn -e -B -V -ntp versions:set versions:update-child-modules -DgenerateBackupPoms=false -DnewVersion=${{ github.event.inputs.snapshot_version }}
-          mvn -e -B -V -ntp spotless:apply
           git add pom.xml **/pom.xml
           git commit -m "Bump version to ${{ github.event.inputs.snapshot_version }}"
 
