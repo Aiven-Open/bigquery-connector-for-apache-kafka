@@ -30,7 +30,7 @@ https://github.com/Aiven-Open/bigquery-connector-for-apache-kafka/compare/v2.13.
 ### Co-authored by
  
  - Claude Warren
- - Veli Can &#220;nal
+ - Veli Can Ünal
  
 ### Full Changelog
 https://github.com/Aiven-Open/bigquery-connector-for-apache-kafka/compare/v2.12.0...v2.13.0
