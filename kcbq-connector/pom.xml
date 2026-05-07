@@ -44,6 +44,7 @@
         <main.dir>${project.parent.basedir}</main.dir>
     </properties>
 
+
     <dependencies>
         <dependency>
             <groupId>io.aiven.commons</groupId>
