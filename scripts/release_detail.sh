@@ -27,6 +27,8 @@ fi
 
 startTag=${1}
 endVersion=${2}
+releaseNotes=docs/src/site/markdown/RELEASE_NOTES.md
+repositoryName=bigquery-connector-for-apache-kafka
 
 start=`git rev-parse ${startTag}`;
 if [ ${start} == ${startTag} ]
@@ -49,17 +51,24 @@ git log --format=' - %an'  ${commits} | sort -u  >> /tmp/proposed_changelog.txt;
 echo ' ' >> /tmp/proposed_changelog.txt;
 echo ' ' >> /tmp/proposed_changelog.txt;
 echo '### Full Changelog' >> /tmp/proposed_changelog.txt;
-echo 'https://github.com/Aiven-Open/salesforce-connector-for-apache-kafka/compare/'${startTag}'...v'${endVersion}  >> /tmp/proposed_changelog.txt;
+echo 'https://github.com/Aiven-Open/${repositoryName}/compare/'${startTag}'...v'${endVersion}  >> /tmp/proposed_changelog.txt;
 echo ' ' >> /tmp/proposed_changelog.txt
-touch CHANGE_LOG.md
-cat /tmp/proposed_changelog.txt CHANGE_LOG.md >> /tmp/CHANGE_LOG.md
-mv /tmp/CHANGE_LOG.md CHANGE_LOG.md
+touch ${releaseNotes}
+grep -B 999 -m2 "^## " ${releaseNotes}  | tail -n +5 > /tmp/release_notes.txt
+echo ' ' > /tmp/changelog.head
+echo '# Release Notes' >> /tmp/changelog.head
+echo ' ' >> /tmp/changelog.head
+echo 'All releases can be found at https://github.com/Aiven-Open/bigquery-connector-for-apache-kafka/releases' >> /tmp/changelog.head
+echo ' ' >> /tmp/changelog.head
+cat /tmp/changelog.head /tmp/proposed_changelog.txt /tmp/release_notes.txt >> /tmp/CHANGE_LOG.md
 
-git checkout -b changelog-${endVersion}
+mv /tmp/CHANGE_LOG.md ${releaseNotes}
 
-git add CHANGE_LOG.md
-git commit -m "Changelog for ${startTag} to v${endVersion}"
-git push --set-upstream origin changelog-${endVersion}
+git checkout -b release_notes-${endVersion}
+
+git add ${releaseNotes}
+git commit -m "create Release notes for ${startTag} to v${endVersion}"
+git push --set-upstream origin release_notes-${endVersion}
 
 mvn -P pre-release-check verify
 if [[ $? -eq 1 ]]
