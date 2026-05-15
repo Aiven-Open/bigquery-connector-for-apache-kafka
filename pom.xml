@@ -442,6 +442,29 @@
                     </execution>
                 </executions>
             </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <version>3.1.0</version>
+                <executions>
+                    <execution>
+                        <id>copy-release-notes</id>
+                        <phase>site</phase>
+                         <inherited>false</inherited>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <!-- This creates the directory, creates the file, and renames it in one shot -->
+                                <copy file="${project.basedir}/CHANGE_LOG.md" 
+                                    tofile="${project.basedir}/docs/target/generated-site/markdown/RELEASE_NOTES.md" 
+                                    overwrite="true" />
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
         <pluginManagement>
             <plugins>
