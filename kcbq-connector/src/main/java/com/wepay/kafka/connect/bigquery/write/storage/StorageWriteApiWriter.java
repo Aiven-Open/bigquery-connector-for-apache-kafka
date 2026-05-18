@@ -99,7 +99,7 @@ public class StorageWriteApiWriter implements Runnable {
     private final StorageApiBatchModeHandler batchModeHandler;
 
     /**
-     * @deprecated Use {@link #Builder(StorageWriteApiBase, PartitionedTableId, SinkRecordConverter, StorageApiBatchModeHandler)} instead.
+     * @deprecated Use {@link #Builder(StorageWriteApiBase, PartitionedTableId, SinkRecordConverter, BigQuerySinkTaskConfig, StorageApiBatchModeHandler)} instead.
      */
     @Deprecated
     public Builder(StorageWriteApiBase streamWriter,
@@ -109,6 +109,9 @@ public class StorageWriteApiWriter implements Runnable {
       this(streamWriter, TableNameUtils.partitionedTableId(tableName), recordConverter, null, batchModeHandler);
     }
 
+    /**
+     * @deprecated Use {@link #Builder(StorageWriteApiBase, PartitionedTableId, SinkRecordConverter, BigQuerySinkTaskConfig, StorageApiBatchModeHandler)} instead.
+     */
     @Deprecated
     public Builder(StorageWriteApiBase streamWriter,
                    PartitionedTableId table,
@@ -117,6 +120,13 @@ public class StorageWriteApiWriter implements Runnable {
       this(streamWriter, table, recordConverter, null, batchModeHandler);
     }
 
+    /**
+     * @param streamWriter The stream writer to use
+     * @param table The table to write the records to
+     * @param recordConverter The converter to convert SinkRecord to JSONObject
+     * @param config The config for the connector, may be null
+     * @param batchModeHandler The handler for batch mode
+     */
     public Builder(StorageWriteApiBase streamWriter,
                    PartitionedTableId table,
                    SinkRecordConverter recordConverter,
@@ -162,6 +172,12 @@ public class StorageWriteApiWriter implements Runnable {
       }
 
       final List<ConvertedRecord> recordsToWrite;
+      // If upsert is enabled, we pre-compact our records to avoid
+      // 1) sending unnecessary rows to BigQuery and
+      // 2) running into some sharp edges where upsert logic is not applied intuitively
+      //    for row batches that contain multiple rows with the same primary key
+      // Also note that we don't support delete-only mode with the Storage Write API, so no
+      // special logic for that case is necessary
       if (config != null && config.isUpsertEnabled()) {
         Map<Object, ConvertedRecord> compactedRecords = new LinkedHashMap<>(16, 0.75f, true);
         for (ConvertedRecord convertedRecord : records) {
