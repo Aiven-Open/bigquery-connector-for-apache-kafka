@@ -31,7 +31,7 @@
     <parent>
         <groupId>com.wepay.kcbq</groupId>
         <artifactId>kcbq-parent</artifactId>
-        <version>2.13.0-SNAPSHOT</version>
+        <version>2.14.0-SNAPSHOT</version>
     </parent>
     <url>https://github.com/Aiven-Open/bigquery-connector-for-apache-kafka/</url>
     <artifactId>kcbq-connector</artifactId>
@@ -157,6 +157,12 @@
             <type>test-jar</type>
         </dependency>
         <dependency>
+            <groupId>org.apache.kafka</groupId>
+            <artifactId>kafka-server-common</artifactId>
+            <classifier>test</classifier>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>kafka-schema-registry</artifactId>
         </dependency>
@@ -178,10 +184,21 @@
             <groupId>com.google.re2j</groupId>
             <artifactId>re2j</artifactId>
         </dependency>
+        <dependency>
+            <groupId>de.huxhorn.sulky</groupId>
+            <artifactId>de.huxhorn.sulky.ulid</artifactId>
+        </dependency>
     </dependencies>
 
     <build>
         <plugins>
+            <plugin>
+                <groupId>org.apache.rat</groupId>
+                <artifactId>apache-rat-plugin</artifactId>
+                <configuration>
+                    <skip>true</skip>
+                </configuration>
+            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>

@@ -18,7 +18,7 @@ See the [release notes](RELEASE_NOTES.html) for information on all releases.
 The Kafka Connect BigQuery Connector is dependent upon or uses the following:
 
 - [Apache Kafka Connect](https://kafka.apache.org/documentation.html#connect)
-- [Apache Kafka](http://kafka.apache.org)
+- [Apache Kafka](http://kafka.apache.org) minimum version: $context.get("kafka.version")
 - [Google BigQuery](https://cloud.google.com/bigquery/)
 
 
