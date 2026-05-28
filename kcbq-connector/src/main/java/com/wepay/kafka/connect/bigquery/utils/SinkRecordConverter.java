@@ -86,14 +86,28 @@ public class SinkRecordConverter {
   }
 
   public InsertAllRequest.RowToInsert getRecordRow(SinkRecord record, TableId table) {
+    return getRecordRow(record, table, currentPutAttemptId);
+  }
+
+  /**
+   * Converts a record to a BigQuery row using an explicitly supplied write-attempt ID instead of
+   * the shared {@code currentPutAttemptId} field. Use this overload from executor threads (e.g.,
+   * inside {@code BigQueryWriter.writeRows()}) to avoid the race condition that arises when
+   * multiple {@code TableWriter} threads concurrently read and write the shared volatile field.
+   *
+   * @param record         the Kafka record to convert
+   * @param table          the target BigQuery table
+   * @param writeAttemptId the write-attempt ID to embed, or {@code null} if tracking is disabled
+   */
+  public InsertAllRequest.RowToInsert getRecordRow(SinkRecord record, TableId table, String writeAttemptId) {
     Map<String, Object> convertedRecord = config.isUpsertDeleteEnabled()
-        ? getUpsertDeleteRow(record, table)
-        : getRegularRow(record);
+        ? getUpsertDeleteRow(record, table, writeAttemptId)
+        : getRegularRow(record, writeAttemptId);
 
     return InsertAllRequest.RowToInsert.of(getRowId(record), convertedRecord);
   }
 
-  private Map<String, Object> getUpsertDeleteRow(SinkRecord record, TableId table) {
+  private Map<String, Object> getUpsertDeleteRow(SinkRecord record, TableId table, String writeAttemptId) {
     // Unconditionally allow tombstone records if delete is enabled.
     Map<String, Object> convertedValue = config.getBoolean(config.DELETE_ENABLED_CONFIG) && record.value() == null
         ? null
@@ -101,7 +115,7 @@ public class SinkRecordConverter {
 
     if (convertedValue != null) {
       config.getKafkaDataFieldName().ifPresent(
-          fieldName -> convertedValue.put(fieldName, KafkaDataBuilder.buildKafkaDataRecord(record, currentPutAttemptId))
+          fieldName -> convertedValue.put(fieldName, KafkaDataBuilder.buildKafkaDataRecord(record, writeAttemptId))
       );
     }
 
@@ -138,12 +152,16 @@ public class SinkRecordConverter {
   }
 
   public Map<String, Object> getRegularRow(SinkRecord record) {
+    return getRegularRow(record, currentPutAttemptId);
+  }
+
+  public Map<String, Object> getRegularRow(SinkRecord record, String writeAttemptId) {
     Map<String, Object> result = recordConverter.convertRecord(record, KafkaSchemaRecordType.VALUE);
 
     config.getKafkaDataFieldName().ifPresent(fieldName -> {
       Map<String, Object> kafkaDataField = config.getBoolean(config.USE_STORAGE_WRITE_API_CONFIG)
-          ? KafkaDataBuilder.buildKafkaDataRecordStorageApi(record, currentPutAttemptId)
-          : KafkaDataBuilder.buildKafkaDataRecord(record, currentPutAttemptId);
+          ? KafkaDataBuilder.buildKafkaDataRecordStorageApi(record, writeAttemptId)
+          : KafkaDataBuilder.buildKafkaDataRecord(record, writeAttemptId);
       result.put(fieldName, kafkaDataField);
     });
 

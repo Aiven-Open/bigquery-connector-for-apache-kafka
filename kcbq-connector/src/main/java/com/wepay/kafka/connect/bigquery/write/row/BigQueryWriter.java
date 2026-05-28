@@ -31,6 +31,7 @@ import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryErrorResponses;
 import com.wepay.kafka.connect.bigquery.utils.PartitionedTableId;
+import com.wepay.kafka.connect.bigquery.utils.SinkRecordConverter;
 import com.wepay.kafka.connect.bigquery.utils.Time;
 import java.util.Collection;
 import java.util.List;
@@ -40,6 +41,7 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.function.Supplier;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -136,6 +138,26 @@ public abstract class BigQueryWriter {
   public void writeRows(PartitionedTableId table,
                         SortedMap<SinkRecord, InsertAllRequest.RowToInsert> rows)
       throws BigQueryConnectException, BigQueryException, InterruptedException {
+    writeRows(table, rows, null, null);
+  }
+
+  /**
+   * @param table           The BigQuery table to write the rows to.
+   * @param rows            The rows to write.
+   * @param recordConverter When non-null, used to re-convert rows before every
+   *                        {@link #performWriteRequest} call (including the first), so that
+   *                        each actual BigQuery API call carries a distinct write-attempt ID
+   *                        rather than reusing the put-level ID stamped during row conversion.
+   *                        Pass {@code null} when {@code trackPutAttempts} is disabled.
+   * @param ulidSupplier    Generates a fresh ULID for each write attempt. Must be non-null
+   *                        when {@code recordConverter} is non-null; ignored otherwise.
+   * @throws InterruptedException if interrupted.
+   */
+  public void writeRows(PartitionedTableId table,
+                        SortedMap<SinkRecord, InsertAllRequest.RowToInsert> rows,
+                        SinkRecordConverter recordConverter,
+                        Supplier<String> ulidSupplier)
+      throws BigQueryConnectException, BigQueryException, InterruptedException {
     logger.debug("writing {} row{} to table {}", rows.size(), rows.size() != 1 ? "s" : "", table);
 
     Exception mostRecentException = null;
@@ -145,6 +167,17 @@ public abstract class BigQueryWriter {
     do {
       if (retryCount > 0) {
         waitRandomTime();
+      }
+      if (recordConverter != null && ulidSupplier != null) {
+        // Regenerate a fresh write-attempt ID before every performWriteRequest() call,
+        // including the first. Pass it directly to getRecordRow() to avoid writing to
+        // the shared volatile currentPutAttemptId field from this executor thread.
+        String newId = ulidSupplier.get();
+        SortedMap<SinkRecord, InsertAllRequest.RowToInsert> rebuilt = new TreeMap<>(rows.comparator());
+        for (SinkRecord record : rows.keySet()) {
+          rebuilt.put(record, recordConverter.getRecordRow(record, table.getBaseTableId(), newId));
+        }
+        rows = rebuilt;
       }
       try {
         failedRowsMap = performWriteRequest(table, rows);
