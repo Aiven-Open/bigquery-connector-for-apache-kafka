@@ -61,7 +61,7 @@ jobs:
           
           if [[ `grep -c "^## " docs/src/site/markdown/RELEASE_NOTES.md` -gt 1 ]]
           then
-            grep -B 999 -m2 "^## " docs/src/site/markdown/RELEASE_NOTES.md  | head -n -1  | tail -n +5 > /tmp/release_notes.txt
+            grep -B 999 -m2 "^## " docs/src/site/markdown/RELEASE_NOTES.md  | head -n -1  | tail -n +5 > /tmp/release_body.txt
           else
             cp docs/src/site/markdown/RELEASE_NOTES.md /tmp/release_body.txt
           fi
