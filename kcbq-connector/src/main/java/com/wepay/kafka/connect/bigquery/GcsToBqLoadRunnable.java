@@ -28,6 +28,7 @@ import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.BigQueryException;
 import com.google.cloud.bigquery.FormatOptions;
 import com.google.cloud.bigquery.Job;
+import com.google.cloud.bigquery.JobId;
 import com.google.cloud.bigquery.JobInfo;
 import com.google.cloud.bigquery.JobStatus;
 import com.google.cloud.bigquery.LoadJobConfiguration;
@@ -40,6 +41,9 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.re2j.Matcher;
 import com.google.re2j.Pattern;
 import com.wepay.kafka.connect.bigquery.write.row.GcsToBqWriter;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -81,6 +85,13 @@ public class GcsToBqLoadRunnable implements Runnable {
    * The set of blob Ids that the system can delete.
    */
   private final Set<BlobId> deletableBlobIds;
+  /**
+   * Tracks how many times each blob batch has been submitted as a load job (keyed by sorted
+   * blob names). Incremented when a job is confirmed to have genuinely failed, so that the next
+   * submission uses a different deterministic job ID and BigQuery creates a new load job rather
+   * than returning 409 for the already-known-failed one.
+   */
+  private final Map<String, Integer> blobBatchAttempts;
 
   /**
    * Create a {@link GcsToBqLoadRunnable} with the given bigquery, bucket, and ms wait interval.
@@ -94,6 +105,7 @@ public class GcsToBqLoadRunnable implements Runnable {
     this.activeJobs = new HashMap<>();
     this.claimedBlobIds = new HashSet<>();
     this.deletableBlobIds = new HashSet<>();
+    this.blobBatchAttempts = new HashMap<>();
   }
 
   /**
@@ -107,11 +119,17 @@ public class GcsToBqLoadRunnable implements Runnable {
    */
   @VisibleForTesting
   GcsToBqLoadRunnable(BigQuery bigQuery, Bucket bucket, Map<Job, List<BlobId>> activeJobs, Set<BlobId> claimedBlobIds, Set<BlobId> deletableBlobIds) {
+    this(bigQuery, bucket, activeJobs, claimedBlobIds, deletableBlobIds, new HashMap<>());
+  }
+
+  @VisibleForTesting
+  GcsToBqLoadRunnable(BigQuery bigQuery, Bucket bucket, Map<Job, List<BlobId>> activeJobs, Set<BlobId> claimedBlobIds, Set<BlobId> deletableBlobIds, Map<String, Integer> blobBatchAttempts) {
     this.bigQuery = bigQuery;
     this.bucket = bucket;
     this.activeJobs = activeJobs;
     this.claimedBlobIds = claimedBlobIds;
     this.deletableBlobIds = deletableBlobIds;
+    this.blobBatchAttempts = blobBatchAttempts;
   }
 
   /**
@@ -215,7 +233,8 @@ public class GcsToBqLoadRunnable implements Runnable {
     return newJobs;
   }
 
-  private Job triggerBigQueryLoadJob(TableId table, List<Blob> blobs) {
+  @VisibleForTesting
+  Job triggerBigQueryLoadJob(TableId table, List<Blob> blobs) {
     List<String> uris = blobs.stream()
         .map(b -> String.format(SOURCE_URI_FORMAT,
             bucket.getName(),
@@ -228,14 +247,59 @@ public class GcsToBqLoadRunnable implements Runnable {
             .setCreateDisposition(JobInfo.CreateDisposition.CREATE_IF_NEEDED)
             .setWriteDisposition(JobInfo.WriteDisposition.WRITE_APPEND)
             .build();
-    // create and return the job.
-    Job job = bigQuery.create(JobInfo.of(loadJobConfiguration));
-    // update active jobs and claimed blobs.
     List<BlobId> blobIds = blobs.stream().map(Blob::getBlobId).collect(Collectors.toList());
+    String batchKey = blobBatchKey(blobIds);
+    int attempt = blobBatchAttempts.getOrDefault(batchKey, 0);
+    String jobId = stableJobId(blobIds, attempt);
+    // Submit with a deterministic job ID so that re-submission of the same blob batch after a
+    // task restart or a transient status-check failure returns 409 instead of running the load
+    // a second time. On 409 we retrieve the existing job and monitor it as usual.
+    Job job;
+    try {
+      job = bigQuery.create(
+          JobInfo.newBuilder(loadJobConfiguration)
+              .setJobId(JobId.of(jobId))
+              .build()
+      );
+    } catch (BigQueryException e) {
+      if (e.getCode() == 409) {
+        job = bigQuery.getJob(JobId.of(jobId));
+        logger.info("Load job {} already exists; will monitor its existing status.", jobId);
+      } else {
+        throw e;
+      }
+    }
+    // update active jobs and claimed blobs.
     activeJobs.put(job, blobIds);
     claimedBlobIds.addAll(blobIds);
     logger.info("Triggered load job for table {} with {} blobs.", table, blobs.size());
     return job;
+  }
+
+  private String blobBatchKey(List<BlobId> blobIds) {
+    return blobIds.stream()
+        .map(BlobId::getName)
+        .sorted()
+        .collect(Collectors.joining(","));
+  }
+
+  private String stableJobId(List<BlobId> blobIds, int attempt) {
+    String input = blobBatchKey(blobIds) + ":attempt=" + attempt;
+    return "kcbq-" + sha256Hex(input);
+  }
+
+  private static String sha256Hex(String input) {
+    try {
+      MessageDigest md = MessageDigest.getInstance("SHA-256");
+      byte[] digest = md.digest(input.getBytes(StandardCharsets.UTF_8));
+      StringBuilder sb = new StringBuilder(digest.length * 2);
+      for (byte b : digest) {
+        sb.append(String.format("%02x", b & 0xff));
+      }
+      return sb.toString();
+    } catch (NoSuchAlgorithmException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   /**
@@ -269,7 +333,9 @@ public class GcsToBqLoadRunnable implements Runnable {
             processSuccessfulJob(job, jobEntry.getValue());
             successCount++;
           } else {
-            processFailedJob(job, jobEntry.getValue());
+            // Genuinely failed: increment the attempt counter so the next submission uses a
+            // different job ID instead of hitting 409 for this already-failed job.
+            processFailedJob(job, jobEntry.getValue(), true);
             failureCount++;
           }
           jobIterator.remove();
@@ -278,7 +344,10 @@ public class GcsToBqLoadRunnable implements Runnable {
       } catch (BigQueryException ex) {
         // log a message.
         logger.warn("GCS to BQ load job failed", ex);
-        processFailedJob(job, jobEntry.getValue());
+        // Transient error — we don't know if the job actually succeeded. Don't increment the
+        // attempt counter: the next submission will use the same job ID, hit 409 if the job
+        // already exists, and retrieve its real status without running a second load.
+        processFailedJob(job, jobEntry.getValue(), false);
         failureCount++;
         jobIterator.remove();
         logger.trace("Job is removed from iterator: {}", job.getJobId());
@@ -296,7 +365,7 @@ public class GcsToBqLoadRunnable implements Runnable {
     logger.trace("Completed blobs marked as deletable: {}", blobIdsToDelete);
   }
 
-  private void processFailedJob(final Job job, final List<BlobId> blobsNotCompleted) {
+  private void processFailedJob(final Job job, final List<BlobId> blobsNotCompleted, boolean incrementAttemptCounter) {
     logger.warn("Job {} failed with {}", job.getJobId(), job.getStatus().getError());
     if (job.getStatus().getExecutionErrors().isEmpty()) {
       logger.warn("No additional errors associated with job {}", job.getJobId());
@@ -304,6 +373,9 @@ public class GcsToBqLoadRunnable implements Runnable {
       logger.warn("Additional errors associated with job {}: {}", job.getJobId(), job.getStatus().getExecutionErrors());
     }
     logger.warn("Blobs in job {}: {}", job.getJobId(), blobsNotCompleted);
+    if (incrementAttemptCounter) {
+      blobBatchAttempts.merge(blobBatchKey(blobsNotCompleted), 1, Integer::sum);
+    }
     // unclaim blobs
     blobsNotCompleted.forEach(claimedBlobIds::remove);
     logger.trace("Failed blobs reset as processable");
