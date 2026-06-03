@@ -231,6 +231,7 @@ public class BigQuerySinkTask extends SinkTask {
                 storageApiWriter,
                 table,
                 recordConverter,
+                config,
                 batchHandler
             );
           } else if (config.getList(BigQuerySinkConfig.ENABLE_BATCH_CONFIG).contains(record.topic())) {
@@ -356,6 +357,8 @@ public class BigQuerySinkTask extends SinkTask {
     Optional<List<String>> clusteringFieldName = config.getClusteringPartitionFieldNames();
     Optional<TimePartitioning.Type> timePartitioningType = config.getTimePartitioningType();
     boolean sanitizeFieldNames = config.getBoolean(BigQuerySinkConfig.SANITIZE_FIELD_NAME_CONFIG);
+    boolean kafkaKeyAsPrimaryKey = config.isUpsertEnabled()
+        && config.getBoolean(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG);
     boolean mediateConcurrentSchemaUpdates =
         config.getBoolean(BigQuerySinkConfig.MEDIATE_CONCURRENT_SCHEMA_UPDATES_CONFIG);
     long concurrentSchemaUpdateRetryWaitMs =
@@ -367,7 +370,10 @@ public class BigQuerySinkTask extends SinkTask {
         sanitizeFieldNames,
         kafkaKeyFieldName, kafkaDataFieldName,
         timestampPartitionFieldName, partitionExpiration, clusteringFieldName, timePartitioningType,
-        mediateConcurrentSchemaUpdates, concurrentSchemaUpdateRetryWaitMs, concurrentSchemaUpdateMaxRetries);
+        kafkaKeyAsPrimaryKey,
+        mediateConcurrentSchemaUpdates,
+        concurrentSchemaUpdateRetryWaitMs,
+        concurrentSchemaUpdateMaxRetries);
   }
 
   private BigQueryWriter getBigQueryWriter(ErrantRecordHandler errantRecordHandler) {
