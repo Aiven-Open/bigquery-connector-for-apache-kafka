@@ -273,6 +273,7 @@ public abstract class StorageWriteApiBase {
           throw new BigQueryStorageWriteApiConnectException("Connector is not configured to perform schema updates.");
         }
         retryHandler.attemptTableOperation(schemaManager::updateSchema);
+        writer.refresh();
         throw new RetryException();
       } else if (writeResult.hasError()) {
         String errorMessage = String.format("Failed to write rows on table %s due to %s", tableName, writeResult.getError().getMessage());
@@ -303,6 +304,7 @@ public abstract class StorageWriteApiBase {
       } else if (shouldHandleSchemaMismatch(e)) {
         logger.warn("Sent records schema does not match with table schema, will attempt to update schema");
         retryHandler.attemptTableOperation(schemaManager::updateSchema);
+        writer.refresh();
       } else if (BigQueryStorageWriteApiErrorResponses.isMessageTooLargeError(message)) {
         throw new BatchTooLargeException(errorMessage);
       } else if (BigQueryStorageWriteApiErrorResponses.isMalformedRequest(message)) {
@@ -417,16 +419,18 @@ public abstract class StorageWriteApiBase {
             .setMaxRetryDelay(Duration.ofMinutes(MAX_RETRY_DELAY_MINUTES))
             .build();
     return streamOrTableName -> {
-      String streamNameForSchema = streamOrTableName;
-      if (!streamNameForSchema.contains("/streams/")) {
-        streamNameForSchema += "/_default";
-      }
-
-      TableSchema tableSchema = getTableSchemaWithPseudoColumns(streamNameForSchema);
-
       JsonStreamWriter.Builder builder;
-      if (tableSchema != null) {
-        builder = JsonStreamWriter.newBuilder(streamOrTableName, tableSchema, writeClient);
+      if (upsertEnabled || deleteEnabled) {
+        String streamNameForSchema = streamOrTableName;
+        if (!streamNameForSchema.contains("/streams/")) {
+          streamNameForSchema += "/_default";
+        }
+        TableSchema tableSchema = getTableSchemaWithPseudoColumns(streamNameForSchema);
+        if (tableSchema != null) {
+          builder = JsonStreamWriter.newBuilder(streamOrTableName, tableSchema, writeClient);
+        } else {
+          builder = JsonStreamWriter.newBuilder(streamOrTableName, writeClient);
+        }
       } else {
         builder = JsonStreamWriter.newBuilder(streamOrTableName, writeClient);
       }
