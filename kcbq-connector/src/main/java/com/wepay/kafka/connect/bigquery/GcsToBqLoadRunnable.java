@@ -363,6 +363,7 @@ public class GcsToBqLoadRunnable implements Runnable {
     logger.trace("Completed blobs have been removed from claimed set: {}", blobIdsToDelete);
     deletableBlobIds.addAll(blobIdsToDelete);
     logger.trace("Completed blobs marked as deletable: {}", blobIdsToDelete);
+    blobBatchAttempts.remove(blobBatchKey(blobIdsToDelete));
   }
 
   private void processFailedJob(final Job job, final List<BlobId> blobsNotCompleted, boolean incrementAttemptCounter) {
