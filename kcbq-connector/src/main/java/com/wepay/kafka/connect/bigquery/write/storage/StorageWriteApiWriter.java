@@ -32,8 +32,8 @@ import com.wepay.kafka.connect.bigquery.write.batch.TableWriterBuilder;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import org.apache.kafka.connect.sink.SinkRecord;
-import org.json.JSONArray;
 import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,6 +48,8 @@ public class StorageWriteApiWriter implements Runnable {
   private final PartitionedTableId table;
   private final List<ConvertedRecord> records;
   private final String streamName;
+  private final SinkRecordConverter recordConverter;
+  private final Supplier<String> ulidSupplier;
   Logger logger = LoggerFactory.getLogger(StorageWriteApiWriter.class);
 
   /**
@@ -72,10 +74,17 @@ public class StorageWriteApiWriter implements Runnable {
    * @param streamName   The stream to use while writing data
    */
   public StorageWriteApiWriter(PartitionedTableId table, StorageWriteApiBase streamWriter, List<ConvertedRecord> records, String streamName) {
+    this(table, streamWriter, records, streamName, null, null);
+  }
+
+  StorageWriteApiWriter(PartitionedTableId table, StorageWriteApiBase streamWriter, List<ConvertedRecord> records,
+                        String streamName, SinkRecordConverter recordConverter, Supplier<String> ulidSupplier) {
     this.streamWriter = streamWriter;
     this.records = records;
     this.table = table;
     this.streamName = streamName;
+    this.recordConverter = recordConverter;
+    this.ulidSupplier = ulidSupplier;
   }
 
   @Override
@@ -85,7 +94,11 @@ public class StorageWriteApiWriter implements Runnable {
       return;
     }
     logger.debug("Putting {} records into {} stream", records.size(), streamName);
-    streamWriter.initializeAndWriteRecords(table, records, streamName);
+    if (recordConverter != null && ulidSupplier != null) {
+      streamWriter.initializeAndWriteRecords(table, records, streamName, recordConverter, ulidSupplier);
+    } else {
+      streamWriter.initializeAndWriteRecords(table, records, streamName);
+    }
   }
 
   public static class Builder implements TableWriterBuilder {
@@ -94,6 +107,7 @@ public class StorageWriteApiWriter implements Runnable {
     private final PartitionedTableId table;
     private final StorageWriteApiBase streamWriter;
     private final StorageApiBatchModeHandler batchModeHandler;
+    private Supplier<String> ulidSupplier = null;
 
     /**
      * @deprecated Use {@link #Builder(StorageWriteApiBase, PartitionedTableId, SinkRecordConverter, StorageApiBatchModeHandler)} instead.
@@ -117,6 +131,20 @@ public class StorageWriteApiWriter implements Runnable {
     }
 
     /**
+     * Enables write-attempt ID regeneration before every {@code appendRows()} call. When set,
+     * the writer generates a fresh ULID from this supplier immediately before each gRPC write
+     * (including the first attempt) and re-converts every row in the batch so that each actual
+     * BigQuery API call carries a unique write-attempt ID.
+     *
+     * @param ulidSupplier supplier of ULID strings; must be thread-safe
+     * @return this builder
+     */
+    public Builder withUlidSupplier(Supplier<String> ulidSupplier) {
+      this.ulidSupplier = ulidSupplier;
+      return this;
+    }
+
+    /**
      * Captures actual record and corresponding JSONObject converted record
      *
      * @param sinkRecord The actual records
@@ -134,7 +162,7 @@ public class StorageWriteApiWriter implements Runnable {
      */
     private JSONObject convertRecord(SinkRecord record) {
       Map<String, Object> convertedRecord = recordConverter.getRegularRow(record);
-      return getJsonFromMap(convertedRecord);
+      return StorageWriteApiBase.getJsonFromMap(convertedRecord);
     }
 
     /**
@@ -147,28 +175,7 @@ public class StorageWriteApiWriter implements Runnable {
         TableName tableName = TableNameUtils.tableName(table.getBaseTableId());
         streamName = batchModeHandler.updateOffsetsOnStream(tableName.toString(), records);
       }
-      return new StorageWriteApiWriter(table, streamWriter, records, streamName);
-    }
-
-    private JSONObject getJsonFromMap(Map<String, Object> map) {
-      JSONObject jsonObject = new JSONObject();
-      map.forEach((key, value) -> {
-        if (value instanceof Map<?, ?>) {
-          value = getJsonFromMap((Map<String, Object>) value);
-        } else if (value instanceof List<?>) {
-          JSONArray items = new JSONArray();
-          ((List<?>) value).forEach(v -> {
-            if (v instanceof Map<?, ?>) {
-              items.put(getJsonFromMap((Map<String, Object>) v));
-            } else {
-              items.put(v);
-            }
-          });
-          value = items;
-        }
-        jsonObject.put(key, value);
-      });
-      return jsonObject;
+      return new StorageWriteApiWriter(table, streamWriter, records, streamName, recordConverter, ulidSupplier);
     }
   }
 }

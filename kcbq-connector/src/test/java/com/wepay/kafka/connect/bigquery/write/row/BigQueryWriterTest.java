@@ -24,6 +24,7 @@
 package com.wepay.kafka.connect.bigquery.write.row;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -320,6 +321,158 @@ public class BigQueryWriterTest {
     Exception expectedEx = assertThrows(BigQueryConnectException.class,
         () -> testTask.flush(Collections.emptyMap()));
     assertTrue(expectedEx.getCause().getMessage().contains("test_topic"));
+  }
+
+  @Test
+  public void testPutAttemptIdRefreshedOnInternalRetry() {
+    final String topic = "test_topic";
+    final String dataset = "scratch";
+    final Map<String, String> properties = makeProperties("3", "2000", topic, dataset);
+    properties.put(BigQuerySinkConfig.TRACK_PUT_ATTEMPTS_CONFIG, "true");
+    properties.put(BigQuerySinkConfig.KAFKA_DATA_FIELD_NAME_CONFIG, "_kafka_data");
+
+    BigQuery bigQuery = mock(BigQuery.class);
+    Table mockTable = mock(Table.class);
+    when(bigQuery.getTable(any(TableId.class))).thenReturn(mockTable);
+
+    InsertAllResponse successResponse = mock(InsertAllResponse.class);
+    when(successResponse.hasErrors()).thenReturn(false);
+    when(successResponse.getInsertErrors()).thenReturn(Collections.emptyMap());
+
+    // First call: backend error triggers internal retry inside BigQueryWriter.writeRows()
+    BigQueryException backendError = new BigQueryException(500, "Internal server error");
+    when(bigQuery.insertAll(any(InsertAllRequest.class)))
+        .thenThrow(backendError)
+        .thenReturn(successResponse);
+
+    SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
+    SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
+    SchemaManager schemaManager = mock(SchemaManager.class);
+    Storage storage = mock(Storage.class);
+
+    BigQuerySinkTask testTask = BigQuerySinkTaskTest.createTestTask(
+        bigQuery, schemaRetriever, storage, schemaManager,
+        mockedStorageWriteApiDefaultStream, mockedBatchHandler, time);
+    testTask.initialize(sinkTaskContext);
+    testTask.start(properties);
+    testTask.put(Collections.singletonList(spoofSinkRecord(topic, 0, 0, "some_field", "some_value")));
+    testTask.flush(Collections.emptyMap());
+
+    ArgumentCaptor<InsertAllRequest> requestCaptor = ArgumentCaptor.forClass(InsertAllRequest.class);
+    verify(bigQuery, times(2)).insertAll(requestCaptor.capture());
+
+    // Extract putAttemptId from each request's row
+    String putAttemptIdFirst = extractPutAttemptId(requestCaptor.getAllValues().get(0));
+    String putAttemptIdRetry = extractPutAttemptId(requestCaptor.getAllValues().get(1));
+
+    assertTrue(putAttemptIdFirst != null && !putAttemptIdFirst.isEmpty(),
+        "First attempt should have a putAttemptId");
+    assertTrue(putAttemptIdRetry != null && !putAttemptIdRetry.isEmpty(),
+        "Retry attempt should have a putAttemptId");
+    assertNotEquals(putAttemptIdFirst, putAttemptIdRetry,
+        "Internal retry must produce a different putAttemptId than the first attempt");
+  }
+
+  @Test
+  public void testPutAttemptIdNotSetWhenTrackingDisabled() {
+    final String topic = "test_topic";
+    final String dataset = "scratch";
+    final Map<String, String> properties = makeProperties("3", "2000", topic, dataset);
+    // trackPutAttempts defaults to false; set kafkaDataFieldName so the struct is included
+    properties.put(BigQuerySinkConfig.KAFKA_DATA_FIELD_NAME_CONFIG, "_kafka_data");
+
+    BigQuery bigQuery = mock(BigQuery.class);
+    Table mockTable = mock(Table.class);
+    when(bigQuery.getTable(any(TableId.class))).thenReturn(mockTable);
+
+    InsertAllResponse successResponse = mock(InsertAllResponse.class);
+    when(successResponse.hasErrors()).thenReturn(false);
+    when(successResponse.getInsertErrors()).thenReturn(Collections.emptyMap());
+
+    BigQueryException backendError = new BigQueryException(500, "Internal server error");
+    when(bigQuery.insertAll(any(InsertAllRequest.class)))
+        .thenThrow(backendError)
+        .thenReturn(successResponse);
+
+    SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
+    SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
+    SchemaManager schemaManager = mock(SchemaManager.class);
+    Storage storage = mock(Storage.class);
+
+    BigQuerySinkTask testTask = BigQuerySinkTaskTest.createTestTask(
+        bigQuery, schemaRetriever, storage, schemaManager,
+        mockedStorageWriteApiDefaultStream, mockedBatchHandler, time);
+    testTask.initialize(sinkTaskContext);
+    testTask.start(properties);
+    testTask.put(Collections.singletonList(spoofSinkRecord(topic, 0, 0, "some_field", "some_value")));
+    testTask.flush(Collections.emptyMap());
+
+    ArgumentCaptor<InsertAllRequest> requestCaptor = ArgumentCaptor.forClass(InsertAllRequest.class);
+    verify(bigQuery, times(2)).insertAll(requestCaptor.capture());
+
+    // With tracking disabled, putAttemptId should not appear in the row content
+    String putAttemptIdFirst = extractPutAttemptId(requestCaptor.getAllValues().get(0));
+    String putAttemptIdRetry = extractPutAttemptId(requestCaptor.getAllValues().get(1));
+
+    assertTrue(putAttemptIdFirst == null,
+        "putAttemptId should be absent when trackPutAttempts=false");
+    assertTrue(putAttemptIdRetry == null,
+        "putAttemptId should be absent when trackPutAttempts=false on retry");
+  }
+
+  @Test
+  public void testWriteAttemptIdPresentOnFirstAttempt() {
+    // Even with no retry, writeRows() now generates a fresh write-attempt ID before the
+    // first performWriteRequest() call, so the ID in BigQuery differs from the put-level ID.
+    final String topic = "test_topic";
+    final String dataset = "scratch";
+    final Map<String, String> properties = makeProperties("3", "2000", topic, dataset);
+    properties.put(BigQuerySinkConfig.TRACK_PUT_ATTEMPTS_CONFIG, "true");
+    properties.put(BigQuerySinkConfig.KAFKA_DATA_FIELD_NAME_CONFIG, "_kafka_data");
+
+    BigQuery bigQuery = mock(BigQuery.class);
+    Table mockTable = mock(Table.class);
+    when(bigQuery.getTable(any(TableId.class))).thenReturn(mockTable);
+
+    InsertAllResponse successResponse = mock(InsertAllResponse.class);
+    when(successResponse.hasErrors()).thenReturn(false);
+    when(successResponse.getInsertErrors()).thenReturn(Collections.emptyMap());
+
+    when(bigQuery.insertAll(any(InsertAllRequest.class))).thenReturn(successResponse);
+
+    SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
+    SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
+    SchemaManager schemaManager = mock(SchemaManager.class);
+    Storage storage = mock(Storage.class);
+
+    BigQuerySinkTask testTask = BigQuerySinkTaskTest.createTestTask(
+        bigQuery, schemaRetriever, storage, schemaManager,
+        mockedStorageWriteApiDefaultStream, mockedBatchHandler, time);
+    testTask.initialize(sinkTaskContext);
+    testTask.start(properties);
+    testTask.put(Collections.singletonList(spoofSinkRecord(topic, 0, 0, "some_field", "some_value")));
+    testTask.flush(Collections.emptyMap());
+
+    ArgumentCaptor<InsertAllRequest> requestCaptor = ArgumentCaptor.forClass(InsertAllRequest.class);
+    verify(bigQuery, times(1)).insertAll(requestCaptor.capture());
+
+    String writeAttemptId = extractPutAttemptId(requestCaptor.getValue());
+    assertTrue(writeAttemptId != null && !writeAttemptId.isEmpty(),
+        "First (and only) write attempt should carry a write-attempt ID");
+  }
+
+  @SuppressWarnings("unchecked")
+  private String extractPutAttemptId(InsertAllRequest request) {
+    if (request.getRows().isEmpty()) {
+      return null;
+    }
+    Map<String, Object> content = request.getRows().get(0).getContent();
+    Object kafkaData = content.get("_kafka_data");
+    if (!(kafkaData instanceof Map)) {
+      return null;
+    }
+    Object id = ((Map<String, Object>) kafkaData).get("putAttemptId");
+    return id != null ? id.toString() : null;
   }
 
   /**

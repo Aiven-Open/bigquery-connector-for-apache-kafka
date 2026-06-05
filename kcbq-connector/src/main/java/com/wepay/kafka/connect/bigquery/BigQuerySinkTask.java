@@ -227,12 +227,16 @@ public class BigQuerySinkTask extends SinkTask {
         if (!tableWriterBuilders.containsKey(table)) {
           TableWriterBuilder tableWriterBuilder;
           if (useStorageApi) {
-            tableWriterBuilder = new StorageWriteApiWriter.Builder(
+            StorageWriteApiWriter.Builder storageWriterBuilder = new StorageWriteApiWriter.Builder(
                 storageApiWriter,
                 table,
                 recordConverter,
                 batchHandler
             );
+            if (trackPutAttempts) {
+              storageWriterBuilder.withUlidSupplier(() -> ULID_GENERATOR.nextULID());
+            }
+            tableWriterBuilder = storageWriterBuilder;
           } else if (config.getList(BigQuerySinkConfig.ENABLE_BATCH_CONFIG).contains(record.topic())) {
             String topic = record.topic();
             long offset = record.kafkaOffset();
@@ -254,6 +258,9 @@ public class BigQuerySinkTask extends SinkTask {
             if (upsertDelete) {
               simpleTableWriterBuilder.onFinish(rows ->
                   mergeBatches.onRowWrites(table.getBaseTableId(), rows));
+            }
+            if (trackPutAttempts) {
+              simpleTableWriterBuilder.withUlidSupplier(() -> ULID_GENERATOR.nextULID());
             }
             tableWriterBuilder = simpleTableWriterBuilder;
           }

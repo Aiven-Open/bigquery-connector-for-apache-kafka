@@ -41,6 +41,7 @@ import java.util.Objects;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -56,22 +57,32 @@ public class TableWriter implements Runnable {
   private final PartitionedTableId table;
   private final SortedMap<SinkRecord, RowToInsert> rows;
   private final Consumer<Collection<RowToInsert>> onFinish;
+  private final SinkRecordConverter recordConverter;
+  private final Supplier<String> ulidSupplier;
 
   /**
-   * @param writer   the {@link BigQueryWriter} to use.
-   * @param table    the BigQuery table to write to.
-   * @param rows     the rows to write.
-   * @param onFinish a callback to invoke after all rows have been written successfully, which is
-   *                 called with all the rows written by the writer
+   * @param writer          the {@link BigQueryWriter} to use.
+   * @param table           the BigQuery table to write to.
+   * @param rows            the rows to write.
+   * @param onFinish        a callback to invoke after all rows have been written successfully,
+   *                        which is called with all the rows written by the writer
+   * @param recordConverter when non-null, passed to {@link BigQueryWriter#writeRows} so that rows
+   *                        are re-converted on each internal retry with a fresh {@code putAttemptId}
+   * @param ulidSupplier    generates a fresh ULID for each retry; ignored when
+   *                        {@code recordConverter} is null
    */
   public TableWriter(BigQueryWriter writer,
                      PartitionedTableId table,
                      SortedMap<SinkRecord, RowToInsert> rows,
-                     Consumer<Collection<RowToInsert>> onFinish) {
+                     Consumer<Collection<RowToInsert>> onFinish,
+                     SinkRecordConverter recordConverter,
+                     Supplier<String> ulidSupplier) {
     this.writer = writer;
     this.table = table;
     this.rows = rows;
     this.onFinish = onFinish;
+    this.recordConverter = recordConverter;
+    this.ulidSupplier = ulidSupplier;
   }
 
   private static int getNewBatchSize(int currentBatchSize, Throwable err) {
@@ -133,7 +144,7 @@ public class TableWriter implements Runnable {
           for (Map.Entry<SinkRecord, RowToInsert> record : currentBatchList) {
             currentBatch.put(record.getKey(), record.getValue());
           }
-          writer.writeRows(table, currentBatch);
+          writer.writeRows(table, currentBatch, recordConverter, ulidSupplier);
           currentIndex += currentBatchSize;
           successCount++;
         } catch (BigQueryException err) {
@@ -174,6 +185,7 @@ public class TableWriter implements Runnable {
     private SortedMap<SinkRecord, RowToInsert> rows;
     private SinkRecordConverter recordConverter;
     private Consumer<Collection<RowToInsert>> onFinish;
+    private Supplier<String> ulidSupplier = null;
 
     /**
      * @param writer          the BigQueryWriter to use
@@ -210,10 +222,15 @@ public class TableWriter implements Runnable {
       this.onFinish = Objects.requireNonNull(onFinish, "Finish callback cannot be null");
     }
 
+    public Builder withUlidSupplier(Supplier<String> ulidSupplier) {
+      this.ulidSupplier = ulidSupplier;
+      return this;
+    }
+
     @Override
     public TableWriter build() {
       return new TableWriter(writer, table, rows, onFinish != null ? onFinish : n -> {
-      });
+      }, recordConverter, ulidSupplier);
     }
   }
 }
