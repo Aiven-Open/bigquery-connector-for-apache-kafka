@@ -25,13 +25,15 @@
 # This checks the source in the state as if after the merge.
 name: Manual build
 on:
+  schedule: ## run GMT 1:17 hours
+    - cron: '17 1 * * *'
   workflow_dispatch:
-  workflow_call:
-    secrets:
-      GCP_CREDENTIALS:
-      KCBQ_TEST_PROJECT:
-      KCBQ_TEST_DATASET:
-      KCBQ_TEST_BUCKET:
+  #workflow_call:
+  #  secrets:
+  #    GCP_CREDENTIALS:
+  #    KCBQ_TEST_PROJECT:
+  #    KCBQ_TEST_DATASET:
+  #    KCBQ_TEST_BUCKET:
 
 permissions:
   contents: write
