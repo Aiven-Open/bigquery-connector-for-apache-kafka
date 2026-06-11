@@ -37,6 +37,7 @@ import com.wepay.kafka.connect.bigquery.api.SchemaRetriever;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkTaskConfig;
 import com.wepay.kafka.connect.bigquery.convert.SchemaConverter;
+import com.wepay.kafka.connect.bigquery.convert.logicaltype.AvroLogicalConverters;
 import com.wepay.kafka.connect.bigquery.convert.logicaltype.DebeziumLogicalConverters;
 import com.wepay.kafka.connect.bigquery.convert.logicaltype.KafkaLogicalConverters;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiConnectException;
@@ -443,6 +444,7 @@ public class BigQuerySinkTask extends SinkTask {
   private static void populateLogicalConverterRegistry(BigQuerySinkTaskConfig config) {
     DebeziumLogicalConverters.initialize(config);
     KafkaLogicalConverters.initialize(config);
+    AvroLogicalConverters.initialize();
   }
 
   @Override
