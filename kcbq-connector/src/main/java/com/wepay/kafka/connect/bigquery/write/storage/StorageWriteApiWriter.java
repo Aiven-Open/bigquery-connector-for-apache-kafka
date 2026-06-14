@@ -215,6 +215,7 @@ public class StorageWriteApiWriter implements Runnable {
       } else {
         recordsToWrite = this.records;
       }
+
       return new StorageWriteApiWriter(table, streamWriter, recordsToWrite, streamName, recordConverter, ulidSupplier);
     }
   }
