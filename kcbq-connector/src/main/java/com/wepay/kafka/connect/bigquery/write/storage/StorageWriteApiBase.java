@@ -44,6 +44,7 @@ import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiConnectException;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiErrorResponses;
 import com.wepay.kafka.connect.bigquery.utils.PartitionedTableId;
+import com.wepay.kafka.connect.bigquery.utils.SinkRecordConverter;
 import com.wepay.kafka.connect.bigquery.utils.TableNameUtils;
 import com.wepay.kafka.connect.bigquery.utils.Time;
 import com.wepay.kafka.connect.bigquery.write.RecordBatches;
@@ -54,6 +55,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.json.JSONArray;
@@ -205,6 +207,24 @@ public abstract class StorageWriteApiBase {
    * @param streamName The stream to use to write table to table.
    */
   public void initializeAndWriteRecords(PartitionedTableId table, List<ConvertedRecord> rows, String streamName) {
+    initializeAndWriteRecords(table, rows, streamName, null, null);
+  }
+
+  /**
+   * Handles required initialization steps and goes to append records to table. When
+   * {@code recordConverter} and {@code ulidSupplier} are both non-null (i.e. when
+   * {@code trackPutAttempts=true}), a fresh ULID is generated and the batch is re-converted
+   * immediately before every {@code appendRows()} call so that each gRPC write carries a
+   * unique write-attempt ID.
+   *
+   * @param table            The table to write data to
+   * @param rows             List of pre- and post-conversion records.
+   * @param streamName       The stream to use to write data to the table.
+   * @param recordConverter  Converter used to rebuild rows with a fresh ULID; may be {@code null}.
+   * @param ulidSupplier     Supplier of write-attempt ULIDs; may be {@code null}.
+   */
+  public void initializeAndWriteRecords(PartitionedTableId table, List<ConvertedRecord> rows, String streamName,
+                                        SinkRecordConverter recordConverter, Supplier<String> ulidSupplier) {
     TableName tableName = TableNameUtils.tableName(table.getFullTableId());
     StorageWriteApiRetryHandler retryHandler = new StorageWriteApiRetryHandler(table.getBaseTableId(), getSinkRecords(rows), retry, retryWait, time);
     logger.debug("Sending {} records to write Api Application stream {}", rows.size(), streamName);
@@ -215,7 +235,7 @@ public abstract class StorageWriteApiBase {
 
       while (!batch.isEmpty()) {
         try {
-          writeBatch(writer, batch, retryHandler, tableName);
+          writeBatch(writer, batch, retryHandler, tableName, recordConverter, ulidSupplier);
           batch = Collections.emptyList(); // Can't do batch.clear(); it'll mess with the batch tracking logic in RecordBatches
         } catch (RetryException e) {
           retryHandler.maybeRetry("write to table " + tableName);
@@ -258,8 +278,19 @@ public abstract class StorageWriteApiBase {
       StreamWriter writer,
       List<ConvertedRecord> batch,
       StorageWriteApiRetryHandler retryHandler,
-      TableName tableName
+      TableName tableName,
+      SinkRecordConverter recordConverter,
+      Supplier<String> ulidSupplier
   ) throws BatchTooLargeException, MalformedRowsException, RetryException {
+    if (recordConverter != null && ulidSupplier != null) {
+      String newId = ulidSupplier.get();
+      List<ConvertedRecord> rebuilt = new ArrayList<>();
+      for (ConvertedRecord item : batch) {
+        Map<String, Object> convertedMap = recordConverter.getRegularRow(item.original(), newId);
+        rebuilt.add(new ConvertedRecord(item.original(), getJsonFromMap(convertedMap)));
+      }
+      batch = rebuilt;
+    }
     try {
       JSONArray jsonRecords = getJsonRecords(batch);
       logger.trace("Sending records to Storage API writer for batch load");
@@ -543,6 +574,36 @@ public abstract class StorageWriteApiBase {
       logger.warn("DLQ is not configured!");
       throw new BigQueryStorageWriteApiConnectException(tableName, errorMap);
     }
+  }
+
+  /**
+   * Converts a nested {@code Map<String, Object>} (as produced by
+   * {@link SinkRecordConverter#getRegularRow}) into a {@link JSONObject} suitable for the
+   * Storage Write API. Map values that are themselves {@code Map} instances are recursively
+   * converted; {@code List} values are converted to {@link org.json.JSONArray}.
+   *
+   * <p>Package-private so that {@link StorageWriteApiWriter.Builder} can call it when
+   * building the initial {@link ConvertedRecord} objects at {@code addRow()} time.
+   */
+  static JSONObject getJsonFromMap(Map<String, Object> map) {
+    JSONObject jsonObject = new JSONObject();
+    map.forEach((key, value) -> {
+      if (value instanceof Map<?, ?>) {
+        value = getJsonFromMap((Map<String, Object>) value);
+      } else if (value instanceof List<?>) {
+        org.json.JSONArray items = new org.json.JSONArray();
+        ((List<?>) value).forEach(v -> {
+          if (v instanceof Map<?, ?>) {
+            items.put(getJsonFromMap((Map<String, Object>) v));
+          } else {
+            items.put(v);
+          }
+        });
+        value = items;
+      }
+      jsonObject.put(key, value);
+    });
+    return jsonObject;
   }
 
   private JSONArray getJsonRecords(List<ConvertedRecord> rows) {

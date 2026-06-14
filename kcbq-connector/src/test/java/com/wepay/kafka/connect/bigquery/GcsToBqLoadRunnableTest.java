@@ -24,7 +24,10 @@
 package com.wepay.kafka.connect.bigquery;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -33,6 +36,7 @@ import com.google.cloud.bigquery.BigQueryError;
 import com.google.cloud.bigquery.BigQueryException;
 import com.google.cloud.bigquery.Job;
 import com.google.cloud.bigquery.JobId;
+import com.google.cloud.bigquery.JobInfo;
 import com.google.cloud.bigquery.JobStatus;
 import com.google.cloud.bigquery.TableId;
 import com.google.cloud.storage.Blob;
@@ -51,6 +55,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 public class GcsToBqLoadRunnableTest {
@@ -138,6 +143,238 @@ public class GcsToBqLoadRunnableTest {
     assertEquals(activeCount, activeJobs.size(), "Wrong active count" );
     assertEquals(claimedCount, claimedBlobIds.size(), "Wrong claimed count");
     assertEquals(deletableCount, deletableBlobIds.size(), "Wrong deletable count");
+  }
+
+  // --- Tests for deterministic job ID and 409 handling ---
+
+  @Test
+  void testTriggerLoadJob_409ConflictOnCreate_retrievesExistingJob() {
+    BigQuery bigQuery = mock(BigQuery.class);
+    Bucket bucket = mock(Bucket.class);
+    when(bucket.getName()).thenReturn("test-bucket");
+
+    Map<Job, List<BlobId>> activeJobs = new HashMap<>();
+    Set<BlobId> claimedBlobIds = new HashSet<>();
+    Map<String, Integer> blobBatchAttempts = new HashMap<>();
+
+    GcsToBqLoadRunnable runnable = new GcsToBqLoadRunnable(
+        bigQuery, bucket, activeJobs, claimedBlobIds, new HashSet<>(), blobBatchAttempts);
+
+    TableId tableId = TableId.of("dataset", "table");
+    Blob blob = mock(Blob.class);
+    BlobId blobId = BlobId.of("test-bucket", "blob1");
+    when(blob.getBlobId()).thenReturn(blobId);
+    when(blob.getName()).thenReturn("blob1");
+
+    Job existingJob = mock(Job.class);
+    when(existingJob.getJobId()).thenReturn(JobId.of("existing-job"));
+    when(bigQuery.create(any(JobInfo.class))).thenThrow(new BigQueryException(409, "Already Exists"));
+    when(bigQuery.getJob(any(JobId.class))).thenReturn(existingJob);
+
+    runnable.triggerBigQueryLoadJob(tableId, Collections.singletonList(blob));
+
+    assertTrue(activeJobs.containsKey(existingJob));
+    assertTrue(claimedBlobIds.contains(blobId));
+  }
+
+  @Test
+  void testGenuineJobFailure_incrementsAttemptCounter_nextTriggerUsesNewJobId() {
+    BigQuery bigQuery = mock(BigQuery.class);
+    Bucket bucket = mock(Bucket.class);
+    when(bucket.getName()).thenReturn("test-bucket");
+
+    Map<Job, List<BlobId>> activeJobs = new HashMap<>();
+    Set<BlobId> claimedBlobIds = new HashSet<>();
+    Map<String, Integer> blobBatchAttempts = new HashMap<>();
+
+    GcsToBqLoadRunnable runnable = new GcsToBqLoadRunnable(
+        bigQuery, bucket, activeJobs, claimedBlobIds, new HashSet<>(), blobBatchAttempts);
+
+    TableId tableId = TableId.of("dataset", "table");
+    Blob blob = mock(Blob.class);
+    BlobId blobId = BlobId.of("test-bucket", "blob1");
+    when(blob.getBlobId()).thenReturn(blobId);
+    when(blob.getName()).thenReturn("blob1");
+
+    ArgumentCaptor<JobInfo> captor = ArgumentCaptor.forClass(JobInfo.class);
+    Job firstJob = mock(Job.class);
+    when(firstJob.getJobId()).thenReturn(JobId.of("first-job"));
+    when(bigQuery.create(captor.capture())).thenReturn(firstJob).thenReturn(mock(Job.class));
+
+    runnable.triggerBigQueryLoadJob(tableId, Collections.singletonList(blob));
+
+    // checkJobs: job DONE with a real error → genuine failure → increment attempt counter
+    Job failedJobResult = mock(Job.class);
+    when(failedJobResult.getJobId()).thenReturn(JobId.of("first-job"));
+    JobStatus failedStatus = mock(JobStatus.class);
+    when(failedJobResult.getStatus()).thenReturn(failedStatus);
+    when(failedStatus.getState()).thenReturn(JobStatus.State.DONE);
+    when(failedStatus.getError()).thenReturn(new BigQueryError("reason", "location", "message", "debug"));
+    when(failedStatus.getExecutionErrors()).thenReturn(Collections.emptyList());
+    when(bigQuery.getJob(any(JobId.class))).thenReturn(failedJobResult);
+
+    runnable.checkJobs();
+
+    assertEquals(1, blobBatchAttempts.values().stream().mapToInt(Integer::intValue).sum());
+
+    runnable.triggerBigQueryLoadJob(tableId, Collections.singletonList(blob));
+
+    List<JobInfo> captured = captor.getAllValues();
+    assertEquals(2, captured.size());
+    assertNotEquals(captured.get(0).getJobId().getJob(), captured.get(1).getJobId().getJob());
+  }
+
+  @Test
+  void testTransientCheckJobsException_doesNotIncrementAttemptCounter_sameJobIdUsedOnNextTrigger() {
+    BigQuery bigQuery = mock(BigQuery.class);
+    Bucket bucket = mock(Bucket.class);
+    when(bucket.getName()).thenReturn("test-bucket");
+
+    Map<Job, List<BlobId>> activeJobs = new HashMap<>();
+    Set<BlobId> claimedBlobIds = new HashSet<>();
+    Map<String, Integer> blobBatchAttempts = new HashMap<>();
+
+    GcsToBqLoadRunnable runnable = new GcsToBqLoadRunnable(
+        bigQuery, bucket, activeJobs, claimedBlobIds, new HashSet<>(), blobBatchAttempts);
+
+    TableId tableId = TableId.of("dataset", "table");
+    Blob blob = mock(Blob.class);
+    BlobId blobId = BlobId.of("test-bucket", "blob1");
+    when(blob.getBlobId()).thenReturn(blobId);
+    when(blob.getName()).thenReturn("blob1");
+
+    ArgumentCaptor<JobInfo> captor = ArgumentCaptor.forClass(JobInfo.class);
+    Job firstJob = mock(Job.class);
+    when(firstJob.getJobId()).thenReturn(JobId.of("first-job"));
+    when(bigQuery.create(captor.capture())).thenReturn(firstJob).thenReturn(mock(Job.class));
+
+    runnable.triggerBigQueryLoadJob(tableId, Collections.singletonList(blob));
+
+    // checkJobs: transient BigQueryException while inspecting job status → processFailedJob(..., false)
+    Job transientJob = mock(Job.class);
+    when(transientJob.getJobId()).thenReturn(JobId.of("first-job"));
+    JobStatus transientStatus = mock(JobStatus.class);
+    when(transientJob.getStatus()).thenReturn(transientStatus);
+    when(transientStatus.getState()).thenThrow(BigQueryException.class);
+    when(transientStatus.getError()).thenReturn(null);
+    when(transientStatus.getExecutionErrors()).thenReturn(Collections.emptyList());
+    when(bigQuery.getJob(any(JobId.class))).thenReturn(transientJob);
+
+    runnable.checkJobs();
+
+    // Transient error must NOT increment the attempt counter so the next submission
+    // uses the same job ID and hits 409 if the original job already succeeded.
+    assertTrue(blobBatchAttempts.isEmpty());
+
+    runnable.triggerBigQueryLoadJob(tableId, Collections.singletonList(blob));
+
+    List<JobInfo> captured = captor.getAllValues();
+    assertEquals(2, captured.size());
+    assertEquals(captured.get(0).getJobId().getJob(), captured.get(1).getJobId().getJob());
+  }
+
+  @Test
+  void testSuccessfulJobAfterPriorFailure_removesBlobBatchAttemptsEntry() {
+    BigQuery bigQuery = mock(BigQuery.class);
+    Bucket bucket = mock(Bucket.class);
+    when(bucket.getName()).thenReturn("test-bucket");
+
+    Map<Job, List<BlobId>> activeJobs = new HashMap<>();
+    Set<BlobId> claimedBlobIds = new HashSet<>();
+    Set<BlobId> deletableBlobIds = new HashSet<>();
+    Map<String, Integer> blobBatchAttempts = new HashMap<>();
+
+    GcsToBqLoadRunnable runnable = new GcsToBqLoadRunnable(
+        bigQuery, bucket, activeJobs, claimedBlobIds, deletableBlobIds, blobBatchAttempts);
+
+    TableId tableId = TableId.of("dataset", "table");
+    Blob blob = mock(Blob.class);
+    BlobId blobId = BlobId.of("test-bucket", "blob1");
+    when(blob.getBlobId()).thenReturn(blobId);
+    when(blob.getName()).thenReturn("blob1");
+
+    // First submission (attempt 0): bigQuery.create returns a job that will then fail.
+    Job firstJob = mock(Job.class);
+    when(firstJob.getJobId()).thenReturn(JobId.of("first-job"));
+    Job secondJob = mock(Job.class);
+    when(secondJob.getJobId()).thenReturn(JobId.of("second-job"));
+    when(bigQuery.create(any(JobInfo.class))).thenReturn(firstJob).thenReturn(secondJob);
+
+    runnable.triggerBigQueryLoadJob(tableId, Collections.singletonList(blob));
+
+    // checkJobs sees attempt 0 as DONE + error → counter goes to 1.
+    Job failedJobResult = mock(Job.class);
+    when(failedJobResult.getJobId()).thenReturn(JobId.of("first-job"));
+    JobStatus failedStatus = mock(JobStatus.class);
+    when(failedJobResult.getStatus()).thenReturn(failedStatus);
+    when(failedStatus.getState()).thenReturn(JobStatus.State.DONE);
+    when(failedStatus.getError()).thenReturn(new BigQueryError("reason", "location", "message", "debug"));
+    when(failedStatus.getExecutionErrors()).thenReturn(Collections.emptyList());
+    when(bigQuery.getJob(any(JobId.class))).thenReturn(failedJobResult);
+
+    runnable.checkJobs();
+    assertEquals(1, blobBatchAttempts.values().stream().mapToInt(Integer::intValue).sum());
+
+    // Second submission (attempt 1).
+    runnable.triggerBigQueryLoadJob(tableId, Collections.singletonList(blob));
+
+    // checkJobs sees attempt 1 as DONE + no error → successful → entry should be removed.
+    Job successJobResult = mock(Job.class);
+    when(successJobResult.getJobId()).thenReturn(JobId.of("second-job"));
+    JobStatus successStatus = mock(JobStatus.class);
+    when(successJobResult.getStatus()).thenReturn(successStatus);
+    when(successStatus.getState()).thenReturn(JobStatus.State.DONE);
+    when(successStatus.getError()).thenReturn(null);
+    when(bigQuery.getJob(any(JobId.class))).thenReturn(successJobResult);
+
+    runnable.checkJobs();
+
+    assertTrue(blobBatchAttempts.isEmpty(),
+        "blobBatchAttempts should be cleared after the batch succeeds");
+    assertTrue(deletableBlobIds.contains(blobId));
+  }
+
+  @Test
+  void testSuccessfulJobForNeverFailedBatch_leavesMapEmpty() {
+    BigQuery bigQuery = mock(BigQuery.class);
+    Bucket bucket = mock(Bucket.class);
+    when(bucket.getName()).thenReturn("test-bucket");
+
+    Map<Job, List<BlobId>> activeJobs = new HashMap<>();
+    Set<BlobId> claimedBlobIds = new HashSet<>();
+    Set<BlobId> deletableBlobIds = new HashSet<>();
+    Map<String, Integer> blobBatchAttempts = new HashMap<>();
+
+    GcsToBqLoadRunnable runnable = new GcsToBqLoadRunnable(
+        bigQuery, bucket, activeJobs, claimedBlobIds, deletableBlobIds, blobBatchAttempts);
+
+    TableId tableId = TableId.of("dataset", "table");
+    Blob blob = mock(Blob.class);
+    BlobId blobId = BlobId.of("test-bucket", "blob1");
+    when(blob.getBlobId()).thenReturn(blobId);
+    when(blob.getName()).thenReturn("blob1");
+
+    Job job = mock(Job.class);
+    when(job.getJobId()).thenReturn(JobId.of("only-job"));
+    when(bigQuery.create(any(JobInfo.class))).thenReturn(job);
+
+    runnable.triggerBigQueryLoadJob(tableId, Collections.singletonList(blob));
+
+    // checkJobs sees a successful DONE+no error result on first attempt.
+    Job successJobResult = mock(Job.class);
+    when(successJobResult.getJobId()).thenReturn(JobId.of("only-job"));
+    JobStatus successStatus = mock(JobStatus.class);
+    when(successJobResult.getStatus()).thenReturn(successStatus);
+    when(successStatus.getState()).thenReturn(JobStatus.State.DONE);
+    when(successStatus.getError()).thenReturn(null);
+    when(bigQuery.getJob(any(JobId.class))).thenReturn(successJobResult);
+
+    runnable.checkJobs();
+
+    // Map was empty going in and Map#remove on a missing key is a no-op.
+    assertTrue(blobBatchAttempts.isEmpty(),
+        "blobBatchAttempts must remain empty when the batch never failed");
+    assertTrue(deletableBlobIds.contains(blobId));
   }
 
   static List<Arguments> checkJobsData() {
