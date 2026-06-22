@@ -739,20 +739,23 @@ public class SchemaManager {
               .build();
           builder.setClustering(clustering);
         }
-
-        if (kafkaKeyAsPrimaryKey) {
-          assert Optional.of("").equals(kafkaKeyFieldName);
-
-          builder.setTableConstraints(
-              TableConstraints.newBuilder()
-                  .setPrimaryKey(
-                      PrimaryKey.newBuilder()
-                          .setColumns(bigQuerySchema.getPrimaryKeyColumns())
-                          .build()
-                  ).build()
-          );
-        }
       });
+
+      // Primary key constraints are needed for Storage Write API upsert CDC semantics.
+      // This must be applied regardless of whether time-partitioning is configured,
+      // so it lives outside the timePartitioningType.ifPresent() block.
+      if (kafkaKeyAsPrimaryKey) {
+        assert Optional.of("").equals(kafkaKeyFieldName);
+
+        builder.setTableConstraints(
+            TableConstraints.newBuilder()
+                .setPrimaryKey(
+                    PrimaryKey.newBuilder()
+                        .setColumns(bigQuerySchema.getPrimaryKeyColumns())
+                        .build()
+                ).build()
+        );
+      }
     }
 
     StandardTableDefinition tableDefinition = builder.build();

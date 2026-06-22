@@ -71,6 +71,7 @@ public abstract class StorageWriteApiBase {
 
   private static final Logger logger = LoggerFactory.getLogger(StorageWriteApiBase.class);
   protected static final String CHANGE_TYPE_PSEUDO_COLUMN = "_CHANGE_TYPE";
+  protected static final String CHANGE_SEQUENCE_NUMBER_PSEUDO_COLUMN = "_CHANGE_SEQUENCE_NUMBER";
   private static final double RETRY_DELAY_MULTIPLIER = 1.1;
   private static final int MAX_RETRY_DELAY_MINUTES = 1;
   public static final String TRACE_ID_FORMAT = "AivenKafkaConnector:%s";
@@ -304,7 +305,6 @@ public abstract class StorageWriteApiBase {
           throw new BigQueryStorageWriteApiConnectException("Connector is not configured to perform schema updates.");
         }
         retryHandler.attemptTableOperation(schemaManager::updateSchema);
-        writer.refresh();
         throw new RetryException();
       } else if (writeResult.hasError()) {
         String errorMessage = String.format("Failed to write rows on table %s due to %s", tableName, writeResult.getError().getMessage());
@@ -335,7 +335,6 @@ public abstract class StorageWriteApiBase {
       } else if (shouldHandleSchemaMismatch(e)) {
         logger.warn("Sent records schema does not match with table schema, will attempt to update schema");
         retryHandler.attemptTableOperation(schemaManager::updateSchema);
-        writer.refresh();
       } else if (BigQueryStorageWriteApiErrorResponses.isMessageTooLargeError(message)) {
         throw new BatchTooLargeException(errorMessage);
       } else if (BigQueryStorageWriteApiErrorResponses.isMalformedRequest(message)) {
@@ -425,6 +424,13 @@ public abstract class StorageWriteApiBase {
         writeSchema.addFields(
             TableFieldSchema.newBuilder()
                 .setName(CHANGE_TYPE_PSEUDO_COLUMN)
+                .setType(TableFieldSchema.Type.STRING)
+                .setMode(TableFieldSchema.Mode.NULLABLE)
+                .build()
+        );
+        writeSchema.addFields(
+            TableFieldSchema.newBuilder()
+                .setName(CHANGE_SEQUENCE_NUMBER_PSEUDO_COLUMN)
                 .setType(TableFieldSchema.Type.STRING)
                 .setMode(TableFieldSchema.Mode.NULLABLE)
                 .build()
@@ -612,8 +618,10 @@ public abstract class StorageWriteApiBase {
       JSONObject converted = item.converted();
       if (item.original().value() != null && upsertEnabled) {
         converted.put(CHANGE_TYPE_PSEUDO_COLUMN, "UPSERT");
+        converted.put(CHANGE_SEQUENCE_NUMBER_PSEUDO_COLUMN, String.format("%016X", item.original().kafkaOffset()));
       } else if (item.original().value() == null && deleteEnabled) {
         converted.put(CHANGE_TYPE_PSEUDO_COLUMN, "DELETE");
+        converted.put(CHANGE_SEQUENCE_NUMBER_PSEUDO_COLUMN, String.format("%016X", item.original().kafkaOffset()));
       }
       jsonRecords.put(converted);
     }
