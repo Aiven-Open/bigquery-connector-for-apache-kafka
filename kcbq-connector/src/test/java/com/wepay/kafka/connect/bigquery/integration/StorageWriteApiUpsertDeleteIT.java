@@ -103,6 +103,7 @@ public class StorageWriteApiUpsertDeleteIT extends BaseConnectorIT {
       result.put(BigQuerySinkConfig.DELETE_ENABLED_CONFIG, "true");
     }
 
+    result.put(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG, "false");
     result.put(BigQuerySinkConfig.KAFKA_KEY_FIELD_NAME_CONFIG, "");
 
     return result;
@@ -152,6 +153,11 @@ public class StorageWriteApiUpsertDeleteIT extends BaseConnectorIT {
 
     // wait for tasks to write to BigQuery and commit offsets for their records
     waitForCommittedRecords(CONNECTOR_NAME, topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
+
+    // Alter table to set max_staleness to 0 so that CDC changes are immediately visible
+    bigQuery.query(com.google.cloud.bigquery.QueryJobConfiguration.of(
+        "ALTER TABLE `" + dataset() + "`.`" + table + "` SET OPTIONS(max_staleness = INTERVAL 0 MINUTE)"
+    ));
 
     List<List<Object>> allRows = readAllRows(bigQuery, table, "k1");
     List<List<Object>> expectedRows = LongStream.range(0, NUM_RECORDS_PRODUCED / 2)
@@ -210,6 +216,11 @@ public class StorageWriteApiUpsertDeleteIT extends BaseConnectorIT {
 
     // wait for tasks to write to BigQuery and commit offsets for their records
     waitForCommittedRecords(CONNECTOR_NAME, topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
+
+    // Alter table to set max_staleness to 0 so that CDC changes are immediately visible
+    bigQuery.query(com.google.cloud.bigquery.QueryJobConfiguration.of(
+        "ALTER TABLE `" + dataset() + "`.`" + table + "` SET OPTIONS(max_staleness = INTERVAL 0 MINUTE)"
+    ));
 
     // Since we have multiple rows per key, order by key and the f3 field (which should be
     // monotonically increasing in insertion order)
