@@ -1283,7 +1283,11 @@ public class BigQuerySinkConfig extends AbstractConfig {
    * @return Field name of Kafka Key to be used in BigQuery
    */
   public Optional<String> getKafkaKeyFieldName() {
-    return Optional.ofNullable(getString(KAFKA_KEY_FIELD_NAME_CONFIG));
+    String value = getString(KAFKA_KEY_FIELD_NAME_CONFIG);
+    if (value == null && isUpsertDeleteEnabled() && getBoolean(USE_STORAGE_WRITE_API_CONFIG)) {
+      return Optional.of("");
+    }
+    return Optional.ofNullable(value);
   }
 
   /**
