@@ -114,14 +114,14 @@ public abstract class UpsertDeleteValidator extends MultiPropertyValidator<BigQu
       // When using Storage Write API + upsert, kafkaKeyFieldName must be empty string (or null,
       // in which case we default to empty string and warn). Any non-empty value is rejected because
       // key fields must be flattened into the top-level record to serve as primary keys.
-      Optional<String> kafkaKeyFieldName = config.getKafkaKeyFieldName();
-      if (!kafkaKeyFieldName.isPresent()) {
+      String rawKafkaKeyFieldName = config.getString(KAFKA_KEY_FIELD_NAME_CONFIG);
+      if (rawKafkaKeyFieldName == null) {
         logger.warn(
             "Defaulting to a value of '' for the {} property because both "
                 + "upsert/delete support and the Storage Write API are both enabled",
             KAFKA_KEY_FIELD_NAME_CONFIG
         );
-      } else if (!"".equals(kafkaKeyFieldName.get())) {
+      } else if (!"".equals(rawKafkaKeyFieldName)) {
         return Optional.of(String.format(
             "The only accepted value for the %s property is '' (empty string) when "
                 + "upsert/delete support and the Storage Write API are both enabled. "
@@ -129,6 +129,7 @@ public abstract class UpsertDeleteValidator extends MultiPropertyValidator<BigQu
             KAFKA_KEY_FIELD_NAME_CONFIG
         ));
       }
+
     }
 
     return Optional.empty();

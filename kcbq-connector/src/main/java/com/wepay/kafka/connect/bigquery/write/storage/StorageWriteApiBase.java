@@ -421,20 +421,34 @@ public abstract class StorageWriteApiBase {
           ? writeStream.getTableSchema().toBuilder()
           : TableSchema.newBuilder();
       if (upsertEnabled || deleteEnabled) {
-        writeSchema.addFields(
-            TableFieldSchema.newBuilder()
-                .setName(CHANGE_TYPE_PSEUDO_COLUMN)
-                .setType(TableFieldSchema.Type.STRING)
-                .setMode(TableFieldSchema.Mode.NULLABLE)
-                .build()
-        );
-        writeSchema.addFields(
-            TableFieldSchema.newBuilder()
-                .setName(CHANGE_SEQUENCE_NUMBER_PSEUDO_COLUMN)
-                .setType(TableFieldSchema.Type.STRING)
-                .setMode(TableFieldSchema.Mode.NULLABLE)
-                .build()
-        );
+        boolean hasChangeType = false;
+        boolean hasChangeSeq = false;
+        for (TableFieldSchema field : writeSchema.getFieldsList()) {
+          if (CHANGE_TYPE_PSEUDO_COLUMN.equals(field.getName())) {
+            hasChangeType = true;
+          }
+          if (CHANGE_SEQUENCE_NUMBER_PSEUDO_COLUMN.equals(field.getName())) {
+            hasChangeSeq = true;
+          }
+        }
+        if (!hasChangeType) {
+          writeSchema.addFields(
+              TableFieldSchema.newBuilder()
+                  .setName(CHANGE_TYPE_PSEUDO_COLUMN)
+                  .setType(TableFieldSchema.Type.STRING)
+                  .setMode(TableFieldSchema.Mode.NULLABLE)
+                  .build()
+          );
+        }
+        if (!hasChangeSeq) {
+          writeSchema.addFields(
+              TableFieldSchema.newBuilder()
+                  .setName(CHANGE_SEQUENCE_NUMBER_PSEUDO_COLUMN)
+                  .setType(TableFieldSchema.Type.STRING)
+                  .setMode(TableFieldSchema.Mode.NULLABLE)
+                  .build()
+          );
+        }
       }
       return writeSchema.build();
     } catch (Exception e) {
@@ -616,12 +630,12 @@ public abstract class StorageWriteApiBase {
     JSONArray jsonRecords = new JSONArray();
     for (ConvertedRecord item : rows) {
       JSONObject converted = item.converted();
-      if (item.original().value() != null && upsertEnabled) {
-        converted.put(CHANGE_TYPE_PSEUDO_COLUMN, "UPSERT");
-        converted.put(CHANGE_SEQUENCE_NUMBER_PSEUDO_COLUMN, String.format("%016X", item.original().kafkaOffset()));
-      } else if (item.original().value() == null && deleteEnabled) {
-        converted.put(CHANGE_TYPE_PSEUDO_COLUMN, "DELETE");
-        converted.put(CHANGE_SEQUENCE_NUMBER_PSEUDO_COLUMN, String.format("%016X", item.original().kafkaOffset()));
+      if ((item.original().value() != null && upsertEnabled) || (item.original().value() == null && deleteEnabled)) {
+        Long timestamp = item.original().timestamp();
+        long ts = (timestamp != null && timestamp >= 0) ? timestamp : 0L;
+        String sequenceNumber = String.format("%016X/%08X/%016X", ts, item.original().kafkaPartition(), item.original().kafkaOffset());
+        converted.put(CHANGE_TYPE_PSEUDO_COLUMN, item.original().value() != null ? "UPSERT" : "DELETE");
+        converted.put(CHANGE_SEQUENCE_NUMBER_PSEUDO_COLUMN, sequenceNumber);
       }
       jsonRecords.put(converted);
     }

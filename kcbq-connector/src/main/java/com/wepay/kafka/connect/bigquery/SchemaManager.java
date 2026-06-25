@@ -732,7 +732,9 @@ public class SchemaManager {
       // This must be applied regardless of whether time-partitioning is configured,
       // so it lives outside the timePartitioningType.ifPresent() block.
       if (kafkaKeyAsPrimaryKey) {
-        assert Optional.of("").equals(kafkaKeyFieldName);
+        if (!Optional.of("").equals(kafkaKeyFieldName)) {
+          throw new IllegalStateException("kafkaKeyFieldName must be '' when kafkaKeyAsPrimaryKey is true");
+        }
 
         builder.setTableConstraints(
             TableConstraints.newBuilder()
