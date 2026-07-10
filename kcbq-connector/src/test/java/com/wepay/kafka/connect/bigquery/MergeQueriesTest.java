@@ -397,6 +397,36 @@ public class MergeQueriesTest {
   }
 
   @Test
+  public void testBigQueryJobBackendErrorRetry() throws InterruptedException {
+    // Arrange
+    mergeBatches.addToBatch(TEST_SINK_RECORD, INTERMEDIATE_TABLE, new HashMap<>());
+
+    TableResult tableResultReponse = mock(TableResult.class);
+    BigQueryError jobBackendError = new BigQueryError("jobBackendError", null, "The job encountered an error during execution. Retrying the job may solve the problem.");
+    when(bigQuery.query(any(QueryJobConfiguration.class)))
+        .thenThrow(new BigQueryException(400, "mock job backend error", jobBackendError))
+        .thenReturn(tableResultReponse);
+    when(mergeBatches.destinationTableFor(INTERMEDIATE_TABLE)).thenReturn(DESTINATION_TABLE);
+    when(mergeBatches.incrementBatch(INTERMEDIATE_TABLE)).thenReturn(0);
+    when(mergeBatches.prepareToFlush(INTERMEDIATE_TABLE, 0)).thenReturn(true);
+    CountDownLatch latch = new CountDownLatch(1);
+    doAnswer(invocation -> {
+      Runnable runnable = invocation.getArgument(0);
+      runnable.run();
+      latch.countDown();
+      return null;
+    }).when(executor).execute(any(Runnable.class));
+    MergeQueries mergeQueries = spy(mergeQueries(false, true, true));
+
+    // Act
+    mergeQueries.mergeFlush(INTERMEDIATE_TABLE);
+
+    // Assert
+    latch.await();
+    verify(bigQuery, times(3)).query(any(QueryJobConfiguration.class));
+  }
+
+  @Test
   public void testBigQueryInvalidQueryErrorRetry() throws InterruptedException {
     // Arrange
     mergeBatches.addToBatch(TEST_SINK_RECORD, INTERMEDIATE_TABLE, new HashMap<>());
