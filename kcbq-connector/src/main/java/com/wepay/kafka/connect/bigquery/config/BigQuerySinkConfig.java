@@ -26,17 +26,19 @@ package com.wepay.kafka.connect.bigquery.config;
 import com.google.cloud.bigquery.LegacySQLTypeName;
 import com.google.cloud.bigquery.Schema;
 import com.google.cloud.bigquery.TimePartitioning;
+import com.google.common.annotations.VisibleForTesting;
 import com.wepay.kafka.connect.bigquery.GcpClientBuilder;
 import com.wepay.kafka.connect.bigquery.api.SchemaRetriever;
 import com.wepay.kafka.connect.bigquery.convert.BigQueryRecordConverter;
 import com.wepay.kafka.connect.bigquery.convert.BigQuerySchemaConverter;
-import com.wepay.kafka.connect.bigquery.convert.KafkaDataBuilder;
 import com.wepay.kafka.connect.bigquery.convert.RecordConverter;
 import com.wepay.kafka.connect.bigquery.convert.SchemaConverter;
 import com.wepay.kafka.connect.bigquery.retrieve.IdentitySchemaRetriever;
 import io.aiven.kafka.utils.ConfigKeyBuilder;
 import io.aiven.kafka.utils.ExtendedConfigKey;
 import io.debezium.data.VariableScaleDecimal;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
@@ -60,6 +62,7 @@ import org.apache.kafka.common.config.types.Password;
 import org.apache.kafka.connect.data.Decimal;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.sink.SinkConnector;
+import org.apache.kafka.connect.sink.SinkRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -662,6 +665,12 @@ public class BigQuerySinkConfig extends AbstractConfig {
           + "dropped instead of causing the record to be rejected.\n";
   private static final List<MultiPropertyValidator<BigQuerySinkConfig>> MULTI_PROPERTY_VALIDATIONS = new ArrayList<>();
 
+  /**
+   * This is a marker variable for methods necessary to keep original sink record metadata.
+   * These methods in SinkRecord class are available only since Kafka Connect API version 3.6.
+   */
+  private static boolean KAFKA_CONNECT_API_POST_3_6;
+
   static {
     // Note that order matters here: validations are performed in the order they're added to this list, and if a
     // property or any of the properties that it depends on has an error, validation for it gets skipped.
@@ -678,17 +687,53 @@ public class BigQuerySinkConfig extends AbstractConfig {
     MULTI_PROPERTY_VALIDATIONS.add(new StorageWriteApiValidator.StorageWriteApiBatchValidator());
     MULTI_PROPERTY_VALIDATIONS.add(new UpsertDeleteValidator.UpsertValidator());
     MULTI_PROPERTY_VALIDATIONS.add(new UpsertDeleteValidator.DeleteValidator());
+
+
+    // Determine if we are running under Kafak 3.6 or later
+    boolean kafkaConnectApiPost36;
+    try {
+      MethodHandles.lookup().findVirtual(
+              SinkRecord.class,
+              "originalTopic",
+              MethodType.methodType(String.class)
+      );
+      MethodHandles.lookup().findVirtual(
+              SinkRecord.class,
+              "originalKafkaPartition",
+              MethodType.methodType(Integer.class)
+      );
+      MethodHandles.lookup().findVirtual(
+              SinkRecord.class,
+              "originalKafkaOffset",
+              MethodType.methodType(long.class)
+      );
+      kafkaConnectApiPost36 = true;
+    } catch (NoSuchMethodException | IllegalAccessException e) {
+      logger.warn("This connector cannot retain original topic/partition/offset fields in SinkRecord. "
+              + "If these fields are mutated in upstream SMTs, they will be lost. "
+              + "Upgrade to Kafka Connect 3.6 to provision reliable metadata into resulting table.", e);
+      kafkaConnectApiPost36 = false;
+    }
+    KAFKA_CONNECT_API_POST_3_6 = kafkaConnectApiPost36;
   }
 
   protected BigQuerySinkConfig(ConfigDef config, Map<String, String> properties) {
     super(config, properties);
     logDeprecationWarnings();
-    KafkaDataBuilder.setUseOriginalValues(getBoolean(PRESERVE_KAFKA_TOPIC_PARTITION_OFFSET__CONFIG));
-    KafkaDataBuilder.setTrackPutAttempts(getBoolean(TRACK_PUT_ATTEMPTS_CONFIG));
   }
 
   public BigQuerySinkConfig(Map<String, String> properties) {
     this(getConfig(), properties);
+  }
+
+  /**
+   * Sets the Kafka Post 3.6 flag.  Used in testing.
+   *
+   * @param post36Flag the state of the flag.
+   */
+  @VisibleForTesting
+  protected void setPost3_6Flag(boolean post36Flag) {
+    KAFKA_CONNECT_API_POST_3_6 = post36Flag;
   }
 
   private void logDeprecationWarnings() {
@@ -1304,6 +1349,75 @@ public class BigQuerySinkConfig extends AbstractConfig {
 
   public boolean isIgnoreUnknownFields() {
     return getBoolean(BigQuerySinkConfig.IGNORE_UNKNOWN_FIELDS_CONFIG);
+  }
+
+  /**
+   * Determines if the storageWriteAPI should be used for writing.
+   *
+   * @return {@code true} if the storage write API should be used, {@code false} otherwise.
+   */
+  public boolean useStorageWriteApi() {
+    return getBoolean(USE_STORAGE_WRITE_API_CONFIG);
+  }
+
+  /**
+   * Determines if the Kafka version is 3.6 or higher and {@code preserveKafkaTopicPartitionOffset} parameter is
+   * {@code true}.
+   *
+   * @return {@code true} if the Kafka version is 3.6 or higher and {@code }preserveKafkaTopicPartitionOffset} configuration
+   * parameter is {@code true}.
+   */
+  public boolean useOriginalValues() {
+    return KAFKA_CONNECT_API_POST_3_6 && getBoolean(PRESERVE_KAFKA_TOPIC_PARTITION_OFFSET__CONFIG);
+  }
+
+  /**
+   * Determines if put attempt tracking is enabled.
+   *
+   * @return {@code true} if {@code trackPutAttempts} configuration parameter is {@code true} and {@code kafkaDataFieldName}
+   * has been set.
+   */
+  public boolean trackPutAttempts() {
+    return hasKafkaDataFieldName() && getBoolean(TRACK_PUT_ATTEMPTS_CONFIG);
+  }
+
+  /**
+   * Determines if {@code kafkaDataFieldName} has been set.
+   *
+   * @return {@code true} if  {@code kafkaDataFieldName} has been set.
+   */
+  public boolean hasKafkaDataFieldName() {
+    return get(KAFKA_DATA_FIELD_NAME_CONFIG) != null;
+  }
+
+  /**
+   * Gets the number of records before a flush is called.
+   *
+   * @return the number of record before a flush is called.
+   */
+  public long getMergeThreshold() {
+    return getLong(BigQuerySinkConfig.MERGE_RECORDS_THRESHOLD_CONFIG);
+  }
+
+  /**
+   * Determines if the message time should be used when inserting records.
+   * If not, the connector processing time will be used.
+   *
+   * @return {@code true} if the message time should be used.
+   */
+  public boolean useMessageTime() {
+    return getBoolean(BigQuerySinkConfig.BIGQUERY_MESSAGE_TIME_PARTITIONING_CONFIG);
+  }
+
+  /**
+   * Determines if the partition decorator should be appended ot the BigQuery table name when inserting records.
+   * When enabled, a suffix is added to table names (e.g., table$yyyyMMdd); when disabled, raw table names are used.
+   * Partition decorators are not supported when using Storage Write API batch mode (enableBatchMode=true).
+   *
+   * @return {@code true} if the partition decorator should be appended to the table name.
+   */
+  public boolean appendPartitionDecorator() {
+    return getBoolean(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG);
   }
 
   public Optional<TimePartitioning.Type> getTimePartitioningType() {

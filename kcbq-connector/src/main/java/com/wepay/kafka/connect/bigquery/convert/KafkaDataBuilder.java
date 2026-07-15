@@ -27,6 +27,8 @@ package com.wepay.kafka.connect.bigquery.convert;
 import com.google.cloud.bigquery.Field;
 import com.google.cloud.bigquery.LegacySQLTypeName;
 import com.google.common.annotations.VisibleForTesting;
+import com.wepay.kafka.connect.bigquery.SchemaManager;
+import com.wepay.kafka.connect.bigquery.utils.SinkRecordConverter;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.util.ArrayList;
@@ -40,7 +42,12 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Helper class to construct schema and record for Kafka Data Field.
+ *
+ * @deprecated This class is deprecated because setting values can cause unexpected results
+ * in environments with multiple tasks, or connector instances.  Methods have been moved to
+ * {@link SinkRecordConverter}.
  */
+@Deprecated
 public class KafkaDataBuilder {
 
   private static final Logger logger = LoggerFactory.getLogger(KafkaDataBuilder.class);
@@ -134,6 +141,7 @@ public class KafkaDataBuilder {
    *
    * @param kafkaDataFieldName The configured name of Kafka Data Field
    * @return Field of Kafka Data, with definitions of kafka topic, partition, offset, and insertTime.
+   * @deprecated use {@link SchemaManager} methods.
    */
   public static Field buildKafkaDataField(String kafkaDataFieldName) {
     Field topicField = com.google.cloud.bigquery.Field.of(KAFKA_DATA_TOPIC_FIELD_NAME, LegacySQLTypeName.STRING);
@@ -187,7 +195,9 @@ public class KafkaDataBuilder {
    *
    * @param kafkaConnectRecord Kafka sink record to build kafka data from.
    * @return HashMap which contains the values of kafka topic, partition, offset, and insertTime.
+   * @deprecated use {@link SinkRecordConverter#buildKafkaDataRecord(SinkRecord, String)}.
    */
+  @Deprecated
   public static Map<String, Object> buildKafkaDataRecord(SinkRecord kafkaConnectRecord) {
     return buildKafkaDataRecord(kafkaConnectRecord, null);
   }
@@ -204,7 +214,9 @@ public class KafkaDataBuilder {
    *                     or {@code null} to omit the field.
    * @return HashMap which contains the values of kafka topic, partition, offset, insertTime,
    *         and optionally putAttemptId.
+   * @deprecated use {@link SinkRecordConverter#buildKafkaDataRecord(SinkRecord, String)}.
    */
+  @Deprecated
   public static Map<String, Object> buildKafkaDataRecord(SinkRecord kafkaConnectRecord,
                                                          String putAttemptId) {
     HashMap<String, Object> kafkaData = new HashMap<>();
@@ -224,7 +236,9 @@ public class KafkaDataBuilder {
    *
    * @param kafkaConnectRecord Kafka sink record to build kafka data from.
    * @return HashMap which contains the values of kafka topic, partition, offset, and insertTime in microseconds.
+   * @deprecated use {@link SinkRecordConverter#buildKafkaDataRecord(SinkRecord, String)}.
    */
+  @Deprecated
   public static Map<String, Object> buildKafkaDataRecordStorageApi(SinkRecord kafkaConnectRecord) {
     return buildKafkaDataRecordStorageApi(kafkaConnectRecord, null);
   }
@@ -238,7 +252,9 @@ public class KafkaDataBuilder {
    *                     or {@code null} to omit the field.
    * @return HashMap which contains the values of kafka topic, partition, offset, insertTime in
    *         microseconds, and optionally putAttemptId.
+   * @deprecated use {@link SinkRecordConverter#buildKafkaDataRecord(SinkRecord, String)}.
    */
+  @Deprecated
   public static Map<String, Object> buildKafkaDataRecordStorageApi(SinkRecord kafkaConnectRecord,
                                                                    String putAttemptId) {
     HashMap<String, Object> kafkaData = new HashMap<>();

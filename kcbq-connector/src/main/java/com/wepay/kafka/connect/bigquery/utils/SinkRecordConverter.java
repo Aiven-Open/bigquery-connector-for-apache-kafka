@@ -26,9 +26,9 @@ package com.wepay.kafka.connect.bigquery.utils;
 import com.google.cloud.bigquery.InsertAllRequest;
 import com.google.cloud.bigquery.TableId;
 import com.wepay.kafka.connect.bigquery.MergeQueries;
+import com.wepay.kafka.connect.bigquery.SchemaManager;
 import com.wepay.kafka.connect.bigquery.api.KafkaSchemaRecordType;
-import com.wepay.kafka.connect.bigquery.config.BigQuerySinkTaskConfig;
-import com.wepay.kafka.connect.bigquery.convert.KafkaDataBuilder;
+import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.convert.RecordConverter;
 import com.wepay.kafka.connect.bigquery.write.batch.MergeBatches;
 import java.util.HashMap;
@@ -45,7 +45,7 @@ import org.slf4j.LoggerFactory;
 public class SinkRecordConverter {
   private static final Logger logger = LoggerFactory.getLogger(SinkRecordConverter.class);
 
-  private final BigQuerySinkTaskConfig config;
+  private final BigQuerySinkConfig config;
   private final MergeBatches mergeBatches;
   private final MergeQueries mergeQueries;
 
@@ -59,18 +59,16 @@ public class SinkRecordConverter {
   private volatile String currentPutAttemptId = null;
 
 
-  public SinkRecordConverter(BigQuerySinkTaskConfig config,
+  public SinkRecordConverter(BigQuerySinkConfig config,
                              MergeBatches mergeBatches, MergeQueries mergeQueries) {
     this.config = config;
     this.mergeBatches = mergeBatches;
     this.mergeQueries = mergeQueries;
 
     this.recordConverter = config.getRecordConverter();
-    this.mergeRecordsThreshold = config.getLong(config.MERGE_RECORDS_THRESHOLD_CONFIG);
-    this.useMessageTimeDatePartitioning =
-        config.getBoolean(config.BIGQUERY_MESSAGE_TIME_PARTITIONING_CONFIG);
-    this.usePartitionDecorator =
-        config.getBoolean(config.BIGQUERY_PARTITION_DECORATOR_CONFIG);
+    this.mergeRecordsThreshold = config.getMergeThreshold();
+    this.useMessageTimeDatePartitioning = config.useMessageTime();
+    this.usePartitionDecorator = config.appendPartitionDecorator();
   }
 
   /**
@@ -115,7 +113,7 @@ public class SinkRecordConverter {
 
     if (convertedValue != null) {
       config.getKafkaDataFieldName().ifPresent(
-          fieldName -> convertedValue.put(fieldName, KafkaDataBuilder.buildKafkaDataRecord(record, writeAttemptId))
+          fieldName -> convertedValue.put(fieldName, buildKafkaDataRecord(record, writeAttemptId))
       );
     }
 
@@ -158,17 +156,11 @@ public class SinkRecordConverter {
   public Map<String, Object> getRegularRow(SinkRecord record, String writeAttemptId) {
     Map<String, Object> result = recordConverter.convertRecord(record, KafkaSchemaRecordType.VALUE);
 
-    config.getKafkaDataFieldName().ifPresent(fieldName -> {
-      Map<String, Object> kafkaDataField = config.getBoolean(config.USE_STORAGE_WRITE_API_CONFIG)
-          ? KafkaDataBuilder.buildKafkaDataRecordStorageApi(record, writeAttemptId)
-          : KafkaDataBuilder.buildKafkaDataRecord(record, writeAttemptId);
-      result.put(fieldName, kafkaDataField);
-    });
+    config.getKafkaDataFieldName().ifPresent(fieldName ->
+            result.put(fieldName, buildKafkaDataRecord(record, writeAttemptId)));
 
-    config.getKafkaKeyFieldName().ifPresent(fieldName -> {
-      Map<String, Object> keyData = recordConverter.convertRecord(record, KafkaSchemaRecordType.KEY);
-      result.put(fieldName, keyData);
-    });
+    config.getKafkaKeyFieldName().ifPresent(fieldName ->
+            result.put(fieldName, recordConverter.convertRecord(record, KafkaSchemaRecordType.KEY)));
 
     return maybeSanitize(result);
   }
@@ -185,4 +177,60 @@ public class SinkRecordConverter {
         record.kafkaPartition(),
         record.kafkaOffset());
   }
+
+  private String maybeGetOriginalTopic(SinkRecord kafkaConnectRecord) {
+    if (config.useOriginalValues()) {
+      return kafkaConnectRecord.originalTopic();
+    } else {
+      return kafkaConnectRecord.topic();
+    }
+  }
+
+  private Integer maybeGetOriginalKafkaPartition(SinkRecord kafkaConnectRecord) {
+    if (config.useOriginalValues()) {
+      return kafkaConnectRecord.originalKafkaPartition();
+    } else {
+      return kafkaConnectRecord.kafkaPartition();
+    }
+  }
+
+  private long maybeGetOriginalKafkaOffset(SinkRecord kafkaConnectRecord) {
+    if (config.useOriginalValues()) {
+      return kafkaConnectRecord.originalKafkaOffset();
+    } else {
+      return kafkaConnectRecord.kafkaOffset();
+    }
+  }
+
+  /**
+   * Construct a map of Kafka Data record, optionally including a put-attempt identifier.
+   *
+   * <p>When {@code TRACK_PUT_ATTEMPTS} is enabled and {@code putAttemptId} is non-null, the map
+   * includes a {@code putAttemptId} entry so that rows constructed during different
+   * {@code put()} invocations can be distinguished downstream.
+   *
+   * @param kafkaConnectRecord Kafka sink record to build kafka data from.
+   * @param putAttemptId ULID string generated at the start of the enclosing {@code put()} call,
+   *                     or {@code null} to omit the field.
+   * @return HashMap which contains the values of kafka topic, partition, offset, insertTime,
+   *         and optionally putAttemptId.
+   */
+  public Map<String, Object> buildKafkaDataRecord(SinkRecord kafkaConnectRecord,
+                                                  String putAttemptId) {
+    HashMap<String, Object> kafkaData = new HashMap<>();
+    kafkaData.put(SchemaManager.KAFKA_DATA_TOPIC_FIELD_NAME, maybeGetOriginalTopic(kafkaConnectRecord));
+    kafkaData.put(SchemaManager.KAFKA_DATA_PARTITION_FIELD_NAME, maybeGetOriginalKafkaPartition(kafkaConnectRecord));
+    kafkaData.put(SchemaManager.KAFKA_DATA_OFFSET_FIELD_NAME, maybeGetOriginalKafkaOffset(kafkaConnectRecord));
+    if (config.useStorageWriteApi()) {
+      kafkaData.put(SchemaManager.KAFKA_DATA_INSERT_TIME_FIELD_NAME, System.currentTimeMillis() * 1000);
+    } else {
+      kafkaData.put(SchemaManager.KAFKA_DATA_INSERT_TIME_FIELD_NAME, System.currentTimeMillis() / 1000.0);
+    }
+    if (config.trackPutAttempts() && putAttemptId != null) {
+      kafkaData.put(SchemaManager.KAFKA_DATA_PUT_ATTEMPT_ID_FIELD_NAME, putAttemptId);
+    }
+    return kafkaData;
+  }
+
+
 }
