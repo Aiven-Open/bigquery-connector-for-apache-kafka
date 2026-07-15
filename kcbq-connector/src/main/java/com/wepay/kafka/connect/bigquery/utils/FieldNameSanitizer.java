@@ -51,7 +51,6 @@ public class FieldNameSanitizer {
    * Big Query specifies field name must begin with a alphabet or underscore and can only contain
    * letters, numbers, and underscores.  This method replaces all invalid characters with an underscore "_".
    * Replacement recurses into maps stored within the map.
-   *
    * Note: "a.b" and "a/b" will have the same value after sanitization which will cause Duplicate key
    * Exception.
    *

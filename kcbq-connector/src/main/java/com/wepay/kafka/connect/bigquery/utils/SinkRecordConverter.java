@@ -43,7 +43,7 @@ import org.slf4j.LoggerFactory;
 /**
  * A class for converting a {@link SinkRecord SinkRecord} to {@link InsertAllRequest.RowToInsert BigQuery row}
  */
-public class SinkRecordConverter {
+public final class SinkRecordConverter {
   private static final Logger logger = LoggerFactory.getLogger(SinkRecordConverter.class);
 
   private final BigQuerySinkConfig config;
@@ -108,6 +108,7 @@ public class SinkRecordConverter {
 
   /**
    * Create the converted row for the case where upsert or delete are enabled.
+   *
    * @param record the record to convert.
    * @param table the table to write to.
    * @param writeAttemptId the write ID.
@@ -159,6 +160,7 @@ public class SinkRecordConverter {
 
   /**
    * Converts a SinkRecord to a regular row using the current putAttemptId.
+   *
    * @param record the record to convert.
    * @return the map of fields to values.
    */
@@ -168,6 +170,7 @@ public class SinkRecordConverter {
 
   /**
    * Converts a SinkRecord to a regular row using the specified putAttemptId.
+   *
    * @param record the record to convert.
    * @param writeAttemptId the write attempt id to use.
    * @return the map of fields to values.
@@ -186,6 +189,7 @@ public class SinkRecordConverter {
 
   /**
    * Converts field names to BigQuery acceptable names if configured to do so.
+   *
    * @param convertedRecord the record to sanitize.
    * @return the sanitized record if configured to do so, otherwise the unmodified {@code convertedRecord}.
    */
@@ -198,6 +202,7 @@ public class SinkRecordConverter {
   /**
    * Generates the row ID for the BigQuery row.  This is constructed from the topic, partition and offset of the
    * record.  Values are not affected by the use original values configuration option.
+   *
    * @param record The sink record to generate the id for.
    * @return the ID for the row.
    */
@@ -256,8 +261,10 @@ public class SinkRecordConverter {
    * <p>When {@code TRACK_PUT_ATTEMPTS} is enabled and {@code putAttemptId} is non-null, the map
    * includes a {@code putAttemptId} entry so that rows constructed during different
    * {@code put()} invocations can be distinguished downstream.
-   *
+   * </p>
+   * <p>
    * Note: Future versions of this method will be package private.
+   * </p>
    *
    * @param kafkaConnectRecord Kafka sink record to build kafka data from.
    * @param putAttemptId ULID string generated at the start of the enclosing {@code put()} call,
