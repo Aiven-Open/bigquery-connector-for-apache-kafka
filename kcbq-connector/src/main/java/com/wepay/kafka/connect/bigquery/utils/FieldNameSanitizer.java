@@ -26,10 +26,18 @@ package com.wepay.kafka.connect.bigquery.utils;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * Converts illegal field names into BigQuery acceptable names.
+ */
 public class FieldNameSanitizer {
 
-  // Replace all non-letter, non-digit characters with underscore. Append underscore in front of
-  // name if it does not begin with alphabet or underscore.
+  /**
+   * Replaces all non-letter, non-digit characters with underscore. Append underscore in front of
+   * name if it does not begin with letter or underscore.
+   *
+   * @param name The name to sanitize.
+   * @return the sanitized name.
+   */
   public static String sanitizeName(String name) {
     String sanitizedName = name.replaceAll("[^a-zA-Z0-9_]", "_");
     if (sanitizedName.matches("^[^a-zA-Z_].*")) {
@@ -39,10 +47,17 @@ public class FieldNameSanitizer {
   }
 
 
-  // Big Query specifies field name must begin with a alphabet or underscore and can only contain
-  // letters, numbers, and underscores.
-  // Note: a.b and a/b will have the same value after sanitization which will cause Duplicate key
-  // Exception.
+  /**
+   * Big Query specifies field name must begin with a alphabet or underscore and can only contain
+   * letters, numbers, and underscores.  This method replaces all invalid characters with an underscore "_".
+   * Replacement recurses into maps stored within the map.
+   *
+   * Note: "a.b" and "a/b" will have the same value after sanitization which will cause Duplicate key
+   * Exception.
+   *
+   * @param map The map of field names to values.
+   * @return the map data with cleaned field names.
+   */
   @SuppressWarnings("unchecked")
   public static Map<String, Object> replaceInvalidKeys(Map<String, Object> map) {
     Map<String, Object> result = new HashMap<>();

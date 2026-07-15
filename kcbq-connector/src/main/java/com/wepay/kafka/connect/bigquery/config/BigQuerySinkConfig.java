@@ -1343,10 +1343,38 @@ public class BigQuerySinkConfig extends AbstractConfig {
     return Optional.ofNullable(getString(KAFKA_DATA_FIELD_NAME_CONFIG));
   }
 
-  public boolean isUpsertDeleteEnabled() {
-    return getBoolean(UPSERT_ENABLED_CONFIG) || getBoolean(DELETE_ENABLED_CONFIG);
+  /**
+   * Determines if upsert is enabled
+   *
+   * @return {@code true} if upsert is enabled.
+   */
+  public boolean isUpsertEnabled() {
+    return getBoolean(UPSERT_ENABLED_CONFIG);
   }
 
+  /**
+   * Determines delete is enabled.
+   *
+   * @return {@code true} if delete is enabled.
+   */
+  public boolean isDeleteEnabled() {
+    return getBoolean(DELETE_ENABLED_CONFIG);
+  }
+
+  /**
+   * Determines field names should be sanitized.
+   *
+   * @return {@code true} if delete is enabled.
+   */
+  public boolean sanitizeFieldNames() {
+    return getBoolean(SANITIZE_FIELD_NAME_CONFIG);
+  }
+
+  /**
+   * Determines unknown fields should be ignored.
+   *
+   * @return {@code true} if unknown fields should be ignored.
+   */
   public boolean isIgnoreUnknownFields() {
     return getBoolean(BigQuerySinkConfig.IGNORE_UNKNOWN_FIELDS_CONFIG);
   }
@@ -1364,7 +1392,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
    * Determines if the Kafka version is 3.6 or higher and {@code preserveKafkaTopicPartitionOffset} parameter is
    * {@code true}.
    *
-   * @return {@code true} if the Kafka version is 3.6 or higher and {@code }preserveKafkaTopicPartitionOffset} configuration
+   * @return {@code true} if the Kafka version is 3.6 or higher and {@code preserveKafkaTopicPartitionOffset} configuration
    * parameter is {@code true}.
    */
   public boolean useOriginalValues() {
@@ -1384,7 +1412,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
   /**
    * Determines if {@code kafkaDataFieldName} has been set.
    *
-   * @return {@code true} if  {@code kafkaDataFieldName} has been set.
+   * @return {@code true} if {@code kafkaDataFieldName} has been set.
    */
   public boolean hasKafkaDataFieldName() {
     return get(KAFKA_DATA_FIELD_NAME_CONFIG) != null;
