@@ -29,9 +29,14 @@ import com.google.cloud.bigquery.storage.v1.AppendRowsResponse;
 import com.google.cloud.bigquery.storage.v1.BigQueryWriteClient;
 import com.google.cloud.bigquery.storage.v1.BigQueryWriteSettings;
 import com.google.cloud.bigquery.storage.v1.Exceptions;
+import com.google.cloud.bigquery.storage.v1.GetWriteStreamRequest;
 import com.google.cloud.bigquery.storage.v1.JsonStreamWriter;
 import com.google.cloud.bigquery.storage.v1.RowError;
+import com.google.cloud.bigquery.storage.v1.TableFieldSchema;
 import com.google.cloud.bigquery.storage.v1.TableName;
+import com.google.cloud.bigquery.storage.v1.TableSchema;
+import com.google.cloud.bigquery.storage.v1.WriteStream;
+import com.google.cloud.bigquery.storage.v1.WriteStreamView;
 import com.google.common.annotations.VisibleForTesting;
 import com.wepay.kafka.connect.bigquery.ErrantRecordHandler;
 import com.wepay.kafka.connect.bigquery.SchemaManager;
@@ -65,6 +70,8 @@ import org.threeten.bp.Duration;
 public abstract class StorageWriteApiBase {
 
   private static final Logger logger = LoggerFactory.getLogger(StorageWriteApiBase.class);
+  protected static final String CHANGE_TYPE_PSEUDO_COLUMN = "_CHANGE_TYPE";
+  protected static final String CHANGE_SEQUENCE_NUMBER_PSEUDO_COLUMN = "_CHANGE_SEQUENCE_NUMBER";
   private static final double RETRY_DELAY_MULTIPLIER = 1.1;
   private static final int MAX_RETRY_DELAY_MINUTES = 1;
   public static final String TRACE_ID_FORMAT = "AivenKafkaConnector:%s";
@@ -75,6 +82,8 @@ public abstract class StorageWriteApiBase {
   private final boolean ignoreUnknownFields;
   private final BigQueryWriteSettings writeSettings;
   private final boolean attemptSchemaUpdate;
+  protected final boolean upsertEnabled;
+  protected final boolean deleteEnabled;
   protected SchemaManager schemaManager;
   @VisibleForTesting
   protected Time time;
@@ -104,6 +113,8 @@ public abstract class StorageWriteApiBase {
     this.errantRecordHandler = errantRecordHandler;
     this.schemaManager = schemaManager;
     this.attemptSchemaUpdate = attemptSchemaUpdate;
+    this.upsertEnabled = config.isUpsertEnabled();
+    this.deleteEnabled = config.isDeleteEnabled();
     this.ignoreUnknownFields = config.isIgnoreUnknownFields();
     try {
       this.writeClient = getWriteClient();
@@ -143,6 +154,8 @@ public abstract class StorageWriteApiBase {
     this.schemaManager = schemaManager;
     this.attemptSchemaUpdate = attemptSchemaUpdate;
     this.ignoreUnknownFields = false;
+    this.upsertEnabled = false;
+    this.deleteEnabled = false;
     try {
       this.writeClient = getWriteClient();
     } catch (IOException e) {
@@ -397,6 +410,53 @@ public abstract class StorageWriteApiBase {
     return String.format(TRACE_ID_FORMAT, "default");
   }
 
+  private TableSchema getTableSchemaWithPseudoColumns(String streamName) {
+    try {
+      GetWriteStreamRequest writeStreamRequest = GetWriteStreamRequest.newBuilder()
+          .setName(streamName)
+          .setView(WriteStreamView.FULL)
+          .build();
+      WriteStream writeStream = writeClient.getWriteStream(writeStreamRequest);
+      TableSchema.Builder writeSchema = writeStream.hasTableSchema()
+          ? writeStream.getTableSchema().toBuilder()
+          : TableSchema.newBuilder();
+      if (upsertEnabled || deleteEnabled) {
+        boolean hasChangeType = false;
+        boolean hasChangeSeq = false;
+        for (TableFieldSchema field : writeSchema.getFieldsList()) {
+          if (CHANGE_TYPE_PSEUDO_COLUMN.equals(field.getName())) {
+            hasChangeType = true;
+          }
+          if (CHANGE_SEQUENCE_NUMBER_PSEUDO_COLUMN.equals(field.getName())) {
+            hasChangeSeq = true;
+          }
+        }
+        if (!hasChangeType) {
+          writeSchema.addFields(
+              TableFieldSchema.newBuilder()
+                  .setName(CHANGE_TYPE_PSEUDO_COLUMN)
+                  .setType(TableFieldSchema.Type.STRING)
+                  .setMode(TableFieldSchema.Mode.NULLABLE)
+                  .build()
+          );
+        }
+        if (!hasChangeSeq) {
+          writeSchema.addFields(
+              TableFieldSchema.newBuilder()
+                  .setName(CHANGE_SEQUENCE_NUMBER_PSEUDO_COLUMN)
+                  .setType(TableFieldSchema.Type.STRING)
+                  .setMode(TableFieldSchema.Mode.NULLABLE)
+                  .build()
+          );
+        }
+      }
+      return writeSchema.build();
+    } catch (Exception e) {
+      logger.warn("Failed to fetch schema for stream " + streamName, e);
+      return null;
+    }
+  }
+
   /**
    * Returns a {@link JsonStreamWriterFactory} for creating configured {@link JsonStreamWriter} instances
    *
@@ -410,8 +470,22 @@ public abstract class StorageWriteApiBase {
             .setMaxRetryDelay(Duration.ofMinutes(MAX_RETRY_DELAY_MINUTES))
             .build();
     return streamOrTableName -> {
-      JsonStreamWriter.Builder builder = JsonStreamWriter.newBuilder(streamOrTableName, writeClient)
-              .setRetrySettings(retrySettings)
+      JsonStreamWriter.Builder builder;
+      if (upsertEnabled || deleteEnabled) {
+        String streamNameForSchema = streamOrTableName;
+        if (!streamNameForSchema.contains("/streams/")) {
+          streamNameForSchema += "/_default";
+        }
+        TableSchema tableSchema = getTableSchemaWithPseudoColumns(streamNameForSchema);
+        if (tableSchema != null) {
+          builder = JsonStreamWriter.newBuilder(streamOrTableName, tableSchema, writeClient);
+        } else {
+          builder = JsonStreamWriter.newBuilder(streamOrTableName, writeClient);
+        }
+      } else {
+        builder = JsonStreamWriter.newBuilder(streamOrTableName, writeClient);
+      }
+      builder.setRetrySettings(retrySettings)
               .setIgnoreUnknownFields(ignoreUnknownFields)
               .setTraceId(generateTraceId());
       updateJsonStreamWriterBuilder(builder);
@@ -555,7 +629,15 @@ public abstract class StorageWriteApiBase {
   private JSONArray getJsonRecords(List<ConvertedRecord> rows) {
     JSONArray jsonRecords = new JSONArray();
     for (ConvertedRecord item : rows) {
-      jsonRecords.put(item.converted());
+      JSONObject converted = item.converted();
+      if ((item.original().value() != null && upsertEnabled) || (item.original().value() == null && deleteEnabled)) {
+        Long timestamp = item.original().timestamp();
+        long ts = (timestamp != null && timestamp >= 0) ? timestamp : 0L;
+        String sequenceNumber = String.format("%016X/%08X/%016X", ts, item.original().kafkaPartition(), item.original().kafkaOffset());
+        converted.put(CHANGE_TYPE_PSEUDO_COLUMN, item.original().value() != null ? "UPSERT" : "DELETE");
+        converted.put(CHANGE_SEQUENCE_NUMBER_PSEUDO_COLUMN, sequenceNumber);
+      }
+      jsonRecords.put(converted);
     }
     return jsonRecords;
   }

@@ -369,10 +369,10 @@ public class BigQuerySinkConfig extends AbstractConfig {
           + "kafkaDataFieldName is not configured. Enabling this on an existing table requires "
           + "allowNewBigQueryFields=true. Default false (disabled).";
   private static final ConfigDef.Type KAFKA_KEY_FIELD_NAME_TYPE = ConfigDef.Type.STRING;
-  private static final ConfigDef.Validator KAFKA_KEY_FIELD_NAME_VALIDATOR = new ConfigDef.NonEmptyString();
   private static final ConfigDef.Importance KAFKA_KEY_FIELD_NAME_IMPORTANCE = ConfigDef.Importance.LOW;
   private static final String KAFKA_KEY_FIELD_NAME_DOC = "The name of the field of Kafka key. "
-      + "Default to be null, which means Kafka Key Field will not be included.";
+      + "Default to be null, which means Kafka Key Field will not be included. "
+      + "To include all fields from the key in the top-level record, specify a blank string for this property.";
   private static final ConfigDef.Type KAFKA_DATA_FIELD_NAME_TYPE = ConfigDef.Type.STRING;
   private static final ConfigDef.Validator KAFKA_DATA_FIELD_NAME_VALIDATOR = new ConfigDef.NonEmptyString();
   private static final ConfigDef.Importance KAFKA_DATA_FIELD_NAME_IMPORTANCE = ConfigDef.Importance.LOW;
@@ -810,7 +810,6 @@ public class BigQuerySinkConfig extends AbstractConfig {
                     KAFKA_KEY_FIELD_NAME_CONFIG,
                     KAFKA_KEY_FIELD_NAME_TYPE,
                     KAFKA_KEY_FIELD_NAME_DEFAULT,
-                    KAFKA_KEY_FIELD_NAME_VALIDATOR,
                     KAFKA_KEY_FIELD_NAME_IMPORTANCE,
                     KAFKA_KEY_FIELD_NAME_DOC
             ).define(
@@ -1284,7 +1283,11 @@ public class BigQuerySinkConfig extends AbstractConfig {
    * @return Field name of Kafka Key to be used in BigQuery
    */
   public Optional<String> getKafkaKeyFieldName() {
-    return Optional.ofNullable(getString(KAFKA_KEY_FIELD_NAME_CONFIG));
+    String value = getString(KAFKA_KEY_FIELD_NAME_CONFIG);
+    if (value == null && isUpsertDeleteEnabled() && getBoolean(USE_STORAGE_WRITE_API_CONFIG)) {
+      return Optional.of("");
+    }
+    return Optional.ofNullable(value);
   }
 
   /**
@@ -1300,6 +1303,14 @@ public class BigQuerySinkConfig extends AbstractConfig {
 
   public boolean isUpsertDeleteEnabled() {
     return getBoolean(UPSERT_ENABLED_CONFIG) || getBoolean(DELETE_ENABLED_CONFIG);
+  }
+
+  public boolean isUpsertEnabled() {
+    return getBoolean(UPSERT_ENABLED_CONFIG);
+  }
+
+  public boolean isDeleteEnabled() {
+    return getBoolean(DELETE_ENABLED_CONFIG);
   }
 
   public boolean isIgnoreUnknownFields() {
