@@ -26,12 +26,8 @@
 name: Manual build
 on:
   workflow_dispatch:
-  workflow_call:
-    secrets:
-      GCP_CREDENTIALS:
-      KCBQ_TEST_PROJECT:
-      KCBQ_TEST_DATASET:
-      KCBQ_TEST_BUCKET:
+  schedule: ## run GMT 1:17 hours
+    - cron: '17 1 * * *'
 
 permissions:
   contents: write
