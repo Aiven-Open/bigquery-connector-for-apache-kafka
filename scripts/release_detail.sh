@@ -51,22 +51,21 @@ echo ' ' >> /tmp/proposed_changelog.txt;
 echo '### Full Changelog' >> /tmp/proposed_changelog.txt;
 echo 'https://github.com/Aiven-Open/${repositoryName}/compare/'${startTag}'...v'${endVersion}  >> /tmp/proposed_changelog.txt;
 echo ' ' >> /tmp/proposed_changelog.txt
-touch ${releaseNotes}
-grep -B 999 -m2 "^## " ${releaseNotes}  | tail -n +5 > /tmp/release_notes.txt
+touch CHANGE_LOG.md
+grep -B 999 -m2 "^## " CHANGE_LOG.md  | tail -n +5 > /tmp/release_notes.txt
 echo ' ' > /tmp/changelog.head
-echo '# Release Notes' >> /tmp/changelog.head
+echo '# Change log' >> /tmp/changelog.head
 echo ' ' >> /tmp/changelog.head
 echo 'All releases can be found at https://github.com/Aiven-Open/bigquery-connector-for-apache-kafka/releases' >> /tmp/changelog.head
 echo ' ' >> /tmp/changelog.head
 cat /tmp/changelog.head /tmp/proposed_changelog.txt /tmp/release_notes.txt >> /tmp/CHANGE_LOG.md
 
-mv /tmp/CHANGE_LOG.md ${releaseNotes}
+mv /tmp/CHANGE_LOG.md CHANGE_LOG.md
 
-git checkout -b release_notes-${endVersion}
+git checkout -b change_log-${endVersion}
 
-git add ${releaseNotes}
 git add CHANGE_LOG.md
-git commit -m "create Release notes and update changelog for ${startTag} to v${endVersion}"
-git push --set-upstream origin release_notes-${endVersion}
+git commit -m "Update CHANGE_LOG.md for ${startTag} to v${endVersion}"
+git push --set-upstream origin change_log-${endVersion}
 
 
