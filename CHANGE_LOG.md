@@ -3,7 +3,7 @@
 
 All releases can be found at https://github.com/Aiven-Open/bigquery-connector-for-apache-kafka/releases
 
-#qgi# v2.14.0
+## v2.14.0
 ### What is changed
 
 - Update putAttemptId for uniqueness across internal Bigquery write retries and GCS Batch Idempotent Load Jobs (#206)
