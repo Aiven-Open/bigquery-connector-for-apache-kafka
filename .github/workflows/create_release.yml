@@ -1,5 +1,5 @@
 #
-# Copyright 2024 Copyright 2022 Aiven Oy and
+# Copyright 2026 Copyright 2022 Aiven Oy and
 # bigquery-connector-for-apache-kafka project contributors
 #
 # This software contains code derived from the Confluent BigQuery
@@ -59,16 +59,16 @@ jobs:
           echo "Will use version ${version}"
           echo "version=${version}" >> $GITHUB_ENV
           
-          if [[ `grep -c "^## " docs/src/site/markdown/RELEASE_NOTES.md` -gt 1 ]]
+          if [[ `grep -c "^## " CHANGE_LOG.md` -gt 1 ]]
           then
-            grep -B 999 -m2 "^## " docs/src/site/markdown/RELEASE_NOTES.md  | head -n -1  | tail -n +5 > /tmp/release_body.txt
+            grep -B 999 -m2 "^## " CHANGE_LOG.md  | head -n -1  | tail -n +5 > /tmp/release_body.txt
           else
-            cp docs/src/site/markdown/RELEASE_NOTES.md /tmp/release_body.txt
+            cp CHANGE_LOG.md /tmp/release_body.txt
           fi
         id: project
 
 
-      - name: Set up JDK 8
+      - name: Set up JDK
         uses: actions/setup-java@v4
         with:
           distribution: 'adopt'
