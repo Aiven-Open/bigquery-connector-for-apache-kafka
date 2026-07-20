@@ -63,6 +63,15 @@ public class BigQueryErrorResponses {
         && (message.startsWith("Not found: Table ") || message.contains("Table is deleted: "));
   }
 
+  public static boolean isNonExistentDatasetError(BigQueryException exception) {
+    // The streaming backend can transiently report the whole dataset as missing right after an
+    // intermediate table is created, even though the dataset exists; same eventual-consistency
+    // window as the "Not found: Table" case handled above
+    return NOT_FOUND_CODE == exception.getCode()
+        && NOT_FOUND_REASON.equals(exception.getReason())
+        && message(exception.getError()).startsWith("Not found: Dataset ");
+  }
+
   public static boolean isTableMissingSchemaError(BigQueryException exception) {
     // If a table is missing a schema, it will raise a BigQueryException that the input is invalid
     // For more information about BigQueryExceptions, see: https://cloud.google.com/bigquery/troubleshooting-errors
