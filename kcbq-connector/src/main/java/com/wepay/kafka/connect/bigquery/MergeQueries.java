@@ -241,6 +241,18 @@ public class MergeQueries {
                 intermediateTable,
                 destinationTable,
                 ++attempt);
+          } else if (BigQueryErrorResponses.isJobRateLimitExceededError(e)) {
+            logger.warn(
+                "Job rate limit exceeded while merging from {} to {}, retry attempt {}",
+                intermediateTable,
+                destinationTable,
+                ++attempt);
+          } else if (BigQueryErrorResponses.isTableUnavailableError(e)) {
+            logger.warn(
+                "Table unavailable error while merging from {} to {}, retry attempt {}",
+                intermediateTable,
+                destinationTable,
+                ++attempt);
           } else {
             throw e;
           }
