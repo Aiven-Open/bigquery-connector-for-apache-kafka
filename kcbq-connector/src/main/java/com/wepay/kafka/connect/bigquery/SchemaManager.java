@@ -46,6 +46,8 @@ import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
 import com.wepay.kafka.connect.bigquery.utils.FieldNameSanitizer;
 import com.wepay.kafka.connect.bigquery.utils.TableNameUtils;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -62,8 +64,15 @@ import org.slf4j.LoggerFactory;
  */
 public class SchemaManager {
 
-  private static final Logger logger = LoggerFactory.getLogger(SchemaManager.class);
+  public static final String KAFKA_DATA_TOPIC_FIELD_NAME = "topic";
+  public static final String KAFKA_DATA_PARTITION_FIELD_NAME = "partition";
+  public static final String KAFKA_DATA_OFFSET_FIELD_NAME = "offset";
+  public static final String KAFKA_DATA_INSERT_TIME_FIELD_NAME = "insertTime";
+  public static final String KAFKA_DATA_PUT_ATTEMPT_ID_FIELD_NAME = "putAttemptId";
 
+
+  private static final Logger logger = LoggerFactory.getLogger(SchemaManager.class);
+  private final BigQuerySinkConfig config;
   private final SchemaRetriever schemaRetriever;
   private final SchemaConverter<com.google.cloud.bigquery.Schema> schemaConverter;
   private final BigQuery bigQuery;
@@ -86,6 +95,46 @@ public class SchemaManager {
   private final int concurrentSchemaUpdateMaxRetries;
 
   /**
+   * @param config                         a big query sink configuration.
+   * @param bigQuery                       a BigQuery connector to communicate create/update requests to BigQuery.
+   */
+  public SchemaManager(BigQuerySinkConfig config, BigQuery bigQuery) {
+    this(config, bigQuery,  new ConcurrentHashMap<>(), new ConcurrentHashMap<>(), new ConcurrentHashMap<>(), false);
+  }
+
+  private SchemaManager(final BigQuerySinkConfig config, final BigQuery bigQuery,
+      final ConcurrentMap<TableId, Object> tableCreateLocks,
+      final ConcurrentMap<TableId, Object> tableUpdateLocks,
+      final ConcurrentMap<TableId, com.google.cloud.bigquery.Schema> schemaCache,
+      final boolean intermediateTables) {
+    this.config = config;
+    this.bigQuery = bigQuery;
+    this.tableCreateLocks  = tableCreateLocks;
+    this.tableUpdateLocks =  tableUpdateLocks;
+    this.schemaCache = schemaCache;
+    this.intermediateTables = intermediateTables;
+    allowNewBqFields = config.getBoolean(BigQuerySinkConfig.ALLOW_NEW_BIGQUERY_FIELDS_CONFIG);
+    allowBqRequiredFieldRelaxation = config.getBoolean(BigQuerySinkConfig.ALLOW_BIGQUERY_REQUIRED_FIELD_RELAXATION_CONFIG);
+    allowSchemaUnionization = config.getBoolean(BigQuerySinkConfig.ALLOW_SCHEMA_UNIONIZATION_CONFIG);
+    schemaRetriever = config.getSchemaRetriever();
+    schemaConverter = config.getSchemaConverter();
+    kafkaKeyFieldName = config.getKafkaKeyFieldName();
+    kafkaDataFieldName = config.getKafkaDataFieldName();
+    timestampPartitionFieldName = config.getTimestampPartitionFieldName();
+    partitionExpiration = config.getPartitionExpirationMs();
+    clusteringFieldName = config.getClusteringPartitionFieldNames();
+    timePartitioningType = config.getTimePartitioningType();
+
+    sanitizeFieldNames = config.getBoolean(BigQuerySinkConfig.SANITIZE_FIELD_NAME_CONFIG);
+    mediateConcurrentSchemaUpdates =
+            config.getBoolean(BigQuerySinkConfig.MEDIATE_CONCURRENT_SCHEMA_UPDATES_CONFIG);
+    concurrentSchemaUpdateRetryWaitMs =
+            config.getLong(BigQuerySinkConfig.CONCURRENT_SCHEMA_UPDATE_RETRY_WAIT_MS_CONFIG);
+    concurrentSchemaUpdateMaxRetries =
+            config.getInt(BigQuerySinkConfig.CONCURRENT_SCHEMA_UPDATE_MAX_RETRIES_CONFIG);
+  }
+
+  /**
    * @param schemaRetriever                Used to determine the Kafka Connect Schema that should be used for a
    *                                       given table.
    * @param schemaConverter                Used to convert Kafka Connect Schemas into BigQuery format.
@@ -104,7 +153,9 @@ public class SchemaManager {
    *                                       used instead.
    * @param clusteringFieldName
    * @param timePartitioningType           The time partitioning type (HOUR, DAY, etc.) to use for created tables.
+   * @deprecated Use {@code SchemaManager(BigQuerySinkConfig, BigQuery)}
    */
+  @Deprecated
   public SchemaManager(
       SchemaRetriever schemaRetriever,
       SchemaConverter<com.google.cloud.bigquery.Schema> schemaConverter,
@@ -121,51 +172,8 @@ public class SchemaManager {
       Optional<TimePartitioning.Type> timePartitioningType,
       boolean mediateConcurrentSchemaUpdates,
       long concurrentSchemaUpdateRetryWaitMs,
-      int concurrentSchemaUpdateMaxRetries) {
-    this(
-        schemaRetriever,
-        schemaConverter,
-        bigQuery,
-        allowNewBqFields,
-        allowBqRequiredFieldRelaxation,
-        allowSchemaUnionization,
-        sanitizeFieldNames,
-        kafkaKeyFieldName,
-        kafkaDataFieldName,
-        timestampPartitionFieldName,
-        partitionExpiration,
-        clusteringFieldName,
-        timePartitioningType,
-        mediateConcurrentSchemaUpdates,
-        concurrentSchemaUpdateRetryWaitMs,
-        concurrentSchemaUpdateMaxRetries,
-        false,
-        new ConcurrentHashMap<>(),
-        new ConcurrentHashMap<>(),
-        new ConcurrentHashMap<>());
-  }
-
-  private SchemaManager(
-      SchemaRetriever schemaRetriever,
-      SchemaConverter<com.google.cloud.bigquery.Schema> schemaConverter,
-      BigQuery bigQuery,
-      boolean allowNewBqFields,
-      boolean allowBqRequiredFieldRelaxation,
-      boolean allowSchemaUnionization,
-      boolean sanitizeFieldNames,
-      Optional<String> kafkaKeyFieldName,
-      Optional<String> kafkaDataFieldName,
-      Optional<String> timestampPartitionFieldName,
-      Optional<Long> partitionExpiration,
-      Optional<List<String>> clusteringFieldName,
-      Optional<TimePartitioning.Type> timePartitioningType,
-      boolean mediateConcurrentSchemaUpdates,
-      long concurrentSchemaUpdateRetryWaitMs,
       int concurrentSchemaUpdateMaxRetries,
-      boolean intermediateTables,
-      ConcurrentMap<TableId, Object> tableCreateLocks,
-      ConcurrentMap<TableId, Object> tableUpdateLocks,
-      ConcurrentMap<TableId, com.google.cloud.bigquery.Schema> schemaCache) {
+      BigQuerySinkConfig config) {
     this.schemaRetriever = schemaRetriever;
     this.schemaConverter = schemaConverter;
     this.bigQuery = bigQuery;
@@ -182,35 +190,22 @@ public class SchemaManager {
     this.mediateConcurrentSchemaUpdates = mediateConcurrentSchemaUpdates;
     this.concurrentSchemaUpdateRetryWaitMs = concurrentSchemaUpdateRetryWaitMs;
     this.concurrentSchemaUpdateMaxRetries = concurrentSchemaUpdateMaxRetries;
-    this.intermediateTables = intermediateTables;
-    this.tableCreateLocks = tableCreateLocks;
-    this.tableUpdateLocks = tableUpdateLocks;
-    this.schemaCache = schemaCache;
+    this.config = config;
+    this.intermediateTables = false;
+    this.tableCreateLocks = new ConcurrentHashMap<>();
+    this.tableUpdateLocks = new ConcurrentHashMap<>();
+    this.schemaCache = new ConcurrentHashMap<>();
   }
 
+  /**
+   * Creates a SchemaManager for intermediate tables based on this instance.
+   *
+   * @return a new SchemaManager for intermediate tables based on this instance.
+   */
   public SchemaManager forIntermediateTables() {
-    return new SchemaManager(
-        schemaRetriever,
-        schemaConverter,
-        bigQuery,
-        allowNewBqFields,
-        allowBqRequiredFieldRelaxation,
-        allowSchemaUnionization,
-        sanitizeFieldNames,
-        kafkaKeyFieldName,
-        kafkaDataFieldName,
-        timestampPartitionFieldName,
-        partitionExpiration,
-        clusteringFieldName,
-        timePartitioningType,
-        mediateConcurrentSchemaUpdates,
-        concurrentSchemaUpdateRetryWaitMs,
-        concurrentSchemaUpdateMaxRetries,
-        true,
-        tableCreateLocks,
-        tableUpdateLocks,
-        schemaCache
-    );
+    return new SchemaManager(config, bigQuery, tableCreateLocks,
+            tableUpdateLocks,
+            schemaCache, true);
   }
 
   /**
@@ -757,7 +752,7 @@ public class SchemaManager {
       String dataFieldName = sanitizeFieldNames
           ? FieldNameSanitizer.sanitizeName(kafkaDataFieldName.get())
           : kafkaDataFieldName.get();
-      Field kafkaDataField = KafkaDataBuilder.buildKafkaDataField(dataFieldName);
+      Field kafkaDataField = buildKafkaDataField(dataFieldName);
       valueFields.add(kafkaDataField);
     }
 
@@ -802,7 +797,7 @@ public class SchemaManager {
       String dataFieldName = sanitizeFieldNames
           ? FieldNameSanitizer.sanitizeName(kafkaDataFieldName.get())
           : kafkaDataFieldName.get();
-      Field kafkaDataField = KafkaDataBuilder.buildKafkaDataField(dataFieldName);
+      Field kafkaDataField = buildKafkaDataField(dataFieldName);
       result.add(kafkaDataField);
     }
 
@@ -836,5 +831,34 @@ public class SchemaManager {
 
   private Object lock(ConcurrentMap<TableId, Object> locks, TableId table) {
     return locks.computeIfAbsent(table, t -> new Object());
+  }
+
+  /**
+   * Construct schema for Kafka Data Field
+   *
+   * @param kafkaDataFieldName The configured name of Kafka Data Field
+   * @return Field of Kafka Data, with definitions of kafka topic, partition, offset, and insertTime.
+   */
+  @VisibleForTesting
+  Field buildKafkaDataField(String kafkaDataFieldName) {
+    Field topicField = com.google.cloud.bigquery.Field.of(KAFKA_DATA_TOPIC_FIELD_NAME, LegacySQLTypeName.STRING);
+    Field partitionField = com.google.cloud.bigquery.Field.of(KAFKA_DATA_PARTITION_FIELD_NAME, LegacySQLTypeName.INTEGER);
+    Field offsetField = com.google.cloud.bigquery.Field.of(KAFKA_DATA_OFFSET_FIELD_NAME, LegacySQLTypeName.INTEGER);
+    Field insertTimeField = com.google.cloud.bigquery.Field.newBuilder(
+                    KAFKA_DATA_INSERT_TIME_FIELD_NAME, LegacySQLTypeName.TIMESTAMP)
+            .setMode(com.google.cloud.bigquery.Field.Mode.NULLABLE).build();
+
+    List<Field> subFields = new ArrayList<>(
+            Arrays.asList(topicField, partitionField, offsetField, insertTimeField));
+
+    if (config.trackPutAttempts()) {
+      subFields.add(com.google.cloud.bigquery.Field.newBuilder(
+                      KAFKA_DATA_PUT_ATTEMPT_ID_FIELD_NAME, LegacySQLTypeName.STRING)
+              .setMode(com.google.cloud.bigquery.Field.Mode.NULLABLE).build());
+    }
+
+    return Field.newBuilder(kafkaDataFieldName, LegacySQLTypeName.RECORD,
+                    subFields.toArray(new Field[0]))
+            .setMode(com.google.cloud.bigquery.Field.Mode.NULLABLE).build();
   }
 }

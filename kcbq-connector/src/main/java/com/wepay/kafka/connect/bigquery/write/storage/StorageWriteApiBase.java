@@ -181,7 +181,7 @@ public abstract class StorageWriteApiBase {
    * @deprecated Use {@link #initializeAndWriteRecords(PartitionedTableId, List, String)} instead.
    */
   @Deprecated
-  public void initializeAndWriteRecords(TableName tableName, List<ConvertedRecord> rows, String streamName) {
+  public final void initializeAndWriteRecords(TableName tableName, List<ConvertedRecord> rows, String streamName) {
     initializeAndWriteRecords(TableNameUtils.partitionedTableId(tableName), rows, streamName);
   }
 
@@ -194,7 +194,7 @@ public abstract class StorageWriteApiBase {
    *                   Pre-conversion sink records are required for DLQ routing
    * @param streamName The stream to use to write table to table.
    */
-  public void initializeAndWriteRecords(PartitionedTableId table, List<ConvertedRecord> rows, String streamName) {
+  public final void initializeAndWriteRecords(PartitionedTableId table, List<ConvertedRecord> rows, String streamName) {
     initializeAndWriteRecords(table, rows, streamName, null, null);
   }
 
@@ -211,7 +211,7 @@ public abstract class StorageWriteApiBase {
    * @param recordConverter  Converter used to rebuild rows with a fresh ULID; may be {@code null}.
    * @param ulidSupplier     Supplier of write-attempt ULIDs; may be {@code null}.
    */
-  public void initializeAndWriteRecords(PartitionedTableId table, List<ConvertedRecord> rows, String streamName,
+  public final void initializeAndWriteRecords(PartitionedTableId table, List<ConvertedRecord> rows, String streamName,
                                         SinkRecordConverter recordConverter, Supplier<String> ulidSupplier) {
     TableName tableName = TableNameUtils.tableName(table.getFullTableId());
     StorageWriteApiRetryHandler retryHandler = new StorageWriteApiRetryHandler(table.getBaseTableId(), getSinkRecords(rows), retry, retryWait, time);
