@@ -427,6 +427,66 @@ public class MergeQueriesTest {
   }
 
   @Test
+  public void testBigQueryJobRateLimitExceededRetry() throws InterruptedException {
+    // Arrange
+    mergeBatches.addToBatch(TEST_SINK_RECORD, INTERMEDIATE_TABLE, new HashMap<>());
+
+    TableResult tableResultReponse = mock(TableResult.class);
+    BigQueryError jobRateLimitExceededError = new BigQueryError("jobRateLimitExceeded", null, "Job exceeded rate limits: Your project_and_region exceeded quota for concurrent queries that append to or overwrite a table.");
+    when(bigQuery.query(any(QueryJobConfiguration.class)))
+        .thenThrow(new BigQueryException(400, "mock job rate limit exceeded", jobRateLimitExceededError))
+        .thenReturn(tableResultReponse);
+    when(mergeBatches.destinationTableFor(INTERMEDIATE_TABLE)).thenReturn(DESTINATION_TABLE);
+    when(mergeBatches.incrementBatch(INTERMEDIATE_TABLE)).thenReturn(0);
+    when(mergeBatches.prepareToFlush(INTERMEDIATE_TABLE, 0)).thenReturn(true);
+    CountDownLatch latch = new CountDownLatch(1);
+    doAnswer(invocation -> {
+      Runnable runnable = invocation.getArgument(0);
+      runnable.run();
+      latch.countDown();
+      return null;
+    }).when(executor).execute(any(Runnable.class));
+    MergeQueries mergeQueries = spy(mergeQueries(false, true, true));
+
+    // Act
+    mergeQueries.mergeFlush(INTERMEDIATE_TABLE);
+
+    // Assert
+    latch.await();
+    verify(bigQuery, times(3)).query(any(QueryJobConfiguration.class));
+  }
+
+  @Test
+  public void testBigQueryTableUnavailableRetry() throws InterruptedException {
+    // Arrange
+    mergeBatches.addToBatch(TEST_SINK_RECORD, INTERMEDIATE_TABLE, new HashMap<>());
+
+    TableResult tableResultReponse = mock(TableResult.class);
+    BigQueryError tableUnavailableError = new BigQueryError("tableUnavailable", null, "The table my-project:my_dataset.my_table is currently unavailable. Retry the operation.");
+    when(bigQuery.query(any(QueryJobConfiguration.class)))
+        .thenThrow(new BigQueryException(400, "mock table unavailable", tableUnavailableError))
+        .thenReturn(tableResultReponse);
+    when(mergeBatches.destinationTableFor(INTERMEDIATE_TABLE)).thenReturn(DESTINATION_TABLE);
+    when(mergeBatches.incrementBatch(INTERMEDIATE_TABLE)).thenReturn(0);
+    when(mergeBatches.prepareToFlush(INTERMEDIATE_TABLE, 0)).thenReturn(true);
+    CountDownLatch latch = new CountDownLatch(1);
+    doAnswer(invocation -> {
+      Runnable runnable = invocation.getArgument(0);
+      runnable.run();
+      latch.countDown();
+      return null;
+    }).when(executor).execute(any(Runnable.class));
+    MergeQueries mergeQueries = spy(mergeQueries(false, true, true));
+
+    // Act
+    mergeQueries.mergeFlush(INTERMEDIATE_TABLE);
+
+    // Assert
+    latch.await();
+    verify(bigQuery, times(3)).query(any(QueryJobConfiguration.class));
+  }
+
+  @Test
   public void testBigQueryInvalidQueryErrorRetry() throws InterruptedException {
     // Arrange
     mergeBatches.addToBatch(TEST_SINK_RECORD, INTERMEDIATE_TABLE, new HashMap<>());
