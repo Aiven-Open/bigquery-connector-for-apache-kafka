@@ -179,6 +179,7 @@
                                 <resource>
                                     <directory>${project.parent.basedir}/</directory>
                                     <includes>LICENSE.md</includes>
+                                    <includes>CHANGE_LOG.md</includes>
                                 </resource>
                             </resources>
                         </configuration>
