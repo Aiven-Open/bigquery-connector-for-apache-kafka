@@ -72,12 +72,14 @@ jobs:
         run: |
           echo "$CREDENTIALS_JSON" > /tmp/creds.json
           export KCBQ_TEST_TABLE_SUFFIX=_$(date +%s)_$RANDOM
-          mvn -ntp -P ci -Dskip.unit.tests=true verify
+          mvn -ntp -P ci verify
       - name: Upload integration test results (Maven)
         if: always()
         uses: actions/upload-artifact@v4
         with:
           path: |
             **/target/failsafe-reports/*
+            **/target/site/*
+            **/target/jacoco.exec
           name: integration-test-results
           retention-days: 1

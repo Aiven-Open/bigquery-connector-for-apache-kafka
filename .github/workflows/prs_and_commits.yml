@@ -53,9 +53,7 @@ jobs:
           java-version: 17
           cache: maven
       - name: Build (Maven)
-        run: mvn -ntp -P ci --batch-mode clean package -DskipTests
-      - name: Unit tests (Maven)
-        run: mvn -ntp -P ci --batch-mode test
+        run: mvn -ntp -P ci -DskipITs clean verify
       - name: "Upload build failure reports"
         uses: actions/upload-artifact@v4
         if: failure()
@@ -63,4 +61,6 @@ jobs:
           name: unit-test-results
           path: |
             **/target/*-reports/**
+            **/target/site/*
+            **/target/jacoco.exec
           retention-days: 1
