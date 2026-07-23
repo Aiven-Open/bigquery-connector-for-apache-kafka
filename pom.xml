@@ -58,6 +58,7 @@
 
         <junit.version>5.10.2</junit.version>
         <mockito.version>5.20.0</mockito.version>
+        <assertj.version>3.27.7</assertj.version>
 
         <assembly.plugin.version>3.7.1</assembly.plugin.version>
         <checkstyle.plugin.version>3.3.1</checkstyle.plugin.version>
@@ -365,6 +366,12 @@
                 <groupId>org.apache.rat</groupId>
                 <artifactId>apache-rat-plugin</artifactId>
                 <version>${rat.plugin.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.assertj</groupId>
+                <artifactId>assertj-core</artifactId>
+                <version>${assertj.version}</version>
+                <scope>test</scope>
             </dependency>
         </dependencies>
     </dependencyManagement>

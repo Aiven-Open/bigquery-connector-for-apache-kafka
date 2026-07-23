@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Copyright 2022 Aiven Oy and
+ * Copyright 2022-2026 Aiven Oy and
  * bigquery-connector-for-apache-kafka project contributors
  *
  * This software contains code derived from the Confluent BigQuery
@@ -53,6 +53,7 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.config.Config;
 import org.apache.kafka.common.config.ConfigDef;
@@ -65,6 +66,7 @@ import org.apache.kafka.connect.sink.SinkConnector;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 
 /**
  * Base class for connector and task configs; contains properties shared between the two of them.
@@ -372,7 +374,6 @@ public class BigQuerySinkConfig extends AbstractConfig {
           + "kafkaDataFieldName is not configured. Enabling this on an existing table requires "
           + "allowNewBigQueryFields=true. Default false (disabled).";
   private static final ConfigDef.Type KAFKA_KEY_FIELD_NAME_TYPE = ConfigDef.Type.STRING;
-  private static final ConfigDef.Validator KAFKA_KEY_FIELD_NAME_VALIDATOR = new ConfigDef.NonEmptyString();
   private static final ConfigDef.Importance KAFKA_KEY_FIELD_NAME_IMPORTANCE = ConfigDef.Importance.LOW;
   private static final String KAFKA_KEY_FIELD_NAME_DOC = "The name of the field of Kafka key. "
       + "Default to be null, which means Kafka Key Field will not be included. "
@@ -688,7 +689,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
     MULTI_PROPERTY_VALIDATIONS.add(new StorageWriteApiValidator.StorageWriteApiBatchValidator());
     MULTI_PROPERTY_VALIDATIONS.add(new UpsertDeleteValidator.UpsertValidator());
     MULTI_PROPERTY_VALIDATIONS.add(new UpsertDeleteValidator.DeleteValidator());
-
+    MULTI_PROPERTY_VALIDATIONS.add(new KafkaKeyFieldNameValidator());
 
     // Determine if we are running under Kafak 3.6 or later
     boolean kafkaConnectApiPost36;
@@ -722,6 +723,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
     super(config, properties);
     logDeprecationWarnings();
   }
+
 
   public BigQuerySinkConfig(Map<String, String> properties) {
     this(getConfig(), properties);
@@ -856,7 +858,6 @@ public class BigQuerySinkConfig extends AbstractConfig {
                     KAFKA_KEY_FIELD_NAME_CONFIG,
                     KAFKA_KEY_FIELD_NAME_TYPE,
                     KAFKA_KEY_FIELD_NAME_DEFAULT,
-                    KAFKA_KEY_FIELD_NAME_VALIDATOR,
                     KAFKA_KEY_FIELD_NAME_IMPORTANCE,
                     KAFKA_KEY_FIELD_NAME_DOC
             ).define(
@@ -1322,6 +1323,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
     return schemaRetriever;
   }
 
+
   /**
    * If the connector is configured to load Kafka keys into BigQuery, this config defines
    * the name of the kafka key field. A structure is created under the field name to contain
@@ -1331,7 +1333,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
    */
   public Optional<String> getKafkaKeyFieldName() {
     String value = getString(KAFKA_KEY_FIELD_NAME_CONFIG);
-    if (value == null && isUpsertDeleteEnabled() && getBoolean(USE_STORAGE_WRITE_API_CONFIG)) {
+    if (StringUtils.isBlank(value) && (isUpsertEnabled() || isDeleteEnabled()) && useStorageWriteApi()) {
       return Optional.of("");
     }
     return Optional.ofNullable(value);
