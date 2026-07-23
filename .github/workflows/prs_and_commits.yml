@@ -53,7 +53,7 @@ jobs:
           java-version: 17
           cache: maven
       - name: Build (Maven)
-        run: mvn -ntp -P ci -DskipITs clean verify
+        run: mvn -ntp -P ci clean verify
       - name: "Upload build failure reports"
         uses: actions/upload-artifact@v4
         if: failure()
