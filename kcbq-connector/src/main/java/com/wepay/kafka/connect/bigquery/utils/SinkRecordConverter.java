@@ -176,7 +176,9 @@ public final class SinkRecordConverter {
    * @return the map of fields to values.
    */
   public Map<String, Object> getRegularRow(SinkRecord record, String writeAttemptId) {
-    Map<String, Object> result = recordConverter.convertRecord(record, KafkaSchemaRecordType.VALUE);
+    Map<String, Object> result = config.getBoolean(config.DELETE_ENABLED_CONFIG) && record.value() == null
+        ? new HashMap<>()
+        : recordConverter.convertRecord(record, KafkaSchemaRecordType.VALUE);
 
     config.getKafkaDataFieldName().ifPresent(fieldName ->
             result.put(fieldName, buildKafkaDataRecord(record, writeAttemptId)));
