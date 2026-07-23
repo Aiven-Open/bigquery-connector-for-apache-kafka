@@ -23,7 +23,7 @@
 
 # Workflow to check pull requests and new commits to main branches
 # This checks the source in the state as if after the merge.
-name: Manual build
+name: Integration tests
 on:
   pull_request:
     branches: [ main ]
