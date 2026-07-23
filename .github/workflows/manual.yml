@@ -25,6 +25,10 @@
 # This checks the source in the state as if after the merge.
 name: Manual build
 on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
   workflow_dispatch:
   schedule: ## run GMT 1:17 hours
     - cron: '17 1 * * *'
