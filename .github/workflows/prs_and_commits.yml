@@ -25,6 +25,7 @@
 # This checks the source in the state as if after the merge.
 name: Pull request checks
 on:
+  workflow_dispatch:
   pull_request:
     branches: [ main ]
   push:
@@ -53,14 +54,27 @@ jobs:
           java-version: 17
           cache: maven
       - name: Build (Maven)
-        run: mvn -ntp -P ci --batch-mode clean package -DskipTests
-      - name: Unit tests (Maven)
-        run: mvn -ntp -P ci --batch-mode test
-      - name: "Upload build failure reports"
+        env:
+          # Necessary for client builder integration tests that run with
+          # default application credentials
+          CREDENTIALS_JSON: ${{ secrets.GCP_CREDENTIALS }}
+          GOOGLE_APPLICATION_CREDENTIALS: /tmp/creds.json
+          KCBQ_TEST_KEYFILE:    /tmp/creds.json
+          KCBQ_TEST_KEY_SOURCE: FILE
+          KCBQ_TEST_PROJECT:    ${{ secrets.KCBQ_TEST_PROJECT }}
+          KCBQ_TEST_DATASET:    ${{ secrets.KCBQ_TEST_DATASET }}
+          KCBQ_TEST_BUCKET:     ${{ secrets.KCBQ_TEST_BUCKET }}
+        run: |
+          echo "$CREDENTIALS_JSON" > /tmp/creds.json
+          export KCBQ_TEST_TABLE_SUFFIX=_$(date +%s)_$RANDOM
+          mvn -ntp -P ci clean verify
+      - name: Upload integration test results (Maven)
+        if: always()
         uses: actions/upload-artifact@v4
-        if: failure()
         with:
-          name: unit-test-results
           path: |
-            **/target/*-reports/**
+            **/target/*-reports/*
+            **/target/site/*
+            **/target/jacoco.exec
+          name: test-results
           retention-days: 1
