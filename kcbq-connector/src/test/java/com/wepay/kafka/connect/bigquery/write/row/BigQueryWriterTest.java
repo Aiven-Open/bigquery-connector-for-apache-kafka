@@ -217,6 +217,51 @@ public class BigQueryWriterTest {
   }
 
   @Test
+  public void testGatewayTimeoutRetry() {
+    final String topic = "test_topic";
+    final String dataset = "scratch";
+    final Map<String, String> properties = makeProperties("3", "2000", topic, dataset);
+
+    BigQuery bigQuery = mock(BigQuery.class);
+    Table mockTable = mock(Table.class);
+    when(bigQuery.getTable(any(TableId.class))).thenReturn(mockTable);
+
+    InsertAllResponse insertAllResponse = mock(InsertAllResponse.class);
+    when(insertAllResponse.hasErrors()).thenReturn(false);
+    when(insertAllResponse.getInsertErrors()).thenReturn(Collections.emptyMap());
+
+    BigQueryException gatewayTimeoutException = new BigQueryException(504, "Gateway timeout");
+
+    //first attempt (504 gateway timeout), second attempt (success)
+    when(bigQuery.insertAll(any(InsertAllRequest.class)))
+        .thenThrow(gatewayTimeoutException)
+        .thenReturn(insertAllResponse);
+
+    SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
+
+    Storage storage = mock(Storage.class);
+    SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
+    SchemaManager schemaManager = mock(SchemaManager.class);
+
+    BigQuerySinkTask testTask = BigQuerySinkTaskTest.createTestTask(
+        bigQuery,
+        schemaRetriever,
+        storage,
+        schemaManager,
+        mockedStorageWriteApiDefaultStream,
+        mockedBatchHandler,
+        time
+    );
+    testTask.initialize(sinkTaskContext);
+    testTask.start(properties);
+    testTask.put(
+        Collections.singletonList(spoofSinkRecord(topic, 0, 0, "some_field", "some_value")));
+    testTask.flush(Collections.emptyMap());
+
+    verify(bigQuery, times(2)).insertAll(any(InsertAllRequest.class));
+  }
+
+  @Test
   public void testNonAutoCreateTables() {
     final String topic = "test_topic";
     final String dataset = "scratch";

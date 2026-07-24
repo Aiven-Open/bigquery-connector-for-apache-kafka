@@ -49,6 +49,47 @@ public class BigQueryErrorResponsesTest {
   }
 
   @Test
+  public void testIsBackendError() {
+    assertTrue(BigQueryErrorResponses.isBackendError(new BigQueryException(500, "Internal error")));
+    assertTrue(BigQueryErrorResponses.isBackendError(new BigQueryException(502, "Bad gateway")));
+    assertTrue(BigQueryErrorResponses.isBackendError(new BigQueryException(503, "Service unavailable")));
+    assertTrue(BigQueryErrorResponses.isBackendError(new BigQueryException(504, "Gateway timeout")));
+
+    assertFalse(BigQueryErrorResponses.isBackendError(new BigQueryException(400, "Bad request")));
+    assertFalse(BigQueryErrorResponses.isBackendError(new BigQueryException(403, "Forbidden")));
+  }
+
+  @Test
+  public void testIsJobRateLimitExceededError() {
+    String message = "Job exceeded rate limits: Your project_and_region exceeded quota for concurrent queries that append to or overwrite a table.";
+    BigQueryException error = new BigQueryException(400, message, new BigQueryError("jobRateLimitExceeded", null, message));
+    assertTrue(BigQueryErrorResponses.isJobRateLimitExceededError(error));
+
+    // a different 400 reason must not match
+    error = new BigQueryException(400, message, new BigQueryError("invalidQuery", null, message));
+    assertFalse(BigQueryErrorResponses.isJobRateLimitExceededError(error));
+
+    // a 400 without a structured error (no reason) must not match
+    error = new BigQueryException(400, message);
+    assertFalse(BigQueryErrorResponses.isJobRateLimitExceededError(error));
+  }
+
+  @Test
+  public void testIsTableUnavailableError() {
+    String message = "The table my-project:my_dataset.my_table is currently unavailable. Retry the operation.";
+    BigQueryException error = new BigQueryException(400, message, new BigQueryError("tableUnavailable", null, message));
+    assertTrue(BigQueryErrorResponses.isTableUnavailableError(error));
+
+    // a different 400 reason must not match
+    error = new BigQueryException(400, message, new BigQueryError("invalid", null, message));
+    assertFalse(BigQueryErrorResponses.isTableUnavailableError(error));
+
+    // a 400 without a structured error (no reason) must not match
+    error = new BigQueryException(400, message);
+    assertFalse(BigQueryErrorResponses.isTableUnavailableError(error));
+  }
+
+  @Test
   public void testIsAuthenticationError() {
     BigQueryException error = new BigQueryException(0, "......401.....Unauthorized error.....");
     assertTrue(BigQueryErrorResponses.isAuthenticationError(error));

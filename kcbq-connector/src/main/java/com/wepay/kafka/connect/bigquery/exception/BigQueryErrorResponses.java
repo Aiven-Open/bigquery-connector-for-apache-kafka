@@ -43,16 +43,19 @@ public class BigQueryErrorResponses {
   private static final int INTERNAL_SERVICE_ERROR_CODE = 500;
   private static final int BAD_GATEWAY_CODE = 502;
   private static final int SERVICE_UNAVAILABLE_CODE = 503;
+  private static final int GATEWAY_TIMEOUT_CODE = 504;
 
   private static final String BAD_REQUEST_REASON = "badRequest";
   private static final String INVALID_REASON = "invalid";
   private static final String INVALID_QUERY_REASON = "invalidQuery";
   private static final String JOB_BACKEND_ERROR = "jobBackendError";
   private static final String JOB_INTERNAL_ERROR = "jobInternalError";
+  private static final String JOB_RATE_LIMIT_EXCEEDED_REASON = "jobRateLimitExceeded";
   private static final String NOT_FOUND_REASON = "notFound";
   private static final String QUOTA_EXCEEDED_REASON = "quotaExceeded";
   private static final String RATE_LIMIT_EXCEEDED_REASON = "rateLimitExceeded";
   private static final String STOPPED_REASON = "stopped";
+  private static final String TABLE_UNAVAILABLE_REASON = "tableUnavailable";
 
 
   public static boolean isNonExistentTableError(BigQueryException exception) {
@@ -89,7 +92,8 @@ public class BigQueryErrorResponses {
     //       value
     return INTERNAL_SERVICE_ERROR_CODE == exception.getCode()
         || BAD_GATEWAY_CODE == exception.getCode()
-        || SERVICE_UNAVAILABLE_CODE == exception.getCode();
+        || SERVICE_UNAVAILABLE_CODE == exception.getCode()
+        || GATEWAY_TIMEOUT_CODE == exception.getCode();
   }
 
   public static boolean isUnspecifiedBadRequestError(BigQueryException exception) {
@@ -108,6 +112,11 @@ public class BigQueryErrorResponses {
         && JOB_INTERNAL_ERROR.equals(exception.getReason());
   }
 
+  public static boolean isJobRateLimitExceededError(BigQueryException exception) {
+    return BAD_REQUEST_CODE == exception.getCode()
+        && JOB_RATE_LIMIT_EXCEEDED_REASON.equals(exception.getReason());
+  }
+
   public static boolean isQuotaExceededError(BigQueryException exception) {
     return FORBIDDEN_CODE == exception.getCode()
         // TODO: May be able to use exception.getReason() instead of (indirectly) exception.getError().getReason()
@@ -120,6 +129,11 @@ public class BigQueryErrorResponses {
         // TODO: May be able to use exception.getReason() instead of (indirectly) exception.getError().getReason()
         //       Haven't been able to test yet though, so keeping as-is to avoid breaking anything
         && RATE_LIMIT_EXCEEDED_REASON.equals(reason(exception.getError()));
+  }
+
+  public static boolean isTableUnavailableError(BigQueryException exception) {
+    return BAD_REQUEST_CODE == exception.getCode()
+        && TABLE_UNAVAILABLE_REASON.equals(exception.getReason());
   }
 
   public static boolean isRequestTooLargeError(BigQueryException exception) {

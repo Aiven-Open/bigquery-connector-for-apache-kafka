@@ -206,6 +206,10 @@ public class MergeQueries {
             logger.warn("Job internal error while merging from {} to {}, retry attempt {}", intermediateTable, destinationTable, ++attempt);
           } else if (BigQueryErrorResponses.isJobBackendError(e)) {
             logger.warn("Job backend error while merging from {} to {}, retry attempt {}", intermediateTable, destinationTable, ++attempt);
+          } else if (BigQueryErrorResponses.isJobRateLimitExceededError(e)) {
+            logger.warn("Job rate limit exceeded while merging from {} to {}, retry attempt {}", intermediateTable, destinationTable, ++attempt);
+          } else if (BigQueryErrorResponses.isTableUnavailableError(e)) {
+            logger.warn("Table unavailable error while merging from {} to {}, retry attempt {}", intermediateTable, destinationTable, ++attempt);
           } else {
             throw e;
           }
