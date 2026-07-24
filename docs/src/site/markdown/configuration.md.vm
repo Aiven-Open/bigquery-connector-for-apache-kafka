@@ -2,6 +2,9 @@
 
 All the configuration options are listed below in alphabetical order.
 
+#set($extendedConfigDef = ${bqConfigDefFactory.open()})
+
+
 #foreach ($configKey in ${extendedConfigDef.configKeys})
     #set($parents = ${extendedConfigDef.parents(${configKey.name})})
 
