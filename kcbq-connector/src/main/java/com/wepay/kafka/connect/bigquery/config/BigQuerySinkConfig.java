@@ -34,8 +34,10 @@ import com.wepay.kafka.connect.bigquery.convert.BigQuerySchemaConverter;
 import com.wepay.kafka.connect.bigquery.convert.RecordConverter;
 import com.wepay.kafka.connect.bigquery.convert.SchemaConverter;
 import com.wepay.kafka.connect.bigquery.retrieve.IdentitySchemaRetriever;
-import io.aiven.kafka.utils.ConfigKeyBuilder;
-import io.aiven.kafka.utils.ExtendedConfigKey;
+import io.aiven.commons.kafka.config.ConfigKeyBuilder;
+import io.aiven.commons.kafka.config.DeprecatedInfo;
+import io.aiven.commons.kafka.config.ExtendedConfigKey;
+import io.aiven.commons.kafka.config.SinceInfo;
 import io.debezium.data.VariableScaleDecimal;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
@@ -663,7 +665,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
   private static final String IGNORE_UNKNOWN_FIELDS_DOC = "Whether fields in a record that are not present in the "
           + "BigQuery table schema should be ignored during ingestion. When enabled, unknown fields will be silently "
           + "dropped instead of causing the record to be rejected.\n";
-  private static final List<MultiPropertyValidator<BigQuerySinkConfig>> MULTI_PROPERTY_VALIDATIONS = new ArrayList<>();
+  private static final List<MultiPropertyValidator<BigQuerySinkConfig>> MULTI_PROPERTY_VALIDATIONS;
 
   /**
    * This is a marker variable for methods necessary to keep original sink record metadata.
@@ -677,6 +679,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
     // This comes in handy for things like checking for the existence of tables, which requires valid BigQuery
     // credentials. We validate those credentials before checking for tables so that we can safely assume while
     // checking for those tables that the credentials are already valid.
+    MULTI_PROPERTY_VALIDATIONS = new ArrayList<>();
     MULTI_PROPERTY_VALIDATIONS.add(new CredentialsValidator.BigQueryCredentialsValidator());
     MULTI_PROPERTY_VALIDATIONS.add(new CredentialsValidator.GcsCredentialsValidator());
     MULTI_PROPERTY_VALIDATIONS.add(new CredentialsValidator.BigQueryStorageWriteApiCredentialsValidator());
@@ -751,6 +754,15 @@ public class BigQuerySinkConfig extends AbstractConfig {
    * @return The ConfigDef object used to define this config's fields.
    */
   public static ConfigDef getConfig() {
+    SinceInfo.Builder since = SinceInfo.builder()
+            .artifactId("kcbq-connector")
+            .groupId("com.wepay.kcbq");
+    // CHECKSTYLE:OFF
+    SinceInfo v2m6 = since.version("2.6.0").build().setVersionOnly();
+    SinceInfo v2m7 = since.version("2.7.0").build().setVersionOnly();
+    SinceInfo v2m8 = since.version("2.8.0").build().setVersionOnly();
+    SinceInfo v2m10 = since.version("2.10.0").build().setVersionOnly();
+    // CHECKSTYLE:N
     return new ConfigDef()
             .define(
                     TOPICS_CONFIG,
@@ -1078,7 +1090,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
                             .importance(USE_STORAGE_WRITE_API_IMPORTANCE)
                             .documentation(USE_STORAGE_WRITE_API_DOC)
                             .dependents(COMMIT_INTERVAL_SEC_CONFIG, ENABLE_BATCH_MODE_CONFIG)
-                            .since("2.6.0")
+                            .since(v2m6)
                             .build()
             ).define(
                     ExtendedConfigKey.builder(USE_CREDENTIALS_PROJECT_ID_CONFIG)
@@ -1086,7 +1098,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
                             .defaultValue(USE_CREDENTIALS_PROJECT_ID_DEFAULT)
                             .importance(USE_CREDENTIALS_PROJECT_ID_IMPORTANCE)
                             .documentation(USE_CREDENTIALS_PROJECT_ID_DOC)
-                            .since("2.7.0")
+                            .since(v2m7)
                             .build()
             ).define(
                     ExtendedConfigKey.builder(ENABLE_BATCH_MODE_CONFIG)
@@ -1094,7 +1106,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
                             .defaultValue(ENABLE_BATCH_MODE_DEFAULT)
                             .importance(ENABLE_BATCH_MODE_IMPORTANCE)
                             .documentation(ENABLE_BATCH_MODE_DOC)
-                            .since("2.6.0")
+                            .since(v2m6)
                             .build()
             ).define(
 
@@ -1104,7 +1116,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
                             .validator(COMMIT_INTERVAL_VALIDATOR)
                             .importance(COMMIT_INTERVAL_SEC_IMPORTANCE)
                             .documentation(COMMIT_INTERVAL_SEC_DOC)
-                            .since("2.6.0")
+                            .since(v2m6)
                             .build()
             ).define(
                     MAX_RETRIES_CONFIG,
@@ -1119,7 +1131,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
                             .defaultValue(IGNORE_UNKNOWN_FIELDS_DEFAULT)
                             .importance(IGNORE_UNKNOWN_FIELDS_IMPORTANCE)
                             .documentation(IGNORE_UNKNOWN_FIELDS_DOC)
-                            .since("2.10.0")
+                            .since(v2m10)
                             .build()
             ).defineInternal(
                     ENABLE_RETRIES_CONFIG,
@@ -1136,11 +1148,11 @@ public class BigQuerySinkConfig extends AbstractConfig {
                             .type(ConfigDef.Type.BOOLEAN)
                             .defaultValue(false)
                             .importance(ConfigDef.Importance.LOW)
-                            .deprecatedInfo(ExtendedConfigKey.DeprecatedInfo.builder().setSince("2.8.0")
-                                    .setDescription(String.format("Use %s instead.", DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_CONFIG))
+                            .deprecatedInfo(DeprecatedInfo.builder().since(v2m8)
+                                    .description(String.format("Use %s instead.", DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_CONFIG))
                             )
                             .documentation("")
-                            .since("2.7.0").build()
+                            .since(v2m7).build()
             ).define(
                     DECIMAL_HANDLING_MODE_CONFIG,
                     DECIMAL_HANDLING_MODE_TYPE,
@@ -1155,7 +1167,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
                             .validator(DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_VALIDATOR)
                             .importance(DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_IMPORTANCE)
                             .documentation(DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_DOC)
-                            .since("2.7.0")
+                            .since(v2m7)
                             .build()
             ).define(
                     ExtendedConfigKey.builder(PRESERVE_KAFKA_TOPIC_PARTITION_OFFSET__CONFIG)
@@ -1163,7 +1175,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
                             .defaultValue(PRESERVE_KAFKA_TOPIC_PARTITION_OFFSET__DEFAULT)
                             .importance(PRESERVE_KAFKA_TOPIC_PARTITION_OFFSET__IMPORTANCE)
                             .documentation(PRESERVE_KAFKA_TOPIC_PARTITION_OFFSET__DOC)
-                            .since("2.8.0")
+                            .since(v2m8)
                             .build()
             );
   }
@@ -1200,7 +1212,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
   }
 
   /**
-   * @return the {@link com.wepay.kafka.connect.bigquery.GcpClientBuilder.KeySource key source type} that dictates how
+   * @return the {@link com.wepay.kafka.connect.bigquery.GcpClientBuilder.KeySource} that dictates how
    * the {@link #getKey()} should be be interpreted
    */
   public GcpClientBuilder.KeySource getKeySource() {
