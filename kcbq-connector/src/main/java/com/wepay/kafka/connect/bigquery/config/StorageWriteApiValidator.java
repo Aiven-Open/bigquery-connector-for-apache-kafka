@@ -73,11 +73,7 @@ public class StorageWriteApiValidator extends MultiPropertyValidator<BigQuerySin
       //No legacy modes validation needed if not using new api
       return Optional.empty();
     }
-    if (config.getBoolean(UPSERT_ENABLED_CONFIG)) {
-      return Optional.of(upsertNotSupportedError);
-    } else if (config.getBoolean(DELETE_ENABLED_CONFIG)) {
-      return Optional.of(deleteNotSupportedError);
-    } else if (!config.getList(ENABLE_BATCH_CONFIG).isEmpty()) {
+    if (!config.getList(ENABLE_BATCH_CONFIG).isEmpty()) {
       return Optional.of(legacyBatchNotSupportedError);
     } else if (config.originals().containsKey(BIGQUERY_PARTITION_DECORATOR_CONFIG)
         && config.getBoolean(BIGQUERY_PARTITION_DECORATOR_CONFIG) && config.getBoolean(ENABLE_BATCH_MODE_CONFIG)

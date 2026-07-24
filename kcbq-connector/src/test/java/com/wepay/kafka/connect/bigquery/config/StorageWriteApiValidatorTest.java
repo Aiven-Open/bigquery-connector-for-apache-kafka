@@ -71,7 +71,7 @@ public class StorageWriteApiValidatorTest {
     when(config.getList(ENABLE_BATCH_CONFIG)).thenReturn(Collections.emptyList());
 
     assertEquals(
-        Optional.of(upsertNotSupportedError),
+        Optional.empty(),
         new StorageWriteApiValidator().doValidate(config));
   }
 
@@ -84,7 +84,7 @@ public class StorageWriteApiValidatorTest {
     when(config.getBoolean(DELETE_ENABLED_CONFIG)).thenReturn(true);
     when(config.getList(ENABLE_BATCH_CONFIG)).thenReturn(Collections.emptyList());
 
-    assertEquals(Optional.of(deleteNotSupportedError), new StorageWriteApiValidator().doValidate(config));
+    assertEquals(Optional.empty(), new StorageWriteApiValidator().doValidate(config));
   }
 
   @Test

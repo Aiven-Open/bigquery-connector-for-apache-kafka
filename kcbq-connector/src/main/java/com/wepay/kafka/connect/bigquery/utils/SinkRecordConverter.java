@@ -173,6 +173,54 @@ public class SinkRecordConverter {
     return maybeSanitize(result);
   }
 
+  public Map<String, Object> getCdcRow(SinkRecord record) {
+    return getCdcRow(record, currentPutAttemptId);
+  }
+
+  public Map<String, Object> getCdcRow(SinkRecord record, String writeAttemptId) {
+    Map<String, Object> result = new HashMap<>();
+
+    // 1. Extract the Key fields
+    Map<String, Object> convertedKey = recordConverter.convertRecord(record, KafkaSchemaRecordType.KEY);
+    if (convertedKey != null) {
+      result.putAll(convertedKey);
+    } else if (record.value() == null) {
+      // If the value is null, it's a DELETE. We cannot delete a row if we don't know
+      // its key!
+      throw new ConnectException("Record keys must be non-null when upsert/delete is enabled");
+    }
+
+    // 2. Extract the Value fields (only if it's not a tombstone record)
+    if (record.value() != null) {
+      Map<String, Object> convertedValue = recordConverter.convertRecord(record, KafkaSchemaRecordType.VALUE);
+      if (convertedValue != null) {
+        result.putAll(convertedValue); // Merges value fields into the root of the map
+      }
+    }
+
+    // 3. Optional Kafka metadata (e.g. insert time, topic, partition, offset)
+    config.getKafkaDataFieldName().ifPresent(fieldName -> {
+      Map<String, Object> kafkaDataField = config.getBoolean(config.USE_STORAGE_WRITE_API_CONFIG)
+          ? KafkaDataBuilder.buildKafkaDataRecordStorageApi(record, writeAttemptId)
+          : KafkaDataBuilder.buildKafkaDataRecord(record, writeAttemptId);
+      result.put(fieldName, kafkaDataField);
+    });
+
+    // 4. Set the CDC metadata columns
+    String changeType = (record.value() == null) ? "DELETE" : "UPSERT";
+    result.put("_CHANGE_TYPE", changeType);
+    result.put("_CHANGE_SEQUENCE_NUMBER", String.valueOf(record.kafkaOffset()));
+
+    // 5. Sanitize column names if the user turned on the sanitize option (replacing
+    // spaces/special characters)
+    return maybeSanitize(result);
+  }
+
+  
+  public boolean isCdcEnabled() {
+    return config.getBoolean(config.USE_STORAGE_WRITE_API_CONFIG) && config.isUpsertDeleteEnabled();
+  }
+
   private Map<String, Object> maybeSanitize(Map<String, Object> convertedRecord) {
     return config.getBoolean(config.SANITIZE_FIELD_NAME_CONFIG)
         ? FieldNameSanitizer.replaceInvalidKeys(convertedRecord)

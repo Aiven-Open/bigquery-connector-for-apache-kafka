@@ -29,9 +29,14 @@ import com.google.cloud.bigquery.storage.v1.AppendRowsResponse;
 import com.google.cloud.bigquery.storage.v1.BigQueryWriteClient;
 import com.google.cloud.bigquery.storage.v1.BigQueryWriteSettings;
 import com.google.cloud.bigquery.storage.v1.Exceptions;
+import com.google.cloud.bigquery.storage.v1.GetWriteStreamRequest;
 import com.google.cloud.bigquery.storage.v1.JsonStreamWriter;
 import com.google.cloud.bigquery.storage.v1.RowError;
+import com.google.cloud.bigquery.storage.v1.TableFieldSchema;
 import com.google.cloud.bigquery.storage.v1.TableName;
+import com.google.cloud.bigquery.storage.v1.TableSchema;
+import com.google.cloud.bigquery.storage.v1.WriteStream;
+import com.google.cloud.bigquery.storage.v1.WriteStreamView;
 import com.google.common.annotations.VisibleForTesting;
 import com.wepay.kafka.connect.bigquery.ErrantRecordHandler;
 import com.wepay.kafka.connect.bigquery.SchemaManager;
@@ -75,6 +80,7 @@ public abstract class StorageWriteApiBase {
   private final boolean ignoreUnknownFields;
   private final BigQueryWriteSettings writeSettings;
   private final boolean attemptSchemaUpdate;
+  protected final boolean isCdcEnabled;
   protected SchemaManager schemaManager;
   @VisibleForTesting
   protected Time time;
@@ -105,6 +111,7 @@ public abstract class StorageWriteApiBase {
     this.schemaManager = schemaManager;
     this.attemptSchemaUpdate = attemptSchemaUpdate;
     this.ignoreUnknownFields = config.isIgnoreUnknownFields();
+    this.isCdcEnabled = config.getBoolean(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG) && config.isUpsertDeleteEnabled();
     try {
       this.writeClient = getWriteClient();
     } catch (IOException e) {
@@ -143,6 +150,7 @@ public abstract class StorageWriteApiBase {
     this.schemaManager = schemaManager;
     this.attemptSchemaUpdate = attemptSchemaUpdate;
     this.ignoreUnknownFields = false;
+    this.isCdcEnabled = false;
     try {
       this.writeClient = getWriteClient();
     } catch (IOException e) {
@@ -410,8 +418,41 @@ public abstract class StorageWriteApiBase {
             .setMaxRetryDelay(Duration.ofMinutes(MAX_RETRY_DELAY_MINUTES))
             .build();
     return streamOrTableName -> {
-      JsonStreamWriter.Builder builder = JsonStreamWriter.newBuilder(streamOrTableName, writeClient)
-              .setRetrySettings(retrySettings)
+      JsonStreamWriter.Builder builder;
+      if (isCdcEnabled) {
+        // BigQuery Storage Write API requires a stream name (not a table name) to retrieve the schema.
+        // If only a table name is provided, we default to the table's "_default" write stream.
+        String streamName = streamOrTableName.contains("/streams/")
+            ? streamOrTableName
+            : streamOrTableName + "/streams/_default";
+        
+        // Fetch the write stream metadata (including its schema) from BigQuery.
+        GetWriteStreamRequest request = GetWriteStreamRequest.newBuilder()
+            .setName(streamName)
+            .setView(WriteStreamView.FULL)
+            .build();
+        WriteStream writeStream = writeClient.getWriteStream(request);
+        
+        // Inject the CDC metadata columns (_CHANGE_TYPE and _CHANGE_SEQUENCE_NUMBER) into the schema.
+        // These system columns are required by BigQuery CDC but are not part of the physical table schema.
+        // JsonStreamWriter requires them to be declared in the schema to avoid "unknown field" errors during serialization.
+        TableSchema cdcSchema = writeStream.getTableSchema().toBuilder()
+            .addFields(TableFieldSchema.newBuilder()
+                .setName("_CHANGE_TYPE")
+                .setType(TableFieldSchema.Type.STRING)
+                .setMode(TableFieldSchema.Mode.NULLABLE)
+                .build())
+            .addFields(TableFieldSchema.newBuilder()
+                .setName("_CHANGE_SEQUENCE_NUMBER")
+                .setType(TableFieldSchema.Type.STRING)
+                .setMode(TableFieldSchema.Mode.NULLABLE)
+                .build())
+            .build();
+        builder = JsonStreamWriter.newBuilder(streamOrTableName, cdcSchema, writeClient);
+      } else {
+        builder = JsonStreamWriter.newBuilder(streamOrTableName, writeClient);
+      }
+      builder.setRetrySettings(retrySettings)
               .setIgnoreUnknownFields(ignoreUnknownFields)
               .setTraceId(generateTraceId());
       updateJsonStreamWriterBuilder(builder);

@@ -28,6 +28,7 @@ import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.KAFKA_K
 import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.MERGE_INTERVAL_MS_CONFIG;
 import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.MERGE_RECORDS_THRESHOLD_CONFIG;
 import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.UPSERT_ENABLED_CONFIG;
+import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -53,6 +54,10 @@ public abstract class UpsertDeleteValidator extends MultiPropertyValidator<BigQu
 
   @Override
   protected Optional<String> doValidate(BigQuerySinkConfig config) {
+    if (config.getBoolean(USE_STORAGE_WRITE_API_CONFIG)) {
+      return Optional.empty();
+    }
+
     if (!modeEnabled(config)) {
       return Optional.empty();
     }
