@@ -41,7 +41,7 @@ public class GcpClientBuilderProjectTest {
 
   private static GoogleCredentials creds(String projectId, String quotaProject) throws NoSuchAlgorithmException {
     KeyPairGenerator gen = KeyPairGenerator.getInstance("RSA");
-    gen.initialize(1024);
+    gen.initialize(2048);
     KeyPair pair = gen.generateKeyPair();
 
     ServiceAccountCredentials.Builder builder = ServiceAccountCredentials.newBuilder()

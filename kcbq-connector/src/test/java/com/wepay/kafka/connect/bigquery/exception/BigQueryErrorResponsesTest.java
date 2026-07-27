@@ -26,10 +26,27 @@ package com.wepay.kafka.connect.bigquery.exception;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.google.cloud.bigquery.BigQueryError;
 import com.google.cloud.bigquery.BigQueryException;
 import org.junit.jupiter.api.Test;
 
 public class BigQueryErrorResponsesTest {
+
+  @Test
+  public void testIsNonExistentDatasetError() {
+    String message = "Not found: Dataset my-project:my_dataset";
+    BigQueryException error = new BigQueryException(404, message, new BigQueryError("notFound", "global", message));
+    assertTrue(BigQueryErrorResponses.isNonExistentDatasetError(error));
+
+    // a table-level 404 must not match
+    message = "Not found: Table my-project:my_dataset.my_table";
+    error = new BigQueryException(404, message, new BigQueryError("notFound", "global", message));
+    assertFalse(BigQueryErrorResponses.isNonExistentDatasetError(error));
+
+    // a 404 without a structured error (no reason) must not match
+    error = new BigQueryException(404, "Not found: Dataset my-project:my_dataset");
+    assertFalse(BigQueryErrorResponses.isNonExistentDatasetError(error));
+  }
 
   @Test
   public void testIsAuthenticationError() {

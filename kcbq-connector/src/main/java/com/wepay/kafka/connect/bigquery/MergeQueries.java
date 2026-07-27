@@ -204,6 +204,8 @@ public class MergeQueries {
             logger.warn("Serialize access error while merging from {} to {}, retry attempt {}", intermediateTable, destinationTable, ++attempt);
           } else if (BigQueryErrorResponses.isJobInternalError(e)) {
             logger.warn("Job internal error while merging from {} to {}, retry attempt {}", intermediateTable, destinationTable, ++attempt);
+          } else if (BigQueryErrorResponses.isJobBackendError(e)) {
+            logger.warn("Job backend error while merging from {} to {}, retry attempt {}", intermediateTable, destinationTable, ++attempt);
           } else {
             throw e;
           }

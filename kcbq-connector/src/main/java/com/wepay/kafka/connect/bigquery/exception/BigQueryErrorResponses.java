@@ -47,6 +47,7 @@ public class BigQueryErrorResponses {
   private static final String BAD_REQUEST_REASON = "badRequest";
   private static final String INVALID_REASON = "invalid";
   private static final String INVALID_QUERY_REASON = "invalidQuery";
+  private static final String JOB_BACKEND_ERROR = "jobBackendError";
   private static final String JOB_INTERNAL_ERROR = "jobInternalError";
   private static final String NOT_FOUND_REASON = "notFound";
   private static final String QUOTA_EXCEEDED_REASON = "quotaExceeded";
@@ -61,6 +62,15 @@ public class BigQueryErrorResponses {
     return NOT_FOUND_CODE == exception.getCode()
         && NOT_FOUND_REASON.equals(exception.getReason())
         && (message.startsWith("Not found: Table ") || message.contains("Table is deleted: "));
+  }
+
+  public static boolean isNonExistentDatasetError(BigQueryException exception) {
+    // The streaming backend can transiently report the whole dataset as missing right after an
+    // intermediate table is created, even though the dataset exists; same eventual-consistency
+    // window as the "Not found: Table" case handled above
+    return NOT_FOUND_CODE == exception.getCode()
+        && NOT_FOUND_REASON.equals(exception.getReason())
+        && message(exception.getError()).startsWith("Not found: Dataset ");
   }
 
   public static boolean isTableMissingSchemaError(BigQueryException exception) {
@@ -86,6 +96,11 @@ public class BigQueryErrorResponses {
     return BAD_REQUEST_CODE == exception.getCode()
         && exception.getError() == null
         && exception.getReason() == null;
+  }
+
+  public static boolean isJobBackendError(BigQueryException exception) {
+    return BAD_REQUEST_CODE == exception.getCode()
+        && JOB_BACKEND_ERROR.equals(exception.getReason());
   }
 
   public static boolean isJobInternalError(BigQueryException exception) {

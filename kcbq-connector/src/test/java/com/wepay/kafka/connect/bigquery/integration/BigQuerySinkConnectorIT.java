@@ -58,17 +58,13 @@ import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.connect.runtime.ConnectorConfig;
 import org.apache.kafka.connect.runtime.SinkConnectorConfig;
 import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
-import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 @Tag("integration")
-@Disabled("Broken in change from 2.5.5 to 2.6.0")
 public class BigQuerySinkConnectorIT {
 
   private static final String TEST_CASE_PREFIX = "kcbq_test_";
@@ -76,103 +72,89 @@ public class BigQuerySinkConnectorIT {
   private static BaseConnectorIT testBase;
   private static SchemaRegistryTestUtils schemaRegistry;
   private static String schemaRegistryUrl;
-  private final String testCase;
-  private final List<List<Object>> expectedRows;
-  private final String topic;
-  private final String table;
-  private final String connectorName;
-  private Producer<byte[], byte[]> valueProducer;
-  private int numRecordsProduced;
-  public BigQuerySinkConnectorIT(String testCase, List<List<Object>> expectedRows) {
-    this.testCase = testCase;
-    this.expectedRows = expectedRows;
 
-    this.topic = TEST_CASE_PREFIX + testCase;
-    this.table = testBase.suffixedAndSanitizedTable(topic);
-    this.connectorName = "bigquery-connector-" + testCase;
-  }
 
   public static List<Arguments> testArguments() {
     List<Arguments> result = new ArrayList<>();
     List<List<Object>> expectedGcsLoadRows = new ArrayList<>();
     expectedGcsLoadRows.add(Arrays.asList(
-        1L,
-        null,
-        false,
-        4242L,
-        42424242424242L,
-        42.42,
-        42424242.42424242,
-        "forty-two",
-        boxByteArray(new byte[]{0x0, 0xf, 0x1E, 0x2D, 0x3C, 0x4B, 0x5A, 0x69, 0x78})
+            1L,
+            null,
+            false,
+            4242L,
+            42424242424242L,
+            42.42,
+            42424242.42424242,
+            "forty-two",
+            boxByteArray(new byte[]{0x0, 0xf, 0x1E, 0x2D, 0x3C, 0x4B, 0x5A, 0x69, 0x78})
     ));
     expectedGcsLoadRows.add(Arrays.asList(
-        2L,
-        5L,
-        true,
-        4354L,
-        435443544354L,
-        43.54,
-        435443.544354,
-        "forty-three",
-        boxByteArray(new byte[]{0x0, 0xf, 0x1E, 0x2D, 0x3C, 0x4B, 0x5A, 0x69, 0x78})
+            2L,
+            5L,
+            true,
+            4354L,
+            435443544354L,
+            43.54,
+            435443.544354,
+            "forty-three",
+            boxByteArray(new byte[]{0x0, 0xf, 0x1E, 0x2D, 0x3C, 0x4B, 0x5A, 0x69, 0x78})
     ));
     expectedGcsLoadRows.add(Arrays.asList(
-        3L,
-        8L,
-        false,
-        1993L,
-        199319931993L,
-        19.93,
-        199319.931993,
-        "nineteen",
-        boxByteArray(new byte[]{0x0, 0xf, 0x1E, 0x2D, 0x3C, 0x4B, 0x5A, 0x69, 0x78})
+            3L,
+            8L,
+            false,
+            1993L,
+            199319931993L,
+            19.93,
+            199319.931993,
+            "nineteen",
+            boxByteArray(new byte[]{0x0, 0xf, 0x1E, 0x2D, 0x3C, 0x4B, 0x5A, 0x69, 0x78})
     ));
-    result.add(Arguments.arguments(Named.named("gcs-load", expectedGcsLoadRows)));
+    result.add(Arguments.of("gcs-load", expectedGcsLoadRows));
 
     List<List<Object>> expectedNullsRows = new ArrayList<>();
     expectedNullsRows.add(Arrays.asList(1L, "Required string", null, 42L, false));
     expectedNullsRows.add(Arrays.asList(2L, "Required string", "Optional string", 89L, null));
     expectedNullsRows.add(Arrays.asList(3L, "Required string", null, null, true));
     expectedNullsRows.add(Arrays.asList(4L, "Required string", "Optional string", null, null));
-    result.add(Arguments.arguments(Named.named("nulls", expectedNullsRows)));
+    result.add(Arguments.of("nulls", expectedNullsRows));
 
     List<List<Object>> expectedMatryoshkaRows = new ArrayList<>();
     expectedMatryoshkaRows.add(Arrays.asList(
-        1L,
-        Arrays.asList(
-            Arrays.asList(42.0, 42.42, 42.4242),
+            1L,
             Arrays.asList(
-                42L,
-                "42"
+                    Arrays.asList(42.0, 42.42, 42.4242),
+                    Arrays.asList(
+                            42L,
+                            "42"
+                    )
+            ),
+            Arrays.asList(
+                    -42L,
+                    "-42"
             )
-        ),
-        Arrays.asList(
-            -42L,
-            "-42"
-        )
     ));
-    result.add(Arguments.arguments(Named.named("matryoshka-dolls", expectedMatryoshkaRows)));
+    result.add(Arguments.of("matryoshka-dolls", expectedMatryoshkaRows));
 
     List<List<Object>> expectedPrimitivesRows = new ArrayList<>();
     expectedPrimitivesRows.add(Arrays.asList(
-        1L,
-        null,
-        false,
-        4242L,
-        42424242424242L,
-        42.42,
-        42424242.42424242,
-        "forty-two",
-        boxByteArray(new byte[]{0x0, 0xf, 0x1E, 0x2D, 0x3C, 0x4B, 0x5A, 0x69, 0x78})
+            1L,
+            null,
+            false,
+            4242L,
+            42424242424242L,
+            42.42,
+            42424242.42424242,
+            "forty-two",
+            boxByteArray(new byte[]{0x0, 0xf, 0x1E, 0x2D, 0x3C, 0x4B, 0x5A, 0x69, 0x78})
     ));
-    result.add(Arguments.arguments(Named.named("primitives", expectedPrimitivesRows)));
+    result.add(Arguments.of("primitives", expectedPrimitivesRows));
 
     List<List<Object>> expectedLogicalTypesRows = new ArrayList<>();
     expectedLogicalTypesRows.add(Arrays.asList(1L, 0L, 0L));
     expectedLogicalTypesRows.add(Arrays.asList(2L, 42000000000L, 362880000000L));
     expectedLogicalTypesRows.add(Arrays.asList(3L, 1468275102000000L, 1468195200000L));
-    result.add(Arguments.arguments(Named.named("logical-types", expectedLogicalTypesRows)));
+    result.add(Arguments.of("logical-types", expectedLogicalTypesRows));
 
     return result;
   }
@@ -190,11 +172,11 @@ public class BigQuerySinkConnectorIT {
     schemaRegistryUrl = schemaRegistry.schemaRegistryUrl();
 
     BucketClearer.clearBucket(
-        testBase.keyFile(),
-        testBase.project(),
-        testBase.gcsBucket(),
-        testBase.gcsFolder(),
-        testBase.keySource()
+            testBase.keyFile(),
+            testBase.project(),
+            testBase.gcsBucket(),
+            testBase.gcsFolder(),
+            testBase.keySource()
     );
   }
 
@@ -206,51 +188,52 @@ public class BigQuerySinkConnectorIT {
     testBase.stopConnect();
   }
 
-  @BeforeEach
-  public void setup() {
-    TableClearer.clearTables(testBase.newBigQuery(), testBase.dataset(), table);
-
+  private Map<String, Object> producerProps() {
     Map<String, Object> producerProps = new HashMap<>();
     producerProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, testBase.connect.kafka().bootstrapServers());
-    valueProducer = new KafkaProducer<>(
-        producerProps, Serdes.ByteArray().serializer(), Serdes.ByteArray().serializer());
-
-    numRecordsProduced = 0;
+    return producerProps;
   }
 
-  @AfterEach
-  public void cleanup() {
-    testBase.connect.deleteConnector(connectorName);
-  }
+  @ParameterizedTest(name = "{index} {0}")
+  @MethodSource("testArguments")
+  void runTestCase(final String testCase, final List<List<Object>> expectedRows) throws Exception {
+    final String topic = TEST_CASE_PREFIX + testCase;
+    final String table = testBase.suffixedAndSanitizedTable(topic);
+    final String connectorName = "bigquery-connector-" + testCase;
 
-  @Test
-  @Disabled("unknown configuration for test")
-  public void runTestCase() throws Exception {
     final int tasksMax = 1;
+    try {
+      TableClearer.clearTables(testBase.newBigQuery(), testBase.dataset(), table);
+      int numRecordsProduced = populate(testCase, topic);
 
-    populate();
+      testBase.connect.configureConnector(connectorName, connectorProps(tasksMax, topic));
 
-    testBase.connect.configureConnector(connectorName, connectorProps(tasksMax));
+      testBase.waitForConnectorToStart(connectorName, tasksMax);
 
-    testBase.waitForConnectorToStart(connectorName, tasksMax);
+      testBase.waitForCommittedRecords(
+              connectorName, Collections.singleton(topic), numRecordsProduced, tasksMax, TimeUnit.MINUTES.toMillis(3));
 
-    testBase.waitForCommittedRecords(
-        connectorName, Collections.singleton(topic), numRecordsProduced, tasksMax, TimeUnit.MINUTES.toMillis(3));
 
-    verify();
+      assertEquals(expectedRows, readRows(testCase));
+    } finally {
+      testBase.connect.deleteConnector(connectorName);
+    }
   }
 
-  private void populate() {
+  private int populate(final String testCase, final String topic) {
+    int numRecordsProduced = 0;
     testBase.connect.kafka().createTopic(topic);
 
     String testCaseDir = "integration_test_cases/" + testCase + "/";
 
     try (
-    InputStream schemaStream = BigQuerySinkConnectorIT.class.getClassLoader()
-        .getResourceAsStream(testCaseDir + "schema.json");
-    InputStream dataStream = BigQuerySinkConnectorIT.class.getClassLoader()
-            .getResourceAsStream(testCaseDir + "data.json");
-    AvroMessageReader messageReader = new AvroMessageReader()
+            Producer<byte[], byte[]> valueProducer = new KafkaProducer<>(
+                    producerProps(), Serdes.ByteArray().serializer(), Serdes.ByteArray().serializer());
+            InputStream schemaStream = BigQuerySinkConnectorIT.class.getClassLoader()
+                    .getResourceAsStream(testCaseDir + "schema.json");
+            InputStream dataStream = BigQuerySinkConnectorIT.class.getClassLoader()
+                    .getResourceAsStream(testCaseDir + "data.json");
+            AvroMessageReader messageReader = new AvroMessageReader()
     ) {
       Scanner schemaScanner = new Scanner(schemaStream).useDelimiter("\\A");
       String schemaString = schemaScanner.next();
@@ -271,25 +254,26 @@ public class BigQuerySinkConnectorIT {
         }
       }
     } catch (IOException e) {
-        throw new RuntimeException(e);
+      throw new RuntimeException(e);
     }
+    return numRecordsProduced;
   }
 
-  private Map<String, String> connectorProps(int tasksMax) {
+  private Map<String, String> connectorProps(int tasksMax, String topic) {
     Map<String, String> result = testBase.baseConnectorProps(tasksMax);
 
     result.put(
-        ConnectorConfig.KEY_CONVERTER_CLASS_CONFIG,
-        AvroConverter.class.getName());
+            ConnectorConfig.KEY_CONVERTER_CLASS_CONFIG,
+            AvroConverter.class.getName());
     result.put(
-        ConnectorConfig.KEY_CONVERTER_CLASS_CONFIG + "." + SCHEMA_REGISTRY_URL_CONFIG,
-        schemaRegistryUrl);
+            ConnectorConfig.KEY_CONVERTER_CLASS_CONFIG + "." + SCHEMA_REGISTRY_URL_CONFIG,
+            schemaRegistryUrl);
     result.put(
-        ConnectorConfig.VALUE_CONVERTER_CLASS_CONFIG,
-        AvroConverter.class.getName());
+            ConnectorConfig.VALUE_CONVERTER_CLASS_CONFIG,
+            AvroConverter.class.getName());
     result.put(
-        ConnectorConfig.VALUE_CONVERTER_CLASS_CONFIG + "." + SCHEMA_REGISTRY_URL_CONFIG,
-        schemaRegistryUrl);
+            ConnectorConfig.VALUE_CONVERTER_CLASS_CONFIG + "." + SCHEMA_REGISTRY_URL_CONFIG,
+            schemaRegistryUrl);
 
     result.put(SinkConnectorConfig.TOPICS_CONFIG, topic);
 
@@ -313,15 +297,12 @@ public class BigQuerySinkConnectorIT {
     return result;
   }
 
-  private void verify() {
-    List<List<Object>> testRows;
+  private List<List<Object>> readRows(final String testCase) {
     try {
       String table = testBase.suffixedAndSanitizedTable(TEST_CASE_PREFIX + FieldNameSanitizer.sanitizeName(testCase));
-      testRows = testBase.readAllRows(testBase.newBigQuery(), table, "row");
+      return testBase.readAllRows(testBase.newBigQuery(), table, "row");
     } catch (InterruptedException e) {
       throw new RuntimeException(e);
     }
-
-    assertEquals(expectedRows, testRows);
   }
 }

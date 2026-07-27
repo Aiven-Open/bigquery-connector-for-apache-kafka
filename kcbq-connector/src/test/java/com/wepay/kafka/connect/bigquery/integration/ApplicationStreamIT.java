@@ -161,9 +161,9 @@ public class ApplicationStreamIT extends BaseConnectorIT {
         attempts--;
       }
     } catch (BigQueryException ex) {
-      if (!ex.getError().getReason().equalsIgnoreCase("duplicate"))
-        throw new ConnectException("Failed to create table: ", ex);
-      else
+      if (ex.getError() != null && !ex.getError().getReason().equalsIgnoreCase("duplicate")) {
+        throw new ConnectException("Failed to create table " + table,  ex);
+      } else
         logger.info("Table {} already exist", table);
     }
   }

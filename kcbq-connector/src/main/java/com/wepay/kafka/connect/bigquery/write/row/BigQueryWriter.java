@@ -221,6 +221,9 @@ public abstract class BigQueryWriter {
         } else if (BigQueryErrorResponses.isRateLimitExceededError(err)) {
           logger.warn("Rate limit exceeded for table {}, attempting retry", table);
           retryCount++;
+        } else if (BigQueryErrorResponses.isNonExistentDatasetError(err)) {
+          logger.warn("Dataset not found for table {} (possibly a transient streaming metadata issue), attempting retry", table);
+          retryCount++;
         } else if (BigQueryErrorResponses.isIoError(err)) {
           logger.warn("IO Exception: {}, attempting retry", err.getCause().getMessage());
           retryCount++;

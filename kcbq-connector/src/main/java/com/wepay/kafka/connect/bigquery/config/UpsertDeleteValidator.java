@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Copyright 2022 Aiven Oy and
+ * Copyright 2022-2026 Aiven Oy and
  * bigquery-connector-for-apache-kafka project contributors
  *
  * This software contains code derived from the Confluent BigQuery
@@ -11,7 +11,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -60,16 +60,17 @@ public abstract class UpsertDeleteValidator extends MultiPropertyValidator<BigQu
       return Optional.empty();
     }
 
-    if (!config.getBoolean(USE_STORAGE_WRITE_API_CONFIG)) {
+    if (!config.useStorageWriteApi()) {
       // Classic MERGE path: merge interval, threshold and kafkaKeyFieldName are all required
       long mergeInterval = config.getLong(MERGE_INTERVAL_MS_CONFIG);
       long mergeRecordsThreshold = config.getLong(MERGE_RECORDS_THRESHOLD_CONFIG);
 
       if (mergeInterval == -1 && mergeRecordsThreshold == -1) {
         return Optional.of(String.format(
-            "%s and %s cannot both be -1",
+            "%s and %s cannot both be -1 when %s is false",
             MERGE_INTERVAL_MS_CONFIG,
-            MERGE_RECORDS_THRESHOLD_CONFIG
+            MERGE_RECORDS_THRESHOLD_CONFIG,
+            USE_STORAGE_WRITE_API_CONFIG
         ));
       }
 
@@ -81,13 +82,6 @@ public abstract class UpsertDeleteValidator extends MultiPropertyValidator<BigQu
         );
       }
 
-      if (!config.getKafkaKeyFieldName().isPresent()) {
-        return Optional.of(String.format(
-            "%s must be specified when %s is set to true",
-            KAFKA_KEY_FIELD_NAME_CONFIG,
-            propertyName()
-        ));
-      }
     } else {
       // Storage Write API CDC path
       for (String property : Arrays.asList(MERGE_INTERVAL_MS_CONFIG, MERGE_RECORDS_THRESHOLD_CONFIG)) {
@@ -110,26 +104,6 @@ public abstract class UpsertDeleteValidator extends MultiPropertyValidator<BigQu
             UPSERT_ENABLED_CONFIG
         ));
       }
-
-      // When using Storage Write API + upsert, kafkaKeyFieldName must be empty string (or null,
-      // in which case we default to empty string and warn). Any non-empty value is rejected because
-      // key fields must be flattened into the top-level record to serve as primary keys.
-      String rawKafkaKeyFieldName = config.getString(KAFKA_KEY_FIELD_NAME_CONFIG);
-      if (rawKafkaKeyFieldName == null) {
-        logger.warn(
-            "Defaulting to a value of '' for the {} property because both "
-                + "upsert/delete support and the Storage Write API are both enabled",
-            KAFKA_KEY_FIELD_NAME_CONFIG
-        );
-      } else if (!"".equals(rawKafkaKeyFieldName)) {
-        return Optional.of(String.format(
-            "The only accepted value for the %s property is '' (empty string) when "
-                + "upsert/delete support and the Storage Write API are both enabled. "
-                + "Key fields will be flattened into the top-level record and used as primary keys.",
-            KAFKA_KEY_FIELD_NAME_CONFIG
-        ));
-      }
-
     }
 
     return Optional.empty();

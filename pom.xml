@@ -48,7 +48,7 @@
         <com.google.auto.value.version>1.10.2</com.google.auto.value.version>
         <confluent.version>7.9.5</confluent.version>
         <debezium.version>0.6.2</debezium.version>
-        <jackson.version>2.21.1</jackson.version>
+        <jackson.version>2.22.1</jackson.version>
         <jetty.version>9.4.57.v20241219</jetty.version>
         <kafka.version>3.9.2</kafka.version>
         <kafka.scala.version>2.12</kafka.scala.version>
@@ -58,6 +58,7 @@
 
         <junit.version>5.10.2</junit.version>
         <mockito.version>5.20.0</mockito.version>
+        <assertj.version>3.27.7</assertj.version>
 
         <assembly.plugin.version>3.7.1</assembly.plugin.version>
         <checkstyle.plugin.version>3.3.1</checkstyle.plugin.version>
@@ -365,6 +366,12 @@
                 <groupId>org.apache.rat</groupId>
                 <artifactId>apache-rat-plugin</artifactId>
                 <version>${rat.plugin.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.assertj</groupId>
+                <artifactId>assertj-core</artifactId>
+                <version>${assertj.version}</version>
+                <scope>test</scope>
             </dependency>
         </dependencies>
     </dependencyManagement>

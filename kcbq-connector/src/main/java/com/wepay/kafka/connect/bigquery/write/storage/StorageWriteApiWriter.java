@@ -198,6 +198,7 @@ public class StorageWriteApiWriter implements Runnable {
         TableName tableName = TableNameUtils.tableName(table.getBaseTableId());
         streamName = batchModeHandler.updateOffsetsOnStream(tableName.toString(), records);
       }
+
       final List<ConvertedRecord> recordsToWrite;
       // If upsert is enabled, we pre-compact our records to avoid
       // 1) sending unnecessary rows to BigQuery and

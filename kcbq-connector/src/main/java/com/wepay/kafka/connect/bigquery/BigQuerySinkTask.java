@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Copyright 2022 Aiven Oy and
+ * Copyright 2022-2026 Aiven Oy and
  * bigquery-connector-for-apache-kafka project contributors
  *
  * This software contains code derived from the Confluent BigQuery
@@ -11,7 +11,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -222,7 +222,7 @@ public class BigQuerySinkTask extends SinkTask {
     Map<PartitionedTableId, TableWriterBuilder> tableWriterBuilders = new HashMap<>();
 
     for (SinkRecord record : records) {
-      if (record.value() != null || config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)) {
+      if (record.value() != null || config.isDeleteEnabled()) {
         PartitionedTableId table = recordTableResolver.getRecordTable(record);
         if (!tableWriterBuilders.containsKey(table)) {
           TableWriterBuilder tableWriterBuilder;
@@ -350,37 +350,7 @@ public class BigQuerySinkTask extends SinkTask {
     if (testSchemaManager != null) {
       return testSchemaManager;
     }
-    return schemaManager.updateAndGet(sm -> sm != null ? sm : newSchemaManager());
-  }
-
-  private SchemaManager newSchemaManager() {
-    schemaRetriever = config.getSchemaRetriever();
-    SchemaConverter<com.google.cloud.bigquery.Schema> schemaConverter =
-        config.getSchemaConverter();
-    Optional<String> kafkaKeyFieldName = config.getKafkaKeyFieldName();
-    Optional<String> kafkaDataFieldName = config.getKafkaDataFieldName();
-    Optional<String> timestampPartitionFieldName = config.getTimestampPartitionFieldName();
-    Optional<Long> partitionExpiration = config.getPartitionExpirationMs();
-    Optional<List<String>> clusteringFieldName = config.getClusteringPartitionFieldNames();
-    Optional<TimePartitioning.Type> timePartitioningType = config.getTimePartitioningType();
-    boolean sanitizeFieldNames = config.getBoolean(BigQuerySinkConfig.SANITIZE_FIELD_NAME_CONFIG);
-    boolean kafkaKeyAsPrimaryKey = config.isUpsertEnabled()
-        && config.getBoolean(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG);
-    boolean mediateConcurrentSchemaUpdates =
-        config.getBoolean(BigQuerySinkConfig.MEDIATE_CONCURRENT_SCHEMA_UPDATES_CONFIG);
-    long concurrentSchemaUpdateRetryWaitMs =
-        config.getLong(BigQuerySinkConfig.CONCURRENT_SCHEMA_UPDATE_RETRY_WAIT_MS_CONFIG);
-    int concurrentSchemaUpdateMaxRetries =
-        config.getInt(BigQuerySinkConfig.CONCURRENT_SCHEMA_UPDATE_MAX_RETRIES_CONFIG);
-    return new SchemaManager(schemaRetriever, schemaConverter, getBigQuery(),
-        allowNewBigQueryFields, allowRequiredFieldRelaxation, allowSchemaUnionization,
-        sanitizeFieldNames,
-        kafkaKeyFieldName, kafkaDataFieldName,
-        timestampPartitionFieldName, partitionExpiration, clusteringFieldName, timePartitioningType,
-        kafkaKeyAsPrimaryKey,
-        mediateConcurrentSchemaUpdates,
-        concurrentSchemaUpdateRetryWaitMs,
-        concurrentSchemaUpdateMaxRetries);
+    return schemaManager.updateAndGet(sm -> sm != null ? sm : new SchemaManager(config, getBigQuery()));
   }
 
   private BigQueryWriter getBigQueryWriter(ErrantRecordHandler errantRecordHandler) {
