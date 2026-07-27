@@ -185,6 +185,16 @@ public class BigQuerySinkConfig extends AbstractConfig {
 
   public static final String CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_CONFIG = "convertDebeziumTimestampToInteger";
 
+  /**
+   * Controls whether Avro temporal logical types introduced after Avro 1.12.1 (timestamp-micros,
+   * timestamp-nanos, time-micros, local-timestamp-millis, local-timestamp-micros, local-timestamp-nanos)
+   * are converted to their corresponding BigQuery types (TIMESTAMP, TIME, DATETIME) rather than
+   * being left as plain INTEGER. Disabled by default to preserve existing table schemas; enabling
+   * this for a topic whose BigQuery table already has these fields as INTEGER will require a manual
+   * schema migration, since BigQuery does not support in-place column type changes.
+   */
+  public static final String USE_AVRO_TEMPORAL_LOGICAL_TYPES_CONFIG = "useAvroTemporalLogicalTypes";
+
   public static final String DECIMAL_HANDLING_MODE_CONFIG = "decimalHandlingMode";
   public static final ConfigDef.Type DECIMAL_HANDLING_MODE_TYPE = ConfigDef.Type.STRING;
   public static final String DECIMAL_HANDLING_MODE_DEFAULT = DecimalHandlingMode.FLOAT.name();
@@ -615,6 +625,10 @@ public class BigQuerySinkConfig extends AbstractConfig {
   private static final ConfigDef.Type CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_TYPE = ConfigDef.Type.BOOLEAN;
   private static final Boolean CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_DEFAULT = false;
   private static final ConfigDef.Importance CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_IMPORTANCE =
+      ConfigDef.Importance.MEDIUM;
+  private static final ConfigDef.Type USE_AVRO_TEMPORAL_LOGICAL_TYPES_TYPE = ConfigDef.Type.BOOLEAN;
+  private static final Boolean USE_AVRO_TEMPORAL_LOGICAL_TYPES_DEFAULT = false;
+  private static final ConfigDef.Importance USE_AVRO_TEMPORAL_LOGICAL_TYPES_IMPORTANCE =
       ConfigDef.Importance.MEDIUM;
   private static final ConfigDef.Type TIME_PARTITIONING_TYPE_TYPE = ConfigDef.Type.STRING;
   private static final ConfigDef.Importance TIME_PARTITIONING_TYPE_IMPORTANCE = ConfigDef.Importance.LOW;
@@ -1086,6 +1100,11 @@ public class BigQuerySinkConfig extends AbstractConfig {
                     CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_TYPE,
                     CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_DEFAULT,
                     CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_IMPORTANCE
+            ).defineInternal(
+                    USE_AVRO_TEMPORAL_LOGICAL_TYPES_CONFIG,
+                    USE_AVRO_TEMPORAL_LOGICAL_TYPES_TYPE,
+                    USE_AVRO_TEMPORAL_LOGICAL_TYPES_DEFAULT,
+                    USE_AVRO_TEMPORAL_LOGICAL_TYPES_IMPORTANCE
             ).define(
                     ExtendedConfigKey.builder(CONVERT_DEBEZIUM_DECIMAL_CONFIG)
                             .type(ConfigDef.Type.BOOLEAN)
@@ -1195,6 +1214,10 @@ public class BigQuerySinkConfig extends AbstractConfig {
 
   public boolean getShouldConvertDebeziumTimestampToInteger() {
     return getBoolean(CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_CONFIG);
+  }
+
+  public boolean getShouldUseAvroTemporalLogicalTypes() {
+    return getBoolean(USE_AVRO_TEMPORAL_LOGICAL_TYPES_CONFIG);
   }
 
   /**

@@ -48,8 +48,10 @@ import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.Storage;
 import com.wepay.kafka.connect.bigquery.api.SchemaRetriever;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
+import com.wepay.kafka.connect.bigquery.convert.logicaltype.AvroLogicalConverters;
 import com.wepay.kafka.connect.bigquery.convert.logicaltype.DebeziumLogicalConverters;
 import com.wepay.kafka.connect.bigquery.convert.logicaltype.KafkaLogicalConverters;
+import com.wepay.kafka.connect.bigquery.convert.logicaltype.LogicalConverterRegistry;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
 import com.wepay.kafka.connect.bigquery.utils.MockTime;
 import com.wepay.kafka.connect.bigquery.utils.Time;
@@ -244,6 +246,50 @@ public class BigQuerySinkTaskTest {
   @AfterEach
   public void cleanUp() {
     MergeBatches.resetStreamingBufferAvailabilityWait();
+    AvroLogicalConverters.remove();
+  }
+
+  @Test
+  public void testAvroLogicalTypesNotRegisteredByDefault() {
+    Map<String, String> properties = propertiesFactory.getProperties();
+    properties.put(BigQuerySinkConfig.TOPICS_CONFIG, "test-topic");
+    properties.put(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG, "scratch");
+
+    BigQuerySinkTask testTask = createTestTask(
+        mock(BigQuery.class),
+        mock(SchemaRetriever.class),
+        mock(Storage.class),
+        mock(SchemaManager.class),
+        mockedStorageWriteApiDefaultStream,
+        mockedBatchHandler,
+        time
+    );
+
+    testTask.start(properties);
+
+    assertFalse(LogicalConverterRegistry.isRegisteredLogicalType("timestamp-micros"));
+  }
+
+  @Test
+  public void testAvroLogicalTypesRegisteredWhenEnabled() {
+    Map<String, String> properties = propertiesFactory.getProperties();
+    properties.put(BigQuerySinkConfig.TOPICS_CONFIG, "test-topic");
+    properties.put(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG, "scratch");
+    properties.put(BigQuerySinkConfig.USE_AVRO_TEMPORAL_LOGICAL_TYPES_CONFIG, "true");
+
+    BigQuerySinkTask testTask = createTestTask(
+        mock(BigQuery.class),
+        mock(SchemaRetriever.class),
+        mock(Storage.class),
+        mock(SchemaManager.class),
+        mockedStorageWriteApiDefaultStream,
+        mockedBatchHandler,
+        time
+    );
+
+    testTask.start(properties);
+
+    assertTrue(LogicalConverterRegistry.isRegisteredLogicalType("timestamp-micros"));
   }
 
   @Test

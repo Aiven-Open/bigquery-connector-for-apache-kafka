@@ -437,7 +437,9 @@ public class BigQuerySinkTask extends SinkTask {
   private static void populateLogicalConverterRegistry(BigQuerySinkTaskConfig config) {
     DebeziumLogicalConverters.initialize(config);
     KafkaLogicalConverters.initialize(config);
-    AvroLogicalConverters.initialize();
+    if (config.getShouldUseAvroTemporalLogicalTypes()) {
+      AvroLogicalConverters.initialize();
+    }
   }
 
   @Override
