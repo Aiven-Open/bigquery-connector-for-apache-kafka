@@ -26,9 +26,7 @@ package com.wepay.kafka.connect.bigquery.write.batch;
 import java.util.concurrent.CountDownLatch;
 import org.apache.kafka.connect.errors.ConnectException;
 
-/**
- * A Runnable that counts down, and then waits for the countdown to be finished.
- */
+/** A Runnable that counts down, and then waits for the countdown to be finished. */
 public class CountDownRunnable implements Runnable {
 
   private CountDownLatch countDownLatch;

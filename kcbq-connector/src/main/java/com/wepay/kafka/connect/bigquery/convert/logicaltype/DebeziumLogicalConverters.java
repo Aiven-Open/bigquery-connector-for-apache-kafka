@@ -25,7 +25,6 @@ package com.wepay.kafka.connect.bigquery.convert.logicaltype;
 
 import com.google.cloud.bigquery.Field;
 import com.google.cloud.bigquery.LegacySQLTypeName;
-import com.google.common.annotations.VisibleForTesting;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.exception.ConversionConnectException;
 import io.debezium.data.VariableScaleDecimal;
@@ -45,9 +44,7 @@ import java.util.function.BiFunction;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.Struct;
 
-/**
- * Class containing all the Debezium logical type converters.
- */
+/** Class containing all the Debezium logical type converters. */
 public class DebeziumLogicalConverters {
 
   private static final int MICROS_IN_SEC = 1000000;
@@ -61,16 +58,20 @@ public class DebeziumLogicalConverters {
   public static void initialize(final BigQuerySinkConfig config) {
     LogicalConverterRegistry.registerIfAbsent(Date.SCHEMA_NAME, new DateConverter());
     LogicalConverterRegistry.registerIfAbsent(MicroTime.SCHEMA_NAME, new MicroTimeConverter());
-    LogicalConverterRegistry.registerIfAbsent(MicroTimestamp.SCHEMA_NAME, new MicroTimestampConverter());
+    LogicalConverterRegistry.registerIfAbsent(
+        MicroTimestamp.SCHEMA_NAME, new MicroTimestampConverter());
     LogicalConverterRegistry.registerIfAbsent(Time.SCHEMA_NAME, new TimeConverter());
-    LogicalConverterRegistry.registerIfAbsent(ZonedTimestamp.SCHEMA_NAME, new ZonedTimestampConverter());
-    LogicalConverterRegistry.registerIfAbsent(Timestamp.SCHEMA_NAME, new TimestampConverter(config.getShouldConvertDebeziumTimestampToInteger()));
-    LogicalConverterRegistry.registerIfAbsent(VariableScaleDecimal.LOGICAL_NAME, new VariableScaleDecimalConverter(config.getVariableScaleDecimalHandlingMode()));
+    LogicalConverterRegistry.registerIfAbsent(
+        ZonedTimestamp.SCHEMA_NAME, new ZonedTimestampConverter());
+    LogicalConverterRegistry.registerIfAbsent(
+        Timestamp.SCHEMA_NAME,
+        new TimestampConverter(config.getShouldConvertDebeziumTimestampToInteger()));
+    LogicalConverterRegistry.registerIfAbsent(
+        VariableScaleDecimal.LOGICAL_NAME,
+        new VariableScaleDecimalConverter(config.getVariableScaleDecimalHandlingMode()));
   }
 
-  /**
-   * Remove the DebeziumLogicalConverters from the LogicalConverterRegistry.
-   */
+  /** Remove the DebeziumLogicalConverters from the LogicalConverterRegistry. */
   public static void remove() {
     LogicalConverterRegistry.unregister(Date.SCHEMA_NAME);
     LogicalConverterRegistry.unregister(MicroTime.SCHEMA_NAME);
@@ -85,17 +86,11 @@ public class DebeziumLogicalConverters {
     // do not instantiate.
   }
 
-  /**
-   * Class for converting Debezium date logical types to BigQuery dates.
-   */
+  /** Class for converting Debezium date logical types to BigQuery dates. */
   public static class DateConverter extends LogicalTypeConverter {
-    /**
-     * Create a new DateConverter.
-     */
+    /** Create a new DateConverter. */
     public DateConverter() {
-      super(Date.SCHEMA_NAME,
-          Schema.Type.INT32,
-          LegacySQLTypeName.DATE);
+      super(Date.SCHEMA_NAME, Schema.Type.INT32, LegacySQLTypeName.DATE);
     }
 
     @Override
@@ -107,17 +102,11 @@ public class DebeziumLogicalConverters {
     }
   }
 
-  /**
-   * Class for converting Debezium micro time logical types to BigQuery times.
-   */
+  /** Class for converting Debezium micro time logical types to BigQuery times. */
   public static class MicroTimeConverter extends LogicalTypeConverter {
-    /**
-     * Create a new MicroTimeConverter.
-     */
+    /** Create a new MicroTimeConverter. */
     public MicroTimeConverter() {
-      super(MicroTime.SCHEMA_NAME,
-          Schema.Type.INT64,
-          LegacySQLTypeName.TIME);
+      super(MicroTime.SCHEMA_NAME, Schema.Type.INT64, LegacySQLTypeName.TIME);
     }
 
     @Override
@@ -138,17 +127,11 @@ public class DebeziumLogicalConverters {
     }
   }
 
-  /**
-   * Class for converting Debezium micro timestamp logical types to BigQuery datetimes.
-   */
+  /** Class for converting Debezium micro timestamp logical types to BigQuery datetimes. */
   public static class MicroTimestampConverter extends LogicalTypeConverter {
-    /**
-     * Create a new MicroTimestampConverter.
-     */
+    /** Create a new MicroTimestampConverter. */
     public MicroTimestampConverter() {
-      super(MicroTimestamp.SCHEMA_NAME,
-          Schema.Type.INT64,
-          LegacySQLTypeName.TIMESTAMP);
+      super(MicroTimestamp.SCHEMA_NAME, Schema.Type.INT64, LegacySQLTypeName.TIMESTAMP);
     }
 
     @Override
@@ -169,17 +152,11 @@ public class DebeziumLogicalConverters {
     }
   }
 
-  /**
-   * Class for converting Debezium time logical types to BigQuery times.
-   */
+  /** Class for converting Debezium time logical types to BigQuery times. */
   public static class TimeConverter extends LogicalTypeConverter {
-    /**
-     * Create a new TimeConverter.
-     */
+    /** Create a new TimeConverter. */
     public TimeConverter() {
-      super(Time.SCHEMA_NAME,
-          Schema.Type.INT32,
-          LegacySQLTypeName.TIME);
+      super(Time.SCHEMA_NAME, Schema.Type.INT32, LegacySQLTypeName.TIME);
     }
 
     @Override
@@ -189,17 +166,14 @@ public class DebeziumLogicalConverters {
     }
   }
 
-  /**
-   * Class for converting Debezium timestamp logical types to BigQuery timestamps.
-   */
+  /** Class for converting Debezium timestamp logical types to BigQuery timestamps. */
   public static class TimestampConverter extends LogicalTypeConverter {
     private final boolean asInteger;
 
-    /**
-     * Create a new TimestampConverter.
-     */
+    /** Create a new TimestampConverter. */
     public TimestampConverter(boolean asInteger) {
-      super(Timestamp.SCHEMA_NAME,
+      super(
+          Timestamp.SCHEMA_NAME,
           Schema.Type.INT64,
           asInteger ? LegacySQLTypeName.INTEGER : LegacySQLTypeName.TIMESTAMP);
       this.asInteger = asInteger;
@@ -215,17 +189,11 @@ public class DebeziumLogicalConverters {
     }
   }
 
-  /**
-   * Class for converting Debezium zoned timestamp logical types to BigQuery timestamps.
-   */
+  /** Class for converting Debezium zoned timestamp logical types to BigQuery timestamps. */
   public static class ZonedTimestampConverter extends LogicalTypeConverter {
-    /**
-     * Create a new ZoneTimestampConverter.
-     */
+    /** Create a new ZoneTimestampConverter. */
     public ZonedTimestampConverter() {
-      super(ZonedTimestamp.SCHEMA_NAME,
-          Schema.Type.STRING,
-          LegacySQLTypeName.TIMESTAMP);
+      super(ZonedTimestamp.SCHEMA_NAME, Schema.Type.STRING, LegacySQLTypeName.TIMESTAMP);
     }
 
     @Override
@@ -241,19 +209,14 @@ public class DebeziumLogicalConverters {
     }
   }
 
-  /**
-   * Class for converting Debezium variable scale decimals.
-   */
+  /** Class for converting Debezium variable scale decimals. */
   public static class VariableScaleDecimalConverter extends LogicalTypeConverter {
     private final BigQuerySinkConfig.DecimalHandlingMode decimalHandlingMode;
 
-    /**
-     * Create a new VariableScaleDecimalConverter.
-     */
-    public VariableScaleDecimalConverter(final BigQuerySinkConfig.DecimalHandlingMode decimalHandlingMode) {
-      super(VariableScaleDecimal.LOGICAL_NAME,
-          Schema.Type.STRUCT,
-          decimalHandlingMode.sqlTypeName);
+    /** Create a new VariableScaleDecimalConverter. */
+    public VariableScaleDecimalConverter(
+        final BigQuerySinkConfig.DecimalHandlingMode decimalHandlingMode) {
+      super(VariableScaleDecimal.LOGICAL_NAME, Schema.Type.STRUCT, decimalHandlingMode.sqlTypeName);
       this.decimalHandlingMode = decimalHandlingMode;
     }
 
@@ -277,11 +240,16 @@ public class DebeziumLogicalConverters {
     }
 
     @Override
-    public Field.Builder getFieldBuilder(Schema schema, String fieldName, BiFunction<Schema, String, Optional<Field.Builder>> convertStruct) {
+    public Field.Builder getFieldBuilder(
+        Schema schema,
+        String fieldName,
+        BiFunction<Schema, String, Optional<Field.Builder>> convertStruct) {
       checkEncodingType(schema.type());
       switch (decimalHandlingMode) {
         case RECORD:
-          return convertStruct.apply(schema, fieldName).orElseThrow(() -> new ConversionConnectException("Unable to convert " + fieldName));
+          return convertStruct
+              .apply(schema, fieldName)
+              .orElseThrow(() -> new ConversionConnectException("Unable to convert " + fieldName));
         case FLOAT:
           return Field.newBuilder(fieldName, LegacySQLTypeName.FLOAT);
         case BIGNUMERIC:

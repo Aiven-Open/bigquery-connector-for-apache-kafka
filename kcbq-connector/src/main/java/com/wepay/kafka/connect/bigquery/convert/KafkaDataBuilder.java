@@ -23,7 +23,6 @@
 
 package com.wepay.kafka.connect.bigquery.convert;
 
-
 import com.google.cloud.bigquery.Field;
 import com.google.cloud.bigquery.LegacySQLTypeName;
 import com.google.common.annotations.VisibleForTesting;
@@ -43,9 +42,9 @@ import org.slf4j.LoggerFactory;
 /**
  * Helper class to construct schema and record for Kafka Data Field.
  *
- * @deprecated This class is deprecated because setting values can cause unexpected results
- * in environments with multiple tasks, or connector instances.  Methods have been moved to
- * {@link SinkRecordConverter}.
+ * @deprecated This class is deprecated because setting values can cause unexpected results in
+ *     environments with multiple tasks, or connector instances. Methods have been moved to {@link
+ *     SinkRecordConverter}.
  */
 @Deprecated
 public class KafkaDataBuilder {
@@ -59,47 +58,41 @@ public class KafkaDataBuilder {
   public static final String KAFKA_DATA_PUT_ATTEMPT_ID_FIELD_NAME = "putAttemptId";
 
   /**
-   * This is a marker variable for methods necessary to keep original sink record metadata.
-   * These methods in SinkRecord class are available only since Kafka Connect API version 3.6.
+   * This is a marker variable for methods necessary to keep original sink record metadata. These
+   * methods in SinkRecord class are available only since Kafka Connect API version 3.6.
    */
   private static boolean KAFKA_CONNECT_API_POST_3_6;
 
   /**
-   * This variable determines if the original variable or the mutated variable should be used
-   * when running in a post 3.6 Kafka.
+   * This variable determines if the original variable or the mutated variable should be used when
+   * running in a post 3.6 Kafka.
    */
   private static boolean USE_ORIGINAL_VALUES = false;
 
   /**
    * When true, a per-put() attempt ULID is embedded as {@code putAttemptId} inside the kafka
-   * metadata struct, and the BQ schema for that struct includes the field. Controlled by
-   * {@code TRACK_PUT_ATTEMPTS} connector config.
+   * metadata struct, and the BQ schema for that struct includes the field. Controlled by {@code
+   * TRACK_PUT_ATTEMPTS} connector config.
    */
   private static boolean TRACK_PUT_ATTEMPTS = false;
 
   static {
     boolean kafkaConnectApiPost36;
     try {
-      MethodHandles.lookup().findVirtual(
-          SinkRecord.class,
-          "originalTopic",
-          MethodType.methodType(String.class)
-      );
-      MethodHandles.lookup().findVirtual(
-          SinkRecord.class,
-          "originalKafkaPartition",
-          MethodType.methodType(Integer.class)
-      );
-      MethodHandles.lookup().findVirtual(
-          SinkRecord.class,
-          "originalKafkaOffset",
-          MethodType.methodType(long.class)
-      );
+      MethodHandles.lookup()
+          .findVirtual(SinkRecord.class, "originalTopic", MethodType.methodType(String.class));
+      MethodHandles.lookup()
+          .findVirtual(
+              SinkRecord.class, "originalKafkaPartition", MethodType.methodType(Integer.class));
+      MethodHandles.lookup()
+          .findVirtual(SinkRecord.class, "originalKafkaOffset", MethodType.methodType(long.class));
       kafkaConnectApiPost36 = true;
     } catch (NoSuchMethodException | IllegalAccessException e) {
-      logger.warn("This connector cannot retain original topic/partition/offset fields in SinkRecord. "
-                + "If these fields are mutated in upstream SMTs, they will be lost. "
-                + "Upgrade to Kafka Connect 3.6 to provision reliable metadata into resulting table.", e);
+      logger.warn(
+          "This connector cannot retain original topic/partition/offset fields in SinkRecord. "
+              + "If these fields are mutated in upstream SMTs, they will be lost. "
+              + "Upgrade to Kafka Connect 3.6 to provision reliable metadata into resulting table.",
+          e);
       kafkaConnectApiPost36 = false;
     }
     KAFKA_CONNECT_API_POST_3_6 = kafkaConnectApiPost36;
@@ -115,10 +108,10 @@ public class KafkaDataBuilder {
   }
 
   /**
-   * Sets the put-attempt tracking flag. When true, {@link #buildKafkaDataField} includes a
-   * {@code putAttemptId} subfield in the BQ schema, and {@link #buildKafkaDataRecord(SinkRecord,
-   * String)} embeds the supplied attempt ID in the row map. Called from
-   * {@link com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig} constructor.
+   * Sets the put-attempt tracking flag. When true, {@link #buildKafkaDataField} includes a {@code
+   * putAttemptId} subfield in the BQ schema, and {@link #buildKafkaDataRecord(SinkRecord, String)}
+   * embeds the supplied attempt ID in the row map. Called from {@link
+   * com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig} constructor.
    *
    * @param track whether to track put() attempt IDs.
    */
@@ -127,7 +120,7 @@ public class KafkaDataBuilder {
   }
 
   /**
-   * Sets the Kafka Post 3.6 flag.  Used in testing.
+   * Sets the Kafka Post 3.6 flag. Used in testing.
    *
    * @param post36Flag the state of the flag.
    */
@@ -140,29 +133,39 @@ public class KafkaDataBuilder {
    * Construct schema for Kafka Data Field
    *
    * @param kafkaDataFieldName The configured name of Kafka Data Field
-   * @return Field of Kafka Data, with definitions of kafka topic, partition, offset, and insertTime.
+   * @return Field of Kafka Data, with definitions of kafka topic, partition, offset, and
+   *     insertTime.
    * @deprecated use {@link SchemaManager} methods.
    */
   public static Field buildKafkaDataField(String kafkaDataFieldName) {
-    Field topicField = com.google.cloud.bigquery.Field.of(KAFKA_DATA_TOPIC_FIELD_NAME, LegacySQLTypeName.STRING);
-    Field partitionField = com.google.cloud.bigquery.Field.of(KAFKA_DATA_PARTITION_FIELD_NAME, LegacySQLTypeName.INTEGER);
-    Field offsetField = com.google.cloud.bigquery.Field.of(KAFKA_DATA_OFFSET_FIELD_NAME, LegacySQLTypeName.INTEGER);
-    Field insertTimeField = com.google.cloud.bigquery.Field.newBuilder(
-            KAFKA_DATA_INSERT_TIME_FIELD_NAME, LegacySQLTypeName.TIMESTAMP)
-        .setMode(com.google.cloud.bigquery.Field.Mode.NULLABLE).build();
+    Field topicField =
+        com.google.cloud.bigquery.Field.of(KAFKA_DATA_TOPIC_FIELD_NAME, LegacySQLTypeName.STRING);
+    Field partitionField =
+        com.google.cloud.bigquery.Field.of(
+            KAFKA_DATA_PARTITION_FIELD_NAME, LegacySQLTypeName.INTEGER);
+    Field offsetField =
+        com.google.cloud.bigquery.Field.of(KAFKA_DATA_OFFSET_FIELD_NAME, LegacySQLTypeName.INTEGER);
+    Field insertTimeField =
+        com.google.cloud.bigquery.Field.newBuilder(
+                KAFKA_DATA_INSERT_TIME_FIELD_NAME, LegacySQLTypeName.TIMESTAMP)
+            .setMode(com.google.cloud.bigquery.Field.Mode.NULLABLE)
+            .build();
 
-    List<Field> subFields = new ArrayList<>(
-        Arrays.asList(topicField, partitionField, offsetField, insertTimeField));
+    List<Field> subFields =
+        new ArrayList<>(Arrays.asList(topicField, partitionField, offsetField, insertTimeField));
 
     if (TRACK_PUT_ATTEMPTS) {
-      subFields.add(com.google.cloud.bigquery.Field.newBuilder(
-              KAFKA_DATA_PUT_ATTEMPT_ID_FIELD_NAME, LegacySQLTypeName.STRING)
-          .setMode(com.google.cloud.bigquery.Field.Mode.NULLABLE).build());
+      subFields.add(
+          com.google.cloud.bigquery.Field.newBuilder(
+                  KAFKA_DATA_PUT_ATTEMPT_ID_FIELD_NAME, LegacySQLTypeName.STRING)
+              .setMode(com.google.cloud.bigquery.Field.Mode.NULLABLE)
+              .build());
     }
 
-    return Field.newBuilder(kafkaDataFieldName, LegacySQLTypeName.RECORD,
-            subFields.toArray(new Field[0]))
-        .setMode(com.google.cloud.bigquery.Field.Mode.NULLABLE).build();
+    return Field.newBuilder(
+            kafkaDataFieldName, LegacySQLTypeName.RECORD, subFields.toArray(new Field[0]))
+        .setMode(com.google.cloud.bigquery.Field.Mode.NULLABLE)
+        .build();
   }
 
   private static String maybeGetOriginalTopic(SinkRecord kafkaConnectRecord) {
@@ -190,8 +193,8 @@ public class KafkaDataBuilder {
   }
 
   /**
-   * Construct a map of Kafka Data record. Backward-compatible overload; does not include
-   * {@code putAttemptId} even when {@code TRACK_PUT_ATTEMPTS} is enabled.
+   * Construct a map of Kafka Data record. Backward-compatible overload; does not include {@code
+   * putAttemptId} even when {@code TRACK_PUT_ATTEMPTS} is enabled.
    *
    * @param kafkaConnectRecord Kafka sink record to build kafka data from.
    * @return HashMap which contains the values of kafka topic, partition, offset, and insertTime.
@@ -206,22 +209,23 @@ public class KafkaDataBuilder {
    * Construct a map of Kafka Data record, optionally including a put-attempt identifier.
    *
    * <p>When {@code TRACK_PUT_ATTEMPTS} is enabled and {@code putAttemptId} is non-null, the map
-   * includes a {@code putAttemptId} entry so that rows constructed during different
-   * {@code put()} invocations can be distinguished downstream.
+   * includes a {@code putAttemptId} entry so that rows constructed during different {@code put()}
+   * invocations can be distinguished downstream.
    *
    * @param kafkaConnectRecord Kafka sink record to build kafka data from.
-   * @param putAttemptId ULID string generated at the start of the enclosing {@code put()} call,
-   *                     or {@code null} to omit the field.
-   * @return HashMap which contains the values of kafka topic, partition, offset, insertTime,
-   *         and optionally putAttemptId.
+   * @param putAttemptId ULID string generated at the start of the enclosing {@code put()} call, or
+   *     {@code null} to omit the field.
+   * @return HashMap which contains the values of kafka topic, partition, offset, insertTime, and
+   *     optionally putAttemptId.
    * @deprecated use {@link SinkRecordConverter#buildKafkaDataRecord(SinkRecord, String)}.
    */
   @Deprecated
-  public static Map<String, Object> buildKafkaDataRecord(SinkRecord kafkaConnectRecord,
-                                                         String putAttemptId) {
+  public static Map<String, Object> buildKafkaDataRecord(
+      SinkRecord kafkaConnectRecord, String putAttemptId) {
     HashMap<String, Object> kafkaData = new HashMap<>();
     kafkaData.put(KAFKA_DATA_TOPIC_FIELD_NAME, maybeGetOriginalTopic(kafkaConnectRecord));
-    kafkaData.put(KAFKA_DATA_PARTITION_FIELD_NAME, maybeGetOriginalKafkaPartition(kafkaConnectRecord));
+    kafkaData.put(
+        KAFKA_DATA_PARTITION_FIELD_NAME, maybeGetOriginalKafkaPartition(kafkaConnectRecord));
     kafkaData.put(KAFKA_DATA_OFFSET_FIELD_NAME, maybeGetOriginalKafkaOffset(kafkaConnectRecord));
     kafkaData.put(KAFKA_DATA_INSERT_TIME_FIELD_NAME, System.currentTimeMillis() / 1000.0);
     if (TRACK_PUT_ATTEMPTS && putAttemptId != null) {
@@ -231,11 +235,12 @@ public class KafkaDataBuilder {
   }
 
   /**
-   * Construct a map of Kafka Data record for sending to Storage Write API.
-   * Backward-compatible overload; does not include {@code putAttemptId}.
+   * Construct a map of Kafka Data record for sending to Storage Write API. Backward-compatible
+   * overload; does not include {@code putAttemptId}.
    *
    * @param kafkaConnectRecord Kafka sink record to build kafka data from.
-   * @return HashMap which contains the values of kafka topic, partition, offset, and insertTime in microseconds.
+   * @return HashMap which contains the values of kafka topic, partition, offset, and insertTime in
+   *     microseconds.
    * @deprecated use {@link SinkRecordConverter#buildKafkaDataRecord(SinkRecord, String)}.
    */
   @Deprecated
@@ -244,22 +249,23 @@ public class KafkaDataBuilder {
   }
 
   /**
-   * Construct a map of Kafka Data record for sending to Storage Write API, optionally including
-   * a put-attempt identifier.
+   * Construct a map of Kafka Data record for sending to Storage Write API, optionally including a
+   * put-attempt identifier.
    *
    * @param kafkaConnectRecord Kafka sink record to build kafka data from.
-   * @param putAttemptId ULID string generated at the start of the enclosing {@code put()} call,
-   *                     or {@code null} to omit the field.
+   * @param putAttemptId ULID string generated at the start of the enclosing {@code put()} call, or
+   *     {@code null} to omit the field.
    * @return HashMap which contains the values of kafka topic, partition, offset, insertTime in
-   *         microseconds, and optionally putAttemptId.
+   *     microseconds, and optionally putAttemptId.
    * @deprecated use {@link SinkRecordConverter#buildKafkaDataRecord(SinkRecord, String)}.
    */
   @Deprecated
-  public static Map<String, Object> buildKafkaDataRecordStorageApi(SinkRecord kafkaConnectRecord,
-                                                                   String putAttemptId) {
+  public static Map<String, Object> buildKafkaDataRecordStorageApi(
+      SinkRecord kafkaConnectRecord, String putAttemptId) {
     HashMap<String, Object> kafkaData = new HashMap<>();
     kafkaData.put(KAFKA_DATA_TOPIC_FIELD_NAME, maybeGetOriginalTopic(kafkaConnectRecord));
-    kafkaData.put(KAFKA_DATA_PARTITION_FIELD_NAME, maybeGetOriginalKafkaPartition(kafkaConnectRecord));
+    kafkaData.put(
+        KAFKA_DATA_PARTITION_FIELD_NAME, maybeGetOriginalKafkaPartition(kafkaConnectRecord));
     kafkaData.put(KAFKA_DATA_OFFSET_FIELD_NAME, maybeGetOriginalKafkaOffset(kafkaConnectRecord));
     kafkaData.put(KAFKA_DATA_INSERT_TIME_FIELD_NAME, System.currentTimeMillis() * 1000);
     if (TRACK_PUT_ATTEMPTS && putAttemptId != null) {
@@ -267,5 +273,4 @@ public class KafkaDataBuilder {
     }
     return kafkaData;
   }
-
 }

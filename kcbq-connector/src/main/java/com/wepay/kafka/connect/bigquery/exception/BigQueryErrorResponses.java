@@ -30,9 +30,10 @@ import java.util.Optional;
 import java.util.function.Function;
 
 /**
- * Handles the logic for classifying BigQuery error responses and determining things like whether they come from an
- * invalid schema error, a backend error, etc. This can be used to determine whether a table needs to be created before
- * retrying an insert or if a temporary server-side error requires us to retry a request, for example.
+ * Handles the logic for classifying BigQuery error responses and determining things like whether
+ * they come from an invalid schema error, a backend error, etc. This can be used to determine
+ * whether a table needs to be created before retrying an insert or if a temporary server-side error
+ * requires us to retry a request, for example.
  */
 public class BigQueryErrorResponses {
 
@@ -54,11 +55,11 @@ public class BigQueryErrorResponses {
   private static final String RATE_LIMIT_EXCEEDED_REASON = "rateLimitExceeded";
   private static final String STOPPED_REASON = "stopped";
 
-
   public static boolean isNonExistentTableError(BigQueryException exception) {
     String message = message(exception.getError());
     // If a table does not exist, it will raise a BigQueryException that the input is notFound
-    // Referring to Google Cloud Error Codes Doc: https://cloud.google.com/bigquery/docs/error-messages?hl=en
+    // Referring to Google Cloud Error Codes Doc:
+    // https://cloud.google.com/bigquery/docs/error-messages?hl=en
     return NOT_FOUND_CODE == exception.getCode()
         && NOT_FOUND_REASON.equals(exception.getReason())
         && (message.startsWith("Not found: Table ") || message.contains("Table is deleted: "));
@@ -75,7 +76,8 @@ public class BigQueryErrorResponses {
 
   public static boolean isTableMissingSchemaError(BigQueryException exception) {
     // If a table is missing a schema, it will raise a BigQueryException that the input is invalid
-    // For more information about BigQueryExceptions, see: https://cloud.google.com/bigquery/troubleshooting-errors
+    // For more information about BigQueryExceptions, see:
+    // https://cloud.google.com/bigquery/troubleshooting-errors
     return BAD_REQUEST_CODE == exception.getCode()
         && INVALID_REASON.equals(exception.getReason())
         && message(exception.getError()).equals("The destination table has no schema.");
@@ -110,14 +112,16 @@ public class BigQueryErrorResponses {
 
   public static boolean isQuotaExceededError(BigQueryException exception) {
     return FORBIDDEN_CODE == exception.getCode()
-        // TODO: May be able to use exception.getReason() instead of (indirectly) exception.getError().getReason()
+        // TODO: May be able to use exception.getReason() instead of (indirectly)
+        // exception.getError().getReason()
         //       Haven't been able to test yet though, so keeping as-is to avoid breaking anything
         && QUOTA_EXCEEDED_REASON.equals(reason(exception.getError()));
   }
 
   public static boolean isRateLimitExceededError(BigQueryException exception) {
     return FORBIDDEN_CODE == exception.getCode()
-        // TODO: May be able to use exception.getReason() instead of (indirectly) exception.getError().getReason()
+        // TODO: May be able to use exception.getReason() instead of (indirectly)
+        // exception.getError().getReason()
         //       Haven't been able to test yet though, so keeping as-is to avoid breaking anything
         && RATE_LIMIT_EXCEEDED_REASON.equals(reason(exception.getError()));
   }
@@ -146,8 +150,8 @@ public class BigQueryErrorResponses {
   }
 
   /**
-   * Returns whether the error code and the description string match to authentication errors.
-   * See also <a href="https://cloud.google.com/bigquery/docs/error-messages#autherrors">here</a>.
+   * Returns whether the error code and the description string match to authentication errors. See
+   * also <a href="https://cloud.google.com/bigquery/docs/error-messages#autherrors">here</a>.
    */
   public static boolean isAuthenticationError(BigQueryException error) {
     String err = error.toString();
@@ -168,8 +172,7 @@ public class BigQueryErrorResponses {
   }
 
   public static boolean isUnrecognizedFieldError(BigQueryError error) {
-    return INVALID_REASON.equals(reason(error))
-        && message(error).startsWith("no such field: ");
+    return INVALID_REASON.equals(reason(error)) && message(error).startsWith("no such field: ");
   }
 
   public static boolean isMissingRequiredFieldError(BigQueryError error) {
@@ -178,8 +181,7 @@ public class BigQueryErrorResponses {
   }
 
   public static boolean isStoppedError(BigQueryError error) {
-    return STOPPED_REASON.equals(reason(error))
-        && message(error).equals("");
+    return STOPPED_REASON.equals(reason(error)) && message(error).equals("");
   }
 
   private static String reason(BigQueryError error) {
@@ -190,9 +192,8 @@ public class BigQueryErrorResponses {
     return extractFromError(error, BigQueryError::getMessage);
   }
 
-  private static String extractFromError(BigQueryError error, Function<BigQueryError, String> extraction) {
-    return Optional.ofNullable(error)
-        .map(extraction)
-        .orElse("");
+  private static String extractFromError(
+      BigQueryError error, Function<BigQueryError, String> extraction) {
+    return Optional.ofNullable(error).map(extraction).orElse("");
   }
 }

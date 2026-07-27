@@ -40,7 +40,8 @@ import com.google.cloud.bigquery.JobInfo;
 import com.google.cloud.bigquery.JobStatus;
 import com.google.cloud.bigquery.TableId;
 import com.google.cloud.storage.Blob;
-
+import com.google.cloud.storage.BlobId;
+import com.google.cloud.storage.Bucket;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -48,15 +49,11 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
-import com.google.cloud.storage.BlobId;
-import com.google.cloud.storage.Bucket;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
-import org.mockito.Mockito;
 
 public class GcsToBqLoadRunnableTest {
 
@@ -123,12 +120,17 @@ public class GcsToBqLoadRunnableTest {
     Job job = mock(Job.class);
     when(job.getJobId()).thenReturn(JobId.of(jobId));
     return job;
-
   }
 
   @ParameterizedTest
   @MethodSource("checkJobsData")
-  void testCheckJobsFailure(String name, Job job, List<BlobId> blobIds, int activeCount, int claimedCount, int deletableCount) {
+  void testCheckJobsFailure(
+      String name,
+      Job job,
+      List<BlobId> blobIds,
+      int activeCount,
+      int claimedCount,
+      int deletableCount) {
     BigQuery bigQuery = mock(BigQuery.class);
     Bucket bucket = mock(Bucket.class);
     final Map<Job, List<BlobId>> activeJobs = new HashMap<>();
@@ -138,9 +140,10 @@ public class GcsToBqLoadRunnableTest {
 
     activeJobs.put(job, blobIds);
 
-    GcsToBqLoadRunnable runnable = new GcsToBqLoadRunnable(bigQuery, bucket, activeJobs, claimedBlobIds, deletableBlobIds);
+    GcsToBqLoadRunnable runnable =
+        new GcsToBqLoadRunnable(bigQuery, bucket, activeJobs, claimedBlobIds, deletableBlobIds);
     runnable.checkJobs();
-    assertEquals(activeCount, activeJobs.size(), "Wrong active count" );
+    assertEquals(activeCount, activeJobs.size(), "Wrong active count");
     assertEquals(claimedCount, claimedBlobIds.size(), "Wrong claimed count");
     assertEquals(deletableCount, deletableBlobIds.size(), "Wrong deletable count");
   }
@@ -157,8 +160,9 @@ public class GcsToBqLoadRunnableTest {
     Set<BlobId> claimedBlobIds = new HashSet<>();
     Map<String, Integer> blobBatchAttempts = new HashMap<>();
 
-    GcsToBqLoadRunnable runnable = new GcsToBqLoadRunnable(
-        bigQuery, bucket, activeJobs, claimedBlobIds, new HashSet<>(), blobBatchAttempts);
+    GcsToBqLoadRunnable runnable =
+        new GcsToBqLoadRunnable(
+            bigQuery, bucket, activeJobs, claimedBlobIds, new HashSet<>(), blobBatchAttempts);
 
     TableId tableId = TableId.of("dataset", "table");
     Blob blob = mock(Blob.class);
@@ -168,7 +172,8 @@ public class GcsToBqLoadRunnableTest {
 
     Job existingJob = mock(Job.class);
     when(existingJob.getJobId()).thenReturn(JobId.of("existing-job"));
-    when(bigQuery.create(any(JobInfo.class))).thenThrow(new BigQueryException(409, "Already Exists"));
+    when(bigQuery.create(any(JobInfo.class)))
+        .thenThrow(new BigQueryException(409, "Already Exists"));
     when(bigQuery.getJob(any(JobId.class))).thenReturn(existingJob);
 
     runnable.triggerBigQueryLoadJob(tableId, Collections.singletonList(blob));
@@ -187,8 +192,9 @@ public class GcsToBqLoadRunnableTest {
     Set<BlobId> claimedBlobIds = new HashSet<>();
     Map<String, Integer> blobBatchAttempts = new HashMap<>();
 
-    GcsToBqLoadRunnable runnable = new GcsToBqLoadRunnable(
-        bigQuery, bucket, activeJobs, claimedBlobIds, new HashSet<>(), blobBatchAttempts);
+    GcsToBqLoadRunnable runnable =
+        new GcsToBqLoadRunnable(
+            bigQuery, bucket, activeJobs, claimedBlobIds, new HashSet<>(), blobBatchAttempts);
 
     TableId tableId = TableId.of("dataset", "table");
     Blob blob = mock(Blob.class);
@@ -209,7 +215,8 @@ public class GcsToBqLoadRunnableTest {
     JobStatus failedStatus = mock(JobStatus.class);
     when(failedJobResult.getStatus()).thenReturn(failedStatus);
     when(failedStatus.getState()).thenReturn(JobStatus.State.DONE);
-    when(failedStatus.getError()).thenReturn(new BigQueryError("reason", "location", "message", "debug"));
+    when(failedStatus.getError())
+        .thenReturn(new BigQueryError("reason", "location", "message", "debug"));
     when(failedStatus.getExecutionErrors()).thenReturn(Collections.emptyList());
     when(bigQuery.getJob(any(JobId.class))).thenReturn(failedJobResult);
 
@@ -234,8 +241,9 @@ public class GcsToBqLoadRunnableTest {
     Set<BlobId> claimedBlobIds = new HashSet<>();
     Map<String, Integer> blobBatchAttempts = new HashMap<>();
 
-    GcsToBqLoadRunnable runnable = new GcsToBqLoadRunnable(
-        bigQuery, bucket, activeJobs, claimedBlobIds, new HashSet<>(), blobBatchAttempts);
+    GcsToBqLoadRunnable runnable =
+        new GcsToBqLoadRunnable(
+            bigQuery, bucket, activeJobs, claimedBlobIds, new HashSet<>(), blobBatchAttempts);
 
     TableId tableId = TableId.of("dataset", "table");
     Blob blob = mock(Blob.class);
@@ -250,7 +258,8 @@ public class GcsToBqLoadRunnableTest {
 
     runnable.triggerBigQueryLoadJob(tableId, Collections.singletonList(blob));
 
-    // checkJobs: transient BigQueryException while inspecting job status → processFailedJob(..., false)
+    // checkJobs: transient BigQueryException while inspecting job status → processFailedJob(...,
+    // false)
     Job transientJob = mock(Job.class);
     when(transientJob.getJobId()).thenReturn(JobId.of("first-job"));
     JobStatus transientStatus = mock(JobStatus.class);
@@ -284,8 +293,9 @@ public class GcsToBqLoadRunnableTest {
     Set<BlobId> deletableBlobIds = new HashSet<>();
     Map<String, Integer> blobBatchAttempts = new HashMap<>();
 
-    GcsToBqLoadRunnable runnable = new GcsToBqLoadRunnable(
-        bigQuery, bucket, activeJobs, claimedBlobIds, deletableBlobIds, blobBatchAttempts);
+    GcsToBqLoadRunnable runnable =
+        new GcsToBqLoadRunnable(
+            bigQuery, bucket, activeJobs, claimedBlobIds, deletableBlobIds, blobBatchAttempts);
 
     TableId tableId = TableId.of("dataset", "table");
     Blob blob = mock(Blob.class);
@@ -308,7 +318,8 @@ public class GcsToBqLoadRunnableTest {
     JobStatus failedStatus = mock(JobStatus.class);
     when(failedJobResult.getStatus()).thenReturn(failedStatus);
     when(failedStatus.getState()).thenReturn(JobStatus.State.DONE);
-    when(failedStatus.getError()).thenReturn(new BigQueryError("reason", "location", "message", "debug"));
+    when(failedStatus.getError())
+        .thenReturn(new BigQueryError("reason", "location", "message", "debug"));
     when(failedStatus.getExecutionErrors()).thenReturn(Collections.emptyList());
     when(bigQuery.getJob(any(JobId.class))).thenReturn(failedJobResult);
 
@@ -329,7 +340,8 @@ public class GcsToBqLoadRunnableTest {
 
     runnable.checkJobs();
 
-    assertTrue(blobBatchAttempts.isEmpty(),
+    assertTrue(
+        blobBatchAttempts.isEmpty(),
         "blobBatchAttempts should be cleared after the batch succeeds");
     assertTrue(deletableBlobIds.contains(blobId));
   }
@@ -345,8 +357,9 @@ public class GcsToBqLoadRunnableTest {
     Set<BlobId> deletableBlobIds = new HashSet<>();
     Map<String, Integer> blobBatchAttempts = new HashMap<>();
 
-    GcsToBqLoadRunnable runnable = new GcsToBqLoadRunnable(
-        bigQuery, bucket, activeJobs, claimedBlobIds, deletableBlobIds, blobBatchAttempts);
+    GcsToBqLoadRunnable runnable =
+        new GcsToBqLoadRunnable(
+            bigQuery, bucket, activeJobs, claimedBlobIds, deletableBlobIds, blobBatchAttempts);
 
     TableId tableId = TableId.of("dataset", "table");
     Blob blob = mock(Blob.class);
@@ -372,7 +385,8 @@ public class GcsToBqLoadRunnableTest {
     runnable.checkJobs();
 
     // Map was empty going in and Map#remove on a missing key is a no-op.
-    assertTrue(blobBatchAttempts.isEmpty(),
+    assertTrue(
+        blobBatchAttempts.isEmpty(),
         "blobBatchAttempts must remain empty when the batch never failed");
     assertTrue(deletableBlobIds.contains(blobId));
   }
@@ -382,12 +396,15 @@ public class GcsToBqLoadRunnableTest {
 
     Job job = createJob("errorInProcessing");
     BlobId blob = BlobId.of("bucket", "blob1");
-    BigQueryError error = new BigQueryError("reason","location", "message", "debugInfo");
+    BigQueryError error = new BigQueryError("reason", "location", "message", "debugInfo");
     JobStatus jobStatus = mock(JobStatus.class);
     when(job.getStatus()).thenReturn(jobStatus);
     when(job.getStatus().getState()).thenReturn(JobStatus.State.DONE);
     when(jobStatus.getError()).thenReturn(error);
-    when(jobStatus.getExecutionErrors()).thenReturn(Collections.singletonList(new BigQueryError("executionError","location", "message", "debugInfo")));
+    when(jobStatus.getExecutionErrors())
+        .thenReturn(
+            Collections.singletonList(
+                new BigQueryError("executionError", "location", "message", "debugInfo")));
     args.add(Arguments.of(job.getJobId().getJob(), job, Collections.singletonList(blob), 0, 0, 0));
 
     job = createJob("goodCompleted");
@@ -413,5 +430,4 @@ public class GcsToBqLoadRunnableTest {
     args.add(Arguments.of(job.getJobId().getJob(), job, Collections.singletonList(blob), 1, 1, 0));
     return args;
   }
-
 }

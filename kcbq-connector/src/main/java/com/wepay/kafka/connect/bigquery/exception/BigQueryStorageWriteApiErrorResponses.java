@@ -36,35 +36,40 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Util for storage Write API error responses. This new API uses gRPC protocol.
- * gRPC code : https://cloud.google.com/bigquery/docs/reference/storage/rpc/google.rpc#google.rpc.Code
+ * Util for storage Write API error responses. This new API uses gRPC protocol. gRPC code :
+ * https://cloud.google.com/bigquery/docs/reference/storage/rpc/google.rpc#google.rpc.Code
  */
 public class BigQueryStorageWriteApiErrorResponses {
 
-  private static final Logger logger = LoggerFactory.getLogger(BigQueryStorageWriteApiErrorResponses.class);
+  private static final Logger logger =
+      LoggerFactory.getLogger(BigQueryStorageWriteApiErrorResponses.class);
   private static final String NOT_EXIST = "(or it may not exist)";
   private static final String NOT_FOUND = "Not found: table";
   private static final String TABLE_IS_DELETED = "Table is deleted";
   private static final String MESSAGE_TOO_LARGE = "MessageSize is too large";
   private static final String APPEND_ROWS_REQUEST_TOO_LARGE = "AppendRows request too large";
-  private static final String[] retriableCodes = {Code.INTERNAL.name(), Code.ABORTED.name(), Code.CANCELLED.name()};
+  private static final String[] retriableCodes = {
+    Code.INTERNAL.name(), Code.ABORTED.name(), Code.CANCELLED.name()
+  };
   /*
-   Below list is taken from :
-   https://cloud.google.com/bigquery/docs/reference/storage/rpc/google.cloud.bigquery.storage.v1#storageerrorcode
-   */
-  private static final Set<String> nonRetriableStreamFailureCodes = new HashSet<>(Arrays.asList(
-      StorageError.StorageErrorCode.STREAM_FINALIZED.name(),
-      StorageError.StorageErrorCode.STREAM_NOT_FOUND.name(),
-      StorageError.StorageErrorCode.INVALID_STREAM_STATE.name(),
-      StorageError.StorageErrorCode.INVALID_STREAM_TYPE.name(),
-      StorageError.StorageErrorCode.STORAGE_ERROR_CODE_UNSPECIFIED.name(),
-      StorageError.StorageErrorCode.STREAM_ALREADY_COMMITTED.name()
-  ));
-  private static final String MORE_FIELDS_THAN_BIGQUERY_SCHEMA = "Input schema has more fields than BigQuery schema";
+  Below list is taken from :
+  https://cloud.google.com/bigquery/docs/reference/storage/rpc/google.cloud.bigquery.storage.v1#storageerrorcode
+  */
+  private static final Set<String> nonRetriableStreamFailureCodes =
+      new HashSet<>(
+          Arrays.asList(
+              StorageError.StorageErrorCode.STREAM_FINALIZED.name(),
+              StorageError.StorageErrorCode.STREAM_NOT_FOUND.name(),
+              StorageError.StorageErrorCode.INVALID_STREAM_STATE.name(),
+              StorageError.StorageErrorCode.INVALID_STREAM_TYPE.name(),
+              StorageError.StorageErrorCode.STORAGE_ERROR_CODE_UNSPECIFIED.name(),
+              StorageError.StorageErrorCode.STREAM_ALREADY_COMMITTED.name()));
+  private static final String MORE_FIELDS_THAN_BIGQUERY_SCHEMA =
+      "Input schema has more fields than BigQuery schema";
   private static final String UNKNOWN_FIELD = "The source object has fields unknown to BigQuery";
-  private static final String MISSING_REQUIRED_FIELD = "JSONObject does not have the required field";
+  private static final String MISSING_REQUIRED_FIELD =
+      "JSONObject does not have the required field";
   private static final String STREAM_CLOSED = "StreamWriterClosedException";
-
 
   /**
    * Expected BigQuery Table does not exist
@@ -73,7 +78,8 @@ public class BigQueryStorageWriteApiErrorResponses {
    * @return Returns true if message contains table missing substrings
    */
   public static boolean isTableMissing(String errorMessage) {
-    return (errorMessage.contains(Code.PERMISSION_DENIED.name()) && errorMessage.contains(NOT_EXIST))
+    return (errorMessage.contains(Code.PERMISSION_DENIED.name())
+            && errorMessage.contains(NOT_EXIST))
         || (errorMessage.contains(StorageError.StorageErrorCode.TABLE_NOT_FOUND.name()))
         || errorMessage.contains(NOT_FOUND)
         || errorMessage.contains(Code.NOT_FOUND.name())
@@ -107,11 +113,14 @@ public class BigQueryStorageWriteApiErrorResponses {
    * @return Returns true if any of the messages matches invalid schema substrings
    */
   public static boolean hasInvalidSchema(Collection<String> messages) {
-    return messages.stream().anyMatch(message ->
-        message.contains(UNKNOWN_FIELD)
-            || message.contains(MISSING_REQUIRED_FIELD)
-            || message.contains(MORE_FIELDS_THAN_BIGQUERY_SCHEMA)
-            || message.contains(StorageError.StorageErrorCode.SCHEMA_MISMATCH_EXTRA_FIELDS.name()));
+    return messages.stream()
+        .anyMatch(
+            message ->
+                message.contains(UNKNOWN_FIELD)
+                    || message.contains(MISSING_REQUIRED_FIELD)
+                    || message.contains(MORE_FIELDS_THAN_BIGQUERY_SCHEMA)
+                    || message.contains(
+                        StorageError.StorageErrorCode.SCHEMA_MISMATCH_EXTRA_FIELDS.name()));
   }
 
   /**
@@ -125,8 +134,8 @@ public class BigQueryStorageWriteApiErrorResponses {
   }
 
   /**
-   * Tells if the exception is of storage exception type and  error code belong to the list of non retriable
-   * storage error code.
+   * Tells if the exception is of storage exception type and error code belong to the list of non
+   * retriable storage error code.
    *
    * @param exception Exception received from Batch mode data ingestion
    * @return Retruns true if the exception is non-retriable
@@ -143,7 +152,10 @@ public class BigQueryStorageWriteApiErrorResponses {
     }
     String errorCode = storageException.getStatus().getCode().name();
 
-    logger.trace("Storage exception occurred with errorCode {} and errors {} ", errorCode, storageException.getErrors().toString());
+    logger.trace(
+        "Storage exception occurred with errorCode {} and errors {} ",
+        errorCode,
+        storageException.getErrors().toString());
 
     return nonRetriableStreamFailureCodes.contains(errorCode);
   }
@@ -151,8 +163,6 @@ public class BigQueryStorageWriteApiErrorResponses {
   public static boolean isMessageTooLargeError(String errorMessage) {
     return isMalformedRequest(errorMessage)
         && (errorMessage.contains(MESSAGE_TOO_LARGE)
-        || errorMessage.contains(APPEND_ROWS_REQUEST_TOO_LARGE)
-      );
+            || errorMessage.contains(APPEND_ROWS_REQUEST_TOO_LARGE));
   }
-
 }

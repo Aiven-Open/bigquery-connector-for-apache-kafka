@@ -65,11 +65,13 @@ public class GcpClientBuilderIT extends BaseConnectorIT {
       logger.info("Going to Create table : " + tableId.toString());
       bigQuery.create(TableInfo.of(tableId, StandardTableDefinition.newBuilder().build()));
       logger.info("Created table : " + tableId.toString());
-      // table takes time after creation before being available for operations. You may have to wait a few minutes (~5 minutes)
+      // table takes time after creation before being available for operations. You may have to wait
+      // a few minutes (~5 minutes)
       // Try to wait for 5 minutes if table is seen.
       int attempts = 10;
       while (bigQuery.getTable(tableId) == null && attempts > 0) {
-        logger.debug("Busy waiting for table {} to appear! Attempt {}", tableId.getTable(), (10 - attempts));
+        logger.debug(
+            "Busy waiting for table {} to appear! Attempt {}", tableId.getTable(), (10 - attempts));
         Thread.sleep(TimeUnit.SECONDS.toMillis(30));
         attempts--;
       }
@@ -80,7 +82,8 @@ public class GcpClientBuilderIT extends BaseConnectorIT {
     }
   }
 
-  private Map<String, String> connectorProps(GcpClientBuilder.KeySource keySource) throws IOException {
+  private Map<String, String> connectorProps(GcpClientBuilder.KeySource keySource)
+      throws IOException {
     Map<String, String> properties = baseConnectorProps(1);
     properties.put(BigQuerySinkConfig.KEY_SOURCE_CONFIG, keySource.name());
 
@@ -88,7 +91,8 @@ public class GcpClientBuilderIT extends BaseConnectorIT {
       properties.put(BigQuerySinkConfig.KEYFILE_CONFIG, null);
     } else if (keySource == GcpClientBuilder.KeySource.JSON) {
       // actually keyFile is the path to the credentials file, so we convert it to the json string
-      String credentialsJsonString = new String(Files.readAllBytes(Paths.get(keyFile())), StandardCharsets.UTF_8);
+      String credentialsJsonString =
+          new String(Files.readAllBytes(Paths.get(keyFile())), StandardCharsets.UTF_8);
       properties.put(BigQuerySinkConfig.KEYFILE_CONFIG, credentialsJsonString);
     }
 
@@ -96,7 +100,8 @@ public class GcpClientBuilderIT extends BaseConnectorIT {
   }
 
   /**
-   * Construct the BigQuery and Storage clients and perform some basic operations to check they are operational.
+   * Construct the BigQuery and Storage clients and perform some basic operations to check they are
+   * operational.
    *
    * @param keySource the key Source to use
    * @throws Exception on Error
@@ -112,15 +117,14 @@ public class GcpClientBuilderIT extends BaseConnectorIT {
     try (Storage storage = new GcpClientBuilder.GcsBuilder().withConfig(config).build()) {
       storage.get(gcsBucket());
     } catch (StorageException e) {
-        logger.warn("Can not access bucket: " + gcsBucket(), e);
+      logger.warn("Can not access bucket: " + gcsBucket(), e);
     }
 
-    BigQueryWriteSettings settings = new GcpClientBuilder.BigQueryWriteSettingsBuilder().withConfig(config).build();
+    BigQueryWriteSettings settings =
+        new GcpClientBuilder.BigQueryWriteSettingsBuilder().withConfig(config).build();
     BigQueryWriteClient client = BigQueryWriteClient.create(settings);
-    JsonStreamWriter.Builder writerBuilder = JsonStreamWriter.newBuilder(
-        TableNameUtils.tableName(tableId).toString(),
-        client
-    );
+    JsonStreamWriter.Builder writerBuilder =
+        JsonStreamWriter.newBuilder(TableNameUtils.tableName(tableId).toString(), client);
     try (JsonStreamWriter writer = writerBuilder.build()) {
       assertTrue(writer.getStreamName().contains("default"));
     }
@@ -140,5 +144,4 @@ public class GcpClientBuilderIT extends BaseConnectorIT {
   public void testJson() throws Exception {
     testClients(GcpClientBuilder.KeySource.JSON);
   }
-
 }

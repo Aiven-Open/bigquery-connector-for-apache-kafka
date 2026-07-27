@@ -23,12 +23,8 @@
 
 package com.wepay.kafka.connect.bigquery.api;
 
-
-/**
- * Enum class for Kafka schema or record type, either value or key.
- */
+/** Enum class for Kafka schema or record type, either value or key. */
 public enum KafkaSchemaRecordType {
-
   VALUE("value"),
   KEY("key");
 

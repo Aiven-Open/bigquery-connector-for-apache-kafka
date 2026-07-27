@@ -65,12 +65,19 @@ public class SchemaRegistryTestUtils {
 
   public void start() throws Exception {
     int port = findAvailableOpenPort();
-    restApp = new RestApp(port, null, this.bootstrapServers,
-        KAFKASTORE_TOPIC, CompatibilityLevel.NONE.name, true, new Properties());
+    restApp =
+        new RestApp(
+            port,
+            null,
+            this.bootstrapServers,
+            KAFKASTORE_TOPIC,
+            CompatibilityLevel.NONE.name,
+            true,
+            new Properties());
     restApp.start();
 
-    TestUtils.waitForCondition(() -> restApp.restServer.isRunning(), 10000L,
-        "Schema Registry start timed out.");
+    TestUtils.waitForCondition(
+        () -> restApp.restServer.isRunning(), 10000L, "Schema Registry start timed out.");
 
     schemaRegistryUrl = restApp.restServer.getURI().toString();
   }
@@ -89,7 +96,6 @@ public class SchemaRegistryTestUtils {
     }
   }
 
-
   private KafkaProducer<byte[], byte[]> configureProducer() {
     Map<String, Object> producerProps = new HashMap<>();
     producerProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, this.bootstrapServers);
@@ -97,17 +103,14 @@ public class SchemaRegistryTestUtils {
     return new KafkaProducer<>(producerProps, new ByteArraySerializer(), new ByteArraySerializer());
   }
 
-
-  public void produceRecords(
-      Converter converter,
-      List<SchemaAndValue> recordsList,
-      String topic
-  ) {
+  public void produceRecords(Converter converter, List<SchemaAndValue> recordsList, String topic) {
     try (KafkaProducer<byte[], byte[]> producer = configureProducer()) {
       for (int i = 0; i < recordsList.size(); i++) {
         SchemaAndValue schemaAndValue = recordsList.get(i);
-        byte[] convertedStruct = converter.fromConnectData(topic, schemaAndValue.schema(), schemaAndValue.value());
-        ProducerRecord<byte[], byte[]> msg = new ProducerRecord<>(topic, 0, String.valueOf(i).getBytes(), convertedStruct);
+        byte[] convertedStruct =
+            converter.fromConnectData(topic, schemaAndValue.schema(), schemaAndValue.value());
+        ProducerRecord<byte[], byte[]> msg =
+            new ProducerRecord<>(topic, 0, String.valueOf(i).getBytes(), convertedStruct);
         try {
           producer.send(msg).get(1, TimeUnit.SECONDS);
         } catch (Exception e) {
@@ -121,8 +124,7 @@ public class SchemaRegistryTestUtils {
       Converter keyConverter,
       Converter valueConverter,
       List<List<SchemaAndValue>> recordsList,
-      String topic
-  ) {
+      String topic) {
     int iterationLogThreshold = Math.min(10_000, (int) Math.ceil(recordsList.size() / 100.0));
     try (KafkaProducer<byte[], byte[]> producer = configureProducer()) {
       List<Future<RecordMetadata>> produceFutures = new ArrayList<>();
@@ -135,20 +137,21 @@ public class SchemaRegistryTestUtils {
         if (value == null) {
           convertedStructValue = valueConverter.fromConnectData(topic, null, null);
         } else {
-          convertedStructValue = valueConverter.fromConnectData(topic, value.schema(), value.value());
+          convertedStructValue =
+              valueConverter.fromConnectData(topic, value.schema(), value.value());
         }
-        ProducerRecord<byte[], byte[]> msg = new ProducerRecord<>(topic, convertedStructKey, convertedStructValue);
+        ProducerRecord<byte[], byte[]> msg =
+            new ProducerRecord<>(topic, convertedStructKey, convertedStructValue);
         final int iteration = i + 1;
-        Future<RecordMetadata> produceFuture = producer.send(
-            msg,
-            (recordMetadata, error) -> {
-              if (error != null)
-                return;
+        Future<RecordMetadata> produceFuture =
+            producer.send(
+                msg,
+                (recordMetadata, error) -> {
+                  if (error != null) return;
 
-              if (iteration % iterationLogThreshold == 0)
-                log.info("Sent {} Avro records to topic {}", iteration, topic);
-            }
-        );
+                  if (iteration % iterationLogThreshold == 0)
+                    log.info("Sent {} Avro records to topic {}", iteration, topic);
+                });
         produceFutures.add(produceFuture);
       }
       for (int i = 0; i < produceFutures.size(); i++) {
@@ -159,14 +162,15 @@ public class SchemaRegistryTestUtils {
           SchemaAndValue recordKey = recordsList.get(i).get(0);
           SchemaAndValue recordValue = recordsList.get(i).get(1);
           throw new KafkaException(
-              "Could not produce message " + i
-                  + "  with key " + recordKey
-                  + " and value " + recordValue,
-              e
-          );
+              "Could not produce message "
+                  + i
+                  + "  with key "
+                  + recordKey
+                  + " and value "
+                  + recordValue,
+              e);
         }
       }
     }
   }
-
 }

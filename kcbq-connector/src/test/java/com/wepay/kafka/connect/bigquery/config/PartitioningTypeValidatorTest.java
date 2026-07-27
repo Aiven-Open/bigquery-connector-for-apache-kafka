@@ -42,10 +42,7 @@ public class PartitioningTypeValidatorTest {
     when(config.getBoolean(BIGQUERY_PARTITION_DECORATOR_CONFIG)).thenReturn(false);
     when(config.getBoolean(TABLE_CREATE_CONFIG)).thenReturn(true);
 
-    assertEquals(
-        Optional.empty(),
-        new PartitioningTypeValidator().doValidate(config)
-    );
+    assertEquals(Optional.empty(), new PartitioningTypeValidator().doValidate(config));
   }
 
   @Test
@@ -54,15 +51,13 @@ public class PartitioningTypeValidatorTest {
     when(config.getBoolean(BIGQUERY_PARTITION_DECORATOR_CONFIG)).thenReturn(true);
     when(config.getBoolean(TABLE_CREATE_CONFIG)).thenReturn(false);
 
-    assertEquals(
-        Optional.empty(),
-        new PartitioningTypeValidator().doValidate(config)
-    );
+    assertEquals(Optional.empty(), new PartitioningTypeValidator().doValidate(config));
   }
 
   @Test
   public void testNonDayTimePartitioningWithTableCreationAndDecoratorSyntax() {
-    // TODO: This can be refactored into programmatically-generated test cases once we start using JUnit 5
+    // TODO: This can be refactored into programmatically-generated test cases once we start using
+    // JUnit 5
     for (TimePartitioning.Type timePartitioningType : TimePartitioning.Type.values()) {
       if (TimePartitioning.Type.DAY.equals(timePartitioningType)) {
         continue;
@@ -73,10 +68,7 @@ public class PartitioningTypeValidatorTest {
       when(config.getBoolean(TABLE_CREATE_CONFIG)).thenReturn(true);
       when(config.getTimePartitioningType()).thenReturn(Optional.of(timePartitioningType));
 
-      assertNotEquals(
-          Optional.empty(),
-          new PartitioningTypeValidator().doValidate(config)
-      );
+      assertNotEquals(Optional.empty(), new PartitioningTypeValidator().doValidate(config));
     }
   }
 
@@ -87,9 +79,6 @@ public class PartitioningTypeValidatorTest {
     when(config.getBoolean(TABLE_CREATE_CONFIG)).thenReturn(true);
     when(config.getTimePartitioningType()).thenReturn(Optional.of(TimePartitioning.Type.DAY));
 
-    assertEquals(
-        Optional.empty(),
-        new PartitioningTypeValidator().doValidate(config)
-    );
+    assertEquals(Optional.empty(), new PartitioningTypeValidator().doValidate(config));
   }
 }
