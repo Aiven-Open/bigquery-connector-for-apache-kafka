@@ -124,6 +124,7 @@
     <exec.plugin.version>3.2.0</exec.plugin.version>
     <google.cloud.bom.version>26.33.0</google.cloud.bom.version>
     <surefire.plugin.version>3.5.3</surefire.plugin.version>
+    <plugin.spotless>3.5.1</plugin.spotless>
 
     <site.plugin.version>3.21.0</site.plugin.version>
     <velocity.core.version>2.4.1</velocity.core.version>
@@ -400,14 +401,16 @@
         <plugin>
           <groupId>com.diffplug.spotless</groupId>
           <artifactId>spotless-maven-plugin</artifactId>
-          <version>2.43.0</version>
+          <version>${plugin.spotless}</version>
           <configuration>
             <java>
-              <googleJavaFormat></googleJavaFormat>
-              <removeUnusedImports></removeUnusedImports>
+              <googleJavaFormat/>
+              <removeUnusedImports/>
             </java>
             <pom>
-              <sortPom></sortPom>
+              <sortPom>
+                <expandEmptyElements>false</expandEmptyElements>
+              </sortPom>
             </pom>
           </configuration>
           <executions>
@@ -419,7 +422,6 @@
             </execution>
           </executions>
         </plugin>
-
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-jar-plugin</artifactId>
