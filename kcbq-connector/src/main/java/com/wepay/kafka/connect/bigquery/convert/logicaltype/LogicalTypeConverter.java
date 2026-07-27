@@ -33,8 +33,8 @@ import java.util.function.BiFunction;
 import org.apache.kafka.connect.data.Schema;
 
 /**
- * Abstract class for logical type converters.
- * Contains logic for both schema and record conversions.
+ * Abstract class for logical type converters. Contains logic for both schema and record
+ * conversions.
  */
 public abstract class LogicalTypeConverter {
 
@@ -48,13 +48,12 @@ public abstract class LogicalTypeConverter {
   /**
    * Create a new LogicalConverter.
    *
-   * @param logicalName  The name of the logical type.
+   * @param logicalName The name of the logical type.
    * @param encodingType The encoding type of the logical type.
    * @param bqSchemaType The corresponding BigQuery Schema type of the logical type.
    */
-  public LogicalTypeConverter(String logicalName,
-                              Schema.Type encodingType,
-                              LegacySQLTypeName bqSchemaType) {
+  public LogicalTypeConverter(
+      String logicalName, Schema.Type encodingType, LegacySQLTypeName bqSchemaType) {
     this.logicalName = logicalName;
     this.encodingType = encodingType;
     this.bqSchemaType = bqSchemaType;
@@ -81,14 +80,18 @@ public abstract class LogicalTypeConverter {
   /**
    * @param encodingType the encoding type to check.
    * @throws ConversionConnectException if the given schema encoding type is not the same as the
-   *                                    expected encoding type.
+   *     expected encoding type.
    */
   public void checkEncodingType(Schema.Type encodingType) throws ConversionConnectException {
     if (encodingType != this.encodingType) {
       throw new ConversionConnectException(
-          "Logical Type " + logicalName + " must be encoded as " + this.encodingType + "; "
-              + "instead, found " + encodingType
-      );
+          "Logical Type "
+              + logicalName
+              + " must be encoded as "
+              + this.encodingType
+              + "; "
+              + "instead, found "
+              + encodingType);
     }
   }
 
@@ -97,8 +100,8 @@ public abstract class LogicalTypeConverter {
   }
 
   /**
-   * Build a BigQuery field for the given Kafka Connect schema.
-   * Subclasses may override to customize precision, scale, or type.
+   * Build a BigQuery field for the given Kafka Connect schema. Subclasses may override to customize
+   * precision, scale, or type.
    *
    * @param schema the Kafka Connect schema of the logical field
    * @param fieldName the name of the field
@@ -111,19 +114,21 @@ public abstract class LogicalTypeConverter {
   }
 
   /**
-   * Build a BigQuery field for the given Kafka Connect schema.
-   * Subclasses may override to customize precision, scale, or type.
+   * Build a BigQuery field for the given Kafka Connect schema. Subclasses may override to customize
+   * precision, scale, or type.
    *
    * @param schema the Kafka Connect schema of the logical field
    * @param fieldName the name of the field
    * @param convertStruct a function that converts the schema and field name into a Field.Builder.
    * @return a {@link Field.Builder} initialized for this logical type
    */
-  public Field.Builder getFieldBuilder(Schema schema, String fieldName, BiFunction<Schema, String, Optional<Field.Builder>> convertStruct) {
+  public Field.Builder getFieldBuilder(
+      Schema schema,
+      String fieldName,
+      BiFunction<Schema, String, Optional<Field.Builder>> convertStruct) {
     checkEncodingType(schema.type());
     return Field.newBuilder(fieldName, bqSchemaType);
   }
-
 
   /**
    * Convert the given KafkaConnect Record Object to a BigQuery Record Object.

@@ -37,22 +37,20 @@ public interface StreamWriter {
    * @param rows the rows to write; may not be null
    * @return the response from BigQuery for the write attempt
    */
-  ApiFuture<AppendRowsResponse> appendRows(
-      JSONArray rows
-  ) throws Descriptors.DescriptorValidationException, IOException;
+  ApiFuture<AppendRowsResponse> appendRows(JSONArray rows)
+      throws Descriptors.DescriptorValidationException, IOException;
 
   /**
-   * Invoked if the underlying stream appears to be closed. Implementing classes
-   * should respond by re-initialize the underlying stream.
+   * Invoked if the underlying stream appears to be closed. Implementing classes should respond by
+   * re-initialize the underlying stream.
    */
   void refresh();
 
   /**
-   * Invoked when all rows have either been written to BigQuery or intentionally
-   * discarded (e.g., reported to an {@link com.wepay.kafka.connect.bigquery.ErrantRecordHandler}).
+   * Invoked when all rows have either been written to BigQuery or intentionally discarded (e.g.,
+   * reported to an {@link com.wepay.kafka.connect.bigquery.ErrantRecordHandler}).
    */
   void onSuccess();
 
   String streamName();
-
 }

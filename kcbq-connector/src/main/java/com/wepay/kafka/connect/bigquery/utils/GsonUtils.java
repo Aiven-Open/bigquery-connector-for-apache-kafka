@@ -36,9 +36,9 @@ import java.util.Base64;
 /**
  * Gson utilities for safe JSON handling on Java 9+.
  *
- * <p>Exposes a preconfigured {@link Gson} instance that registers a hierarchy adapter for {@link ByteBuffer}
- * , ensuring serialization does not rely on illegal reflection into JDK internals (e.g.,
- * ByteBuffer#hb) which would otherwise throw {@code InaccessibleObjectException} on Java 9+.
+ * <p>Exposes a preconfigured {@link Gson} instance that registers a hierarchy adapter for {@link
+ * ByteBuffer} , ensuring serialization does not rely on illegal reflection into JDK internals
+ * (e.g., ByteBuffer#hb) which would otherwise throw {@code InaccessibleObjectException} on Java 9+.
  */
 public final class GsonUtils {
 

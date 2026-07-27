@@ -23,17 +23,16 @@
 package com.wepay.kafka.connect.bigquery.utils;
 
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
-
 import java.util.Map;
 
 public class TestingBigQuerySinkConfig extends BigQuerySinkConfig {
 
-    public TestingBigQuerySinkConfig(Map<String, String> properties) {
-        super(properties);
-    }
+  public TestingBigQuerySinkConfig(Map<String, String> properties) {
+    super(properties);
+  }
 
-    @Override
-    public void setPost3_6Flag(boolean state) {
-        super.setPost3_6Flag(state);
-    }
+  @Override
+  public void setPost3_6Flag(boolean state) {
+    super.setPost3_6Flag(state);
+  }
 }

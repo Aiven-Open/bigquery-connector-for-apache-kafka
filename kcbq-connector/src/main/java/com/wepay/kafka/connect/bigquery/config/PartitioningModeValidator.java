@@ -32,9 +32,9 @@ import java.util.Collections;
 import java.util.Optional;
 
 public class PartitioningModeValidator extends MultiPropertyValidator<BigQuerySinkConfig> {
-  private static final Collection<String> DEPENDENTS = Collections.unmodifiableCollection(Arrays.asList(
-      BIGQUERY_TIMESTAMP_PARTITION_FIELD_NAME_CONFIG
-  ));
+  private static final Collection<String> DEPENDENTS =
+      Collections.unmodifiableCollection(
+          Arrays.asList(BIGQUERY_TIMESTAMP_PARTITION_FIELD_NAME_CONFIG));
 
   public PartitioningModeValidator() {
     super(BIGQUERY_PARTITION_DECORATOR_CONFIG);
@@ -52,11 +52,11 @@ public class PartitioningModeValidator extends MultiPropertyValidator<BigQuerySi
     }
 
     if (config.getTimestampPartitionFieldName().isPresent()) {
-      return Optional.of(String.format("Only one partitioning mode may be specified for the connector. "
-              + "Use either %s OR %s.",
-          BIGQUERY_PARTITION_DECORATOR_CONFIG,
-          BIGQUERY_TIMESTAMP_PARTITION_FIELD_NAME_CONFIG
-      ));
+      return Optional.of(
+          String.format(
+              "Only one partitioning mode may be specified for the connector. "
+                  + "Use either %s OR %s.",
+              BIGQUERY_PARTITION_DECORATOR_CONFIG, BIGQUERY_TIMESTAMP_PARTITION_FIELD_NAME_CONFIG));
     } else {
       return Optional.empty();
     }

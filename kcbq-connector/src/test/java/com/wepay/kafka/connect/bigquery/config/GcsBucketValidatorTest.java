@@ -46,10 +46,7 @@ public class GcsBucketValidatorTest {
     BigQuerySinkConfig config = mock(BigQuerySinkConfig.class);
     when(config.getList(ENABLE_BATCH_CONFIG)).thenReturn(null);
 
-    assertEquals(
-        Optional.empty(),
-        new GcsBucketValidator().doValidate(gcs, config)
-    );
+    assertEquals(Optional.empty(), new GcsBucketValidator().doValidate(gcs, config));
   }
 
   @Test
@@ -57,10 +54,7 @@ public class GcsBucketValidatorTest {
     BigQuerySinkConfig config = mock(BigQuerySinkConfig.class);
     when(config.getList(ENABLE_BATCH_CONFIG)).thenReturn(Collections.emptyList());
 
-    assertEquals(
-        Optional.empty(),
-        new GcsBucketValidator().doValidate(gcs, config)
-    );
+    assertEquals(Optional.empty(), new GcsBucketValidator().doValidate(gcs, config));
   }
 
   @Test
@@ -69,10 +63,7 @@ public class GcsBucketValidatorTest {
     when(config.getList(ENABLE_BATCH_CONFIG)).thenReturn(Collections.singletonList("t1"));
     when(config.getString(GCS_BUCKET_NAME_CONFIG)).thenReturn(null);
 
-    assertNotEquals(
-        Optional.empty(),
-        new GcsBucketValidator().doValidate(gcs, config)
-    );
+    assertNotEquals(Optional.empty(), new GcsBucketValidator().doValidate(gcs, config));
   }
 
   @Test
@@ -81,10 +72,7 @@ public class GcsBucketValidatorTest {
     when(config.getList(ENABLE_BATCH_CONFIG)).thenReturn(Collections.singletonList("t1"));
     when(config.getString(GCS_BUCKET_NAME_CONFIG)).thenReturn("  \t  ");
 
-    assertNotEquals(
-        Optional.empty(),
-        new GcsBucketValidator().doValidate(gcs, config)
-    );
+    assertNotEquals(Optional.empty(), new GcsBucketValidator().doValidate(gcs, config));
   }
 
   @Test
@@ -97,10 +85,7 @@ public class GcsBucketValidatorTest {
     Bucket bucket = mock(Bucket.class);
     when(gcs.get(eq(bucketName))).thenReturn(bucket);
 
-    assertEquals(
-        Optional.empty(),
-        new GcsBucketValidator().doValidate(gcs, config)
-    );
+    assertEquals(Optional.empty(), new GcsBucketValidator().doValidate(gcs, config));
   }
 
   @Test
@@ -112,9 +97,6 @@ public class GcsBucketValidatorTest {
 
     when(gcs.get(eq(bucketName))).thenReturn(null);
 
-    assertNotEquals(
-        Optional.empty(),
-        new GcsBucketValidator().doValidate(gcs, config)
-    );
+    assertNotEquals(Optional.empty(), new GcsBucketValidator().doValidate(gcs, config));
   }
 }

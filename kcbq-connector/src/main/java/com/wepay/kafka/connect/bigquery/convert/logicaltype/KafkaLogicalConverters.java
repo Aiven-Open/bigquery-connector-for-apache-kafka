@@ -39,17 +39,18 @@ import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.Time;
 import org.apache.kafka.connect.data.Timestamp;
 
-/**
- * Class containing all the Kafka logical type converters.
- */
+/** Class containing all the Kafka logical type converters. */
 public class KafkaLogicalConverters {
 
   /**
    * These values are extracted from BigQuery documentation.
    *
-   * @see <a href="https://cloud.google.com/bigquery/docs/reference/standard-sql/data-types#numeric-type">BigQuery data types</a>
+   * @see <a
+   *     href="https://cloud.google.com/bigquery/docs/reference/standard-sql/data-types#numeric-type">BigQuery
+   *     data types</a>
    */
   private static final int MAX_NUMERIC_PRECISION = 38;
+
   private static final int MAX_NUMERIC_SCALE = 9;
 
   /**
@@ -59,7 +60,8 @@ public class KafkaLogicalConverters {
    */
   public static void initialize(final BigQuerySinkConfig config) {
     LogicalConverterRegistry.registerIfAbsent(Date.LOGICAL_NAME, new DateConverter());
-    LogicalConverterRegistry.registerIfAbsent(Decimal.LOGICAL_NAME, new DecimalConverter(config.getDecimalHandlingMode()));
+    LogicalConverterRegistry.registerIfAbsent(
+        Decimal.LOGICAL_NAME, new DecimalConverter(config.getDecimalHandlingMode()));
     LogicalConverterRegistry.registerIfAbsent(Timestamp.LOGICAL_NAME, new TimestampConverter());
     LogicalConverterRegistry.registerIfAbsent(Time.LOGICAL_NAME, new TimeConverter());
   }
@@ -75,17 +77,11 @@ public class KafkaLogicalConverters {
     // do not instantiate.
   }
 
-  /**
-   * Class for converting Kafka date logical types to Bigquery dates.
-   */
+  /** Class for converting Kafka date logical types to Bigquery dates. */
   public static class DateConverter extends LogicalTypeConverter {
-    /**
-     * Create a new DateConverter.
-     */
+    /** Create a new DateConverter. */
     public DateConverter() {
-      super(Date.LOGICAL_NAME,
-          Schema.Type.INT32,
-          LegacySQLTypeName.DATE);
+      super(Date.LOGICAL_NAME, Schema.Type.INT32, LegacySQLTypeName.DATE);
     }
 
     @Override
@@ -94,19 +90,13 @@ public class KafkaLogicalConverters {
     }
   }
 
-  /**
-   * Class for converting Kafka decimal logical types to Bigquery floating points.
-   */
+  /** Class for converting Kafka decimal logical types to Bigquery floating points. */
   public static class DecimalConverter extends LogicalTypeConverter {
     private final BigQuerySinkConfig.DecimalHandlingMode decimalHandlingMode;
 
-    /**
-     * Create a new DecimalConverter.
-     */
+    /** Create a new DecimalConverter. */
     public DecimalConverter(final BigQuerySinkConfig.DecimalHandlingMode decimalHandlingMode) {
-      super(Decimal.LOGICAL_NAME,
-              Schema.Type.BYTES,
-              decimalHandlingMode.sqlTypeName);
+      super(Decimal.LOGICAL_NAME, Schema.Type.BYTES, decimalHandlingMode.sqlTypeName);
       this.decimalHandlingMode = decimalHandlingMode;
     }
 
@@ -129,23 +119,28 @@ public class KafkaLogicalConverters {
         case BIGNUMERIC:
           return decimal;
         default:
-          throw new ConversionConnectException("Unsupported decimal handling mode: " + decimalHandlingMode);
+          throw new ConversionConnectException(
+              "Unsupported decimal handling mode: " + decimalHandlingMode);
       }
     }
 
     public Field.Builder getFieldBuilder(
-            Schema schema, String fieldName, BiFunction<Schema, String, Optional<Field.Builder>> convertStruct) {
+        Schema schema,
+        String fieldName,
+        BiFunction<Schema, String, Optional<Field.Builder>> convertStruct) {
       checkEncodingType(schema.type());
       switch (decimalHandlingMode) {
         case RECORD:
           com.google.cloud.bigquery.Field scaleField =
-                  Field.newBuilder("scale", LegacySQLTypeName.INTEGER).setMode(Field.Mode.REQUIRED).build();
+              Field.newBuilder("scale", LegacySQLTypeName.INTEGER)
+                  .setMode(Field.Mode.REQUIRED)
+                  .build();
           com.google.cloud.bigquery.Field valueField =
-                  Field.newBuilder("value", LegacySQLTypeName.BYTES).setMode(Field.Mode.REQUIRED).build();
+              Field.newBuilder("value", LegacySQLTypeName.BYTES)
+                  .setMode(Field.Mode.REQUIRED)
+                  .build();
           return com.google.cloud.bigquery.Field.newBuilder(
-                  fieldName,
-                  LegacySQLTypeName.RECORD,
-                  FieldList.of(scaleField, valueField));
+              fieldName, LegacySQLTypeName.RECORD, FieldList.of(scaleField, valueField));
         case FLOAT:
           return com.google.cloud.bigquery.Field.newBuilder(fieldName, LegacySQLTypeName.FLOAT);
         case BIGNUMERIC:
@@ -165,14 +160,21 @@ public class KafkaLogicalConverters {
           }
           if (decimalHandlingMode.sqlTypeName == LegacySQLTypeName.NUMERIC) {
             if (precision != null && precision > MAX_NUMERIC_PRECISION) {
-              throw new ConversionConnectException(String.format("Requested precision (%s) is too high for %s type", precision, decimalHandlingMode.sqlTypeName));
+              throw new ConversionConnectException(
+                  String.format(
+                      "Requested precision (%s) is too high for %s type",
+                      precision, decimalHandlingMode.sqlTypeName));
             }
             if (scale != null && scale > MAX_NUMERIC_SCALE) {
-              throw new ConversionConnectException(String.format("Requested scale (%s) is too large for %s type", precision, decimalHandlingMode.sqlTypeName));
+              throw new ConversionConnectException(
+                  String.format(
+                      "Requested scale (%s) is too large for %s type",
+                      precision, decimalHandlingMode.sqlTypeName));
             }
           }
           com.google.cloud.bigquery.Field.Builder builder =
-                  com.google.cloud.bigquery.Field.newBuilder(fieldName, decimalHandlingMode.sqlTypeName);
+              com.google.cloud.bigquery.Field.newBuilder(
+                  fieldName, decimalHandlingMode.sqlTypeName);
           if (precision != null) {
             builder.setPrecision(precision);
           }
@@ -182,22 +184,17 @@ public class KafkaLogicalConverters {
           builder.setType(decimalHandlingMode.sqlTypeName);
           return builder;
         default:
-          throw new ConversionConnectException("Unsupported decimal handling mode: " + decimalHandlingMode);
+          throw new ConversionConnectException(
+              "Unsupported decimal handling mode: " + decimalHandlingMode);
       }
     }
   }
 
-  /**
-   * Class for converting Kafka timestamp logical types to BigQuery timestamps.
-   */
+  /** Class for converting Kafka timestamp logical types to BigQuery timestamps. */
   public static class TimestampConverter extends LogicalTypeConverter {
-    /**
-     * Create a new TimestampConverter.
-     */
+    /** Create a new TimestampConverter. */
     public TimestampConverter() {
-      super(Timestamp.LOGICAL_NAME,
-          Schema.Type.INT64,
-          LegacySQLTypeName.TIMESTAMP);
+      super(Timestamp.LOGICAL_NAME, Schema.Type.INT64, LegacySQLTypeName.TIMESTAMP);
     }
 
     @Override
@@ -206,18 +203,11 @@ public class KafkaLogicalConverters {
     }
   }
 
-
-  /**
-   * Class for converting Kafka time logical types to BigQuery time types.
-   */
+  /** Class for converting Kafka time logical types to BigQuery time types. */
   public static class TimeConverter extends LogicalTypeConverter {
-    /**
-     * Create a new TimestampConverter.
-     */
+    /** Create a new TimestampConverter. */
     public TimeConverter() {
-      super(Time.LOGICAL_NAME,
-          Schema.Type.INT32,
-          LegacySQLTypeName.TIME);
+      super(Time.LOGICAL_NAME, Schema.Type.INT32, LegacySQLTypeName.TIME);
     }
 
     @Override

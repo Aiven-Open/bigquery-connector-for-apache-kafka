@@ -27,11 +27,9 @@ import com.google.cloud.bigquery.storage.v1.JsonStreamWriter;
 import com.google.protobuf.Descriptors;
 import java.io.IOException;
 
-/**
- * A functional interface for creating {@link JsonStreamWriter} instances.
- */
+/** A functional interface for creating {@link JsonStreamWriter} instances. */
 @FunctionalInterface
 public interface JsonStreamWriterFactory {
-  JsonStreamWriter create(String streamOrTableName) throws Descriptors.DescriptorValidationException,
-        IOException, InterruptedException;
+  JsonStreamWriter create(String streamOrTableName)
+      throws Descriptors.DescriptorValidationException, IOException, InterruptedException;
 }

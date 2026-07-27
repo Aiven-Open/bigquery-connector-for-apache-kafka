@@ -58,15 +58,15 @@ public abstract class GcpClientBuilder<ClientT> {
 
   private static final Logger logger = LoggerFactory.getLogger(GcpClientBuilder.class);
   // Scope list taken from : https://developers.google.com/identity/protocols/oauth2/scopes#bigquery
-  private static final Collection<String> scopes = Lists.newArrayList(
-      "https://www.googleapis.com/auth/bigquery",
-      "https://www.googleapis.com/auth/bigquery.insertdata",
-      "https://www.googleapis.com/auth/cloud-platform",
-      "https://www.googleapis.com/auth/cloud-platform.read-only",
-      "https://www.googleapis.com/auth/devstorage.full_control",
-      "https://www.googleapis.com/auth/devstorage.read_only",
-      "https://www.googleapis.com/auth/devstorage.read_write"
-  );
+  private static final Collection<String> scopes =
+      Lists.newArrayList(
+          "https://www.googleapis.com/auth/bigquery",
+          "https://www.googleapis.com/auth/bigquery.insertdata",
+          "https://www.googleapis.com/auth/cloud-platform",
+          "https://www.googleapis.com/auth/cloud-platform.read-only",
+          "https://www.googleapis.com/auth/devstorage.full_control",
+          "https://www.googleapis.com/auth/devstorage.read_only",
+          "https://www.googleapis.com/auth/devstorage.read_write");
   private static final String USER_AGENT_HEADER_KEY = "user-agent";
   private static final String USER_AGENT_HEADER_FORMAT = "Google BigQuery Sink/%s (GPN: %s;)";
 
@@ -80,11 +80,11 @@ public abstract class GcpClientBuilder<ClientT> {
 
   public GcpClientBuilder<ClientT> withConfig(BigQuerySinkConfig config) {
     return withProject(config.getString(PROJECT_CONFIG))
-    .withKeySource(config.getKeySource())
-    .withKey(config.getKey())
-    .withWriterApi(config.getBoolean(USE_STORAGE_WRITE_API_CONFIG))
-    .withProjectFromCreds(config.getBoolean(USE_CREDENTIALS_PROJECT_ID_CONFIG))
-    .withUserAgent();
+        .withKeySource(config.getKeySource())
+        .withKey(config.getKey())
+        .withWriterApi(config.getBoolean(USE_STORAGE_WRITE_API_CONFIG))
+        .withProjectFromCreds(config.getBoolean(USE_CREDENTIALS_PROJECT_ID_CONFIG))
+        .withUserAgent();
   }
 
   public GcpClientBuilder<ClientT> withProject(String project) {
@@ -101,7 +101,7 @@ public abstract class GcpClientBuilder<ClientT> {
   public GcpClientBuilder<ClientT> withProjectFromCreds(Boolean useCredentialsProjectId) {
     this.useCredentialsProjectId = useCredentialsProjectId;
     return this;
-  }  
+  }
 
   public GcpClientBuilder<ClientT> withKeySource(KeySource keySource) {
     Objects.requireNonNull(keySource, "Key cannot be null");
@@ -116,10 +116,11 @@ public abstract class GcpClientBuilder<ClientT> {
 
   public GcpClientBuilder<ClientT> withUserAgent() {
     VersionInfo versionInfo = new VersionInfo(GcpClientBuilder.class);
-    this.headerProvider = FixedHeaderProvider.create(
+    this.headerProvider =
+        FixedHeaderProvider.create(
             USER_AGENT_HEADER_KEY,
-            String.format(USER_AGENT_HEADER_FORMAT, versionInfo.getVersion(), versionInfo.getVendor())
-    );
+            String.format(
+                USER_AGENT_HEADER_FORMAT, versionInfo.getVersion(), versionInfo.getVendor()));
     return this;
   }
 
@@ -135,7 +136,7 @@ public abstract class GcpClientBuilder<ClientT> {
     Objects.requireNonNull(keySource, "Key source must be defined to build a GCP client");
     if (!useCredentialsProjectId) {
       Objects.requireNonNull(project, "Project must be defined to build a GCP client");
-    }    
+    }
 
     byte[] credentialsBytes;
     switch (keySource) {
@@ -157,7 +158,8 @@ public abstract class GcpClientBuilder<ClientT> {
           logger.debug("Attempting to use application default credentials");
           return GoogleCredentials.getApplicationDefault();
         } catch (IOException e) {
-          throw new BigQueryConnectException("Failed to create Application Default Credentials: " + e.getMessage(), e);
+          throw new BigQueryConnectException(
+              "Failed to create Application Default Credentials: " + e.getMessage(), e);
         }
       default:
         throw new IllegalArgumentException("Unexpected value for KeySource enum: " + keySource);
@@ -177,7 +179,9 @@ public abstract class GcpClientBuilder<ClientT> {
   protected abstract ClientT doBuild(String project, GoogleCredentials credentials);
 
   public enum KeySource {
-    FILE, JSON, APPLICATION_DEFAULT
+    FILE,
+    JSON,
+    APPLICATION_DEFAULT
   }
 
   public static class BigQueryBuilder extends GcpClientBuilder<BigQuery> {
@@ -223,7 +227,8 @@ public abstract class GcpClientBuilder<ClientT> {
   }
 
   /**
-   * Prepares BigQuery Write settings object which includes project info, header info, credentials etc.
+   * Prepares BigQuery Write settings object which includes project info, header info, credentials
+   * etc.
    */
   public static class BigQueryWriteSettingsBuilder extends GcpClientBuilder<BigQueryWriteSettings> {
 
@@ -247,7 +252,8 @@ public abstract class GcpClientBuilder<ClientT> {
         return builder.build();
       } catch (IOException e) {
         logger.error("Failed to create Storage API write settings due to {}", e.getMessage());
-        throw new BigQueryStorageWriteApiConnectException("Failed to create Storage API write settings", e);
+        throw new BigQueryStorageWriteApiConnectException(
+            "Failed to create Storage API write settings", e);
       }
     }
   }

@@ -51,11 +51,18 @@ import org.apache.kafka.connect.sink.SinkRecord;
  */
 public class BigQueryRecordConverter implements RecordConverter<Map<String, Object>> {
 
-  private static final Set<Class<?>> BASIC_TYPES = new HashSet<>(
-      Arrays.asList(
-          Boolean.class, Character.class, Byte.class, Short.class,
-          Integer.class, Long.class, Float.class, Double.class, String.class)
-  );
+  private static final Set<Class<?>> BASIC_TYPES =
+      new HashSet<>(
+          Arrays.asList(
+              Boolean.class,
+              Character.class,
+              Byte.class,
+              Short.class,
+              Integer.class,
+              Long.class,
+              Float.class,
+              Double.class,
+              String.class));
 
   private final boolean shouldConvertSpecialDouble;
   private final boolean useStorageWriteApi;
@@ -63,7 +70,8 @@ public class BigQueryRecordConverter implements RecordConverter<Map<String, Obje
   /**
    * Creates a record converter.
    *
-   * @param shouldConvertDoubleSpecial if {@code true} converts doubles of Infinity to MAX_VALUE and negative Infinity to MIN_VALUE.
+   * @param shouldConvertDoubleSpecial if {@code true} converts doubles of Infinity to MAX_VALUE and
+   *     negative Infinity to MIN_VALUE.
    * @param useStorageWriteApi if {@code true} use the storage write API.
    */
   public BigQueryRecordConverter(boolean shouldConvertDoubleSpecial, boolean useStorageWriteApi) {
@@ -72,64 +80,80 @@ public class BigQueryRecordConverter implements RecordConverter<Map<String, Obje
   }
 
   /**
-   * @deprecated use {@link #BigQueryRecordConverter(boolean, boolean)} as all other values are processed during config.
+   * @deprecated use {@link #BigQueryRecordConverter(boolean, boolean)} as all other values are
+   *     processed during config.
    */
   @Deprecated
-  public BigQueryRecordConverter(boolean shouldConvertDoubleSpecial,
-                                 boolean shouldConvertDebeziumTimestampToInteger,
-                                 boolean useStorageWriteApi) {
-    this(shouldConvertDoubleSpecial, shouldConvertDebeziumTimestampToInteger, useStorageWriteApi,
-        DecimalHandlingMode.NUMERIC, DecimalHandlingMode.NUMERIC);
-  }
-
-  /**
-   * @deprecated use {@link #BigQueryRecordConverter(boolean, boolean)} as all other values are processed during config.
-   */
-  @Deprecated
-  public BigQueryRecordConverter(boolean shouldConvertDoubleSpecial,
-                                 boolean shouldConvertDebeziumTimestampToInteger,
-                                 boolean useStorageWriteApi,
-                                 boolean shouldConvertToDebeziumVariableScaleDecimal) {
-    this(shouldConvertDoubleSpecial, shouldConvertDebeziumTimestampToInteger, useStorageWriteApi,
+  public BigQueryRecordConverter(
+      boolean shouldConvertDoubleSpecial,
+      boolean shouldConvertDebeziumTimestampToInteger,
+      boolean useStorageWriteApi) {
+    this(
+        shouldConvertDoubleSpecial,
+        shouldConvertDebeziumTimestampToInteger,
+        useStorageWriteApi,
         DecimalHandlingMode.NUMERIC,
-        shouldConvertToDebeziumVariableScaleDecimal ? DecimalHandlingMode.NUMERIC : DecimalHandlingMode.RECORD);
+        DecimalHandlingMode.NUMERIC);
   }
 
   /**
-   * @deprecated use {@link #BigQueryRecordConverter(boolean, boolean)} as all other values are processed during config.
+   * @deprecated use {@link #BigQueryRecordConverter(boolean, boolean)} as all other values are
+   *     processed during config.
    */
   @Deprecated
-  public BigQueryRecordConverter(boolean shouldConvertDoubleSpecial,
-                                 boolean shouldConvertDebeziumTimestampToInteger,
-                                 boolean useStorageWriteApi,
-                                 DecimalHandlingMode decimalHandlingMode,
-                                 DecimalHandlingMode variableScaleDecimalHandlingMode) {
+  public BigQueryRecordConverter(
+      boolean shouldConvertDoubleSpecial,
+      boolean shouldConvertDebeziumTimestampToInteger,
+      boolean useStorageWriteApi,
+      boolean shouldConvertToDebeziumVariableScaleDecimal) {
+    this(
+        shouldConvertDoubleSpecial,
+        shouldConvertDebeziumTimestampToInteger,
+        useStorageWriteApi,
+        DecimalHandlingMode.NUMERIC,
+        shouldConvertToDebeziumVariableScaleDecimal
+            ? DecimalHandlingMode.NUMERIC
+            : DecimalHandlingMode.RECORD);
+  }
+
+  /**
+   * @deprecated use {@link #BigQueryRecordConverter(boolean, boolean)} as all other values are
+   *     processed during config.
+   */
+  @Deprecated
+  public BigQueryRecordConverter(
+      boolean shouldConvertDoubleSpecial,
+      boolean shouldConvertDebeziumTimestampToInteger,
+      boolean useStorageWriteApi,
+      DecimalHandlingMode decimalHandlingMode,
+      DecimalHandlingMode variableScaleDecimalHandlingMode) {
     this(shouldConvertDoubleSpecial, useStorageWriteApi);
   }
 
   /**
    * Convert a {@link SinkRecord} into the contents of a BigQuery {@link RowToInsert}.
    *
-   * @param record     The Kafka Connect record to convert. Must be of type {@link Struct},
-   *                   in order to translate into a row format that requires each field to
-   *                   consist of both a name and a value.
+   * @param record The Kafka Connect record to convert. Must be of type {@link Struct}, in order to
+   *     translate into a row format that requires each field to consist of both a name and a value.
    * @param recordType The type of the record to convert, either value or key.
    * @return The result BigQuery row content.
    */
   @SuppressWarnings("unchecked")
   public Map<String, Object> convertRecord(SinkRecord record, KafkaSchemaRecordType recordType) {
-    Schema kafkaConnectSchema = recordType == KafkaSchemaRecordType.KEY ? record.keySchema() : record.valueSchema();
-    Object kafkaConnectStruct = recordType == KafkaSchemaRecordType.KEY ? record.key() : record.value();
+    Schema kafkaConnectSchema =
+        recordType == KafkaSchemaRecordType.KEY ? record.keySchema() : record.valueSchema();
+    Object kafkaConnectStruct =
+        recordType == KafkaSchemaRecordType.KEY ? record.key() : record.value();
     if (kafkaConnectSchema == null) {
       if (kafkaConnectStruct instanceof Map) {
         return (Map<String, Object>) convertSchemalessRecord(kafkaConnectStruct);
       }
       throw new ConversionConnectException(
-          "Only Map objects supported in absence of schema for record conversion to BigQuery format."
-      );
+          "Only Map objects supported in absence of schema for record conversion to BigQuery format.");
     }
     if (kafkaConnectSchema.type() != Schema.Type.STRUCT) {
-      throw new ConversionConnectException("Top-level Kafka Connect schema must be of type 'struct'");
+      throw new ConversionConnectException(
+          "Top-level Kafka Connect schema must be of type 'struct'");
     }
     return convertStruct(kafkaConnectStruct, kafkaConnectSchema);
   }
@@ -149,31 +173,28 @@ public class BigQueryRecordConverter implements RecordConverter<Map<String, Obje
       return convertBytes(value);
     }
     if (value instanceof List) {
-      return ((List<?>) value).stream()
-          .map(this::convertSchemalessRecord)
-          .collect(Collectors.toList());
+      return ((List<?>) value)
+          .stream().map(this::convertSchemalessRecord).collect(Collectors.toList());
     }
     if (value instanceof Map) {
-      return
-          ((Map<Object, Object>) value)
-              .entrySet()
-              .stream()
-              .collect(HashMap::new,
+      return ((Map<Object, Object>) value)
+          .entrySet().stream()
+              .collect(
+                  HashMap::new,
                   (m, e) -> {
                     if (!(e.getKey() instanceof String)) {
                       throw new ConversionConnectException(
                           "Failed to convert record to bigQuery format: "
-                              + "Map objects in absence of schema needs to have string value keys. "
-                      );
+                              + "Map objects in absence of schema needs to have string value keys. ");
                     }
                     m.put(e.getKey(), convertSchemalessRecord(e.getValue()));
                   },
                   HashMap::putAll);
     }
     throw new ConversionConnectException(
-        "Unsupported class " + value.getClass()
-            + " found in schemaless record data. Can't convert record to bigQuery format"
-    );
+        "Unsupported class "
+            + value.getClass()
+            + " found in schemaless record data. Can't convert record to bigQuery format");
   }
 
   private Object convertObject(Object kafkaConnectObject, Schema kafkaConnectSchema) {
@@ -187,7 +208,8 @@ public class BigQueryRecordConverter implements RecordConverter<Map<String, Obje
       }
     }
 
-    LogicalTypeConverter converter = LogicalConverterRegistry.getConverter(kafkaConnectSchema.name());
+    LogicalTypeConverter converter =
+        LogicalConverterRegistry.getConverter(kafkaConnectSchema.name());
     if (converter != null) {
       return converter.convert(kafkaConnectObject);
     }
@@ -209,13 +231,9 @@ public class BigQueryRecordConverter implements RecordConverter<Map<String, Obje
             ? ((Float) kafkaConnectObject).doubleValue()
             : convertFloat(kafkaConnectObject);
       case INT8:
-        return useStorageWriteApi
-            ? ((Byte) kafkaConnectObject).intValue()
-            : kafkaConnectObject;
+        return useStorageWriteApi ? ((Byte) kafkaConnectObject).intValue() : kafkaConnectObject;
       case INT16:
-        return useStorageWriteApi
-            ? ((Short) kafkaConnectObject).intValue()
-            : kafkaConnectObject;
+        return useStorageWriteApi ? ((Short) kafkaConnectObject).intValue() : kafkaConnectObject;
 
       case BOOLEAN:
       case INT32:
@@ -233,13 +251,13 @@ public class BigQueryRecordConverter implements RecordConverter<Map<String, Obje
     Struct kafkaConnectStruct = (Struct) kafkaConnectObject;
     for (Field kafkaConnectField : kafkaConnectSchemaFields) {
       // ignore empty structures
-      boolean isEmptyStruct = kafkaConnectField.schema().type() == Schema.Type.STRUCT
-          && kafkaConnectField.schema().fields().isEmpty();
+      boolean isEmptyStruct =
+          kafkaConnectField.schema().type() == Schema.Type.STRUCT
+              && kafkaConnectField.schema().fields().isEmpty();
       if (!isEmptyStruct) {
-        Object bigQueryObject = convertObject(
-            kafkaConnectStruct.get(kafkaConnectField.name()),
-            kafkaConnectField.schema()
-        );
+        Object bigQueryObject =
+            convertObject(
+                kafkaConnectStruct.get(kafkaConnectField.name()), kafkaConnectField.schema());
         if (bigQueryObject != null) {
           bigQueryRecord.put(kafkaConnectField.name(), bigQueryObject);
         }
@@ -249,8 +267,7 @@ public class BigQueryRecordConverter implements RecordConverter<Map<String, Obje
   }
 
   @SuppressWarnings("unchecked")
-  private List<Object> convertArray(Object kafkaConnectObject,
-                                    Schema kafkaConnectSchema) {
+  private List<Object> convertArray(Object kafkaConnectObject, Schema kafkaConnectSchema) {
     Schema kafkaConnectValueSchema = kafkaConnectSchema.valueSchema();
     List<Object> bigQueryList = new ArrayList<>();
     List<Object> kafkaConnectList = (List<Object>) kafkaConnectObject;
@@ -262,22 +279,17 @@ public class BigQueryRecordConverter implements RecordConverter<Map<String, Obje
   }
 
   @SuppressWarnings("unchecked")
-  private List<Map<String, Object>> convertMap(Object kafkaConnectObject,
-                                               Schema kafkaConnectSchema) {
+  private List<Map<String, Object>> convertMap(
+      Object kafkaConnectObject, Schema kafkaConnectSchema) {
     Schema kafkaConnectKeySchema = kafkaConnectSchema.keySchema();
     Schema kafkaConnectValueSchema = kafkaConnectSchema.valueSchema();
     List<Map<String, Object>> bigQueryEntryList = new ArrayList<>();
     Map<Object, Object> kafkaConnectMap = (Map<Object, Object>) kafkaConnectObject;
     for (Map.Entry<Object, Object> kafkaConnectMapEntry : kafkaConnectMap.entrySet()) {
       Map<String, Object> bigQueryEntry = new HashMap<>();
-      Object bigQueryKey = convertObject(
-          kafkaConnectMapEntry.getKey(),
-          kafkaConnectKeySchema
-      );
-      Object bigQueryValue = convertObject(
-          kafkaConnectMapEntry.getValue(),
-          kafkaConnectValueSchema
-      );
+      Object bigQueryKey = convertObject(kafkaConnectMapEntry.getKey(), kafkaConnectKeySchema);
+      Object bigQueryValue =
+          convertObject(kafkaConnectMapEntry.getValue(), kafkaConnectValueSchema);
       bigQueryEntry.put(BigQuerySchemaConverter.MAP_KEY_FIELD_NAME, bigQueryKey);
       bigQueryEntry.put(BigQuerySchemaConverter.MAP_VALUE_FIELD_NAME, bigQueryValue);
       bigQueryEntryList.add(bigQueryEntry);
@@ -286,11 +298,10 @@ public class BigQueryRecordConverter implements RecordConverter<Map<String, Obje
   }
 
   /**
-   * Converts a kafka connect {@link Double} into a value that can be stored into BigQuery
-   * If this.shouldConvertSpecialDouble is true, special values are converted as follows:
-   * Double.POSITIVE_INFINITY -> Double.MAX_VALUE
-   * Double.NEGATIVE_INFINITY -> Double.MIN_VALUE
-   * Double.NaN               -> Double.MIN_VALUE
+   * Converts a kafka connect {@link Double} into a value that can be stored into BigQuery If
+   * this.shouldConvertSpecialDouble is true, special values are converted as follows:
+   * Double.POSITIVE_INFINITY -> Double.MAX_VALUE Double.NEGATIVE_INFINITY -> Double.MIN_VALUE
+   * Double.NaN -> Double.MIN_VALUE
    *
    * @param kafkaConnectDouble The Kafka Connect value to convert.
    * @return The resulting Double value to put in BigQuery.
@@ -308,14 +319,12 @@ public class BigQueryRecordConverter implements RecordConverter<Map<String, Obje
   }
 
   /**
-   * Converts a kafka connect {@link Float} into a value that can be stored into BigQuery
-   * If this.shouldConvertSpecialDouble is true, special values are converted as follows:
-   * Float.POSITIVE_INFINITY -> Float.MAX_VALUE
-   * Float.NEGATIVE_INFINITY -> Float.MIN_VALUE
-   * Float.NaN               -> Float.MIN_VALUE
+   * Converts a kafka connect {@link Float} into a value that can be stored into BigQuery If
+   * this.shouldConvertSpecialDouble is true, special values are converted as follows:
+   * Float.POSITIVE_INFINITY -> Float.MAX_VALUE Float.NEGATIVE_INFINITY -> Float.MIN_VALUE Float.NaN
+   * -> Float.MIN_VALUE
    *
    * @param kafkaConnectObject The Kafka Connect value to convert.
-   *
    * @return The resulting Float value to put in BigQuery.
    */
   private Object convertFloat(Object kafkaConnectObject) {
@@ -339,6 +348,8 @@ public class BigQueryRecordConverter implements RecordConverter<Map<String, Obje
     } else {
       bytes = (byte[]) kafkaConnectObject;
     }
-    return useStorageWriteApi ? ByteString.copyFrom(bytes) : Base64.getEncoder().encodeToString(bytes);
+    return useStorageWriteApi
+        ? ByteString.copyFrom(bytes)
+        : Base64.getEncoder().encodeToString(bytes);
   }
 }

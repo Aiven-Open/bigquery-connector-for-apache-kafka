@@ -26,9 +26,7 @@ package com.wepay.kafka.connect.bigquery.config;
 import java.util.Map;
 import org.apache.kafka.common.config.ConfigDef;
 
-/**
- * Class for task-specific configuration properties.
- */
+/** Class for task-specific configuration properties. */
 public class BigQuerySinkTaskConfig extends BigQuerySinkConfig {
 
   public static final String GCS_BQ_TASK_CONFIG = "GCSBQTask";
@@ -54,15 +52,8 @@ public class BigQuerySinkTaskConfig extends BigQuerySinkConfig {
   public static ConfigDef config() {
     return BigQuerySinkConfig.getConfig()
         .defineInternal(
-            GCS_BQ_TASK_CONFIG,
-            GCS_BQ_TASK_TYPE,
-            GCS_BQ_TASK_DEFAULT,
-            GCS_BQ_TASK_IMPORTANCE
-        ).defineInternal(
-            TASK_ID_CONFIG,
-            TASK_ID_TYPE,
-            ConfigDef.NO_DEFAULT_VALUE,
-            TASK_ID_IMPORTANCE
-        );
+            GCS_BQ_TASK_CONFIG, GCS_BQ_TASK_TYPE, GCS_BQ_TASK_DEFAULT, GCS_BQ_TASK_IMPORTANCE)
+        .defineInternal(
+            TASK_ID_CONFIG, TASK_ID_TYPE, ConfigDef.NO_DEFAULT_VALUE, TASK_ID_IMPORTANCE);
   }
 }

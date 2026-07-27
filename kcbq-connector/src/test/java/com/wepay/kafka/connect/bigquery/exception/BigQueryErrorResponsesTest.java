@@ -35,7 +35,8 @@ public class BigQueryErrorResponsesTest {
   @Test
   public void testIsNonExistentDatasetError() {
     String message = "Not found: Dataset my-project:my_dataset";
-    BigQueryException error = new BigQueryException(404, message, new BigQueryError("notFound", "global", message));
+    BigQueryException error =
+        new BigQueryException(404, message, new BigQueryError("notFound", "global", message));
     assertTrue(BigQueryErrorResponses.isNonExistentDatasetError(error));
 
     // a table-level 404 must not match

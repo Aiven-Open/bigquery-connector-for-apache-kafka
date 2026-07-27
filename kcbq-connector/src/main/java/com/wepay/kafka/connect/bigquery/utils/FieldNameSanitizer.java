@@ -26,9 +26,7 @@ package com.wepay.kafka.connect.bigquery.utils;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * Converts illegal field names into BigQuery acceptable names.
- */
+/** Converts illegal field names into BigQuery acceptable names. */
 public class FieldNameSanitizer {
 
   /**
@@ -46,13 +44,11 @@ public class FieldNameSanitizer {
     return sanitizedName;
   }
 
-
   /**
    * Big Query specifies field name must begin with a alphabet or underscore and can only contain
-   * letters, numbers, and underscores.  This method replaces all invalid characters with an underscore "_".
-   * Replacement recurses into maps stored within the map.
-   * Note: "a.b" and "a/b" will have the same value after sanitization which will cause Duplicate key
-   * Exception.
+   * letters, numbers, and underscores. This method replaces all invalid characters with an
+   * underscore "_". Replacement recurses into maps stored within the map. Note: "a.b" and "a/b"
+   * will have the same value after sanitization which will cause Duplicate key Exception.
    *
    * @param map The map of field names to values.
    * @return the map data with cleaned field names.
@@ -60,14 +56,15 @@ public class FieldNameSanitizer {
   @SuppressWarnings("unchecked")
   public static Map<String, Object> replaceInvalidKeys(Map<String, Object> map) {
     Map<String, Object> result = new HashMap<>();
-    map.forEach((key, value) -> {
-      String sanitizedKey = sanitizeName(key);
-      if (value instanceof Map) {
-        result.put(sanitizedKey, replaceInvalidKeys((Map<String, Object>) value));
-      } else {
-        result.put(sanitizedKey, value);
-      }
-    });
+    map.forEach(
+        (key, value) -> {
+          String sanitizedKey = sanitizeName(key);
+          if (value instanceof Map) {
+            result.put(sanitizedKey, replaceInvalidKeys((Map<String, Object>) value));
+          } else {
+            result.put(sanitizedKey, value);
+          }
+        });
     return result;
   }
 }

@@ -43,16 +43,12 @@ public class CredentialsValidatorTest {
 
     assertEquals(
         Optional.empty(),
-        new CredentialsValidator.BigQueryCredentialsValidator().doValidate(config)
-    );
+        new CredentialsValidator.BigQueryCredentialsValidator().doValidate(config));
+    assertEquals(
+        Optional.empty(), new CredentialsValidator.GcsCredentialsValidator().doValidate(config));
     assertEquals(
         Optional.empty(),
-        new CredentialsValidator.GcsCredentialsValidator().doValidate(config)
-    );
-    assertEquals(
-        Optional.empty(),
-        new CredentialsValidator.BigQueryStorageWriteApiCredentialsValidator().doValidate(config)
-    );
+        new CredentialsValidator.BigQueryStorageWriteApiCredentialsValidator().doValidate(config));
   }
 
   @Test
@@ -63,20 +59,17 @@ public class CredentialsValidatorTest {
     @SuppressWarnings("unchecked")
     GcpClientBuilder<Object> mockClientBuilder = mock(GcpClientBuilder.class);
     when(mockClientBuilder.withConfig(eq(config))).thenReturn(mockClientBuilder);
-    when(mockClientBuilder.build()).thenThrow(new RuntimeException("Provided credentials are invalid"));
+    when(mockClientBuilder.build())
+        .thenThrow(new RuntimeException("Provided credentials are invalid"));
 
     assertNotEquals(
         Optional.empty(),
-        new CredentialsValidator.BigQueryCredentialsValidator().doValidate(config)
-    );
+        new CredentialsValidator.BigQueryCredentialsValidator().doValidate(config));
+    assertNotEquals(
+        Optional.empty(), new CredentialsValidator.GcsCredentialsValidator().doValidate(config));
     assertNotEquals(
         Optional.empty(),
-        new CredentialsValidator.GcsCredentialsValidator().doValidate(config)
-    );
-    assertNotEquals(
-        Optional.empty(),
-        new CredentialsValidator.BigQueryStorageWriteApiCredentialsValidator().doValidate(config)
-    );
+        new CredentialsValidator.BigQueryStorageWriteApiCredentialsValidator().doValidate(config));
   }
 
   @Test
@@ -86,12 +79,14 @@ public class CredentialsValidatorTest {
     when(config.getKeySource()).thenReturn(GcpClientBuilder.KeySource.APPLICATION_DEFAULT);
 
     assertTrue(
-        new CredentialsValidator.BigQueryCredentialsValidator().doValidate(config)
-            .get().contains("should not be provided")
-    );
+        new CredentialsValidator.BigQueryCredentialsValidator()
+            .doValidate(config)
+            .get()
+            .contains("should not be provided"));
     assertTrue(
-        new CredentialsValidator.BigQueryStorageWriteApiCredentialsValidator().doValidate(config)
-            .get().contains("should not be provided")
-    );
+        new CredentialsValidator.BigQueryStorageWriteApiCredentialsValidator()
+            .doValidate(config)
+            .get()
+            .contains("should not be provided"));
   }
 }
