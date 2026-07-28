@@ -43,16 +43,10 @@
   </properties>
 
   <dependencies>
-    <dependency>
-      <groupId>io.aiven.commons</groupId>
-      <artifactId>google-utils</artifactId>
-      <scope>compile</scope>
-    </dependency>
 
     <dependency>
       <groupId>io.aiven.commons</groupId>
-      <artifactId>system</artifactId>
-      <scope>compile</scope>
+      <artifactId>common-util</artifactId>
     </dependency>
 
     <dependency>

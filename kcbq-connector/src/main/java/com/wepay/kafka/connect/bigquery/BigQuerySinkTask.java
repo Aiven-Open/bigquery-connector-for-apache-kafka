@@ -58,7 +58,7 @@ import com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiBatchApplic
 import com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiDefaultStream;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiWriter;
 import de.huxhorn.sulky.ulid.ULID;
-import io.aiven.commons.system.VersionInfo;
+import io.aiven.commons.util.system.VersionInfo;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collection;
@@ -580,7 +580,9 @@ public class BigQuerySinkTask extends SinkTask {
 
   private void startGcsToBqLoadTask() {
     logger.info("Attempting to start GCS Load Executor.");
-    loadExecutor = Executors.newScheduledThreadPool(1, new MdcContextThreadFactory());
+    // use a single thread to ensure that no more than one thread is attempting to send
+    // data to BigQuery otherwise duplicates may occur.
+    loadExecutor = Executors.newSingleThreadScheduledExecutor(new MdcContextThreadFactory());
     String bucketName = config.getString(BigQuerySinkConfig.GCS_BUCKET_NAME_CONFIG);
     Storage gcs = getGcs();
     // get the bucket, or create it if it does not exist.
