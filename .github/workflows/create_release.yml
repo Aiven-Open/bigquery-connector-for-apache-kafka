@@ -1,5 +1,5 @@
 #
-# Copyright 2026 Copyright 2022 Aiven Oy and
+# Copyright 2022-2026 Aiven Oy and
 # bigquery-connector-for-apache-kafka project contributors
 #
 # This software contains code derived from the Confluent BigQuery
@@ -101,7 +101,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          #tag_name: "v${{ env.version }}"
           target_commitish: ${{ github.event.inputs.commit_hash }}
           draft: true
           prerelease: false

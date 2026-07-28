@@ -81,6 +81,15 @@ jobs:
         run: |
           git config --local user.name "GitHub Action"
           git config --local user.email "action@github.com"
+          #
+          # | options | Description|
+          # |----------|------------|
+          # | -e       | Produce execution error messages|
+          # | -B       | Run in non interactive (batch) mode (disables output colour) |
+          # | -V       | Display version information without stopping the build |
+          # | -ntp     | Do not display transfer progress when downloading or uploading|
+          # | -f       | Force the use of an alternative POM file or directory with pom.xml |
+          #        
           mvn -e -B -V -ntp versions:set versions:update-child-modules versions:set-property -Dproperty=latestRelease -DgenerateBackupPoms=false -DnewVersion=${{ github.event.inputs.release_version }}
           mvn -e -B -V -ntp enforcer:enforce -Denforcer.rules=requireReleaseDeps
           mvn -e -B -V -ntp -f docs versions:update-parent -DgenerateBackupPoms=false -DnewVersion=${{ github.event.inputs.release_version }}  
