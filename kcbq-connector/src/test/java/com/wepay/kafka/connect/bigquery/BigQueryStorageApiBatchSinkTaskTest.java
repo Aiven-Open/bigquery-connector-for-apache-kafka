@@ -69,12 +69,14 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 public class BigQueryStorageApiBatchSinkTaskTest {
-  private static final SinkTaskPropertiesFactory propertiesFactory = new SinkTaskPropertiesFactory();
+  private static final SinkTaskPropertiesFactory propertiesFactory =
+      new SinkTaskPropertiesFactory();
   final String topic = "test-topic";
   private final AtomicLong spoofedRecordOffset = new AtomicLong();
-  private final StorageWriteApiBatchApplicationStream mockedStorageWriteApiBatchStream = mock(
-      StorageWriteApiBatchApplicationStream.class, CALLS_REAL_METHODS);
-  private final StorageApiBatchModeHandler mockedBatchHandler = mock(StorageApiBatchModeHandler.class);
+  private final StorageWriteApiBatchApplicationStream mockedStorageWriteApiBatchStream =
+      mock(StorageWriteApiBatchApplicationStream.class, CALLS_REAL_METHODS);
+  private final StorageApiBatchModeHandler mockedBatchHandler =
+      mock(StorageApiBatchModeHandler.class);
   Map<String, String> properties;
   BigQuery bigQuery = mock(BigQuery.class);
   Storage storage = mock(Storage.class);
@@ -82,9 +84,17 @@ public class BigQueryStorageApiBatchSinkTaskTest {
   SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
   SchemaManager schemaManager = mock(SchemaManager.class);
   Time time = new MockTime();
-  BigQuerySinkTask testTask = new BigQuerySinkTask(
-      bigQuery, schemaRetriever, storage, schemaManager, mockedStorageWriteApiBatchStream, mockedBatchHandler, time);
-  BigQueryStorageWriteApiConnectException exception = new BigQueryStorageWriteApiConnectException("error 12345");
+  BigQuerySinkTask testTask =
+      new BigQuerySinkTask(
+          bigQuery,
+          schemaRetriever,
+          storage,
+          schemaManager,
+          mockedStorageWriteApiBatchStream,
+          mockedBatchHandler,
+          time);
+  BigQueryStorageWriteApiConnectException exception =
+      new BigQueryStorageWriteApiConnectException("error 12345");
   Map<TopicPartition, OffsetAndMetadata> mockedOffset = mock(Map.class);
 
   @BeforeEach
@@ -99,8 +109,9 @@ public class BigQueryStorageApiBatchSinkTaskTest {
     spoofedRecordOffset.set(0);
     mockedOffset.put(new TopicPartition(topic, 0), new OffsetAndMetadata(0));
 
-    doNothing().when(mockedStorageWriteApiBatchStream)
-            .initializeAndWriteRecords(any(PartitionedTableId.class), any(), eq("dummyStream"));
+    doNothing()
+        .when(mockedStorageWriteApiBatchStream)
+        .initializeAndWriteRecords(any(PartitionedTableId.class), any(), eq("dummyStream"));
     doNothing().when(mockedStorageWriteApiBatchStream).shutdown();
     doNothing().when(mockedBatchHandler).refreshStreams();
     when(mockedBatchHandler.updateOffsetsOnStream(any(), any())).thenReturn("dummyStream");
@@ -116,18 +127,20 @@ public class BigQueryStorageApiBatchSinkTaskTest {
   @Test
   public void testPut() throws Exception {
     CountDownLatch writeThreadStarted = new CountDownLatch(1);
-    doAnswer(invocationOnMock -> {
-      writeThreadStarted.countDown();
-      return null;
-    }).when(mockedStorageWriteApiBatchStream).initializeAndWriteRecords(any(PartitionedTableId.class), any(), any());
+    doAnswer(
+            invocationOnMock -> {
+              writeThreadStarted.countDown();
+              return null;
+            })
+        .when(mockedStorageWriteApiBatchStream)
+        .initializeAndWriteRecords(any(PartitionedTableId.class), any(), any());
 
     testTask.start(properties);
     testTask.put(Collections.singletonList(spoofSinkRecord()));
 
     assertTrue(
         writeThreadStarted.await(1, TimeUnit.SECONDS),
-        "Task did not initialize expected write thread for record in time"
-    );
+        "Task did not initialize expected write thread for record in time");
   }
 
   @Test
@@ -138,7 +151,8 @@ public class BigQueryStorageApiBatchSinkTaskTest {
 
     // Ensure that the task has scheduled exactly one load task
     ArgumentCaptor<Runnable> loadExecutorTask = ArgumentCaptor.forClass(Runnable.class);
-    verify(loadExecutor, times(1)).scheduleAtFixedRate(loadExecutorTask.capture(), anyLong(), anyLong(), any());
+    verify(loadExecutor, times(1))
+        .scheduleAtFixedRate(loadExecutorTask.capture(), anyLong(), anyLong(), any());
 
     // Run that load task
     loadExecutorTask.getValue().run();
@@ -155,7 +169,8 @@ public class BigQueryStorageApiBatchSinkTaskTest {
 
     // Ensure that the task has scheduled exactly one load task
     ArgumentCaptor<Runnable> loadExecutorTask = ArgumentCaptor.forClass(Runnable.class);
-    verify(loadExecutor, times(1)).scheduleAtFixedRate(loadExecutorTask.capture(), anyLong(), anyLong(), any());
+    verify(loadExecutor, times(1))
+        .scheduleAtFixedRate(loadExecutorTask.capture(), anyLong(), anyLong(), any());
 
     // Run that load task
     doThrow(exception).when(mockedBatchHandler).refreshStreams();
@@ -167,27 +182,28 @@ public class BigQueryStorageApiBatchSinkTaskTest {
 
     // Ensure that the load task failure is propagated by put()
     assertThrows(
-        BigQueryStorageWriteApiConnectException.class,
-        () -> testTask.put(Collections.emptyList())
-    );
+        BigQueryStorageWriteApiConnectException.class, () -> testTask.put(Collections.emptyList()));
   }
 
   @Test
   public void testSimplePutException() throws Exception {
     testTask.start(properties);
-    doThrow(exception).when(mockedStorageWriteApiBatchStream)
-            .initializeAndWriteRecords(any(PartitionedTableId.class), any(), eq("dummyStream"));
+    doThrow(exception)
+        .when(mockedStorageWriteApiBatchStream)
+        .initializeAndWriteRecords(any(PartitionedTableId.class), any(), eq("dummyStream"));
 
     testTask.put(Collections.singletonList(spoofSinkRecord()));
-    BigQueryConnectException e = assertThrows(
-        BigQueryConnectException.class,
-        () -> {
-          // Try for at most 1 second to get the task to throw an exception
-          for (long startTime = System.currentTimeMillis(); System.currentTimeMillis() < startTime + 1_000; Thread.sleep(100)) {
-            testTask.put(Collections.emptyList());
-          }
-        }
-    );
+    BigQueryConnectException e =
+        assertThrows(
+            BigQueryConnectException.class,
+            () -> {
+              // Try for at most 1 second to get the task to throw an exception
+              for (long startTime = System.currentTimeMillis();
+                  System.currentTimeMillis() < startTime + 1_000;
+                  Thread.sleep(100)) {
+                testTask.put(Collections.emptyList());
+              }
+            });
     assertTrue(e.getCause() instanceof BigQueryStorageWriteApiConnectException);
   }
 
@@ -207,20 +223,24 @@ public class BigQueryStorageApiBatchSinkTaskTest {
 
     assertThrows(
         BigQueryStorageWriteApiConnectException.class,
-        () -> testTask.put(Collections.singletonList(spoofSinkRecord()))
-    );
+        () -> testTask.put(Collections.singletonList(spoofSinkRecord())));
   }
 
   private SinkRecord spoofSinkRecord() {
-    Schema basicValueSchema = SchemaBuilder
-        .struct()
-        .field("sink_task_test_field", Schema.STRING_SCHEMA)
-        .build();
+    Schema basicValueSchema =
+        SchemaBuilder.struct().field("sink_task_test_field", Schema.STRING_SCHEMA).build();
     Struct basicValue = new Struct(basicValueSchema);
     basicValue.put("sink_task_test_field", "sink task test row");
 
-    return new SinkRecord(topic, 0, null, null,
-        basicValueSchema, basicValue, spoofedRecordOffset.getAndIncrement(), null, TimestampType.NO_TIMESTAMP_TYPE);
+    return new SinkRecord(
+        topic,
+        0,
+        null,
+        null,
+        basicValueSchema,
+        basicValue,
+        spoofedRecordOffset.getAndIncrement(),
+        null,
+        TimestampType.NO_TIMESTAMP_TYPE);
   }
-
 }

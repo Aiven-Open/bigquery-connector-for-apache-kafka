@@ -64,9 +64,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.threeten.bp.Duration;
 
-/**
- * Base class which handles data ingestion to bigquery tables using different kind of streams
- */
+/** Base class which handles data ingestion to bigquery tables using different kind of streams */
 public abstract class StorageWriteApiBase {
 
   private static final Logger logger = LoggerFactory.getLogger(StorageWriteApiBase.class);
@@ -85,27 +83,28 @@ public abstract class StorageWriteApiBase {
   protected final boolean upsertEnabled;
   protected final boolean deleteEnabled;
   protected SchemaManager schemaManager;
-  @VisibleForTesting
-  protected Time time;
+  @VisibleForTesting protected Time time;
   ErrantRecordHandler errantRecordHandler;
   private BigQueryWriteClient writeClient;
 
   /**
-   * @param retry               How many retries to make in the event of a retriable error.
-   * @param retryWait           How long to wait in between retries.
-   * @param writeSettings       Write Settings for stream which carry authentication and other header information
-   * @param autoCreateTables    boolean flag set if table should be created automatically
+   * @param retry How many retries to make in the event of a retriable error.
+   * @param retryWait How long to wait in between retries.
+   * @param writeSettings Write Settings for stream which carry authentication and other header
+   *     information
+   * @param autoCreateTables boolean flag set if table should be created automatically
    * @param errantRecordHandler Used to handle errant records
-   * @param config              Connector configurations
+   * @param config Connector configurations
    */
-  protected StorageWriteApiBase(int retry,
-                                long retryWait,
-                                BigQueryWriteSettings writeSettings,
-                                boolean autoCreateTables,
-                                ErrantRecordHandler errantRecordHandler,
-                                SchemaManager schemaManager,
-                                boolean attemptSchemaUpdate,
-                                BigQuerySinkConfig config) {
+  protected StorageWriteApiBase(
+      int retry,
+      long retryWait,
+      BigQueryWriteSettings writeSettings,
+      boolean autoCreateTables,
+      ErrantRecordHandler errantRecordHandler,
+      SchemaManager schemaManager,
+      boolean attemptSchemaUpdate,
+      BigQuerySinkConfig config) {
     this.retry = retry;
     this.retryWait = retryWait;
     this.autoCreateTables = autoCreateTables;
@@ -119,33 +118,37 @@ public abstract class StorageWriteApiBase {
     try {
       this.writeClient = getWriteClient();
     } catch (IOException e) {
-      logger.error("Failed to create Big Query Storage Write API write client due to {}", e.getMessage());
-      throw new BigQueryStorageWriteApiConnectException("Failed to create Big Query Storage Write API write client", e);
+      logger.error(
+          "Failed to create Big Query Storage Write API write client due to {}", e.getMessage());
+      throw new BigQueryStorageWriteApiConnectException(
+          "Failed to create Big Query Storage Write API write client", e);
     }
     this.jsonWriterFactory = getJsonWriterFactory();
     this.time = Time.SYSTEM;
   }
 
   /**
-   * @param retry               How many retries to make in the event of a retriable error.
-   * @param retryWait           How long to wait in between retries.
-   * @param writeSettings       Write Settings for stream which carry authentication and other header information
-   * @param autoCreateTables    boolean flag set if table should be created automatically
+   * @param retry How many retries to make in the event of a retriable error.
+   * @param retryWait How long to wait in between retries.
+   * @param writeSettings Write Settings for stream which carry authentication and other header
+   *     information
+   * @param autoCreateTables boolean flag set if table should be created automatically
    * @param errantRecordHandler Used to handle errant records
-   *
-   * @deprecated This constructor does not support does not support configuration of additional write settings.
-   * Use {@link #StorageWriteApiBase(int retry, long retryWait, BigQueryWriteSettings writeSettings,
-   * boolean autoCreateTables, ErrantRecordHandler errantRecordHandler, SchemaManager schemaManager,
-   * boolean attemptSchemaUpdate, BigQuerySinkConfig config)} instead.
+   * @deprecated This constructor does not support does not support configuration of additional
+   *     write settings. Use {@link #StorageWriteApiBase(int retry, long retryWait,
+   *     BigQueryWriteSettings writeSettings, boolean autoCreateTables, ErrantRecordHandler
+   *     errantRecordHandler, SchemaManager schemaManager, boolean attemptSchemaUpdate,
+   *     BigQuerySinkConfig config)} instead.
    */
   @Deprecated
-  protected StorageWriteApiBase(int retry,
-                                long retryWait,
-                                BigQueryWriteSettings writeSettings,
-                                boolean autoCreateTables,
-                                ErrantRecordHandler errantRecordHandler,
-                                SchemaManager schemaManager,
-                                boolean attemptSchemaUpdate) {
+  protected StorageWriteApiBase(
+      int retry,
+      long retryWait,
+      BigQueryWriteSettings writeSettings,
+      boolean autoCreateTables,
+      ErrantRecordHandler errantRecordHandler,
+      SchemaManager schemaManager,
+      boolean attemptSchemaUpdate) {
     this.retry = retry;
     this.retryWait = retryWait;
     this.autoCreateTables = autoCreateTables;
@@ -159,8 +162,10 @@ public abstract class StorageWriteApiBase {
     try {
       this.writeClient = getWriteClient();
     } catch (IOException e) {
-      logger.error("Failed to create Big Query Storage Write API write client due to {}", e.getMessage());
-      throw new BigQueryStorageWriteApiConnectException("Failed to create Big Query Storage Write API write client", e);
+      logger.error(
+          "Failed to create Big Query Storage Write API write client due to {}", e.getMessage());
+      throw new BigQueryStorageWriteApiConnectException(
+          "Failed to create Big Query Storage Write API write client", e);
     }
     this.jsonWriterFactory = getJsonWriterFactory();
     this.time = Time.SYSTEM;
@@ -169,14 +174,9 @@ public abstract class StorageWriteApiBase {
   public abstract void preShutdown();
 
   protected abstract StreamWriter streamWriter(
-      PartitionedTableId table,
-      String streamName,
-      List<ConvertedRecord> records
-  );
+      PartitionedTableId table, String streamName, List<ConvertedRecord> records);
 
-  /**
-   * Gets called on task.stop() and should have resource cleanup logic.
-   */
+  /** Gets called on task.stop() and should have resource cleanup logic. */
   public void shutdown() {
     preShutdown();
     this.writeClient.close();
@@ -185,49 +185,54 @@ public abstract class StorageWriteApiBase {
   /**
    * Handles required initialization steps and goes to append records to table
    *
-   * @param tableName  The table to write data to
-   * @param rows       List of pre- and post-conversion records.
-   *                   Converted JSONObjects would be sent to api.
-   *                   Pre-conversion sink records are required for DLQ routing
+   * @param tableName The table to write data to
+   * @param rows List of pre- and post-conversion records. Converted JSONObjects would be sent to
+   *     api. Pre-conversion sink records are required for DLQ routing
    * @param streamName The stream to use to write table to table.
-   *
    * @deprecated Use {@link #initializeAndWriteRecords(PartitionedTableId, List, String)} instead.
    */
   @Deprecated
-  public final void initializeAndWriteRecords(TableName tableName, List<ConvertedRecord> rows, String streamName) {
+  public final void initializeAndWriteRecords(
+      TableName tableName, List<ConvertedRecord> rows, String streamName) {
     initializeAndWriteRecords(TableNameUtils.partitionedTableId(tableName), rows, streamName);
   }
 
   /**
    * Handles required initialization steps and goes to append records to table
    *
-   * @param table      The table to write data to
-   * @param rows       List of pre- and post-conversion records.
-   *                   Converted JSONObjects would be sent to api.
-   *                   Pre-conversion sink records are required for DLQ routing
+   * @param table The table to write data to
+   * @param rows List of pre- and post-conversion records. Converted JSONObjects would be sent to
+   *     api. Pre-conversion sink records are required for DLQ routing
    * @param streamName The stream to use to write table to table.
    */
-  public final void initializeAndWriteRecords(PartitionedTableId table, List<ConvertedRecord> rows, String streamName) {
+  public final void initializeAndWriteRecords(
+      PartitionedTableId table, List<ConvertedRecord> rows, String streamName) {
     initializeAndWriteRecords(table, rows, streamName, null, null);
   }
 
   /**
-   * Handles required initialization steps and goes to append records to table. When
-   * {@code recordConverter} and {@code ulidSupplier} are both non-null (i.e. when
-   * {@code trackPutAttempts=true}), a fresh ULID is generated and the batch is re-converted
-   * immediately before every {@code appendRows()} call so that each gRPC write carries a
-   * unique write-attempt ID.
+   * Handles required initialization steps and goes to append records to table. When {@code
+   * recordConverter} and {@code ulidSupplier} are both non-null (i.e. when {@code
+   * trackPutAttempts=true}), a fresh ULID is generated and the batch is re-converted immediately
+   * before every {@code appendRows()} call so that each gRPC write carries a unique write-attempt
+   * ID.
    *
-   * @param table            The table to write data to
-   * @param rows             List of pre- and post-conversion records.
-   * @param streamName       The stream to use to write data to the table.
-   * @param recordConverter  Converter used to rebuild rows with a fresh ULID; may be {@code null}.
-   * @param ulidSupplier     Supplier of write-attempt ULIDs; may be {@code null}.
+   * @param table The table to write data to
+   * @param rows List of pre- and post-conversion records.
+   * @param streamName The stream to use to write data to the table.
+   * @param recordConverter Converter used to rebuild rows with a fresh ULID; may be {@code null}.
+   * @param ulidSupplier Supplier of write-attempt ULIDs; may be {@code null}.
    */
-  public final void initializeAndWriteRecords(PartitionedTableId table, List<ConvertedRecord> rows, String streamName,
-                                        SinkRecordConverter recordConverter, Supplier<String> ulidSupplier) {
+  public final void initializeAndWriteRecords(
+      PartitionedTableId table,
+      List<ConvertedRecord> rows,
+      String streamName,
+      SinkRecordConverter recordConverter,
+      Supplier<String> ulidSupplier) {
     TableName tableName = TableNameUtils.tableName(table.getFullTableId());
-    StorageWriteApiRetryHandler retryHandler = new StorageWriteApiRetryHandler(table.getBaseTableId(), getSinkRecords(rows), retry, retryWait, time);
+    StorageWriteApiRetryHandler retryHandler =
+        new StorageWriteApiRetryHandler(
+            table.getBaseTableId(), getSinkRecords(rows), retry, retryWait, time);
     logger.debug("Sending {} records to write Api Application stream {}", rows.size(), streamName);
     RecordBatches<ConvertedRecord> batches = new RecordBatches<>(rows);
     StreamWriter writer = streamWriter(table, streamName, rows);
@@ -237,7 +242,10 @@ public abstract class StorageWriteApiBase {
       while (!batch.isEmpty()) {
         try {
           writeBatch(writer, batch, retryHandler, tableName, recordConverter, ulidSupplier);
-          batch = Collections.emptyList(); // Can't do batch.clear(); it'll mess with the batch tracking logic in RecordBatches
+          batch =
+              Collections
+                  .emptyList(); // Can't do batch.clear(); it'll mess with the batch tracking logic
+          // in RecordBatches
         } catch (RetryException e) {
           retryHandler.maybeRetry("write to table " + tableName);
           if (e.getMessage() != null) {
@@ -245,10 +253,10 @@ public abstract class StorageWriteApiBase {
           }
         } catch (BatchTooLargeException e) {
           if (batch.size() <= 1) {
-            Map<Integer, String> rowErrorMapping = Collections.singletonMap(
-                0, e.getMessage()
-            );
-            batch = maybeHandleDlqRoutingAndFilterRecords(batch, rowErrorMapping, table.getBaseTableId().getTable());
+            Map<Integer, String> rowErrorMapping = Collections.singletonMap(0, e.getMessage());
+            batch =
+                maybeHandleDlqRoutingAndFilterRecords(
+                    batch, rowErrorMapping, table.getBaseTableId().getTable());
             if (!batch.isEmpty()) {
               retryHandler.maybeRetry("write to table " + tableName);
             }
@@ -256,13 +264,20 @@ public abstract class StorageWriteApiBase {
             int previousSize = batch.size();
             batches.reduceBatchSize();
             batch = batches.currentBatch();
-            logger.debug("Reducing batch size for table {} from {} to {}", tableName, previousSize, batch.size());
+            logger.debug(
+                "Reducing batch size for table {} from {} to {}",
+                tableName,
+                previousSize,
+                batch.size());
           }
         } catch (MalformedRowsException e) {
-          batch = maybeHandleDlqRoutingAndFilterRecords(batch, e.getRowErrorMapping(), table.getBaseTableId().getTable());
+          batch =
+              maybeHandleDlqRoutingAndFilterRecords(
+                  batch, e.getRowErrorMapping(), table.getBaseTableId().getTable());
           if (!batch.isEmpty()) {
             // TODO: Does this actually make sense? Should we count this as part of our retry logic?
-            //       As long as we're guaranteed that the number of rows in the batch is decreasing, it
+            //       As long as we're guaranteed that the number of rows in the batch is decreasing,
+            // it
             //       may make sense to skip the maybeRetry invocation
             retryHandler.maybeRetry("write to table " + tableName);
           }
@@ -281,8 +296,8 @@ public abstract class StorageWriteApiBase {
       StorageWriteApiRetryHandler retryHandler,
       TableName tableName,
       SinkRecordConverter recordConverter,
-      Supplier<String> ulidSupplier
-  ) throws BatchTooLargeException, MalformedRowsException, RetryException {
+      Supplier<String> ulidSupplier)
+      throws BatchTooLargeException, MalformedRowsException, RetryException {
     if (recordConverter != null && ulidSupplier != null) {
       String newId = ulidSupplier.get();
       List<ConvertedRecord> rebuilt = new ArrayList<>();
@@ -300,15 +315,21 @@ public abstract class StorageWriteApiBase {
       logger.trace("Received response from Storage API writer batch");
 
       if (writeResult.hasUpdatedSchema()) {
-        logger.warn("Sent records schema does not match with table schema, will attempt to update schema");
+        logger.warn(
+            "Sent records schema does not match with table schema, will attempt to update schema");
         if (!canAttemptSchemaUpdate()) {
-          throw new BigQueryStorageWriteApiConnectException("Connector is not configured to perform schema updates.");
+          throw new BigQueryStorageWriteApiConnectException(
+              "Connector is not configured to perform schema updates.");
         }
         retryHandler.attemptTableOperation(schemaManager::updateSchema);
         throw new RetryException();
       } else if (writeResult.hasError()) {
-        String errorMessage = String.format("Failed to write rows on table %s due to %s", tableName, writeResult.getError().getMessage());
-        retryHandler.setMostRecentException(new BigQueryStorageWriteApiConnectException(errorMessage));
+        String errorMessage =
+            String.format(
+                "Failed to write rows on table %s due to %s",
+                tableName, writeResult.getError().getMessage());
+        retryHandler.setMostRecentException(
+            new BigQueryStorageWriteApiConnectException(errorMessage));
         if (BigQueryStorageWriteApiErrorResponses.isMalformedRequest(errorMessage)) {
           throw new MalformedRowsException(convertToMap(writeResult.getRowErrorsList()));
         }
@@ -318,8 +339,7 @@ public abstract class StorageWriteApiBase {
           logger.warn(
               "Write result did not report any errors, but also did not succeed. "
                   + "This may be indicative of a bug in the BigQuery Java client library or back end; "
-                  + "please report it to the maintainers of the connector to investigate."
-          );
+                  + "please report it to the maintainers of the connector to investigate.");
         }
         logger.trace("Append call completed successfully on stream {}", writer.streamName());
       }
@@ -327,19 +347,23 @@ public abstract class StorageWriteApiBase {
       throw exception;
     } catch (Exception e) {
       String message = e.getMessage();
-      String errorMessage = String.format("Failed to write rows on table %s due to %s", tableName, message);
-      retryHandler.setMostRecentException(new BigQueryStorageWriteApiConnectException(errorMessage, e));
+      String errorMessage =
+          String.format("Failed to write rows on table %s due to %s", tableName, message);
+      retryHandler.setMostRecentException(
+          new BigQueryStorageWriteApiConnectException(errorMessage, e));
 
       if (BigQueryStorageWriteApiErrorResponses.isStreamClosed(message)) {
         writer.refresh();
       } else if (shouldHandleSchemaMismatch(e)) {
-        logger.warn("Sent records schema does not match with table schema, will attempt to update schema");
+        logger.warn(
+            "Sent records schema does not match with table schema, will attempt to update schema");
         retryHandler.attemptTableOperation(schemaManager::updateSchema);
       } else if (BigQueryStorageWriteApiErrorResponses.isMessageTooLargeError(message)) {
         throw new BatchTooLargeException(errorMessage);
       } else if (BigQueryStorageWriteApiErrorResponses.isMalformedRequest(message)) {
         throw new MalformedRowsException(getRowErrorMapping(e));
-      } else if (BigQueryStorageWriteApiErrorResponses.isTableMissing(message) && getAutoCreateTables()) {
+      } else if (BigQueryStorageWriteApiErrorResponses.isTableMissing(message)
+          && getAutoCreateTables()) {
         retryHandler.attemptTableOperation(schemaManager::createTable);
       } else {
         failTask(retryHandler.getMostRecentException());
@@ -357,7 +381,6 @@ public abstract class StorageWriteApiBase {
     protected BatchWriteException(String message) {
       super(message);
     }
-
   }
 
   private static class BatchTooLargeException extends BatchWriteException {
@@ -365,7 +388,6 @@ public abstract class StorageWriteApiBase {
     public BatchTooLargeException(String message) {
       super(message);
     }
-
   }
 
   private static class MalformedRowsException extends BatchWriteException {
@@ -379,7 +401,6 @@ public abstract class StorageWriteApiBase {
     public Map<Integer, String> getRowErrorMapping() {
       return rowErrorMapping;
     }
-
   }
 
   private static class RetryException extends BatchWriteException {
@@ -412,14 +433,16 @@ public abstract class StorageWriteApiBase {
 
   private TableSchema getTableSchemaWithPseudoColumns(String streamName) {
     try {
-      GetWriteStreamRequest writeStreamRequest = GetWriteStreamRequest.newBuilder()
-          .setName(streamName)
-          .setView(WriteStreamView.FULL)
-          .build();
+      GetWriteStreamRequest writeStreamRequest =
+          GetWriteStreamRequest.newBuilder()
+              .setName(streamName)
+              .setView(WriteStreamView.FULL)
+              .build();
       WriteStream writeStream = writeClient.getWriteStream(writeStreamRequest);
-      TableSchema.Builder writeSchema = writeStream.hasTableSchema()
-          ? writeStream.getTableSchema().toBuilder()
-          : TableSchema.newBuilder();
+      TableSchema.Builder writeSchema =
+          writeStream.hasTableSchema()
+              ? writeStream.getTableSchema().toBuilder()
+              : TableSchema.newBuilder();
       if (upsertEnabled || deleteEnabled) {
         boolean hasChangeType = false;
         boolean hasChangeSeq = false;
@@ -437,8 +460,7 @@ public abstract class StorageWriteApiBase {
                   .setName(CHANGE_TYPE_PSEUDO_COLUMN)
                   .setType(TableFieldSchema.Type.STRING)
                   .setMode(TableFieldSchema.Mode.NULLABLE)
-                  .build()
-          );
+                  .build());
         }
         if (!hasChangeSeq) {
           writeSchema.addFields(
@@ -446,8 +468,7 @@ public abstract class StorageWriteApiBase {
                   .setName(CHANGE_SEQUENCE_NUMBER_PSEUDO_COLUMN)
                   .setType(TableFieldSchema.Type.STRING)
                   .setMode(TableFieldSchema.Mode.NULLABLE)
-                  .build()
-          );
+                  .build());
         }
       }
       return writeSchema.build();
@@ -458,12 +479,14 @@ public abstract class StorageWriteApiBase {
   }
 
   /**
-   * Returns a {@link JsonStreamWriterFactory} for creating configured {@link JsonStreamWriter} instances
+   * Returns a {@link JsonStreamWriterFactory} for creating configured {@link JsonStreamWriter}
+   * instances
    *
    * @return a {@link JsonStreamWriterFactory}
    */
   protected JsonStreamWriterFactory getJsonWriterFactory() {
-    RetrySettings retrySettings = RetrySettings.newBuilder()
+    RetrySettings retrySettings =
+        RetrySettings.newBuilder()
             .setMaxAttempts(retry)
             .setInitialRetryDelay(Duration.ofMillis(retryWait))
             .setRetryDelayMultiplier(RETRY_DELAY_MULTIPLIER)
@@ -485,17 +508,16 @@ public abstract class StorageWriteApiBase {
       } else {
         builder = JsonStreamWriter.newBuilder(streamOrTableName, writeClient);
       }
-      builder.setRetrySettings(retrySettings)
-              .setIgnoreUnknownFields(ignoreUnknownFields)
-              .setTraceId(generateTraceId());
+      builder
+          .setRetrySettings(retrySettings)
+          .setIgnoreUnknownFields(ignoreUnknownFields)
+          .setTraceId(generateTraceId());
       updateJsonStreamWriterBuilder(builder);
       return builder.build();
     };
   }
 
-  /**
-   * Override to provide additional configs to JsonStreamWriter
-   */
+  /** Override to provide additional configs to JsonStreamWriter */
   protected void updateJsonStreamWriterBuilder(JsonStreamWriter.Builder builder) {
     // no-op default
   }
@@ -531,22 +553,19 @@ public abstract class StorageWriteApiBase {
    * @return Returns list of all pre-conversion records
    */
   protected List<SinkRecord> getSinkRecords(List<ConvertedRecord> rows) {
-    return rows.stream()
-        .map(ConvertedRecord::original)
-        .collect(Collectors.toList());
+    return rows.stream().map(ConvertedRecord::original).collect(Collectors.toList());
   }
 
   /**
    * Sends errant records to configured DLQ and returns remaining
    *
-   * @param input           List of pre- and post-conversion records
+   * @param input List of pre- and post-conversion records
    * @param indexToErrorMap Map of record index to error received from api call
-   * @return Returns list of good records filtered from input which needs to be retried. Append row does
-   * not write partially even if there is a single failure, good data has to be retried
+   * @return Returns list of good records filtered from input which needs to be retried. Append row
+   *     does not write partially even if there is a single failure, good data has to be retried
    */
   protected List<ConvertedRecord> sendErrantRecordsToDlqAndFilterValidRecords(
-      List<ConvertedRecord> input,
-      Map<Integer, String> indexToErrorMap) {
+      List<ConvertedRecord> input, Map<Integer, String> indexToErrorMap) {
     List<ConvertedRecord> filteredRecords = new ArrayList<>();
     Map<SinkRecord, Throwable> recordsToDlq = new LinkedHashMap<>();
 
@@ -582,12 +601,9 @@ public abstract class StorageWriteApiBase {
   }
 
   protected List<ConvertedRecord> maybeHandleDlqRoutingAndFilterRecords(
-      List<ConvertedRecord> rows,
-      Map<Integer, String> errorMap,
-      String tableName
-  ) {
+      List<ConvertedRecord> rows, Map<Integer, String> errorMap, String tableName) {
     if (errantRecordHandler.getErrantRecordReporter() != null) {
-      //Routes to DLQ
+      // Routes to DLQ
       return sendErrantRecordsToDlqAndFilterValidRecords(rows, errorMap);
     } else {
       // Fail if no DLQ
@@ -597,32 +613,35 @@ public abstract class StorageWriteApiBase {
   }
 
   /**
-   * Converts a nested {@code Map<String, Object>} (as produced by
-   * {@link SinkRecordConverter#getRegularRow}) into a {@link JSONObject} suitable for the
-   * Storage Write API. Map values that are themselves {@code Map} instances are recursively
-   * converted; {@code List} values are converted to {@link org.json.JSONArray}.
+   * Converts a nested {@code Map<String, Object>} (as produced by {@link
+   * SinkRecordConverter#getRegularRow}) into a {@link JSONObject} suitable for the Storage Write
+   * API. Map values that are themselves {@code Map} instances are recursively converted; {@code
+   * List} values are converted to {@link org.json.JSONArray}.
    *
-   * <p>Package-private so that {@link StorageWriteApiWriter.Builder} can call it when
-   * building the initial {@link ConvertedRecord} objects at {@code addRow()} time.
+   * <p>Package-private so that {@link StorageWriteApiWriter.Builder} can call it when building the
+   * initial {@link ConvertedRecord} objects at {@code addRow()} time.
    */
   static JSONObject getJsonFromMap(Map<String, Object> map) {
     JSONObject jsonObject = new JSONObject();
-    map.forEach((key, value) -> {
-      if (value instanceof Map<?, ?>) {
-        value = getJsonFromMap((Map<String, Object>) value);
-      } else if (value instanceof List<?>) {
-        org.json.JSONArray items = new org.json.JSONArray();
-        ((List<?>) value).forEach(v -> {
-          if (v instanceof Map<?, ?>) {
-            items.put(getJsonFromMap((Map<String, Object>) v));
-          } else {
-            items.put(v);
+    map.forEach(
+        (key, value) -> {
+          if (value instanceof Map<?, ?>) {
+            value = getJsonFromMap((Map<String, Object>) value);
+          } else if (value instanceof List<?>) {
+            org.json.JSONArray items = new org.json.JSONArray();
+            ((List<?>) value)
+                .forEach(
+                    v -> {
+                      if (v instanceof Map<?, ?>) {
+                        items.put(getJsonFromMap((Map<String, Object>) v));
+                      } else {
+                        items.put(v);
+                      }
+                    });
+            value = items;
           }
+          jsonObject.put(key, value);
         });
-        value = items;
-      }
-      jsonObject.put(key, value);
-    });
     return jsonObject;
   }
 
@@ -630,11 +649,16 @@ public abstract class StorageWriteApiBase {
     JSONArray jsonRecords = new JSONArray();
     for (ConvertedRecord item : rows) {
       JSONObject converted = item.converted();
-      if ((item.original().value() != null && upsertEnabled) || (item.original().value() == null && deleteEnabled)) {
+      if ((item.original().value() != null && upsertEnabled)
+          || (item.original().value() == null && deleteEnabled)) {
         Long timestamp = item.original().timestamp();
         long ts = (timestamp != null && timestamp >= 0) ? timestamp : 0L;
-        String sequenceNumber = String.format("%016X/%08X/%016X", ts, item.original().kafkaPartition(), item.original().kafkaOffset());
-        converted.put(CHANGE_TYPE_PSEUDO_COLUMN, item.original().value() != null ? "UPSERT" : "DELETE");
+        String sequenceNumber =
+            String.format(
+                "%016X/%08X/%016X",
+                ts, item.original().kafkaPartition(), item.original().kafkaOffset());
+        converted.put(
+            CHANGE_TYPE_PSEUDO_COLUMN, item.original().value() != null ? "UPSERT" : "DELETE");
         converted.put(CHANGE_SEQUENCE_NUMBER_PSEUDO_COLUMN, sequenceNumber);
       }
       jsonRecords.put(converted);
@@ -647,7 +671,8 @@ public abstract class StorageWriteApiBase {
       return false;
     }
 
-    if (BigQueryStorageWriteApiErrorResponses.hasInvalidSchema(Collections.singletonList(e.getMessage()))) {
+    if (BigQueryStorageWriteApiErrorResponses.hasInvalidSchema(
+        Collections.singletonList(e.getMessage()))) {
       return true;
     }
 
@@ -660,7 +685,8 @@ public abstract class StorageWriteApiBase {
   }
 
   protected boolean shouldHandleTableCreation(String errorMessage) {
-    return BigQueryStorageWriteApiErrorResponses.isTableMissing(errorMessage) && getAutoCreateTables();
+    return BigQueryStorageWriteApiErrorResponses.isTableMissing(errorMessage)
+        && getAutoCreateTables();
   }
 
   protected boolean isNonRetriable(Exception e) {
@@ -673,5 +699,4 @@ public abstract class StorageWriteApiBase {
     logger.error("Encountered unrecoverable failure", failure);
     throw failure;
   }
-
 }

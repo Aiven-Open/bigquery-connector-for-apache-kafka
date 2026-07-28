@@ -26,18 +26,16 @@ package com.wepay.kafka.connect.bigquery.convert.logicaltype;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * Registry for finding and accessing {@link LogicalTypeConverter}s.
- */
+/** Registry for finding and accessing {@link LogicalTypeConverter}s. */
 public class LogicalConverterRegistry {
 
   private static Map<String, LogicalTypeConverter> converterMap = new ConcurrentHashMap<>();
 
   /**
-   * Registers the logical type name.  Will override existing value if any.
+   * Registers the logical type name. Will override existing value if any.
    *
    * @param logicalTypeName the logical type name to register.
-   * @param converter the converter for the name.  May not be {@code null}.
+   * @param converter the converter for the name. May not be {@code null}.
    */
   public static void register(String logicalTypeName, LogicalTypeConverter converter) {
     converterMap.put(logicalTypeName, converter);
@@ -47,15 +45,16 @@ public class LogicalConverterRegistry {
    * Registers the logical type name if it was not previously registered.
    *
    * @param logicalTypeName the logical type name to register.
-   * @param converter the converter for the name.  May not be {@code null}.
+   * @param converter the converter for the name. May not be {@code null}.
    */
   public static void registerIfAbsent(String logicalTypeName, LogicalTypeConverter converter) {
     converterMap.putIfAbsent(logicalTypeName, converter);
   }
 
   /**
-   * Unregisters (removes) the logical type name if it was previously registered.  After an {@code unregister} call
-   * the result of {@link #isRegisteredLogicalType(String)} is guaranteed to be false.
+   * Unregisters (removes) the logical type name if it was previously registered. After an {@code
+   * unregister} call the result of {@link #isRegisteredLogicalType(String)} is guaranteed to be
+   * false.
    *
    * @param logicalTypeName the logical type name to unregister.
    */
@@ -69,7 +68,8 @@ public class LogicalConverterRegistry {
    * Gets the converter registered with the logical type name.
    *
    * @param logicalTypeName the logical type name. May be {@code null}.
-   * @return the LogicalTypeConverter or {@code null} if none is registered or {@code null} passed for {@code logicalTypeName}.
+   * @return the LogicalTypeConverter or {@code null} if none is registered or {@code null} passed
+   *     for {@code logicalTypeName}.
    */
   public static LogicalTypeConverter getConverter(String logicalTypeName) {
     return logicalTypeName == null ? null : converterMap.get(logicalTypeName);

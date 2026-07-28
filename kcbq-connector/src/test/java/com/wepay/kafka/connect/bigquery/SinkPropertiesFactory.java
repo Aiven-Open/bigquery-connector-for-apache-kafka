@@ -27,13 +27,9 @@ import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * Factory for generating default configuration maps, useful for testing.
- */
+/** Factory for generating default configuration maps, useful for testing. */
 public class SinkPropertiesFactory {
-  /**
-   * A default configuration map for the tested class.
-   */
+  /** A default configuration map for the tested class. */
   public Map<String, String> getProperties() {
     Map<String, String> properties = new HashMap<>();
 

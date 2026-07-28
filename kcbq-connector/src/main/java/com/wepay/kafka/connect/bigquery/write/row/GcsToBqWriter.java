@@ -48,14 +48,11 @@ import java.util.Map;
 import java.util.Random;
 import java.util.SortedMap;
 import java.util.function.Supplier;
-import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * A class for batch writing list of rows to BigQuery through GCS.
- */
+/** A class for batch writing list of rows to BigQuery through GCS. */
 public class GcsToBqWriter {
   public static final String GCS_METADATA_TABLE_KEY = "sinkTable";
   private static final Logger logger = LoggerFactory.getLogger(GcsToBqWriter.class);
@@ -78,21 +75,22 @@ public class GcsToBqWriter {
    * @param storage GCS Storage
    * @param bigQuery {@link BigQuery} Object used to perform upload
    * @param retries Maximum number of retry attempts after the initial call.
-   *                <p>Note that this is an upper bound: the actual number of retries may be lower if the
-   *                computed exponential backoff delays (based on {@code retryWaitMs}) plus jitter cause the
-   *                total timeout budget to be exceeded.</p>
+   *     <p>Note that this is an upper bound: the actual number of retries may be lower if the
+   *     computed exponential backoff delays (based on {@code retryWaitMs}) plus jitter cause the
+   *     total timeout budget to be exceeded.
    * @param retryWaitMs Base wait time in milliseconds before the first retry. Each subsequent retry
-   *                    doubles this delay, up to a maximum per-sleep cap of {@value #MAX_BACKOFF_MS} milliseconds.
+   *     doubles this delay, up to a maximum per-sleep cap of {@value #MAX_BACKOFF_MS} milliseconds.
    * @param time used to wait during backoff periods
    */
-  public GcsToBqWriter(Storage storage,
-                       BigQuery bigQuery,
-                       SchemaManager schemaManager,
-                       int retries,
-                       long retryWaitMs,
-                       boolean autoCreateTables,
-                       boolean attemptSchemaUpdate,
-                       Time time) {
+  public GcsToBqWriter(
+      Storage storage,
+      BigQuery bigQuery,
+      SchemaManager schemaManager,
+      int retries,
+      long retryWaitMs,
+      boolean autoCreateTables,
+      boolean attemptSchemaUpdate,
+      Time time) {
     this.storage = storage;
     this.bigQuery = bigQuery;
     this.schemaManager = schemaManager;
@@ -119,17 +117,16 @@ public class GcsToBqWriter {
   /**
    * Write rows to BQ through GCS.
    *
-   * @param rows       the rows to write.
-   * @param tableId    the BQ table to write to.
+   * @param rows the rows to write.
+   * @param tableId the BQ table to write to.
    * @param bucketName the GCS bucket to write to.
-   * @param blobName   the name of the GCS blob to write.
+   * @param blobName the name of the GCS blob to write.
    * @throws InterruptedException if interrupted.
    * @throws BigQueryException on BigQuery error.
    */
-  public void writeRows(SortedMap<SinkRecord, RowToInsert> rows,
-                        TableId tableId,
-                        String bucketName,
-                        String blobName) throws InterruptedException {
+  public void writeRows(
+      SortedMap<SinkRecord, RowToInsert> rows, TableId tableId, String bucketName, String blobName)
+      throws InterruptedException {
 
     // Compute a time budget that still guarantees at least one attempt even if retryWaitMs == 0.
     Duration timeout = Duration.ofMillis(Math.max(0L, retryWaitMs * Math.max(1, retries)));
@@ -148,8 +145,7 @@ public class GcsToBqWriter {
       if (autoCreateTables) {
         logger.info("Table {} was not found. Creating the table automatically.", tableId);
         Boolean created =
-              executeWithRetry(
-                      () -> schemaManager.createTable(tableId, sinkRecords), timeout);
+            executeWithRetry(() -> schemaManager.createTable(tableId, sinkRecords), timeout);
         if (created == null) {
           throw new BigQueryConnectException("Failed to create table " + tableId);
         }
@@ -165,19 +161,20 @@ public class GcsToBqWriter {
     }
 
     if (attemptSchemaUpdate && schemaManager != null && !sinkRecords.isEmpty()) {
-      Boolean schemaUpdated = executeWithRetry(() -> {
-            schemaManager.updateSchema(tableId, sinkRecords);
-            return Boolean.TRUE;
-          },
-          timeout
-        );
+      Boolean schemaUpdated =
+          executeWithRetry(
+              () -> {
+                schemaManager.updateSchema(tableId, sinkRecords);
+                return Boolean.TRUE;
+              },
+              timeout);
       if (schemaUpdated == null) {
         throw new BigQueryConnectException(
-            String.format("Failed to update schema for table %s within %d re-attempts.", tableId, retries)
-        );
+            String.format(
+                "Failed to update schema for table %s within %d re-attempts.", tableId, retries));
       }
     }
-    
+
     // --- Upload rows to GCS with executeWithRetry (fresh budget for uploads) ---
     Duration uploadTimeout = Duration.ofMillis(Math.max(0L, retryWaitMs * Math.max(1, retries)));
     if (retries == 0) {
@@ -187,23 +184,23 @@ public class GcsToBqWriter {
     // Get Source URI
     BlobId blobId = BlobId.of(bucketName, blobName);
     Map<String, String> metadata = getMetadata(tableId);
-    BlobInfo blobInfo = BlobInfo.newBuilder(blobId).setContentType("text/json").setMetadata(metadata).build();
+    BlobInfo blobInfo =
+        BlobInfo.newBuilder(blobId).setContentType("text/json").setMetadata(metadata).build();
 
     Boolean uploaded =
         executeWithRetry(
-          () -> {
-            // Perform GCS upload; throws StorageException (BaseServiceException) on failure
-            uploadRowsToGcs(rows, blobInfo);
-            return Boolean.TRUE;
+            () -> {
+              // Perform GCS upload; throws StorageException (BaseServiceException) on failure
+              uploadRowsToGcs(rows, blobInfo);
+              return Boolean.TRUE;
             },
-            uploadTimeout
-        );
+            uploadTimeout);
 
     // If executeWithRetry timed out (budget exhausted) it returns null → fail like before
     if (uploaded == null) {
       throw new BigQueryConnectException(
-        String.format("Failed to load %d rows into GCS within %d re-attempts.", rows.size(), retries)
-      );
+          String.format(
+              "Failed to load %d rows into GCS within %d re-attempts.", rows.size(), retries));
     }
 
     logger.info("Batch loaded {} rows", rows.size());
@@ -212,7 +209,7 @@ public class GcsToBqWriter {
   /**
    * Creates a JSON string containing all records and uploads it as a blob to GCS.
    *
-   * <p>Returns normally on success; throws on failure.</p>
+   * <p>Returns normally on success; throws on failure.
    *
    * @throws com.google.cloud.storage.StorageException if the GCS write fails
    * @throws com.wepay.kafka.connect.bigquery.exception.GcsConnectException if UTF-8 encoding fails
@@ -234,8 +231,7 @@ public class GcsToBqWriter {
    * Converts a list of rows to a serialized JSON string of records.
    *
    * @param rows rows to be serialized
-   * @return The resulting newline delimited JSON string containing all records in the original
-   * list
+   * @return The resulting newline delimited JSON string containing all records in the original list
    */
   private String toJson(Collection<RowToInsert> rows) {
     StringBuilder jsonRecordsBuilder = new StringBuilder("");
@@ -274,7 +270,8 @@ public class GcsToBqWriter {
         }
         if (attempt >= retries) {
           // Out of configured retries
-          String msg = String.format("Operation failed after %s attempts (no retries left).", attempt + 1);
+          String msg =
+              String.format("Operation failed after %s attempts (no retries left).", attempt + 1);
           logger.error(msg);
           throw new BigQueryConnectException(msg, e);
         }
@@ -288,7 +285,9 @@ public class GcsToBqWriter {
           long elapsed = time.milliseconds() - start;
           long remaining = budget - elapsed;
           if (remaining <= 0) {
-            String msg = String.format("Timeout expired after %s attempts within %s ms budget.", attempt + 1, budget);
+            String msg =
+                String.format(
+                    "Timeout expired after %s attempts within %s ms budget.", attempt + 1, budget);
             logger.error(msg);
             throw new BigQueryConnectException(msg, e);
           }
@@ -302,8 +301,7 @@ public class GcsToBqWriter {
             "Retryable exception on attempt {}: {}. Backing off {} ms",
             attempt + 1,
             e.getMessage(),
-            delay
-        );
+            delay);
 
         if (delay > 0) {
           time.sleep(delay);
@@ -321,6 +319,7 @@ public class GcsToBqWriter {
    * Computes the exponential backoff delay for a given retry attempt. The delay is calculated as:
    *
    * <pre>delay = baseDelayMs * (2 ^ attemptIndex)</pre>
+   *
    * but is clamped to an upper bound {@code capMs}. This ensures that the backoff grows
    * exponentially with each retry, but never exceeds the configured cap.
    *
@@ -358,5 +357,4 @@ public class GcsToBqWriter {
     }
     return Math.min(backoff, capMs);
   }
-
 }

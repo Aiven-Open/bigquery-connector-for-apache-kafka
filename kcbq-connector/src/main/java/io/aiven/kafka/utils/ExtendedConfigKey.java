@@ -28,19 +28,27 @@ import org.apache.kafka.common.config.ConfigDef;
 
 public class ExtendedConfigKey extends ConfigDef.ConfigKey {
 
-  /**
-   * The deprecation information. May be {@code null}.
-   */
+  /** The deprecation information. May be {@code null}. */
   public final DeprecatedInfo deprecated;
 
-  /**
-   * The version in which this attribute was added. May be {@code null}.
-   */
+  /** The version in which this attribute was added. May be {@code null}. */
   public final String since;
 
   public ExtendedConfigKey(ExtendedConfigKey.Builder<?> builder) {
-    super(builder.name, builder.type, builder.defaultValue, builder.validator, builder.importance, builder.documentation, builder.group,
-        builder.orderInGroup, builder.width, builder.displayName, builder.getDependents(), builder.recommender, builder.internalConfig);
+    super(
+        builder.name,
+        builder.type,
+        builder.defaultValue,
+        builder.validator,
+        builder.importance,
+        builder.documentation,
+        builder.group,
+        builder.orderInGroup,
+        builder.width,
+        builder.displayName,
+        builder.getDependents(),
+        builder.recommender,
+        builder.internalConfig);
     this.deprecated = builder.deprecated;
     this.since = builder.since;
   }
@@ -57,10 +65,10 @@ public class ExtendedConfigKey extends ConfigDef.ConfigKey {
     return deprecated != null;
   }
 
-  public static <T extends ExtendedConfigKey.Builder<?>> ExtendedConfigKey.Builder<T> builder(String name) {
+  public static <T extends ExtendedConfigKey.Builder<?>> ExtendedConfigKey.Builder<T> builder(
+      String name) {
     return new Builder<>(name);
   }
-
 
   public static class Builder<T extends ExtendedConfigKey.Builder<?>> extends ConfigKeyBuilder<T> {
     private DeprecatedInfo deprecated;
@@ -91,30 +99,27 @@ public class ExtendedConfigKey extends ConfigDef.ConfigKey {
   }
 
   public static class DeprecatedInfo {
-    /**
-     * Builds {@link DeprecatedInfo}.
-     */
+    /** Builds {@link DeprecatedInfo}. */
     public static class Builder implements Supplier<DeprecatedInfo> {
 
-      /**
-       * The description.
-       */
+      /** The description. */
       private String description;
 
       /**
        * Whether this option is subject to removal in a future version.
        *
-       * @see <a href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Deprecated.html#forRemoval()">Deprecated.forRemoval</a>
+       * @see <a
+       *     href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Deprecated.html#forRemoval()">Deprecated.forRemoval</a>
        */
       private boolean forRemoval;
 
       /**
        * The version in which the option became deprecated.
        *
-       * @see <a href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Deprecated.html#forRemoval()">Deprecated.since</a>
+       * @see <a
+       *     href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Deprecated.html#forRemoval()">Deprecated.since</a>
        */
       private String since;
-
 
       @Override
       public DeprecatedInfo get() {
@@ -137,7 +142,8 @@ public class ExtendedConfigKey extends ConfigDef.ConfigKey {
        *
        * @param forRemoval whether this is subject to removal in a future version.
        * @return {@code this} instance.
-       * @see <a href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Deprecated.html#forRemoval()">Deprecated.forRemoval</a>
+       * @see <a
+       *     href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Deprecated.html#forRemoval()">Deprecated.forRemoval</a>
        */
       public Builder setForRemoval(final boolean forRemoval) {
         this.forRemoval = forRemoval;
@@ -165,27 +171,21 @@ public class ExtendedConfigKey extends ConfigDef.ConfigKey {
       return new Builder();
     }
 
-    /**
-     * The description.
-     */
+    /** The description. */
     private final String description;
 
-    /**
-     * Whether this option will be removed.
-     */
+    /** Whether this option will be removed. */
     private final boolean forRemoval;
 
-    /**
-     * The version label for removal.
-     */
+    /** The version label for removal. */
     private final String since;
 
     /**
      * Constructs a new instance.
      *
      * @param description The description.
-     * @param since     The version label for removal.
-     * @param forRemoval  Whether this option will be removed.
+     * @param since The version label for removal.
+     * @param forRemoval Whether this option will be removed.
      */
     private DeprecatedInfo(final String description, final String since, final boolean forRemoval) {
       this.description = toEmpty(description);
@@ -230,20 +230,27 @@ public class ExtendedConfigKey extends ConfigDef.ConfigKey {
     }
 
     /**
-     * Gets a string that contains the deprecated information.  The output will read:
-     * "{@code name} deprecated for removal since {@link #since}: {@link #description}".  Where
+     * Gets a string that contains the deprecated information. The output will read: "{@code name}
+     * deprecated for removal since {@link #since}: {@link #description}". Where
+     *
      * <ul>
-     * <li>{@code name} is the name argument.  If {@code name} is empty, the start of the result will be "Deprecated"</li>
-     * <li>"for removal" will not be present if {@link #forRemoval} is {@code false}.</li>
-     * <li>"since {@link #since}" will contain the {@link #since} text, or be omitted if {@link #since} is not set.</li>
-     * <li>": {@link #description}" will contain the {@link #description} text, or be omitted if  {@link #description} is empty.</li>
+     *   <li>{@code name} is the name argument. If {@code name} is empty, the start of the result
+     *       will be "Deprecated"
+     *   <li>"for removal" will not be present if {@link #forRemoval} is {@code false}.
+     *   <li>"since {@link #since}" will contain the {@link #since} text, or be omitted if {@link
+     *       #since} is not set.
+     *   <li>": {@link #description}" will contain the {@link #description} text, or be omitted if
+     *       {@link #description} is empty.
      * </ul>
      *
      * @param name The name to use for the formatted display.
      * @return the formatted information.
      */
     public String formatted(String name) {
-      final StringBuilder builder = name == null || name.isEmpty() ? new StringBuilder("Deprecated") : new StringBuilder(name).append(" is deprecated");
+      final StringBuilder builder =
+          name == null || name.isEmpty()
+              ? new StringBuilder("Deprecated")
+              : new StringBuilder(name).append(" is deprecated");
       if (forRemoval) {
         builder.append(" for removal");
       }

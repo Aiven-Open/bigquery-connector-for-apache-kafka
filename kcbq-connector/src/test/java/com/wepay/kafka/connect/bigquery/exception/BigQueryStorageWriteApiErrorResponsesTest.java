@@ -89,11 +89,8 @@ public class BigQueryStorageWriteApiErrorResponsesTest {
     Map<Integer, String> errors = new HashMap<>();
     errors.put(0, "JSONObject has fields unknown to BigQuery: root.f1.");
     String message = "INVALID_ARGUMENT:  JSONObject has fields unknown to BigQuery: root.f1.";
-    Exceptions.AppendSerializtionError error = new Exceptions.AppendSerializtionError(
-        3,
-        message,
-        "DEFAULT",
-        errors);
+    Exceptions.AppendSerializtionError error =
+        new Exceptions.AppendSerializtionError(3, message, "DEFAULT", errors);
     boolean result = BigQueryStorageWriteApiErrorResponses.isMalformedRequest(error.getMessage());
 
     assertTrue(result);
@@ -103,11 +100,8 @@ public class BigQueryStorageWriteApiErrorResponsesTest {
   public void testNonInvalidArgument() {
     Map<Integer, String> errors = new HashMap<>();
     String message = "Deadline Exceeded";
-    Exceptions.AppendSerializtionError error = new Exceptions.AppendSerializtionError(
-        13,
-        message,
-        "DEFAULT",
-        errors);
+    Exceptions.AppendSerializtionError error =
+        new Exceptions.AppendSerializtionError(13, message, "DEFAULT", errors);
     boolean result = BigQueryStorageWriteApiErrorResponses.isMalformedRequest(error.getMessage());
 
     assertFalse(result);
@@ -134,7 +128,8 @@ public class BigQueryStorageWriteApiErrorResponsesTest {
   @Test
   public void testInvalidSchemaHasMoreFieldsThanBigQuerySchema() {
     Collection<String> errors = new ArrayList<>();
-    errors.add("INVALID_ARGUMENT: Input schema has more fields than BigQuery schema, extra fields:");
+    errors.add(
+        "INVALID_ARGUMENT: Input schema has more fields than BigQuery schema, extra fields:");
     boolean result = BigQueryStorageWriteApiErrorResponses.hasInvalidSchema(errors);
     assertTrue(result);
   }
@@ -165,11 +160,11 @@ public class BigQueryStorageWriteApiErrorResponsesTest {
 
   @Test
   public void testIsNonRetriableStorageError() {
-    Exception exception = new Exception(
-        io.grpc.Status.fromThrowable(new Throwable())
-            .withDescription("STREAM_FINALIZED")
-            .asRuntimeException()
-    );
+    Exception exception =
+        new Exception(
+            io.grpc.Status.fromThrowable(new Throwable())
+                .withDescription("STREAM_FINALIZED")
+                .asRuntimeException());
 
     boolean result = BigQueryStorageWriteApiErrorResponses.isNonRetriableStorageError(exception);
     assertTrue(result);
@@ -182,4 +177,3 @@ public class BigQueryStorageWriteApiErrorResponsesTest {
     assertTrue(result);
   }
 }
-

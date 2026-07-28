@@ -58,7 +58,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Stream;
-
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.data.Schema;
@@ -74,10 +73,12 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 
 public class StorageWriteApiBatchApplicationStreamTest {
-  StorageWriteApiBatchApplicationStream mockedStream = mock(StorageWriteApiBatchApplicationStream.class,
-      CALLS_REAL_METHODS);
-  PartitionedTableId mockedPartitionedTableId1 = new PartitionedTableId.Builder("d", "t1").setProject("p").build();
-  PartitionedTableId mockedPartitionedTableId2 = new PartitionedTableId.Builder("d", "t2").setProject("p").build();
+  StorageWriteApiBatchApplicationStream mockedStream =
+      mock(StorageWriteApiBatchApplicationStream.class, CALLS_REAL_METHODS);
+  PartitionedTableId mockedPartitionedTableId1 =
+      new PartitionedTableId.Builder("d", "t1").setProject("p").build();
+  PartitionedTableId mockedPartitionedTableId2 =
+      new PartitionedTableId.Builder("d", "t2").setProject("p").build();
   TableName mockedTable1 = TableNameUtils.tableName(mockedPartitionedTableId1.getBaseTableId());
   TableName mockedTable2 = TableNameUtils.tableName(mockedPartitionedTableId2.getBaseTableId());
   ApplicationStream mockedApplicationStream1 = mock(ApplicationStream.class);
@@ -86,48 +87,53 @@ public class StorageWriteApiBatchApplicationStreamTest {
   String mockedStreamName2 = "dummyApplicationStream2";
   Map<TopicPartition, OffsetAndMetadata> mockedOffsets = new HashMap<>();
   List<ConvertedRecord> mockedRows = new ArrayList<>();
-  SinkRecord mockedSinkRecord = new SinkRecord(
-      "t1", 0, null, null, Schema.BOOLEAN_SCHEMA, true, 100);
+  SinkRecord mockedSinkRecord =
+      new SinkRecord("t1", 0, null, null, Schema.BOOLEAN_SCHEMA, true, 100);
   ApiFuture<AppendRowsResponse> mockedResponse = mock(ApiFuture.class);
   JsonStreamWriter mockedJsonWriter = mock(JsonStreamWriter.class);
-  AppendRowsResponse successResponse = AppendRowsResponse.newBuilder()
-      .setAppendResult(AppendRowsResponse.AppendResult.newBuilder().getDefaultInstanceForType()).build();
-  String exceeded30AttemptException = "Exceeded 30 attempts to write to table "
-      + mockedTable1.toString() + " ";
-  String exceeded0AttemptException = "Exceeded 0 attempts to write to table "
-      + mockedTable1.toString() + " ";
-  String baseErrorMessage = String.format("Failed to write rows on table %s due to ", mockedTable1.toString());
+  AppendRowsResponse successResponse =
+      AppendRowsResponse.newBuilder()
+          .setAppendResult(AppendRowsResponse.AppendResult.newBuilder().getDefaultInstanceForType())
+          .build();
+  String exceeded30AttemptException =
+      "Exceeded 30 attempts to write to table " + mockedTable1.toString() + " ";
+  String exceeded0AttemptException =
+      "Exceeded 0 attempts to write to table " + mockedTable1.toString() + " ";
+  String baseErrorMessage =
+      String.format("Failed to write rows on table %s due to ", mockedTable1.toString());
   ErrantRecordHandler mockedErrantRecordHandler = mock(ErrantRecordHandler.class);
   ErrantRecordReporter mockedErrantReporter = mock(ErrantRecordReporter.class);
   Map<Integer, String> errorMapping = new HashMap<>();
-  Exceptions.AppendSerializtionError badRecordsException = new Exceptions.AppendSerializtionError(
-      3,
-      "INVALID_ARGUMENT",
-      "DEFAULT",
-      errorMapping);
-  String malformedExceptionMessage = "Insertion failed at table t1 for following rows:" +
-      " \n [row index 0] (Failure reason : f0 field is unknown) ";
+  Exceptions.AppendSerializtionError badRecordsException =
+      new Exceptions.AppendSerializtionError(3, "INVALID_ARGUMENT", "DEFAULT", errorMapping);
+  String malformedExceptionMessage =
+      "Insertion failed at table t1 for following rows:"
+          + " \n [row index 0] (Failure reason : f0 field is unknown) ";
   SchemaManager mockedSchemaManager = mock(SchemaManager.class);
-  AppendRowsResponse badResponse = AppendRowsResponse.newBuilder()
-      .setUpdatedSchema(TableSchema.newBuilder().build())
-      .build();
-  ExecutionException schemaException = new ExecutionException(
-      new Throwable("Destination table schema mismatch due to SCHEMA_MISMATCH_EXTRA_FIELDS"));
-  ExecutionException noTable = new ExecutionException(
-      new Throwable("Destination Table is deleted"));
-  static InterruptedException nonRetriableException = new InterruptedException("I am a non-retriable error");
+  AppendRowsResponse badResponse =
+      AppendRowsResponse.newBuilder().setUpdatedSchema(TableSchema.newBuilder().build()).build();
+  ExecutionException schemaException =
+      new ExecutionException(
+          new Throwable("Destination table schema mismatch due to SCHEMA_MISMATCH_EXTRA_FIELDS"));
+  ExecutionException noTable =
+      new ExecutionException(new Throwable("Destination Table is deleted"));
+  static InterruptedException nonRetriableException =
+      new InterruptedException("I am a non-retriable error");
   List<ConvertedRecord> rows = new ArrayList<>();
-  static ExecutionException requestLevelException = new ExecutionException(new StatusRuntimeException(
-      io.grpc.Status.fromCode(io.grpc.Status.Code.INTERNAL).withDescription("I am an INTERNAL error")
-  ));
-  static ExecutionException streamFinalisedException = new ExecutionException(new StatusRuntimeException(
-      io.grpc.Status.fromThrowable(new Throwable())
-          .withDescription("STREAM_FINALISED")
-  ));
+  static ExecutionException requestLevelException =
+      new ExecutionException(
+          new StatusRuntimeException(
+              io.grpc.Status.fromCode(io.grpc.Status.Code.INTERNAL)
+                  .withDescription("I am an INTERNAL error")));
+  static ExecutionException streamFinalisedException =
+      new ExecutionException(
+          new StatusRuntimeException(
+              io.grpc.Status.fromThrowable(new Throwable()).withDescription("STREAM_FINALISED")));
   MockTime time = new MockTime();
 
   @BeforeEach
-  public void setup() throws InterruptedException, Descriptors.DescriptorValidationException, IOException {
+  public void setup()
+      throws InterruptedException, Descriptors.DescriptorValidationException, IOException {
     mockedStream.tableLocks = new ConcurrentHashMap<>();
     mockedStream.streamLocks = new ConcurrentHashMap<>();
     mockedStream.streams = new ConcurrentHashMap<>();
@@ -168,23 +174,34 @@ public class StorageWriteApiBatchApplicationStreamTest {
     mockedStream.currentStreams.put(mockedTable1.toString(), mockedStreamName1);
     mockedStream.streams.put(mockedTable1.toString(), new LinkedHashMap<>());
     mockedStream.streams.put(mockedTable2.toString(), new LinkedHashMap<>());
-    mockedStream.streams.get(mockedTable1.toString()).put(mockedStreamName1, mockedApplicationStream1);
-    mockedStream.streams.get(mockedTable2.toString()).put(mockedStreamName2, mockedApplicationStream2);
+    mockedStream
+        .streams
+        .get(mockedTable1.toString())
+        .put(mockedStreamName1, mockedApplicationStream1);
+    mockedStream
+        .streams
+        .get(mockedTable2.toString())
+        .put(mockedStreamName2, mockedApplicationStream2);
   }
 
   private void verifyTerminalException(String expectedException) {
     try {
-      mockedStream.initializeAndWriteRecords(mockedPartitionedTableId1, mockedRows, mockedStreamName1);
+      mockedStream.initializeAndWriteRecords(
+          mockedPartitionedTableId1, mockedRows, mockedStreamName1);
     } catch (Exception e) {
       assertAll(
-              () -> assertTrue(e instanceof BigQueryStorageWriteApiConnectException),
-              () -> assertTrue(e.getMessage().startsWith(baseErrorMessage),
-                      "Should fail task with base message"),
-              () -> assertTrue(e.getMessage().contains(expectedException),
-                      "Should include cause of failure"),
-              () -> assertFalse(e.getMessage().contains(exceeded0AttemptException),
-                      "Should not use connector retry path")
-      );
+          () -> assertTrue(e instanceof BigQueryStorageWriteApiConnectException),
+          () ->
+              assertTrue(
+                  e.getMessage().startsWith(baseErrorMessage),
+                  "Should fail task with base message"),
+          () ->
+              assertTrue(
+                  e.getMessage().contains(expectedException), "Should include cause of failure"),
+          () ->
+              assertFalse(
+                  e.getMessage().contains(exceeded0AttemptException),
+                  "Should not use connector retry path"));
     }
   }
 
@@ -201,10 +218,13 @@ public class StorageWriteApiBatchApplicationStreamTest {
     initialiseStreams();
     Map<TopicPartition, OffsetAndMetadata> expected = mockedStream.getCommitableOffsets();
     assertEquals(expected, mockedOffsets);
-    mockedStream.streams.keySet().forEach(k -> {
-      assertEquals(0, mockedStream.streams.get(k).size());
-    });
-
+    mockedStream
+        .streams
+        .keySet()
+        .forEach(
+            k -> {
+              assertEquals(0, mockedStream.streams.get(k).size());
+            });
   }
 
   @Test
@@ -216,10 +236,13 @@ public class StorageWriteApiBatchApplicationStreamTest {
     Map<TopicPartition, OffsetAndMetadata> expected = mockedStream.getCommitableOffsets();
 
     assertEquals(expected, Collections.emptyMap());
-    mockedStream.streams.keySet().forEach(k -> {
-      assertEquals(1, mockedStream.streams.get(k).size());
-    });
-
+    mockedStream
+        .streams
+        .keySet()
+        .forEach(
+            k -> {
+              assertEquals(1, mockedStream.streams.get(k).size());
+            });
   }
 
   @Test
@@ -227,15 +250,20 @@ public class StorageWriteApiBatchApplicationStreamTest {
     initialiseStreams();
     ApplicationStream mockedApplicationStream = mock(ApplicationStream.class);
 
-    doReturn(mockedApplicationStream).when(mockedStream).createApplicationStream(mockedTable1.toString(), null);
+    doReturn(mockedApplicationStream)
+        .when(mockedStream)
+        .createApplicationStream(mockedTable1.toString(), null);
     when(mockedApplicationStream.getStreamName()).thenReturn("mockedApplicationStream");
 
     boolean expected = mockedStream.maybeCreateStream(mockedTable1.toString(), null);
 
     assertTrue(expected);
-    assertEquals("mockedApplicationStream", mockedStream.currentStreams.get(mockedTable1.toString()));
-    assertTrue(mockedStream.streams.get(mockedTable1.toString()).containsKey("mockedApplicationStream"));
-    assertTrue(mockedStream.streams.get(mockedTable1.toString()).containsValue(mockedApplicationStream));
+    assertEquals(
+        "mockedApplicationStream", mockedStream.currentStreams.get(mockedTable1.toString()));
+    assertTrue(
+        mockedStream.streams.get(mockedTable1.toString()).containsKey("mockedApplicationStream"));
+    assertTrue(
+        mockedStream.streams.get(mockedTable1.toString()).containsValue(mockedApplicationStream));
     verify(mockedApplicationStream1, times(1)).areAllExpectedCallsCompleted();
   }
 
@@ -249,22 +277,28 @@ public class StorageWriteApiBatchApplicationStreamTest {
 
     assertFalse(expected);
     assertEquals(mockedStreamName1, mockedStream.currentStreams.get(mockedTable1.toString()));
-    assertFalse(mockedStream.streams.get(mockedTable1.toString()).containsKey("mockedApplicationStream"));
+    assertFalse(
+        mockedStream.streams.get(mockedTable1.toString()).containsKey("mockedApplicationStream"));
   }
 
   @Test
   public void testMayBeCreateStreamFirstStream() {
     ApplicationStream mockedApplicationStream = mock(ApplicationStream.class);
 
-    doReturn(mockedApplicationStream).when(mockedStream).createApplicationStream(mockedTable1.toString(), null);
+    doReturn(mockedApplicationStream)
+        .when(mockedStream)
+        .createApplicationStream(mockedTable1.toString(), null);
     when(mockedApplicationStream.getStreamName()).thenReturn("mockedApplicationStream");
 
     boolean expected = mockedStream.maybeCreateStream(mockedTable1.toString(), null);
 
     assertTrue(expected);
-    assertEquals("mockedApplicationStream", mockedStream.currentStreams.get(mockedTable1.toString()));
+    assertEquals(
+        "mockedApplicationStream", mockedStream.currentStreams.get(mockedTable1.toString()));
     assertEquals(1, mockedStream.streams.get(mockedTable1.toString()).size());
-    assertEquals(mockedApplicationStream, mockedStream.streams.get(mockedTable1.toString()).get("mockedApplicationStream"));
+    assertEquals(
+        mockedApplicationStream,
+        mockedStream.streams.get(mockedTable1.toString()).get("mockedApplicationStream"));
   }
 
   @Test
@@ -272,7 +306,8 @@ public class StorageWriteApiBatchApplicationStreamTest {
     initialiseStreams();
 
     String streamName = mockedStream.updateOffsetsOnStream(mockedTable1.toString(), mockedRows);
-    ArgumentCaptor<Map<TopicPartition, OffsetAndMetadata>> captor = ArgumentCaptor.forClass(Map.class);
+    ArgumentCaptor<Map<TopicPartition, OffsetAndMetadata>> captor =
+        ArgumentCaptor.forClass(Map.class);
 
     assertEquals(mockedStreamName1, streamName);
     verify(mockedApplicationStream1, times(1)).updateOffsetInformation(captor.capture(), eq(1));
@@ -280,11 +315,12 @@ public class StorageWriteApiBatchApplicationStreamTest {
     Map<TopicPartition, OffsetAndMetadata> actualOffset = captor.getValue();
     assertEquals(1, actualOffset.size());
 
-    actualOffset.forEach((key, value) -> {
-      assertEquals("t1", key.topic());
-      assertEquals(0, key.partition());
-      assertEquals(101, value.offset());
-    });
+    actualOffset.forEach(
+        (key, value) -> {
+          assertEquals("t1", key.topic());
+          assertEquals(0, key.partition());
+          assertEquals(101, value.offset());
+        });
   }
 
   @Test
@@ -295,7 +331,8 @@ public class StorageWriteApiBatchApplicationStreamTest {
     when(mockedApplicationStream1.canBeCommitted()).thenReturn(true);
     when(mockedResponse.get()).thenReturn(successResponse);
 
-    mockedStream.initializeAndWriteRecords(mockedPartitionedTableId1, mockedRows, mockedStreamName1);
+    mockedStream.initializeAndWriteRecords(
+        mockedPartitionedTableId1, mockedRows, mockedStreamName1);
 
     verify(mockedApplicationStream1, times(1)).increaseAppendCall();
     verifyAllStreamCalls();
@@ -307,7 +344,8 @@ public class StorageWriteApiBatchApplicationStreamTest {
     mockedStream.currentStreams.put(mockedTable1.toString(), "newStream");
     when(mockedResponse.get()).thenThrow(schemaException).thenReturn(successResponse);
     when(mockedApplicationStream1.canBeCommitted()).thenReturn(true);
-    mockedStream.initializeAndWriteRecords(mockedPartitionedTableId1, mockedRows, mockedStreamName1);
+    mockedStream.initializeAndWriteRecords(
+        mockedPartitionedTableId1, mockedRows, mockedStreamName1);
 
     verify(mockedSchemaManager, times(1)).updateSchema(any(), any());
     verifyAllStreamCalls();
@@ -321,8 +359,9 @@ public class StorageWriteApiBatchApplicationStreamTest {
 
     assertThrows(
         BigQueryStorageWriteApiConnectException.class,
-        () -> mockedStream.initializeAndWriteRecords(mockedPartitionedTableId1, mockedRows, mockedStreamName1)
-    );
+        () ->
+            mockedStream.initializeAndWriteRecords(
+                mockedPartitionedTableId1, mockedRows, mockedStreamName1));
 
     verify(mockedSchemaManager, times(0)).updateSchema(any(), any());
   }
@@ -333,7 +372,8 @@ public class StorageWriteApiBatchApplicationStreamTest {
     mockedStream.currentStreams.put(mockedTable1.toString(), "newStream");
     when(mockedResponse.get()).thenThrow(noTable).thenReturn(successResponse);
     when(mockedApplicationStream1.canBeCommitted()).thenReturn(true);
-    mockedStream.initializeAndWriteRecords(mockedPartitionedTableId1, mockedRows, mockedStreamName1);
+    mockedStream.initializeAndWriteRecords(
+        mockedPartitionedTableId1, mockedRows, mockedStreamName1);
 
     verify(mockedSchemaManager, times(1)).createTable(any(), any());
     verifyAllStreamCalls();
@@ -342,7 +382,7 @@ public class StorageWriteApiBatchApplicationStreamTest {
   @ParameterizedTest(name = "{index} – {0}")
   @MethodSource("terminalClientExceptions")
   public void testAppendTerminalClientException(String testCase, Exception exception)
-          throws Exception {
+      throws Exception {
     initialiseStreams();
     when(mockedResponse.get()).thenThrow(exception);
 
@@ -351,10 +391,9 @@ public class StorageWriteApiBatchApplicationStreamTest {
 
   public static Stream<Arguments> terminalClientExceptions() {
     return Stream.of(
-            Arguments.of("Non-retriable errors", nonRetriableException),
-            Arguments.of("Request-level errors", requestLevelException),
-            Arguments.of("Storage non-retriable", streamFinalisedException)
-    );
+        Arguments.of("Non-retriable errors", nonRetriableException),
+        Arguments.of("Request-level errors", requestLevelException),
+        Arguments.of("Storage non-retriable", streamFinalisedException));
   }
 
   @Test
@@ -368,10 +407,7 @@ public class StorageWriteApiBatchApplicationStreamTest {
   public void testSendSomeToDLQ() throws Exception {
     initialiseStreams();
     when(mockedResponse.get()).thenThrow(badRecordsException).thenReturn(successResponse);
-    assertThrows(
-        BigQueryStorageWriteApiConnectException.class,
-        () -> verifyDLQ(rows)
-    );
+    assertThrows(BigQueryStorageWriteApiConnectException.class, () -> verifyDLQ(rows));
   }
 
   @Test
@@ -380,10 +416,8 @@ public class StorageWriteApiBatchApplicationStreamTest {
     when(mockedResponse.get()).thenThrow(badRecordsException);
     when(mockedErrantRecordHandler.getErrantRecordReporter()).thenReturn(null);
 
-    BigQueryStorageWriteApiConnectException e = assertThrows(
-            BigQueryStorageWriteApiConnectException.class,
-            () -> verifyDLQ(rows)
-    );
+    BigQueryStorageWriteApiConnectException e =
+        assertThrows(BigQueryStorageWriteApiConnectException.class, () -> verifyDLQ(rows));
     assertEquals(e.getMessage(), malformedExceptionMessage);
   }
 
@@ -393,8 +427,7 @@ public class StorageWriteApiBatchApplicationStreamTest {
 
     mockedStream.initializeAndWriteRecords(mockedPartitionedTableId1, rows, mockedStreamName1);
 
-    verify(mockedErrantRecordHandler, times(1))
-        .reportErrantRecords(captorRecord.capture());
+    verify(mockedErrantRecordHandler, times(1)).reportErrantRecords(captorRecord.capture());
     assertTrue(captorRecord.getValue().containsKey(mockedSinkRecord));
     assertEquals("f0 field is unknown", captorRecord.getValue().get(mockedSinkRecord).getMessage());
     assertEquals(1, captorRecord.getValue().size());

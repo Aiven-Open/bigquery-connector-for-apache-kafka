@@ -21,7 +21,6 @@
  * under the License.
  */
 
-
 package io.aiven.kafka.utils;
 
 import static org.apache.kafka.common.config.ConfigDef.NO_DEFAULT_VALUE;
@@ -50,7 +49,6 @@ public class ConfigKeyBuilder<T extends ConfigKeyBuilder<?>> {
   protected ConfigDef.Recommender recommender;
   protected boolean internalConfig;
 
-
   public ConfigKeyBuilder(String name) {
     this.name = name;
     this.type = ConfigDef.Type.STRING;
@@ -61,8 +59,20 @@ public class ConfigKeyBuilder<T extends ConfigKeyBuilder<?>> {
   }
 
   public ConfigDef.ConfigKey build() {
-    return new ConfigDef.ConfigKey(name, type, defaultValue, validator, importance, documentation, group,
-        orderInGroup, width, displayName, getDependents(), recommender, internalConfig);
+    return new ConfigDef.ConfigKey(
+        name,
+        type,
+        defaultValue,
+        validator,
+        importance,
+        documentation,
+        group,
+        orderInGroup,
+        width,
+        displayName,
+        getDependents(),
+        recommender,
+        internalConfig);
   }
 
   @SuppressWarnings("unchecked")
@@ -150,5 +160,3 @@ public class ConfigKeyBuilder<T extends ConfigKeyBuilder<?>> {
     return self();
   }
 }
-
-

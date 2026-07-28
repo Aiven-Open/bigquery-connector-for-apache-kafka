@@ -38,8 +38,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Handles retries with writes to the Storage Write API and operations performed
- * during that process (such as table creation/update).
+ * Handles retries with writes to the Storage Write API and operations performed during that process
+ * (such as table creation/update).
  */
 public class StorageWriteApiRetryHandler {
 
@@ -64,22 +64,12 @@ public class StorageWriteApiRetryHandler {
    */
   @Deprecated
   public StorageWriteApiRetryHandler(
-          TableName table,
-          List<SinkRecord> records,
-          int retry,
-          long retryWait,
-          Time time
-  ) {
+      TableName table, List<SinkRecord> records, int retry, long retryWait, Time time) {
     this(TableNameUtils.tableId(table), records, retry, retryWait, time);
   }
 
   public StorageWriteApiRetryHandler(
-      TableId table,
-      List<SinkRecord> records,
-      int retry,
-      long retryWait,
-      Time time
-  ) {
+      TableId table, List<SinkRecord> records, int retry, long retryWait, Time time) {
     additionalRetries = 0;
     additionalWait = 0;
     mostRecentException = null;
@@ -124,8 +114,7 @@ public class StorageWriteApiRetryHandler {
     } else {
       throw new BigQueryStorageWriteApiConnectException(
           String.format("Exceeded %s attempts to %s ", getAttempt(), operation),
-          getMostRecentException()
-      );
+          getMostRecentException());
     }
   }
 
@@ -150,5 +139,4 @@ public class StorageWriteApiRetryHandler {
           "Failed to create table " + table, exception);
     }
   }
-
 }

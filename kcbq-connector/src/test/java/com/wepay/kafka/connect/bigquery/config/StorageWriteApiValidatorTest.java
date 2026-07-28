@@ -70,9 +70,7 @@ public class StorageWriteApiValidatorTest {
     when(config.getBoolean(DELETE_ENABLED_CONFIG)).thenReturn(false);
     when(config.getList(ENABLE_BATCH_CONFIG)).thenReturn(Collections.emptyList());
 
-    assertEquals(
-        Optional.empty(),
-        new StorageWriteApiValidator().doValidate(config));
+    assertEquals(Optional.empty(), new StorageWriteApiValidator().doValidate(config));
   }
 
   @Test
@@ -96,7 +94,9 @@ public class StorageWriteApiValidatorTest {
     when(config.getBoolean(DELETE_ENABLED_CONFIG)).thenReturn(false);
     when(config.getList(ENABLE_BATCH_CONFIG)).thenReturn(Collections.singletonList("abc"));
 
-    assertEquals(Optional.of(legacyBatchNotSupportedError), new StorageWriteApiValidator().doValidate(config));
+    assertEquals(
+        Optional.of(legacyBatchNotSupportedError),
+        new StorageWriteApiValidator().doValidate(config));
   }
 
   @Test
@@ -107,9 +107,12 @@ public class StorageWriteApiValidatorTest {
     when(config.getBoolean(ENABLE_BATCH_MODE_CONFIG)).thenReturn(true);
     when(config.getBoolean(BIGQUERY_PARTITION_DECORATOR_CONFIG)).thenReturn(true);
     // User explicitly requested partition decorator syntax
-    when(config.originals()).thenReturn(Collections.singletonMap(BIGQUERY_PARTITION_DECORATOR_CONFIG, "true"));
+    when(config.originals())
+        .thenReturn(Collections.singletonMap(BIGQUERY_PARTITION_DECORATOR_CONFIG, "true"));
 
-    assertEquals(Optional.of(partitionDecoratorNewBatchNotSupported), new StorageWriteApiValidator().doValidate(config));
+    assertEquals(
+        Optional.of(partitionDecoratorNewBatchNotSupported),
+        new StorageWriteApiValidator().doValidate(config));
   }
 
   @Test
@@ -131,7 +134,8 @@ public class StorageWriteApiValidatorTest {
     when(config.getBoolean(USE_STORAGE_WRITE_API_CONFIG)).thenReturn(false);
     when(config.getBoolean(ENABLE_BATCH_MODE_CONFIG)).thenReturn(true);
 
-    assertEquals(Optional.of(newBatchNotSupportedError),
+    assertEquals(
+        Optional.of(newBatchNotSupportedError),
         new StorageWriteApiValidator.StorageWriteApiBatchValidator().doValidate(config));
   }
 
@@ -142,7 +146,8 @@ public class StorageWriteApiValidatorTest {
     when(config.getBoolean(USE_STORAGE_WRITE_API_CONFIG)).thenReturn(true);
     when(config.getBoolean(ENABLE_BATCH_MODE_CONFIG)).thenReturn(true);
 
-    assertEquals(Optional.empty(),
+    assertEquals(
+        Optional.empty(),
         new StorageWriteApiValidator.StorageWriteApiBatchValidator().doValidate(config));
   }
 
@@ -154,7 +159,8 @@ public class StorageWriteApiValidatorTest {
     when(config.getBoolean(ENABLE_BATCH_MODE_CONFIG)).thenReturn(true);
     when(config.getList(ENABLE_BATCH_CONFIG)).thenReturn(Collections.singletonList("abc"));
 
-    assertEquals(Optional.of(newBatchNotSupportedError),
+    assertEquals(
+        Optional.of(newBatchNotSupportedError),
         new StorageWriteApiValidator.StorageWriteApiBatchValidator().doValidate(config));
   }
 
@@ -166,7 +172,8 @@ public class StorageWriteApiValidatorTest {
     when(config.getBoolean(ENABLE_BATCH_MODE_CONFIG)).thenReturn(true);
     when(config.getList(ENABLE_BATCH_CONFIG)).thenReturn(Collections.singletonList("abc"));
 
-    assertEquals(Optional.of(legacyBatchNotSupportedError), new StorageWriteApiValidator().doValidate(config));
+    assertEquals(
+        Optional.of(legacyBatchNotSupportedError),
+        new StorageWriteApiValidator().doValidate(config));
   }
 }
-

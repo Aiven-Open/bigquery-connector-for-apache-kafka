@@ -124,27 +124,20 @@ public class GcsBatchSchemaEvolutionIT extends BaseConnectorIT {
     waitForConnectorToStart(CONNECTOR_NAME, TASKS_MAX);
 
     schemaRegistry.produceRecordsWithKey(
-        keyConverter,
-        valueConverter,
-        Collections.singletonList(recordV1(1L, "snacks")),
-        topic
-    );
+        keyConverter, valueConverter, Collections.singletonList(recordV1(1L, "snacks")), topic);
 
     waitForCommittedRecords(CONNECTOR_NAME, topic, 1, TASKS_MAX);
     waitForRowCount(1L);
 
     schemaRegistry.produceRecordsWithKey(
-        keyConverter,
-        valueConverter,
-        Collections.singletonList(recordV2(2L, null, "john")),
-        topic
-    );
+        keyConverter, valueConverter, Collections.singletonList(recordV2(2L, null, "john")), topic);
 
     waitForCommittedRecords(CONNECTOR_NAME, topic, 2, TASKS_MAX);
     waitForRowCount(2L);
 
     Table destinationTable = bigQuery.getTable(dataset(), table);
-    com.google.cloud.bigquery.Schema destinationSchema = destinationTable.getDefinition().getSchema();
+    com.google.cloud.bigquery.Schema destinationSchema =
+        destinationTable.getDefinition().getSchema();
     Field categoryField = destinationSchema.getFields().get("category");
     assertNotNull(categoryField, "category field should exist after load");
     assertEquals(Field.Mode.NULLABLE, categoryField.getMode());
@@ -160,22 +153,10 @@ public class GcsBatchSchemaEvolutionIT extends BaseConnectorIT {
   private Map<String, String> connectorProps() {
     Map<String, String> props = baseConnectorProps(TASKS_MAX);
     props.put(TOPICS_CONFIG, topic);
-    props.put(
-        KEY_CONVERTER_CLASS_CONFIG,
-        AvroConverter.class.getName()
-    );
-    props.put(
-        KEY_CONVERTER_CLASS_CONFIG + "." + SCHEMA_REGISTRY_URL_CONFIG,
-        schemaRegistryUrl
-    );
-    props.put(
-        VALUE_CONVERTER_CLASS_CONFIG,
-        AvroConverter.class.getName()
-    );
-    props.put(
-        VALUE_CONVERTER_CLASS_CONFIG + "." + SCHEMA_REGISTRY_URL_CONFIG,
-        schemaRegistryUrl
-    );
+    props.put(KEY_CONVERTER_CLASS_CONFIG, AvroConverter.class.getName());
+    props.put(KEY_CONVERTER_CLASS_CONFIG + "." + SCHEMA_REGISTRY_URL_CONFIG, schemaRegistryUrl);
+    props.put(VALUE_CONVERTER_CLASS_CONFIG, AvroConverter.class.getName());
+    props.put(VALUE_CONVERTER_CLASS_CONFIG + "." + SCHEMA_REGISTRY_URL_CONFIG, schemaRegistryUrl);
     props.put(BigQuerySinkConfig.ALLOW_NEW_BIGQUERY_FIELDS_CONFIG, "true");
     props.put(BigQuerySinkConfig.ALLOW_BIGQUERY_REQUIRED_FIELD_RELAXATION_CONFIG, "true");
     props.put(BigQuerySinkConfig.ENABLE_BATCH_CONFIG, topic + "," + table);
@@ -188,23 +169,26 @@ public class GcsBatchSchemaEvolutionIT extends BaseConnectorIT {
   }
 
   private void initialiseSchemas() {
-    keySchema = SchemaBuilder.struct()
-        .name("com.wepay.kafka.connect.bigquery.integration.Key")
-        .field("id", Schema.INT64_SCHEMA)
-        .build();
+    keySchema =
+        SchemaBuilder.struct()
+            .name("com.wepay.kafka.connect.bigquery.integration.Key")
+            .field("id", Schema.INT64_SCHEMA)
+            .build();
 
-    valueSchemaV1 = SchemaBuilder.struct()
-        .name("com.wepay.kafka.connect.bigquery.integration.ValueV1")
-        .field("id", Schema.INT64_SCHEMA)
-        .field("category", Schema.STRING_SCHEMA)
-        .build();
+    valueSchemaV1 =
+        SchemaBuilder.struct()
+            .name("com.wepay.kafka.connect.bigquery.integration.ValueV1")
+            .field("id", Schema.INT64_SCHEMA)
+            .field("category", Schema.STRING_SCHEMA)
+            .build();
 
-    valueSchemaV2 = SchemaBuilder.struct()
-        .name("com.wepay.kafka.connect.bigquery.integration.ValueV2")
-        .field("id", Schema.INT64_SCHEMA)
-        .field("category", SchemaBuilder.string().optional().build())
-        .field("username", SchemaBuilder.string().optional().build())
-        .build();
+    valueSchemaV2 =
+        SchemaBuilder.struct()
+            .name("com.wepay.kafka.connect.bigquery.integration.ValueV2")
+            .field("id", Schema.INT64_SCHEMA)
+            .field("category", SchemaBuilder.string().optional().build())
+            .field("username", SchemaBuilder.string().optional().build())
+            .build();
   }
 
   private void initialiseConverters() {
@@ -219,11 +203,8 @@ public class GcsBatchSchemaEvolutionIT extends BaseConnectorIT {
   }
 
   private List<SchemaAndValue> recordV1(long id, String category) {
-    Struct key = new Struct(keySchema)
-        .put("id", id);
-    Struct value = new Struct(valueSchemaV1)
-        .put("id", id)
-        .put("category", category);
+    Struct key = new Struct(keySchema).put("id", id);
+    Struct value = new Struct(valueSchemaV1).put("id", id).put("category", category);
     List<SchemaAndValue> record = new ArrayList<>(2);
     record.add(new SchemaAndValue(keySchema, key));
     record.add(new SchemaAndValue(valueSchemaV1, value));
@@ -231,12 +212,9 @@ public class GcsBatchSchemaEvolutionIT extends BaseConnectorIT {
   }
 
   private List<SchemaAndValue> recordV2(long id, String category, String username) {
-    Struct key = new Struct(keySchema)
-        .put("id", id);
-    Struct value = new Struct(valueSchemaV2)
-        .put("id", id)
-        .put("category", category)
-        .put("username", username);
+    Struct key = new Struct(keySchema).put("id", id);
+    Struct value =
+        new Struct(valueSchemaV2).put("id", id).put("category", category).put("username", username);
     List<SchemaAndValue> record = new ArrayList<>(2);
     record.add(new SchemaAndValue(keySchema, key));
     record.add(new SchemaAndValue(valueSchemaV2, value));
@@ -245,20 +223,25 @@ public class GcsBatchSchemaEvolutionIT extends BaseConnectorIT {
 
   private void createInitialTable() {
     TableId tableId = TableId.of(dataset(), table);
-    com.google.cloud.bigquery.Schema schema = com.google.cloud.bigquery.Schema.of(
-        Field.newBuilder("id", LegacySQLTypeName.INTEGER).setMode(Field.Mode.REQUIRED).build(),
-        Field.newBuilder("category", LegacySQLTypeName.STRING).setMode(Field.Mode.REQUIRED).build()
-    );
+    com.google.cloud.bigquery.Schema schema =
+        com.google.cloud.bigquery.Schema.of(
+            Field.newBuilder("id", LegacySQLTypeName.INTEGER).setMode(Field.Mode.REQUIRED).build(),
+            Field.newBuilder("category", LegacySQLTypeName.STRING)
+                .setMode(Field.Mode.REQUIRED)
+                .build());
     BigQueryTestUtils.createPartitionedTable(bigQuery, dataset(), table, schema);
   }
 
   private void waitForRowCount(long expected) throws InterruptedException {
-    waitForCondition(() -> {
-      try {
-        return countRows(bigQuery, table) >= expected;
-      } catch (Exception e) {
-        return false;
-      }
-    }, LOAD_TIMEOUT.toMillis(), "Timed out waiting for " + expected + " rows");
+    waitForCondition(
+        () -> {
+          try {
+            return countRows(bigQuery, table) >= expected;
+          } catch (Exception e) {
+            return false;
+          }
+        },
+        LOAD_TIMEOUT.toMillis(),
+        "Timed out waiting for " + expected + " rows");
   }
 }

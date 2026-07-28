@@ -34,9 +34,9 @@ import java.util.Collections;
 import java.util.Optional;
 
 public class PartitioningTypeValidator extends MultiPropertyValidator<BigQuerySinkConfig> {
-  private static final Collection<String> DEPENDENTS = Collections.unmodifiableCollection(Arrays.asList(
-      BIGQUERY_PARTITION_DECORATOR_CONFIG, TABLE_CREATE_CONFIG
-  ));
+  private static final Collection<String> DEPENDENTS =
+      Collections.unmodifiableCollection(
+          Arrays.asList(BIGQUERY_PARTITION_DECORATOR_CONFIG, TABLE_CREATE_CONFIG));
 
   public PartitioningTypeValidator() {
     super(TIME_PARTITIONING_TYPE_CONFIG);
@@ -49,7 +49,8 @@ public class PartitioningTypeValidator extends MultiPropertyValidator<BigQuerySi
 
   @Override
   protected Optional<String> doValidate(BigQuerySinkConfig config) {
-    if (!config.getBoolean(BIGQUERY_PARTITION_DECORATOR_CONFIG) || !config.getBoolean(TABLE_CREATE_CONFIG)) {
+    if (!config.getBoolean(BIGQUERY_PARTITION_DECORATOR_CONFIG)
+        || !config.getBoolean(TABLE_CREATE_CONFIG)) {
       return Optional.empty();
     }
 
@@ -59,8 +60,7 @@ public class PartitioningTypeValidator extends MultiPropertyValidator<BigQuerySi
       return Optional.of(
           "Tables must be partitioned by DAY when using partition decorator syntax. "
               + "Either configure the connector with the DAY time partitioning type, "
-              + "disable automatic table creation, or disable partition decorator syntax."
-      );
+              + "disable automatic table creation, or disable partition decorator syntax.");
     }
 
     return Optional.empty();

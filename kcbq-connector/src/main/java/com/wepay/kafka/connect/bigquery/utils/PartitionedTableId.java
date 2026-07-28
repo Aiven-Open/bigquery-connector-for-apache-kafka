@@ -29,10 +29,10 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 
 /**
- * A TableId with separate base table name and partition information.
- * Note that this class only supports partitioning by day; even though BigQuery supports other time partitioning types
- * for tables partitioned by ingestion time, it doesn't support decorator syntax (i.e., appending "$YYYYMMDD" to the
- * name of a table being streamed to) for these other time partitioning types.
+ * A TableId with separate base table name and partition information. Note that this class only
+ * supports partitioning by day; even though BigQuery supports other time partitioning types for
+ * tables partitioned by ingestion time, it doesn't support decorator syntax (i.e., appending
+ * "$YYYYMMDD" to the name of a table being streamed to) for these other time partitioning types.
  */
 public class PartitionedTableId {
 
@@ -53,9 +53,9 @@ public class PartitionedTableId {
   /**
    * Create a new {@link PartitionedTableId}
    *
-   * @param project   The project name, if specified.
-   * @param dataset   The dataset name.
-   * @param table     The table name.
+   * @param project The project name, if specified.
+   * @param dataset The dataset name.
+   * @param table The table name.
    * @param partition The partition of the table, if any.
    */
   private PartitionedTableId(String project, String dataset, String table, String partition) {
@@ -73,7 +73,7 @@ public class PartitionedTableId {
   /**
    * Create and return a full table name from a base table name and a partition.
    *
-   * @param table     the base table name.
+   * @param table the base table name.
    * @param partition the partition, if any.
    * @return full table name, including partition; Just the given table if no partition.
    */
@@ -93,7 +93,7 @@ public class PartitionedTableId {
    *
    * @param project the project name, or null
    * @param dataset the dataset name
-   * @param table   the table name
+   * @param table the table name
    * @return a new TableId with the given project, dataset, and table.
    */
   private static TableId createTableId(String project, String dataset, String table) {
@@ -125,9 +125,9 @@ public class PartitionedTableId {
   }
 
   /**
-   * Return the base table id, NOT containing any partition information in the table name.
-   * This is useful if you only need general information about a table, like if you need to store
-   * a table's schema information.
+   * Return the base table id, NOT containing any partition information in the table name. This is
+   * useful if you only need general information about a table, like if you need to store a table's
+   * schema information.
    *
    * @return the base table id.
    */
@@ -136,8 +136,8 @@ public class PartitionedTableId {
   }
 
   /**
-   * Return the full table id, containing any partitioning information in the table name.
-   * This is useful when you are attempting to actually write to this table.
+   * Return the full table id, containing any partitioning information in the table name. This is
+   * useful when you are attempting to actually write to this table.
    *
    * @return the full table id.
    */
@@ -174,7 +174,7 @@ public class PartitionedTableId {
     /**
      * Initialize a new {@link PartitionedTableId} Builder with a dataset and base table name.
      *
-     * @param dataset   the dataset name of the eventual PartitionedTableId.
+     * @param dataset the dataset name of the eventual PartitionedTableId.
      * @param baseTable the base table name of the eventual PartitionedTableId.
      */
     public Builder(String dataset, String baseTable) {

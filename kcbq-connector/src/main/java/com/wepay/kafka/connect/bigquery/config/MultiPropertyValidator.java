@@ -44,18 +44,22 @@ public abstract class MultiPropertyValidator<ConfigT> {
     return propertyName;
   }
 
-  public Optional<String> validate(ConfigValue value, ConfigT config, Map<String, ConfigValue> valuesByName) {
-    // Only perform follow-up validation if the property doesn't already have an error associated with it
+  public Optional<String> validate(
+      ConfigValue value, ConfigT config, Map<String, ConfigValue> valuesByName) {
+    // Only perform follow-up validation if the property doesn't already have an error associated
+    // with it
     if (!value.errorMessages().isEmpty()) {
       return Optional.empty();
     }
 
-    boolean dependentsAreValid = dependents().stream()
-        .map(valuesByName::get)
-        .filter(Objects::nonNull)
-        .map(ConfigValue::errorMessages)
-        .allMatch(List::isEmpty);
-    // Also ensure that all of the other properties that the validation for this one depends on don't already have errors
+    boolean dependentsAreValid =
+        dependents().stream()
+            .map(valuesByName::get)
+            .filter(Objects::nonNull)
+            .map(ConfigValue::errorMessages)
+            .allMatch(List::isEmpty);
+    // Also ensure that all of the other properties that the validation for this one depends on
+    // don't already have errors
     if (!dependentsAreValid) {
       return Optional.empty();
     }
@@ -65,8 +69,7 @@ public abstract class MultiPropertyValidator<ConfigT> {
     } catch (RuntimeException e) {
       return Optional.of(
           "An unexpected error occurred during validation"
-              + (e.getMessage() != null ? ": " + e.getMessage() : "")
-      );
+              + (e.getMessage() != null ? ": " + e.getMessage() : ""));
     }
   }
 
@@ -79,12 +82,11 @@ public abstract class MultiPropertyValidator<ConfigT> {
    * @return A formatted validatio nmessage.
    */
   protected static String validationMessage(
-          final String name, final Object value, final String message) {
+      final String name, final Object value, final String message) {
     return format(
-            "Invalid value %s for configuration %s%s.",
-            value, name, message == null ? "" : ": " + message);
+        "Invalid value %s for configuration %s%s.",
+        value, name, message == null ? "" : ": " + message);
   }
-
 
   /**
    * Registers an issue in the Config map.
@@ -95,10 +97,10 @@ public abstract class MultiPropertyValidator<ConfigT> {
    * @param message the message for the error.
    */
   protected void registerIssue(
-          final Map<String, ConfigValue> configMap,
-          final String name,
-          final Object value,
-          final String message) {
+      final Map<String, ConfigValue> configMap,
+      final String name,
+      final Object value,
+      final String message) {
     configMap.get(name).addErrorMessage(validationMessage(name, value, message));
   }
 

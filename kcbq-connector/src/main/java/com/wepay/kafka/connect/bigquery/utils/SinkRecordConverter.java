@@ -41,7 +41,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * A class for converting a {@link SinkRecord SinkRecord} to {@link InsertAllRequest.RowToInsert BigQuery row}
+ * A class for converting a {@link SinkRecord SinkRecord} to {@link InsertAllRequest.RowToInsert
+ * BigQuery row}
  */
 public final class SinkRecordConverter {
   private static final Logger logger = LoggerFactory.getLogger(SinkRecordConverter.class);
@@ -55,13 +56,14 @@ public final class SinkRecordConverter {
   private final boolean useMessageTimeDatePartitioning;
   private final boolean usePartitionDecorator;
 
-  /** Set by {@link com.wepay.kafka.connect.bigquery.BigQuerySinkTask#put} at the start of each
-   * put() invocation when {@code trackPutAttempts} is enabled. Null otherwise. */
+  /**
+   * Set by {@link com.wepay.kafka.connect.bigquery.BigQuerySinkTask#put} at the start of each put()
+   * invocation when {@code trackPutAttempts} is enabled. Null otherwise.
+   */
   private volatile String currentPutAttemptId = null;
 
-
-  public SinkRecordConverter(BigQuerySinkConfig config,
-                             MergeBatches mergeBatches, MergeQueries mergeQueries) {
+  public SinkRecordConverter(
+      BigQuerySinkConfig config, MergeBatches mergeBatches, MergeQueries mergeQueries) {
     this.config = config;
     this.mergeBatches = mergeBatches;
     this.mergeQueries = mergeQueries;
@@ -94,14 +96,16 @@ public final class SinkRecordConverter {
    * inside {@code BigQueryWriter.writeRows()}) to avoid the race condition that arises when
    * multiple {@code TableWriter} threads concurrently read and write the shared volatile field.
    *
-   * @param record         the Kafka record to convert
-   * @param table          the target BigQuery table
+   * @param record the Kafka record to convert
+   * @param table the target BigQuery table
    * @param writeAttemptId the write-attempt ID to embed, or {@code null} if tracking is disabled
    */
-  public InsertAllRequest.RowToInsert getRecordRow(SinkRecord record, TableId table, String writeAttemptId) {
-    Map<String, Object> convertedRecord = config.isUpsertEnabled() || config.isDeleteEnabled()
-        ? getUpsertDeleteRow(record, table, writeAttemptId)
-        : getRegularRow(record, writeAttemptId);
+  public InsertAllRequest.RowToInsert getRecordRow(
+      SinkRecord record, TableId table, String writeAttemptId) {
+    Map<String, Object> convertedRecord =
+        config.isUpsertEnabled() || config.isDeleteEnabled()
+            ? getUpsertDeleteRow(record, table, writeAttemptId)
+            : getRegularRow(record, writeAttemptId);
 
     return InsertAllRequest.RowToInsert.of(getRowId(record), convertedRecord);
   }
@@ -114,28 +118,35 @@ public final class SinkRecordConverter {
    * @param writeAttemptId the write ID.
    * @return the map of the converted record.
    */
-  private Map<String, Object> getUpsertDeleteRow(SinkRecord record, TableId table, String writeAttemptId) {
+  private Map<String, Object> getUpsertDeleteRow(
+      SinkRecord record, TableId table, String writeAttemptId) {
     // Unconditionally allow tombstone records if delete is enabled.
-    Map<String, Object> convertedValue = config.isDeleteEnabled() && record.value() == null
-        ? null
-        : recordConverter.convertRecord(record, KafkaSchemaRecordType.VALUE);
+    Map<String, Object> convertedValue =
+        config.isDeleteEnabled() && record.value() == null
+            ? null
+            : recordConverter.convertRecord(record, KafkaSchemaRecordType.VALUE);
 
     if (convertedValue != null) {
-      config.getKafkaDataFieldName().ifPresent(
-          fieldName -> convertedValue.put(fieldName, buildKafkaDataRecord(record, writeAttemptId))
-      );
+      config
+          .getKafkaDataFieldName()
+          .ifPresent(
+              fieldName ->
+                  convertedValue.put(fieldName, buildKafkaDataRecord(record, writeAttemptId)));
     }
 
     Map<String, Object> result = new HashMap<>();
     long totalBatchSize = mergeBatches.addToBatch(record, table, result);
     if (mergeRecordsThreshold != -1 && totalBatchSize >= mergeRecordsThreshold) {
-      logger.debug("Triggering merge flush for table {} since the size of its current batch has "
+      logger.debug(
+          "Triggering merge flush for table {} since the size of its current batch has "
               + "exceeded the configured threshold of {}}",
-          table, mergeRecordsThreshold);
+          table,
+          mergeRecordsThreshold);
       mergeQueries.mergeFlush(table);
     }
 
-    Map<String, Object> convertedKey = recordConverter.convertRecord(record, KafkaSchemaRecordType.KEY);
+    Map<String, Object> convertedKey =
+        recordConverter.convertRecord(record, KafkaSchemaRecordType.KEY);
     if (convertedKey == null) {
       throw new ConnectException("Record keys must be non-null when upsert/delete is enabled");
     }
@@ -152,7 +163,9 @@ public final class SinkRecordConverter {
     } else {
       // Provide a value for this column even if it's not used for partitioning in the destination
       // table, so that it can be used to deduplicate rows during merge flushes
-      result.put(MergeQueries.INTERMEDIATE_TABLE_PARTITION_TIME_FIELD_NAME, System.currentTimeMillis() / 1000);
+      result.put(
+          MergeQueries.INTERMEDIATE_TABLE_PARTITION_TIME_FIELD_NAME,
+          System.currentTimeMillis() / 1000);
     }
 
     return maybeSanitize(result);
@@ -176,21 +189,28 @@ public final class SinkRecordConverter {
    * @return the map of fields to values.
    */
   public Map<String, Object> getRegularRow(SinkRecord record, String writeAttemptId) {
-    Map<String, Object> result = config.getBoolean(config.DELETE_ENABLED_CONFIG) && record.value() == null
-        ? new HashMap<>()
-        : recordConverter.convertRecord(record, KafkaSchemaRecordType.VALUE);
+    Map<String, Object> result =
+        config.getBoolean(config.DELETE_ENABLED_CONFIG) && record.value() == null
+            ? new HashMap<>()
+            : recordConverter.convertRecord(record, KafkaSchemaRecordType.VALUE);
 
-    config.getKafkaDataFieldName().ifPresent(fieldName ->
-            result.put(fieldName, buildKafkaDataRecord(record, writeAttemptId)));
+    config
+        .getKafkaDataFieldName()
+        .ifPresent(
+            fieldName -> result.put(fieldName, buildKafkaDataRecord(record, writeAttemptId)));
 
-    config.getKafkaKeyFieldName().ifPresent(fieldName -> {
-      Map<String, Object> keyData = recordConverter.convertRecord(record, KafkaSchemaRecordType.KEY);
-      if (fieldName.isEmpty()) {
-        result.putAll(keyData);
-      } else {
-        result.put(fieldName, keyData);
-      }
-    });
+    config
+        .getKafkaKeyFieldName()
+        .ifPresent(
+            fieldName -> {
+              Map<String, Object> keyData =
+                  recordConverter.convertRecord(record, KafkaSchemaRecordType.KEY);
+              if (fieldName.isEmpty()) {
+                result.putAll(keyData);
+              } else {
+                result.put(fieldName, keyData);
+              }
+            });
 
     return maybeSanitize(result);
   }
@@ -199,7 +219,8 @@ public final class SinkRecordConverter {
    * Converts field names to BigQuery acceptable names if configured to do so.
    *
    * @param convertedRecord the record to sanitize.
-   * @return the sanitized record if configured to do so, otherwise the unmodified {@code convertedRecord}.
+   * @return the sanitized record if configured to do so, otherwise the unmodified {@code
+   *     convertedRecord}.
    */
   private Map<String, Object> maybeSanitize(Map<String, Object> convertedRecord) {
     return config.sanitizeFieldNames()
@@ -208,17 +229,14 @@ public final class SinkRecordConverter {
   }
 
   /**
-   * Generates the row ID for the BigQuery row.  This is constructed from the topic, partition and offset of the
-   * record.  Values are not affected by the use original values configuration option.
+   * Generates the row ID for the BigQuery row. This is constructed from the topic, partition and
+   * offset of the record. Values are not affected by the use original values configuration option.
    *
    * @param record The sink record to generate the id for.
    * @return the ID for the row.
    */
   private String getRowId(SinkRecord record) {
-    return String.format("%s-%d-%d",
-        record.topic(),
-        record.kafkaPartition(),
-        record.kafkaOffset());
+    return String.format("%s-%d-%d", record.topic(), record.kafkaPartition(), record.kafkaOffset());
   }
 
   /**
@@ -267,30 +285,35 @@ public final class SinkRecordConverter {
    * Construct a map of Kafka Data record, optionally including a put-attempt identifier.
    *
    * <p>When {@code TRACK_PUT_ATTEMPTS} is enabled and {@code putAttemptId} is non-null, the map
-   * includes a {@code putAttemptId} entry so that rows constructed during different
-   * {@code put()} invocations can be distinguished downstream.
-   * </p>
-   * <p>
-   * Note: Future versions of this method will be package private.
-   * </p>
+   * includes a {@code putAttemptId} entry so that rows constructed during different {@code put()}
+   * invocations can be distinguished downstream.
+   *
+   * <p>Note: Future versions of this method will be package private.
    *
    * @param kafkaConnectRecord Kafka sink record to build kafka data from.
-   * @param putAttemptId ULID string generated at the start of the enclosing {@code put()} call,
-   *                     or {@code null} to omit the field.
-   * @return HashMap which contains the values of kafka topic, partition, offset, insertTime,
-   *         and optionally putAttemptId.
+   * @param putAttemptId ULID string generated at the start of the enclosing {@code put()} call, or
+   *     {@code null} to omit the field.
+   * @return HashMap which contains the values of kafka topic, partition, offset, insertTime, and
+   *     optionally putAttemptId.
    */
   @VisibleForTesting
-  public Map<String, Object> buildKafkaDataRecord(SinkRecord kafkaConnectRecord,
-                                                  String putAttemptId) {
+  public Map<String, Object> buildKafkaDataRecord(
+      SinkRecord kafkaConnectRecord, String putAttemptId) {
     HashMap<String, Object> kafkaData = new HashMap<>();
-    kafkaData.put(SchemaManager.KAFKA_DATA_TOPIC_FIELD_NAME, maybeGetOriginalTopic(kafkaConnectRecord));
-    kafkaData.put(SchemaManager.KAFKA_DATA_PARTITION_FIELD_NAME, maybeGetOriginalKafkaPartition(kafkaConnectRecord));
-    kafkaData.put(SchemaManager.KAFKA_DATA_OFFSET_FIELD_NAME, maybeGetOriginalKafkaOffset(kafkaConnectRecord));
+    kafkaData.put(
+        SchemaManager.KAFKA_DATA_TOPIC_FIELD_NAME, maybeGetOriginalTopic(kafkaConnectRecord));
+    kafkaData.put(
+        SchemaManager.KAFKA_DATA_PARTITION_FIELD_NAME,
+        maybeGetOriginalKafkaPartition(kafkaConnectRecord));
+    kafkaData.put(
+        SchemaManager.KAFKA_DATA_OFFSET_FIELD_NAME,
+        maybeGetOriginalKafkaOffset(kafkaConnectRecord));
     if (config.useStorageWriteApi()) {
-      kafkaData.put(SchemaManager.KAFKA_DATA_INSERT_TIME_FIELD_NAME, System.currentTimeMillis() * 1000);
+      kafkaData.put(
+          SchemaManager.KAFKA_DATA_INSERT_TIME_FIELD_NAME, System.currentTimeMillis() * 1000);
     } else {
-      kafkaData.put(SchemaManager.KAFKA_DATA_INSERT_TIME_FIELD_NAME, System.currentTimeMillis() / 1000.0);
+      kafkaData.put(
+          SchemaManager.KAFKA_DATA_INSERT_TIME_FIELD_NAME, System.currentTimeMillis() / 1000.0);
     }
     if (config.trackPutAttempts() && putAttemptId != null) {
       kafkaData.put(SchemaManager.KAFKA_DATA_PUT_ATTEMPT_ID_FIELD_NAME, putAttemptId);

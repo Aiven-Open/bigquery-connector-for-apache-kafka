@@ -28,7 +28,8 @@ import java.util.Map;
 import org.junit.jupiter.api.Tag;
 
 @Tag("integration")
-public class StorageWriteApiBatchBigQuerySinkConnectorIT extends StorageWriteApiBigQuerySinkConnectorIT {
+public class StorageWriteApiBatchBigQuerySinkConnectorIT
+    extends StorageWriteApiBigQuerySinkConnectorIT {
 
   @Override
   protected Map<String, String> configs(String topic) {
@@ -46,4 +47,5 @@ public class StorageWriteApiBatchBigQuerySinkConnectorIT extends StorageWriteApi
   @Override
   protected boolean isBatchMode() {
     return true;
-  }}
+  }
+}

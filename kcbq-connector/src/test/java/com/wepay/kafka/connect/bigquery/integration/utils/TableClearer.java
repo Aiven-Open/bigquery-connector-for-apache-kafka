@@ -41,8 +41,8 @@ public class TableClearer {
    * before creating a connector and writing to those tables.
    *
    * @param bigQuery The BigQuery client to use when sending table deletion requests.
-   * @param dataset  The dataset that the to-be-cleared tables belong to.
-   * @param tables   The tables to clear.
+   * @param dataset The dataset that the to-be-cleared tables belong to.
+   * @param tables The tables to clear.
    */
   public static void clearTables(BigQuery bigQuery, String dataset, Collection<String> tables) {
     for (String tableName : tables) {
@@ -60,8 +60,8 @@ public class TableClearer {
    * before creating a connector and writing to those tables.
    *
    * @param bigQuery The BigQuery client to use when sending table deletion requests.
-   * @param dataset  The dataset that the to-be-cleared tables belong to.
-   * @param tables   The tables to clear.
+   * @param dataset The dataset that the to-be-cleared tables belong to.
+   * @param tables The tables to clear.
    */
   public static void clearTables(BigQuery bigQuery, String dataset, String... tables) {
     clearTables(bigQuery, dataset, Arrays.asList(tables));

@@ -35,15 +35,17 @@ import java.util.Optional;
 
 public class StorageWriteApiValidator extends MultiPropertyValidator<BigQuerySinkConfig> {
 
-  public static final String legacyBatchNotSupportedError = "Legacy Batch mode is not supported with Storage Write API."
-      + " Either disable Legacy Batch mode or disable Storage Write API";
-  public static final String newBatchNotSupportedError = "Storage Write Api Batch load is supported only when useStorageWriteApi is "
-      + "enabled. Either disable batch mode or enable Storage Write API";
-  public static final String partitionDecoratorNewBatchNotSupported = "Partition decorator syntax is not supported with Storage Write API Batch Load. "
-                  + "It is currently only available when using the Storage Write API default stream.";
-  private static final Collection<String> DEPENDENTS = Collections.unmodifiableCollection(Arrays.asList(
-      ENABLE_BATCH_CONFIG
-  ));
+  public static final String legacyBatchNotSupportedError =
+      "Legacy Batch mode is not supported with Storage Write API."
+          + " Either disable Legacy Batch mode or disable Storage Write API";
+  public static final String newBatchNotSupportedError =
+      "Storage Write Api Batch load is supported only when useStorageWriteApi is "
+          + "enabled. Either disable batch mode or enable Storage Write API";
+  public static final String partitionDecoratorNewBatchNotSupported =
+      "Partition decorator syntax is not supported with Storage Write API Batch Load. "
+          + "It is currently only available when using the Storage Write API default stream.";
+  private static final Collection<String> DEPENDENTS =
+      Collections.unmodifiableCollection(Arrays.asList(ENABLE_BATCH_CONFIG));
 
   protected StorageWriteApiValidator(String propertyName) {
     super(propertyName);
@@ -64,15 +66,16 @@ public class StorageWriteApiValidator extends MultiPropertyValidator<BigQuerySin
       if (config.getBoolean(ENABLE_BATCH_MODE_CONFIG)) {
         return Optional.of(newBatchNotSupportedError);
       }
-      //No legacy modes validation needed if not using new api
+      // No legacy modes validation needed if not using new api
       return Optional.empty();
     }
     if (!config.getList(ENABLE_BATCH_CONFIG).isEmpty()) {
       return Optional.of(legacyBatchNotSupportedError);
     } else if (config.originals().containsKey(BIGQUERY_PARTITION_DECORATOR_CONFIG)
-        && config.getBoolean(BIGQUERY_PARTITION_DECORATOR_CONFIG) && config.getBoolean(ENABLE_BATCH_MODE_CONFIG)
-    ) {
-      // Only report an error if the user explicitly requested partition decorator syntax and batch load;
+        && config.getBoolean(BIGQUERY_PARTITION_DECORATOR_CONFIG)
+        && config.getBoolean(ENABLE_BATCH_MODE_CONFIG)) {
+      // Only report an error if the user explicitly requested partition decorator syntax and batch
+      // load;
       // if they didn't, then we can silently disable it when using the Storage Write API Batch Load
       return Optional.of(partitionDecoratorNewBatchNotSupported);
     }
@@ -86,4 +89,3 @@ public class StorageWriteApiValidator extends MultiPropertyValidator<BigQuerySin
     }
   }
 }
-

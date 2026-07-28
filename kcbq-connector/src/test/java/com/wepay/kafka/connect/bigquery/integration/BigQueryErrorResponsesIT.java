@@ -74,11 +74,14 @@ public class BigQueryErrorResponsesIT extends BaseConnectorIT {
     TableId table = TableId.of(dataset(), suffixedAndSanitizedTable("nonexistent table"));
     TableClearer.clearTables(bigQuery, dataset(), table.getTable());
 
-    BigQueryException e = assertThrows(
-        BigQueryException.class,
-        () -> bigQuery.insertAll(InsertAllRequest.of(table, RowToInsert.of(Collections.singletonMap("f1", "v1")))),
-        "Should have failed to write to nonexistent table"
-    );
+    BigQueryException e =
+        assertThrows(
+            BigQueryException.class,
+            () ->
+                bigQuery.insertAll(
+                    InsertAllRequest.of(
+                        table, RowToInsert.of(Collections.singletonMap("f1", "v1")))),
+            "Should have failed to write to nonexistent table");
 
     logger.debug("Nonexistent table write error", e);
     assertTrue(BigQueryErrorResponses.isNonExistentTableError(e));
@@ -98,8 +101,7 @@ public class BigQueryErrorResponsesIT extends BaseConnectorIT {
     TestUtils.waitForCondition(
         () -> bigQuery.getTable(table) != null,
         60_000L,
-        "Table does not appear to exist one minute after issuing create request"
-    );
+        "Table does not appear to exist one minute after issuing create request");
     logger.info("Created {} successfully", table(table));
 
     // Delete it...
@@ -109,15 +111,15 @@ public class BigQueryErrorResponsesIT extends BaseConnectorIT {
     TestUtils.waitForCondition(
         () -> bigQuery.getTable(table) == null,
         60_000L,
-        "Table still appears to exist  one minute after issuing delete request"
-    );
+        "Table still appears to exist  one minute after issuing delete request");
     logger.info("Deleted {} successfully", table(table));
 
     TestUtils.waitForCondition(
         () -> {
           // Try to write to it...
           try {
-            bigQuery.insertAll(InsertAllRequest.of(table, RowToInsert.of(Collections.singletonMap("f1", "v1"))));
+            bigQuery.insertAll(
+                InsertAllRequest.of(table, RowToInsert.of(Collections.singletonMap("f1", "v1"))));
             return false;
           } catch (BigQueryException e) {
             logger.debug("Deleted table write error", e);
@@ -125,8 +127,7 @@ public class BigQueryErrorResponsesIT extends BaseConnectorIT {
           }
         },
         60_000L,
-        "Never failed to write to just-deleted table"
-    );
+        "Never failed to write to just-deleted table");
 
     // Recreate it...
     bigQuery.create(TableInfo.newBuilder(table, StandardTableDefinition.of(schema)).build());
@@ -135,7 +136,8 @@ public class BigQueryErrorResponsesIT extends BaseConnectorIT {
         () -> {
           // Try to write to it...
           try {
-            bigQuery.insertAll(InsertAllRequest.of(table, RowToInsert.of(Collections.singletonMap("f1", "v1"))));
+            bigQuery.insertAll(
+                InsertAllRequest.of(table, RowToInsert.of(Collections.singletonMap("f1", "v1"))));
             return true;
           } catch (BigQueryException e) {
             logger.debug("Recreated table write error", e);
@@ -143,8 +145,7 @@ public class BigQueryErrorResponsesIT extends BaseConnectorIT {
           }
         },
         60_000L,
-        "Never succeeded to write to just-recreated table"
-    );
+        "Never succeeded to write to just-recreated table");
   }
 
   @Test
@@ -152,11 +153,14 @@ public class BigQueryErrorResponsesIT extends BaseConnectorIT {
     TableId table = TableId.of(dataset(), suffixedAndSanitizedTable("missing schema"));
     createOrAssertSchemaMatches(table, Schema.of());
 
-    BigQueryException e = assertThrows(
-        BigQueryException.class,
-        () -> bigQuery.insertAll(InsertAllRequest.of(table, RowToInsert.of(Collections.singletonMap("f1", "v1")))),
-        "Should have failed to write to table with no schema"
-    );
+    BigQueryException e =
+        assertThrows(
+            BigQueryException.class,
+            () ->
+                bigQuery.insertAll(
+                    InsertAllRequest.of(
+                        table, RowToInsert.of(Collections.singletonMap("f1", "v1")))),
+            "Should have failed to write to table with no schema");
 
     logger.debug("Table missing schema write error", e);
     assertTrue(BigQueryErrorResponses.isTableMissingSchemaError(e));
@@ -165,15 +169,18 @@ public class BigQueryErrorResponsesIT extends BaseConnectorIT {
   @Test
   public void testWriteWithMissingRequiredFields() {
     TableId table = TableId.of(dataset(), suffixedAndSanitizedTable("too many fields"));
-    Schema schema = Schema.of(
-        Field.newBuilder("f1", StandardSQLTypeName.STRING).setMode(Field.Mode.REQUIRED).build(),
-        Field.newBuilder("f2", StandardSQLTypeName.INT64).setMode(Field.Mode.REQUIRED).build(),
-        Field.newBuilder("f3", StandardSQLTypeName.BOOL).setMode(Field.Mode.NULLABLE).build()
-    );
+    Schema schema =
+        Schema.of(
+            Field.newBuilder("f1", StandardSQLTypeName.STRING).setMode(Field.Mode.REQUIRED).build(),
+            Field.newBuilder("f2", StandardSQLTypeName.INT64).setMode(Field.Mode.REQUIRED).build(),
+            Field.newBuilder("f3", StandardSQLTypeName.BOOL).setMode(Field.Mode.NULLABLE).build());
     createOrAssertSchemaMatches(table, schema);
 
-    InsertAllResponse response = bigQuery.insertAll(InsertAllRequest.of(table, RowToInsert.of(Collections.singletonMap("f2", 12L))));
-    logger.debug("Write response errors for missing required field: {}", response.getInsertErrors());
+    InsertAllResponse response =
+        bigQuery.insertAll(
+            InsertAllRequest.of(table, RowToInsert.of(Collections.singletonMap("f2", 12L))));
+    logger.debug(
+        "Write response errors for missing required field: {}", response.getInsertErrors());
     BigQueryError error = assertResponseHasSingleError(response);
     assertTrue(BigQueryErrorResponses.isMissingRequiredFieldError(error));
   }
@@ -181,15 +188,18 @@ public class BigQueryErrorResponsesIT extends BaseConnectorIT {
   @Test
   public void testWriteWithUnrecognizedFields() {
     TableId table = TableId.of(dataset(), suffixedAndSanitizedTable("not enough fields"));
-    Schema schema = Schema.of(
-        Field.newBuilder("f1", StandardSQLTypeName.STRING).setMode(Field.Mode.REQUIRED).build()
-    );
+    Schema schema =
+        Schema.of(
+            Field.newBuilder("f1", StandardSQLTypeName.STRING)
+                .setMode(Field.Mode.REQUIRED)
+                .build());
     createOrAssertSchemaMatches(table, schema);
 
     Map<String, Object> row = new HashMap<>();
     row.put("f1", "v1");
     row.put("f2", 12L);
-    InsertAllResponse response = bigQuery.insertAll(InsertAllRequest.of(table, RowToInsert.of(row)));
+    InsertAllResponse response =
+        bigQuery.insertAll(InsertAllRequest.of(table, RowToInsert.of(row)));
     logger.debug("Write response errors for unrecognized field: {}", response.getInsertErrors());
     BigQueryError error = assertResponseHasSingleError(response);
     assertTrue(BigQueryErrorResponses.isUnrecognizedFieldError(error));
@@ -198,19 +208,25 @@ public class BigQueryErrorResponsesIT extends BaseConnectorIT {
   @Test
   public void testStoppedRowsDuringInvalidWrite() {
     TableId table = TableId.of(dataset(), suffixedAndSanitizedTable("not enough fields"));
-    Schema schema = Schema.of(
-        Field.newBuilder("f1", StandardSQLTypeName.STRING).setMode(Field.Mode.REQUIRED).build()
-    );
+    Schema schema =
+        Schema.of(
+            Field.newBuilder("f1", StandardSQLTypeName.STRING)
+                .setMode(Field.Mode.REQUIRED)
+                .build());
     createOrAssertSchemaMatches(table, schema);
 
     Map<String, Object> row1 = new HashMap<>();
     row1.put("f1", "v1");
     row1.put("f2", 12L);
     Map<String, Object> row2 = Collections.singletonMap("f1", "v2");
-    InsertAllResponse response = bigQuery.insertAll(InsertAllRequest.of(table, RowToInsert.of(row1), RowToInsert.of(row2)));
-    logger.debug("Write response errors for unrecognized field and stopped row: {}", response.getInsertErrors());
+    InsertAllResponse response =
+        bigQuery.insertAll(InsertAllRequest.of(table, RowToInsert.of(row1), RowToInsert.of(row2)));
+    logger.debug(
+        "Write response errors for unrecognized field and stopped row: {}",
+        response.getInsertErrors());
     assertEquals(2, response.getInsertErrors().size());
-    // As long as we have some kind of error on the first row it's fine; we want to be more precise in our assertions about the second row
+    // As long as we have some kind of error on the first row it's fine; we want to be more precise
+    // in our assertions about the second row
     assertListHasSingleElement(response.getErrorsFor(0));
     BigQueryError secondRowError = assertListHasSingleElement(response.getErrorsFor(1));
     assertTrue(BigQueryErrorResponses.isStoppedError(secondRowError));
@@ -219,20 +235,25 @@ public class BigQueryErrorResponsesIT extends BaseConnectorIT {
   @Test
   public void testRequestPayloadTooLarge() {
     TableId table = TableId.of(dataset(), suffixedAndSanitizedTable("request payload too large"));
-    Schema schema = Schema.of(
-        Field.newBuilder("f1", StandardSQLTypeName.STRING).setMode(Field.Mode.REQUIRED).build()
-    );
+    Schema schema =
+        Schema.of(
+            Field.newBuilder("f1", StandardSQLTypeName.STRING)
+                .setMode(Field.Mode.REQUIRED)
+                .build());
     createOrAssertSchemaMatches(table, schema);
 
     char[] chars = new char[10 * 1024 * 1024];
     Arrays.fill(chars, '*');
     String columnValue = new String(chars);
 
-    BigQueryException e = assertThrows(
-        BigQueryException.class,
-        () -> bigQuery.insertAll(InsertAllRequest.of(table, RowToInsert.of(Collections.singletonMap("f1", columnValue)))),
-        "Should have failed to write to table with 11MB request"
-    );
+    BigQueryException e =
+        assertThrows(
+            BigQueryException.class,
+            () ->
+                bigQuery.insertAll(
+                    InsertAllRequest.of(
+                        table, RowToInsert.of(Collections.singletonMap("f1", columnValue)))),
+            "Should have failed to write to table with 11MB request");
 
     logger.debug("Large request payload write error", e);
     assertTrue(BigQueryErrorResponses.isRequestTooLargeError(e));
@@ -241,29 +262,32 @@ public class BigQueryErrorResponsesIT extends BaseConnectorIT {
   @Test
   public void testTooManyRows() {
     TableId table = TableId.of(dataset(), suffixedAndSanitizedTable("too many rows"));
-    Schema schema = Schema.of(
-        Field.newBuilder("f1", StandardSQLTypeName.INT64).setMode(Field.Mode.REQUIRED).build()
-    );
+    Schema schema =
+        Schema.of(
+            Field.newBuilder("f1", StandardSQLTypeName.INT64).setMode(Field.Mode.REQUIRED).build());
     createOrAssertSchemaMatches(table, schema);
 
-    Iterable<RowToInsert> rows = LongStream.range(0, 100_000)
-        .mapToObj(i -> Collections.singletonMap("f1", i))
-        .map(RowToInsert::of)
-        .collect(Collectors.toList());
+    Iterable<RowToInsert> rows =
+        LongStream.range(0, 100_000)
+            .mapToObj(i -> Collections.singletonMap("f1", i))
+            .map(RowToInsert::of)
+            .collect(Collectors.toList());
 
-    BigQueryException e = assertThrows(
-        BigQueryException.class,
-        () -> bigQuery.insertAll(InsertAllRequest.of(table, rows)),
-        "Should have failed to write to table with 100,000 rows"
-    );
+    BigQueryException e =
+        assertThrows(
+            BigQueryException.class,
+            () -> bigQuery.insertAll(InsertAllRequest.of(table, rows)),
+            "Should have failed to write to table with 100,000 rows");
 
     logger.debug("Too many rows write error", e);
     assertTrue(BigQueryErrorResponses.isTooManyRowsError(e));
   }
 
-  // Some tables can't be deleted, recreated, and written to without getting a temporary error from BigQuery,
+  // Some tables can't be deleted, recreated, and written to without getting a temporary error from
+  // BigQuery,
   // so we just create them once if they don't exist and don't delete them at the end of the test.
-  // If we detect a table left over (presumably from a prior test), we do a sanity check to make sure that it
+  // If we detect a table left over (presumably from a prior test), we do a sanity check to make
+  // sure that it
   // has the expected schema.
   private void createOrAssertSchemaMatches(TableId tableId, Schema schema) {
     Table table = bigQuery.getTable(tableId);
@@ -273,8 +297,9 @@ public class BigQueryErrorResponsesIT extends BaseConnectorIT {
       assertEquals(
           schema,
           table.getDefinition().getSchema(),
-          String.format("Testing %s should be created automatically by tests; please delete the table and re-run this test", table(tableId))
-      );
+          String.format(
+              "Testing %s should be created automatically by tests; please delete the table and re-run this test",
+              table(tableId)));
     }
   }
 
