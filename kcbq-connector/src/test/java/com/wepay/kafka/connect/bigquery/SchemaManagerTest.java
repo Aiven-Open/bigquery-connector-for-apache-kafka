@@ -1,5 +1,5 @@
 /*
- * Copyright 2022-2026 Aiven Oy and
+ * Copyright 2024 Copyright 2022 Aiven Oy and
  * bigquery-connector-for-apache-kafka project contributors
  *
  * This software contains code derived from the Confluent BigQuery
@@ -11,7 +11,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * https://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -116,12 +116,7 @@ public class SchemaManagerTest {
     when(mockKafkaSchema.doc()).thenReturn(testDoc);
 
     TableInfo tableInfo =
-        schemaManager.constructTableInfo(
-            tableId,
-            new SchemaManager.SchemaAndPrimaryKeyColumns(
-                fakeBigQuerySchema, java.util.Collections.emptyList()),
-            testDoc,
-            true);
+        schemaManager.constructTableInfo(tableId, fakeBigQuerySchema, testDoc, true);
 
     assertEquals(
         testDoc, tableInfo.getDescription(), "Kafka doc does not match BigQuery table description");
@@ -163,12 +158,7 @@ public class SchemaManagerTest {
     when(mockKafkaSchema.doc()).thenReturn(testDoc);
 
     TableInfo tableInfo =
-        schemaManager.constructTableInfo(
-            tableId,
-            new SchemaManager.SchemaAndPrimaryKeyColumns(
-                fakeBigQuerySchema, java.util.Collections.emptyList()),
-            testDoc,
-            true);
+        schemaManager.constructTableInfo(tableId, fakeBigQuerySchema, testDoc, true);
 
     assertEquals(
         testDoc, tableInfo.getDescription(), "Kafka doc does not match BigQuery table description");
@@ -213,12 +203,7 @@ public class SchemaManagerTest {
     when(mockKafkaSchema.doc()).thenReturn(testDoc);
 
     TableInfo tableInfo =
-        schemaManager.constructTableInfo(
-            tableId,
-            new SchemaManager.SchemaAndPrimaryKeyColumns(
-                fakeBigQuerySchema, java.util.Collections.emptyList()),
-            testDoc,
-            true);
+        schemaManager.constructTableInfo(tableId, fakeBigQuerySchema, testDoc, true);
 
     assertEquals(
         testDoc, tableInfo.getDescription(), "Kafka doc does not match BigQuery table description");
@@ -254,12 +239,7 @@ public class SchemaManagerTest {
     when(mockKafkaSchema.doc()).thenReturn(testDoc);
 
     TableInfo tableInfo =
-        schemaManager.constructTableInfo(
-            tableId,
-            new SchemaManager.SchemaAndPrimaryKeyColumns(
-                fakeBigQuerySchema, java.util.Collections.emptyList()),
-            testDoc,
-            true);
+        schemaManager.constructTableInfo(tableId, fakeBigQuerySchema, testDoc, true);
 
     assertEquals(
         testDoc, tableInfo.getDescription(), "Kafka doc does not match BigQuery table description");
@@ -295,12 +275,7 @@ public class SchemaManagerTest {
     when(mockKafkaSchema.doc()).thenReturn(testDoc);
 
     TableInfo tableInfo =
-        schemaManager.constructTableInfo(
-            tableId,
-            new SchemaManager.SchemaAndPrimaryKeyColumns(
-                fakeBigQuerySchema, java.util.Collections.emptyList()),
-            testDoc,
-            false);
+        schemaManager.constructTableInfo(tableId, fakeBigQuerySchema, testDoc, false);
 
     assertEquals(
         testDoc, tableInfo.getDescription(), "Kafka doc does not match BigQuery table description");
@@ -337,12 +312,7 @@ public class SchemaManagerTest {
     when(mockKafkaSchema.doc()).thenReturn(testDoc);
 
     TableInfo tableInfo =
-        schemaManager.constructTableInfo(
-            tableId,
-            new SchemaManager.SchemaAndPrimaryKeyColumns(
-                fakeBigQuerySchema, java.util.Collections.emptyList()),
-            testDoc,
-            true);
+        schemaManager.constructTableInfo(tableId, fakeBigQuerySchema, testDoc, true);
 
     assertEquals(
         testDoc, tableInfo.getDescription(), "Kafka doc does not match BigQuery table description");
@@ -374,13 +344,7 @@ public class SchemaManagerTest {
             1,
             sinkConfig);
 
-    tableInfo =
-        schemaManager.constructTableInfo(
-            tableId,
-            new SchemaManager.SchemaAndPrimaryKeyColumns(
-                fakeBigQuerySchema, java.util.Collections.emptyList()),
-            testDoc,
-            false);
+    tableInfo = schemaManager.constructTableInfo(tableId, fakeBigQuerySchema, testDoc, false);
     definition = tableInfo.getDefinition();
     assertNull(
         ((StandardTableDefinition) tableInfo.getDefinition()).getTimePartitioning(),
@@ -415,12 +379,7 @@ public class SchemaManagerTest {
     when(mockKafkaSchema.doc()).thenReturn(testDoc);
 
     TableInfo tableInfo =
-        schemaManager.constructTableInfo(
-            tableId,
-            new SchemaManager.SchemaAndPrimaryKeyColumns(
-                fakeBigQuerySchema, java.util.Collections.emptyList()),
-            testDoc,
-            true);
+        schemaManager.constructTableInfo(tableId, fakeBigQuerySchema, testDoc, true);
 
     assertEquals(
         testDoc, tableInfo.getDescription(), "Kafka doc does not match BigQuery table description");
@@ -463,12 +422,7 @@ public class SchemaManagerTest {
     when(mockKafkaSchema.doc()).thenReturn(testDoc);
 
     TableInfo tableInfo =
-        schemaManager.constructTableInfo(
-            tableId,
-            new SchemaManager.SchemaAndPrimaryKeyColumns(
-                fakeBigQuerySchema, java.util.Collections.emptyList()),
-            testDoc,
-            true);
+        schemaManager.constructTableInfo(tableId, fakeBigQuerySchema, testDoc, true);
 
     assertEquals(
         testDoc, tableInfo.getDescription(), "Kafka doc does not match BigQuery table description");
@@ -512,12 +466,7 @@ public class SchemaManagerTest {
     when(mockKafkaSchema.doc()).thenReturn(testDoc);
 
     TableInfo tableInfo =
-        schemaManager.constructTableInfo(
-            tableId,
-            new SchemaManager.SchemaAndPrimaryKeyColumns(
-                fakeBigQuerySchema, java.util.Collections.emptyList()),
-            testDoc,
-            true);
+        schemaManager.constructTableInfo(tableId, fakeBigQuerySchema, testDoc, true);
 
     assertEquals(
         testDoc, tableInfo.getDescription(), "Kafka doc does not match BigQuery table description");
@@ -558,12 +507,7 @@ public class SchemaManagerTest {
     when(mockKafkaSchema.doc()).thenReturn(testDoc);
 
     TableInfo tableInfo =
-        schemaManager.constructTableInfo(
-            tableId,
-            new SchemaManager.SchemaAndPrimaryKeyColumns(
-                fakeBigQuerySchema, java.util.Collections.emptyList()),
-            testDoc,
-            false);
+        schemaManager.constructTableInfo(tableId, fakeBigQuerySchema, testDoc, false);
 
     assertEquals(
         testDoc, tableInfo.getDescription(), "Kafka doc does not match BigQuery table description");
@@ -600,12 +544,7 @@ public class SchemaManagerTest {
     when(mockKafkaSchema.doc()).thenReturn(testDoc);
 
     TableInfo tableInfo =
-        schemaManager.constructTableInfo(
-            tableId,
-            new SchemaManager.SchemaAndPrimaryKeyColumns(
-                fakeBigQuerySchema, java.util.Collections.emptyList()),
-            testDoc,
-            true);
+        schemaManager.constructTableInfo(tableId, fakeBigQuerySchema, testDoc, true);
 
     assertEquals(
         testDoc, tableInfo.getDescription(), "Kafka doc does not match BigQuery table description");
@@ -637,13 +576,7 @@ public class SchemaManagerTest {
             1,
             sinkConfig);
 
-    tableInfo =
-        schemaManager.constructTableInfo(
-            tableId,
-            new SchemaManager.SchemaAndPrimaryKeyColumns(
-                fakeBigQuerySchema, java.util.Collections.emptyList()),
-            testDoc,
-            false);
+    tableInfo = schemaManager.constructTableInfo(tableId, fakeBigQuerySchema, testDoc, false);
     definition = tableInfo.getDefinition();
     assertNull(definition.getClustering(), "The clustering object should be null");
   }
@@ -1111,7 +1044,7 @@ public class SchemaManagerTest {
    * Creates a configuration that allows setting of specific values.
    *
    * @param overrides overrides for defaults.
-   * @return a SchemaManagerTestConfig implementation.
+   * @return a SchemaManagerTestConfig implementaiton.
    */
   private static SchemaManagerTestConfig createConfig(Map<String, String> overrides) {
     Map<String, String> properties = new HashMap<>();
@@ -1224,7 +1157,7 @@ public class SchemaManagerTest {
     }
 
     com.google.cloud.bigquery.Schema proposedSchema =
-        schemaManager.getAndValidateProposedSchema(tableId, incomingSinkRecords).schema();
+        schemaManager.getAndValidateProposedSchema(tableId, incomingSinkRecords);
 
     if (expectedSchema != null) {
       assertEquals(expectedSchema, proposedSchema);

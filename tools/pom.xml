@@ -46,6 +46,10 @@
 
     <dependencies>
         <dependency>
+            <groupId>io.aiven.commons</groupId>
+            <artifactId>kafka-config</artifactId>
+        </dependency>
+        <dependency>
             <groupId>com.wepay.kcbq</groupId>
             <artifactId>kcbq-connector</artifactId>
             <version>${project.parent.version}</version>

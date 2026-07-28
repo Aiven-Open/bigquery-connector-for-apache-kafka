@@ -74,10 +74,8 @@ public class GcsToBqWriter {
    *
    * @param storage GCS Storage
    * @param bigQuery {@link BigQuery} Object used to perform upload
-   * @param retries Maximum number of retry attempts after the initial call.
-   *     <p>Note that this is an upper bound: the actual number of retries may be lower if the
-   *     computed exponential backoff delays (based on {@code retryWaitMs}) plus jitter cause the
-   *     total timeout budget to be exceeded.
+   * @param retries Maximum number of retry attempts after the initial call. Note that this is an
+   *     upper bound: the actual number of retries may be lower if the     computed exponential backoff*     delays (based on {@code retryWaitMs}) plus jitter cause the     total timeout budget to be*     exceeded.
    * @param retryWaitMs Base wait time in milliseconds before the first retry. Each subsequent retry
    *     doubles this delay, up to a maximum per-sleep cap of {@value #MAX_BACKOFF_MS} milliseconds.
    * @param time used to wait during backoff periods
@@ -317,11 +315,9 @@ public class GcsToBqWriter {
 
   /**
    * Computes the exponential backoff delay for a given retry attempt. The delay is calculated as:
-   *
-   * <pre>delay = baseDelayMs * (2 ^ attemptIndex)</pre>
-   *
-   * but is clamped to an upper bound {@code capMs}. This ensures that the backoff grows
-   * exponentially with each retry, but never exceeds the configured cap.
+   * {@code delay = baseDelayMs * (2 ^ attemptIndex)} but is clamped to an upper bound {@code
+   * capMs}. This ensures that the backoff grows exponentially with each retry, but never exceeds
+   * the configured cap.
    *
    * <p>Examples (baseDelayMs = 100, capMs = 10_000):
    *
