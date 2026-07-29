@@ -43,5 +43,4 @@ public class ConvertedRecord {
   public JSONObject converted() {
     return converted;
   }
-
 }

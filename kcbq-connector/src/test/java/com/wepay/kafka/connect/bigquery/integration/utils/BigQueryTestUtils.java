@@ -37,14 +37,13 @@ public class BigQueryTestUtils {
 
   private static final Logger logger = LoggerFactory.getLogger(BigQueryTestUtils.class);
 
-  public static void createPartitionedTable(BigQuery bigQuery, String datasetName, String tableName,
-                                            Schema schema) {
+  public static void createPartitionedTable(
+      BigQuery bigQuery, String datasetName, String tableName, Schema schema) {
     try {
       TableId tableId = TableId.of(datasetName, tableName);
 
       TimePartitioning partitioning =
-          TimePartitioning.newBuilder(TimePartitioning.Type.DAY)
-              .build();
+          TimePartitioning.newBuilder(TimePartitioning.Type.DAY).build();
 
       StandardTableDefinition tableDefinition =
           StandardTableDefinition.newBuilder()

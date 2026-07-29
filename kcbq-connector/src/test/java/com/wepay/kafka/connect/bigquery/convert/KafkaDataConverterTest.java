@@ -31,12 +31,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.cloud.bigquery.Field;
 import com.google.cloud.bigquery.LegacySQLTypeName;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
 import org.apache.kafka.common.record.TimestampType;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.junit.jupiter.api.BeforeEach;
@@ -57,7 +55,8 @@ public class KafkaDataConverterTest {
   private static final long kafkaDataOffsetValue = 1337;
   private static final String kafkaDataMutatedTopicValue = "mutatedTopic";
   private static final int kafkaDataMutatedPartitionValue = 201;
-  // In 3.6.1, there is no direct way to modify offset via newRecord(), even if SinkRecord itself supports it
+  // In 3.6.1, there is no direct way to modify offset via newRecord(), even if SinkRecord itself
+  // supports it
   private static final long kafkaDataMutatedOffsetValue = 456;
   Map<String, Object> expectedKafkaDataFields = new HashMap<>();
 
@@ -72,7 +71,15 @@ public class KafkaDataConverterTest {
 
   @Test
   public void testBuildKafkaDataRecord() {
-    SinkRecord record = new SinkRecord(kafkaDataTopicValue, kafkaDataPartitionValue, null, null, null, null, kafkaDataOffsetValue);
+    SinkRecord record =
+        new SinkRecord(
+            kafkaDataTopicValue,
+            kafkaDataPartitionValue,
+            null,
+            null,
+            null,
+            null,
+            kafkaDataOffsetValue);
     Map<String, Object> actualKafkaDataFields = KafkaDataBuilder.buildKafkaDataRecord(record);
 
     assertTrue(actualKafkaDataFields.containsKey(kafkaDataInsertTimeName));
@@ -85,28 +92,29 @@ public class KafkaDataConverterTest {
 
   @Test
   public void testBuildKafkaDataRecordOnMutatedMetadata() {
-    SinkRecord record = new SinkRecord(
+    SinkRecord record =
+        new SinkRecord(
             kafkaDataTopicValue,
             kafkaDataPartitionValue,
             null,
             null,
             null,
             null,
-            kafkaDataOffsetValue
-    );
-    SinkRecord mutatedRecord = record.newRecord(
+            kafkaDataOffsetValue);
+    SinkRecord mutatedRecord =
+        record.newRecord(
             kafkaDataMutatedTopicValue,
             kafkaDataMutatedPartitionValue,
             null,
             null,
             null,
             null,
-            null
-    );
+            null);
 
     KafkaDataBuilder.setUseOriginalValues(true);
     KafkaDataBuilder.setPost3_6Flag(true);
-    Map<String, Object> actualKafkaDataFields = KafkaDataBuilder.buildKafkaDataRecord(mutatedRecord);
+    Map<String, Object> actualKafkaDataFields =
+        KafkaDataBuilder.buildKafkaDataRecord(mutatedRecord);
     actualKafkaDataFields.remove(kafkaDataInsertTimeName);
 
     assertEquals(expectedKafkaDataFields, actualKafkaDataFields);
@@ -114,7 +122,12 @@ public class KafkaDataConverterTest {
 
   @ParameterizedTest
   @MethodSource("buildKafkaDataRecordTestData")
-  void testBuildKafkaDataRecord(String ver, boolean useOriginalValues, boolean post3_6Flag, SinkRecord sinkRecord, Map<String, Object> expectedKafkaDataFields) {
+  void testBuildKafkaDataRecord(
+      String ver,
+      boolean useOriginalValues,
+      boolean post3_6Flag,
+      SinkRecord sinkRecord,
+      Map<String, Object> expectedKafkaDataFields) {
     KafkaDataBuilder.setUseOriginalValues(useOriginalValues);
     KafkaDataBuilder.setPost3_6Flag(post3_6Flag);
     Map<String, Object> actualKafkaDataRecord = KafkaDataBuilder.buildKafkaDataRecord(sinkRecord);
@@ -134,14 +147,27 @@ public class KafkaDataConverterTest {
     expected.put(kafkaDataTopicName, "topic");
     expected.put(kafkaDataPartitionName, 1);
     expected.put(kafkaDataOffsetName, 2L);
-    arguments.add(Arguments.of("pre 3.6",true, false, sinkRecord, expected));
-    arguments.add(Arguments.of("pre 3.6",true, true, sinkRecord, expected));
-    arguments.add(Arguments.of("pre 3.6",false, false, sinkRecord, expected));
-    arguments.add(Arguments.of("pre 3.6",false, true, sinkRecord, expected));
+    arguments.add(Arguments.of("pre 3.6", true, false, sinkRecord, expected));
+    arguments.add(Arguments.of("pre 3.6", true, true, sinkRecord, expected));
+    arguments.add(Arguments.of("pre 3.6", false, false, sinkRecord, expected));
+    arguments.add(Arguments.of("pre 3.6", false, true, sinkRecord, expected));
 
     // post 3.6 record format
-    sinkRecord = new SinkRecord( "topic", 1, null, null, null, null, 2L,
-            System.currentTimeMillis(), TimestampType.CREATE_TIME, null, "origTopic", 11, 22L);
+    sinkRecord =
+        new SinkRecord(
+            "topic",
+            1,
+            null,
+            null,
+            null,
+            null,
+            2L,
+            System.currentTimeMillis(),
+            TimestampType.CREATE_TIME,
+            null,
+            "origTopic",
+            11,
+            22L);
     arguments.add(Arguments.of("post 3.6", true, false, sinkRecord, expected));
     arguments.add(Arguments.of("post 3.6", false, false, sinkRecord, expected));
     arguments.add(Arguments.of("post 3.6", false, true, sinkRecord, expected));
@@ -155,8 +181,17 @@ public class KafkaDataConverterTest {
 
   @Test
   public void testBuildKafkaDataRecordStorageWriteApi() {
-    SinkRecord record = new SinkRecord(kafkaDataTopicValue, kafkaDataPartitionValue, null, null, null, null, kafkaDataOffsetValue);
-    Map<String, Object> actualKafkaDataFields = KafkaDataBuilder.buildKafkaDataRecordStorageApi(record);
+    SinkRecord record =
+        new SinkRecord(
+            kafkaDataTopicValue,
+            kafkaDataPartitionValue,
+            null,
+            null,
+            null,
+            null,
+            kafkaDataOffsetValue);
+    Map<String, Object> actualKafkaDataFields =
+        KafkaDataBuilder.buildKafkaDataRecordStorageApi(record);
 
     assertTrue(actualKafkaDataFields.containsKey(kafkaDataInsertTimeName));
     assertInstanceOf(Long.class, actualKafkaDataFields.get(kafkaDataInsertTimeName));
@@ -171,18 +206,21 @@ public class KafkaDataConverterTest {
     Field topicField = Field.of("topic", LegacySQLTypeName.STRING);
     Field partitionField = Field.of("partition", LegacySQLTypeName.INTEGER);
     Field offsetField = Field.of("offset", LegacySQLTypeName.INTEGER);
-    Field insertTimeField = Field.newBuilder("insertTime", LegacySQLTypeName.TIMESTAMP)
-        .setMode(Field.Mode.NULLABLE)
-        .build();
+    Field insertTimeField =
+        Field.newBuilder("insertTime", LegacySQLTypeName.TIMESTAMP)
+            .setMode(Field.Mode.NULLABLE)
+            .build();
 
-    Field expectedBigQuerySchema = Field.newBuilder(kafkaDataFieldName,
-            LegacySQLTypeName.RECORD,
-            topicField,
-            partitionField,
-            offsetField,
-            insertTimeField)
-        .setMode(Field.Mode.NULLABLE)
-        .build();
+    Field expectedBigQuerySchema =
+        Field.newBuilder(
+                kafkaDataFieldName,
+                LegacySQLTypeName.RECORD,
+                topicField,
+                partitionField,
+                offsetField,
+                insertTimeField)
+            .setMode(Field.Mode.NULLABLE)
+            .build();
     Field actualBigQuerySchema = KafkaDataBuilder.buildKafkaDataField(kafkaDataFieldName);
     assertEquals(expectedBigQuerySchema, actualBigQuerySchema);
   }
@@ -191,7 +229,15 @@ public class KafkaDataConverterTest {
 
   @Test
   public void testBuildKafkaDataRecord_flagEnabled_includesPutAttemptId() {
-    SinkRecord record = new SinkRecord(kafkaDataTopicValue, kafkaDataPartitionValue, null, null, null, null, kafkaDataOffsetValue);
+    SinkRecord record =
+        new SinkRecord(
+            kafkaDataTopicValue,
+            kafkaDataPartitionValue,
+            null,
+            null,
+            null,
+            null,
+            kafkaDataOffsetValue);
     KafkaDataBuilder.setTrackPutAttempts(true);
 
     Map<String, Object> result = KafkaDataBuilder.buildKafkaDataRecord(record, "attempt-abc");
@@ -203,7 +249,15 @@ public class KafkaDataConverterTest {
 
   @Test
   public void testBuildKafkaDataRecord_flagDisabled_excludesPutAttemptId() {
-    SinkRecord record = new SinkRecord(kafkaDataTopicValue, kafkaDataPartitionValue, null, null, null, null, kafkaDataOffsetValue);
+    SinkRecord record =
+        new SinkRecord(
+            kafkaDataTopicValue,
+            kafkaDataPartitionValue,
+            null,
+            null,
+            null,
+            null,
+            kafkaDataOffsetValue);
     // flag already false from setup()
 
     Map<String, Object> result = KafkaDataBuilder.buildKafkaDataRecord(record, "attempt-abc");
@@ -213,7 +267,15 @@ public class KafkaDataConverterTest {
 
   @Test
   public void testBuildKafkaDataRecord_flagEnabled_nullAttemptId_excludesPutAttemptId() {
-    SinkRecord record = new SinkRecord(kafkaDataTopicValue, kafkaDataPartitionValue, null, null, null, null, kafkaDataOffsetValue);
+    SinkRecord record =
+        new SinkRecord(
+            kafkaDataTopicValue,
+            kafkaDataPartitionValue,
+            null,
+            null,
+            null,
+            null,
+            kafkaDataOffsetValue);
     KafkaDataBuilder.setTrackPutAttempts(true);
 
     Map<String, Object> result = KafkaDataBuilder.buildKafkaDataRecord(record, null);
@@ -223,7 +285,15 @@ public class KafkaDataConverterTest {
 
   @Test
   public void testBuildKafkaDataRecord_twoAttemptsProduceDifferentIds() {
-    SinkRecord record = new SinkRecord(kafkaDataTopicValue, kafkaDataPartitionValue, null, null, null, null, kafkaDataOffsetValue);
+    SinkRecord record =
+        new SinkRecord(
+            kafkaDataTopicValue,
+            kafkaDataPartitionValue,
+            null,
+            null,
+            null,
+            null,
+            kafkaDataOffsetValue);
     KafkaDataBuilder.setTrackPutAttempts(true);
 
     Map<String, Object> row1 = KafkaDataBuilder.buildKafkaDataRecord(record, "attempt-1");
@@ -231,8 +301,7 @@ public class KafkaDataConverterTest {
 
     assertNotEquals(
         row1.get(KafkaDataBuilder.KAFKA_DATA_PUT_ATTEMPT_ID_FIELD_NAME),
-        row2.get(KafkaDataBuilder.KAFKA_DATA_PUT_ATTEMPT_ID_FIELD_NAME)
-    );
+        row2.get(KafkaDataBuilder.KAFKA_DATA_PUT_ATTEMPT_ID_FIELD_NAME));
   }
 
   @Test
@@ -241,11 +310,15 @@ public class KafkaDataConverterTest {
 
     Field recordField = KafkaDataBuilder.buildKafkaDataField(kafkaDataFieldName);
 
-    boolean found = recordField.getSubFields().stream()
-        .anyMatch(f -> KafkaDataBuilder.KAFKA_DATA_PUT_ATTEMPT_ID_FIELD_NAME.equals(f.getName())
-            && LegacySQLTypeName.STRING.equals(f.getType())
-            && Field.Mode.NULLABLE.equals(f.getMode()));
-    assertTrue(found, "putAttemptId STRING NULLABLE subfield should be present when flag is enabled");
+    boolean found =
+        recordField.getSubFields().stream()
+            .anyMatch(
+                f ->
+                    KafkaDataBuilder.KAFKA_DATA_PUT_ATTEMPT_ID_FIELD_NAME.equals(f.getName())
+                        && LegacySQLTypeName.STRING.equals(f.getType())
+                        && Field.Mode.NULLABLE.equals(f.getMode()));
+    assertTrue(
+        found, "putAttemptId STRING NULLABLE subfield should be present when flag is enabled");
   }
 
   @Test
@@ -254,17 +327,28 @@ public class KafkaDataConverterTest {
 
     Field recordField = KafkaDataBuilder.buildKafkaDataField(kafkaDataFieldName);
 
-    boolean found = recordField.getSubFields().stream()
-        .anyMatch(f -> KafkaDataBuilder.KAFKA_DATA_PUT_ATTEMPT_ID_FIELD_NAME.equals(f.getName()));
+    boolean found =
+        recordField.getSubFields().stream()
+            .anyMatch(
+                f -> KafkaDataBuilder.KAFKA_DATA_PUT_ATTEMPT_ID_FIELD_NAME.equals(f.getName()));
     assertFalse(found, "putAttemptId subfield should not be present when flag is disabled");
   }
 
   @Test
   public void testBuildKafkaDataRecordStorageApi_flagEnabled_includesPutAttemptId() {
-    SinkRecord record = new SinkRecord(kafkaDataTopicValue, kafkaDataPartitionValue, null, null, null, null, kafkaDataOffsetValue);
+    SinkRecord record =
+        new SinkRecord(
+            kafkaDataTopicValue,
+            kafkaDataPartitionValue,
+            null,
+            null,
+            null,
+            null,
+            kafkaDataOffsetValue);
     KafkaDataBuilder.setTrackPutAttempts(true);
 
-    Map<String, Object> result = KafkaDataBuilder.buildKafkaDataRecordStorageApi(record, "attempt-xyz");
+    Map<String, Object> result =
+        KafkaDataBuilder.buildKafkaDataRecordStorageApi(record, "attempt-xyz");
 
     assertTrue(result.containsKey(KafkaDataBuilder.KAFKA_DATA_PUT_ATTEMPT_ID_FIELD_NAME));
     assertEquals("attempt-xyz", result.get(KafkaDataBuilder.KAFKA_DATA_PUT_ATTEMPT_ID_FIELD_NAME));
@@ -274,7 +358,15 @@ public class KafkaDataConverterTest {
 
   @Test
   public void testBuildKafkaDataRecord_noArgOverload_backwardCompatible() {
-    SinkRecord record = new SinkRecord(kafkaDataTopicValue, kafkaDataPartitionValue, null, null, null, null, kafkaDataOffsetValue);
+    SinkRecord record =
+        new SinkRecord(
+            kafkaDataTopicValue,
+            kafkaDataPartitionValue,
+            null,
+            null,
+            null,
+            null,
+            kafkaDataOffsetValue);
     // flag is false from setup()
 
     Map<String, Object> result = KafkaDataBuilder.buildKafkaDataRecord(record);

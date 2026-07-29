@@ -37,9 +37,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public abstract class UpsertDeleteValidator extends MultiPropertyValidator<BigQuerySinkConfig> {
-  private static final Collection<String> DEPENDENTS = Collections.unmodifiableCollection(Arrays.asList(
-      MERGE_INTERVAL_MS_CONFIG, MERGE_RECORDS_THRESHOLD_CONFIG, KAFKA_KEY_FIELD_NAME_CONFIG
-  ));
+  private static final Collection<String> DEPENDENTS =
+      Collections.unmodifiableCollection(
+          Arrays.asList(
+              MERGE_INTERVAL_MS_CONFIG,
+              MERGE_RECORDS_THRESHOLD_CONFIG,
+              KAFKA_KEY_FIELD_NAME_CONFIG));
   private static final Logger logger = LoggerFactory.getLogger(UpsertDeleteValidator.class);
 
   private UpsertDeleteValidator(String propertyName) {
@@ -61,27 +64,25 @@ public abstract class UpsertDeleteValidator extends MultiPropertyValidator<BigQu
     long mergeRecordsThreshold = config.getLong(MERGE_RECORDS_THRESHOLD_CONFIG);
 
     if (mergeInterval == -1 && mergeRecordsThreshold == -1) {
-      return Optional.of(String.format(
-          "%s and %s cannot both be -1",
-          MERGE_INTERVAL_MS_CONFIG,
-          MERGE_RECORDS_THRESHOLD_CONFIG
-      ));
+      return Optional.of(
+          String.format(
+              "%s and %s cannot both be -1",
+              MERGE_INTERVAL_MS_CONFIG, MERGE_RECORDS_THRESHOLD_CONFIG));
     }
 
     if (mergeInterval != -1 && mergeInterval < 10_000L) {
-      logger.warn(String.format(
-          "%s should not be set to less than 10 seconds. A validation would be introduced in a future release to "
-              + "this effect.",
-          MERGE_INTERVAL_MS_CONFIG
-      ));
+      logger.warn(
+          String.format(
+              "%s should not be set to less than 10 seconds. A validation would be introduced in a future release to "
+                  + "this effect.",
+              MERGE_INTERVAL_MS_CONFIG));
     }
 
     if (!config.getKafkaKeyFieldName().isPresent()) {
-      return Optional.of(String.format(
-          "%s must be specified when %s is set to true",
-          KAFKA_KEY_FIELD_NAME_CONFIG,
-          propertyName()
-      ));
+      return Optional.of(
+          String.format(
+              "%s must be specified when %s is set to true",
+              KAFKA_KEY_FIELD_NAME_CONFIG, propertyName()));
     }
 
     return Optional.empty();

@@ -57,5 +57,4 @@ public class RecordBatches<E> {
   public boolean completed() {
     return batchStart >= records.size();
   }
-
 }

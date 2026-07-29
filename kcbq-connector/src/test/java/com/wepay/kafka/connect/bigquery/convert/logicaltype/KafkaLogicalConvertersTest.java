@@ -37,7 +37,6 @@ import com.wepay.kafka.connect.bigquery.convert.logicaltype.KafkaLogicalConverte
 import java.math.BigDecimal;
 import java.util.Date;
 import java.util.Map;
-
 import org.apache.kafka.connect.data.Decimal;
 import org.apache.kafka.connect.data.Schema;
 import org.junit.jupiter.api.Test;
@@ -46,7 +45,7 @@ import org.junit.jupiter.params.provider.EnumSource;
 
 public class KafkaLogicalConvertersTest {
 
-  //corresponds to March 1 2017, 22:20:38.808
+  // corresponds to March 1 2017, 22:20:38.808
   private static final Long TIMESTAMP = 1488406838808L;
 
   @Test
@@ -109,17 +108,13 @@ public class KafkaLogicalConvertersTest {
 
     converter.checkEncodingType(Schema.Type.INT64);
 
-    assertThrows(
-        Exception.class,
-        () -> converter.checkEncodingType(Schema.Type.INT32)
-    );
+    assertThrows(Exception.class, () -> converter.checkEncodingType(Schema.Type.INT32));
 
     Date date = new Date(TIMESTAMP);
     String formattedTimestamp = converter.convert(date);
 
     assertEquals("2017-03-01 22:20:38.808", formattedTimestamp);
   }
-
 
   @Test
   public void testTimeConversion() {
@@ -129,10 +124,7 @@ public class KafkaLogicalConvertersTest {
 
     converter.checkEncodingType(Schema.Type.INT32);
 
-    assertThrows(
-        Exception.class,
-        () -> converter.checkEncodingType(Schema.Type.INT64)
-    );
+    assertThrows(Exception.class, () -> converter.checkEncodingType(Schema.Type.INT64));
 
     // Can't use the same timestamp here as the one in other tests as the Time type
     // should only fall on January 1st, 1970

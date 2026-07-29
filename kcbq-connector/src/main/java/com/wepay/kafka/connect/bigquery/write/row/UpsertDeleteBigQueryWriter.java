@@ -43,72 +43,84 @@ public class UpsertDeleteBigQueryWriter extends AdaptiveBigQueryWriter {
   private final Map<TableId, TableId> intermediateToDestinationTables;
 
   /**
-   * @param bigQuery                        Used to send write requests to BigQuery.
-   * @param schemaManager                   Used to update BigQuery tables.
-   * @param retry                           How many retries to make in the event of a 500/503 error.
-   * @param retryWait                       How long to wait in between retries.
-   * @param autoCreateTables                Whether destination tables should be automatically created
+   * @param bigQuery Used to send write requests to BigQuery.
+   * @param schemaManager Used to update BigQuery tables.
+   * @param retry How many retries to make in the event of a 500/503 error.
+   * @param retryWait How long to wait in between retries.
+   * @param autoCreateTables Whether destination tables should be automatically created
    * @param intermediateToDestinationTables A mapping used to determine the destination table for
-   *                                        given intermediate tables; used for create/update
-   *                                        operations in order to propagate them to the destination
-   *                                        table
-   * @param errantRecordHandler             Used to handle errant records
-   * @param time                            used to wait during backoff periods
-   * @param config                          Connector configurations
+   *     given intermediate tables; used for create/update operations in order to propagate them to
+   *     the destination table
+   * @param errantRecordHandler Used to handle errant records
+   * @param time used to wait during backoff periods
+   * @param config Connector configurations
    */
-  public UpsertDeleteBigQueryWriter(BigQuery bigQuery,
-                                    SchemaManager schemaManager,
-                                    int retry,
-                                    long retryWait,
-                                    boolean autoCreateTables,
-                                    Map<TableId, TableId> intermediateToDestinationTables,
-                                    ErrantRecordHandler errantRecordHandler,
-                                    Time time,
-                                    BigQuerySinkConfig config) {
+  public UpsertDeleteBigQueryWriter(
+      BigQuery bigQuery,
+      SchemaManager schemaManager,
+      int retry,
+      long retryWait,
+      boolean autoCreateTables,
+      Map<TableId, TableId> intermediateToDestinationTables,
+      ErrantRecordHandler errantRecordHandler,
+      Time time,
+      BigQuerySinkConfig config) {
     // Hardcode autoCreateTables to true in the superclass so that intermediate tables will be
     // automatically created
     // The super class will handle all of the logic for writing to, creating, and updating
     // intermediate tables; this class will handle logic for creating/updating the destination table
-    super(bigQuery, schemaManager.forIntermediateTables(), retry, retryWait, true,
-            errantRecordHandler, time, config);
+    super(
+        bigQuery,
+        schemaManager.forIntermediateTables(),
+        retry,
+        retryWait,
+        true,
+        errantRecordHandler,
+        time,
+        config);
     this.schemaManager = schemaManager;
     this.autoCreateTables = autoCreateTables;
     this.intermediateToDestinationTables = intermediateToDestinationTables;
   }
 
   /**
-   * @param bigQuery                        Used to send write requests to BigQuery.
-   * @param schemaManager                   Used to update BigQuery tables.
-   * @param retry                           How many retries to make in the event of a 500/503 error.
-   * @param retryWait                       How long to wait in between retries.
-   * @param autoCreateTables                Whether destination tables should be automatically created
+   * @param bigQuery Used to send write requests to BigQuery.
+   * @param schemaManager Used to update BigQuery tables.
+   * @param retry How many retries to make in the event of a 500/503 error.
+   * @param retryWait How long to wait in between retries.
+   * @param autoCreateTables Whether destination tables should be automatically created
    * @param intermediateToDestinationTables A mapping used to determine the destination table for
-   *                                        given intermediate tables; used for create/update
-   *                                        operations in order to propagate them to the destination
-   *                                        table
-   * @param errantRecordHandler             Used to handle errant records
-   * @param time                            used to wait during backoff periods
-   *
-   * @deprecated This constructor does not support configuration of additional write settings.
-   * Use {@link #UpsertDeleteBigQueryWriter(BigQuery bigQuery, SchemaManager schemaManager, int retry,
-   * long retryWait, boolean autoCreateTables, Map intermediateToDestinationTables,
-   * ErrantRecordHandler errantRecordHandler, Time time, BigQuerySinkConfig config)} instead.
+   *     given intermediate tables; used for create/update operations in order to propagate them to
+   *     the destination table
+   * @param errantRecordHandler Used to handle errant records
+   * @param time used to wait during backoff periods
+   * @deprecated This constructor does not support configuration of additional write settings. Use
+   *     {@link #UpsertDeleteBigQueryWriter(BigQuery bigQuery, SchemaManager schemaManager, int
+   *     retry, long retryWait, boolean autoCreateTables, Map intermediateToDestinationTables,
+   *     ErrantRecordHandler errantRecordHandler, Time time, BigQuerySinkConfig config)} instead.
    */
   @Deprecated
-  public UpsertDeleteBigQueryWriter(BigQuery bigQuery,
-                                    SchemaManager schemaManager,
-                                    int retry,
-                                    long retryWait,
-                                    boolean autoCreateTables,
-                                    Map<TableId, TableId> intermediateToDestinationTables,
-                                    ErrantRecordHandler errantRecordHandler,
-                                    Time time) {
+  public UpsertDeleteBigQueryWriter(
+      BigQuery bigQuery,
+      SchemaManager schemaManager,
+      int retry,
+      long retryWait,
+      boolean autoCreateTables,
+      Map<TableId, TableId> intermediateToDestinationTables,
+      ErrantRecordHandler errantRecordHandler,
+      Time time) {
     // Hardcode autoCreateTables to true in the superclass so that intermediate tables will be
     // automatically created
     // The super class will handle all of the logic for writing to, creating, and updating
     // intermediate tables; this class will handle logic for creating/updating the destination table
-    super(bigQuery, schemaManager.forIntermediateTables(), retry, retryWait, true,
-            errantRecordHandler, time);
+    super(
+        bigQuery,
+        schemaManager.forIntermediateTables(),
+        retry,
+        retryWait,
+        true,
+        errantRecordHandler,
+        time);
     this.schemaManager = schemaManager;
     this.autoCreateTables = autoCreateTables;
     this.intermediateToDestinationTables = intermediateToDestinationTables;
@@ -120,7 +132,8 @@ public class UpsertDeleteBigQueryWriter extends AdaptiveBigQueryWriter {
     super.attemptSchemaUpdate(tableId, records);
     try {
       // ... and update the destination table here
-      schemaManager.updateSchema(intermediateToDestinationTables.get(tableId.getBaseTableId()), records);
+      schemaManager.updateSchema(
+          intermediateToDestinationTables.get(tableId.getBaseTableId()), records);
     } catch (BigQueryException exception) {
       throw new BigQueryConnectException(
           "Failed to update destination table schema for: " + tableId.getBaseTableId(), exception);
@@ -137,8 +150,7 @@ public class UpsertDeleteBigQueryWriter extends AdaptiveBigQueryWriter {
         // table creation is enabled
         schemaManager.createOrUpdateTable(intermediateToDestinationTables.get(tableId), records);
       } catch (BigQueryException exception) {
-        throw new BigQueryConnectException(
-            "Failed to create table " + tableId, exception);
+        throw new BigQueryConnectException("Failed to create table " + tableId, exception);
       }
     }
   }

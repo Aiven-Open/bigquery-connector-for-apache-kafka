@@ -47,12 +47,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * A {@link BigQueryWriter} capable of updating BigQuery table schemas and creating non-existed tables automatically.
+ * A {@link BigQueryWriter} capable of updating BigQuery table schemas and creating non-existed
+ * tables automatically.
  */
 public class AdaptiveBigQueryWriter extends BigQueryWriter {
   private static final Logger logger = LoggerFactory.getLogger(AdaptiveBigQueryWriter.class);
 
-  // The maximum number of retries we will attempt to write rows after creating a table or updating a BQ table schema.
+  // The maximum number of retries we will attempt to write rows after creating a table or updating
+  // a BQ table schema.
   private static final int RETRY_LIMIT = 30;
   // Wait for about 30s between each retry to avoid hammering BigQuery with requests
   private static final int RETRY_WAIT_TIME = 30000;
@@ -62,23 +64,24 @@ public class AdaptiveBigQueryWriter extends BigQueryWriter {
   private final boolean autoCreateTables;
 
   /**
-   * @param bigQuery            Used to send write requests to BigQuery.
-   * @param schemaManager       Used to update BigQuery tables.
-   * @param retry               How many retries to make in the event of a 500/503 error.
-   * @param retryWait           How long to wait in between retries.
-   * @param autoCreateTables    Whether tables should be automatically created
+   * @param bigQuery Used to send write requests to BigQuery.
+   * @param schemaManager Used to update BigQuery tables.
+   * @param retry How many retries to make in the event of a 500/503 error.
+   * @param retryWait How long to wait in between retries.
+   * @param autoCreateTables Whether tables should be automatically created
    * @param errantRecordHandler Used to handle errant records
-   * @param time                used to wait during backoff periods
-   * @param config              Connector configurations
+   * @param time used to wait during backoff periods
+   * @param config Connector configurations
    */
-  public AdaptiveBigQueryWriter(BigQuery bigQuery,
-                                SchemaManager schemaManager,
-                                int retry,
-                                long retryWait,
-                                boolean autoCreateTables,
-                                ErrantRecordHandler errantRecordHandler,
-                                Time time,
-                                BigQuerySinkConfig config) {
+  public AdaptiveBigQueryWriter(
+      BigQuery bigQuery,
+      SchemaManager schemaManager,
+      int retry,
+      long retryWait,
+      boolean autoCreateTables,
+      ErrantRecordHandler errantRecordHandler,
+      Time time,
+      BigQuerySinkConfig config) {
     super(retry, retryWait, errantRecordHandler, time, config);
     this.bigQuery = bigQuery;
     this.schemaManager = schemaManager;
@@ -86,26 +89,27 @@ public class AdaptiveBigQueryWriter extends BigQueryWriter {
   }
 
   /**
-   * @param bigQuery            Used to send write requests to BigQuery.
-   * @param schemaManager       Used to update BigQuery tables.
-   * @param retry               How many retries to make in the event of a 500/503 error.
-   * @param retryWait           How long to wait in between retries.
-   * @param autoCreateTables    Whether tables should be automatically created
+   * @param bigQuery Used to send write requests to BigQuery.
+   * @param schemaManager Used to update BigQuery tables.
+   * @param retry How many retries to make in the event of a 500/503 error.
+   * @param retryWait How long to wait in between retries.
+   * @param autoCreateTables Whether tables should be automatically created
    * @param errantRecordHandler Used to handle errant records
-   * @param time                used to wait during backoff periods
-   *
-   * @deprecated This constructor does not support configuration of additional write settings.
-   * Use {@link #AdaptiveBigQueryWriter(BigQuery bigQuery, SchemaManager schemaManager, int retry, long retryWait,
-   * boolean autoCreateTables, ErrantRecordHandler errantRecordHandler, Time time, BigQuerySinkConfig config)}.
+   * @param time used to wait during backoff periods
+   * @deprecated This constructor does not support configuration of additional write settings. Use
+   *     {@link #AdaptiveBigQueryWriter(BigQuery bigQuery, SchemaManager schemaManager, int retry,
+   *     long retryWait, boolean autoCreateTables, ErrantRecordHandler errantRecordHandler, Time
+   *     time, BigQuerySinkConfig config)}.
    */
   @Deprecated
-  public AdaptiveBigQueryWriter(BigQuery bigQuery,
-                                SchemaManager schemaManager,
-                                int retry,
-                                long retryWait,
-                                boolean autoCreateTables,
-                                ErrantRecordHandler errantRecordHandler,
-                                Time time) {
+  public AdaptiveBigQueryWriter(
+      BigQuery bigQuery,
+      SchemaManager schemaManager,
+      int retry,
+      long retryWait,
+      boolean autoCreateTables,
+      ErrantRecordHandler errantRecordHandler,
+      Time time) {
     super(retry, retryWait, errantRecordHandler, time);
     this.bigQuery = bigQuery;
     this.schemaManager = schemaManager;
@@ -121,8 +125,7 @@ public class AdaptiveBigQueryWriter extends BigQueryWriter {
    */
   @Override
   public Map<Long, List<BigQueryError>> performWriteRequest(
-      PartitionedTableId tableId,
-      SortedMap<SinkRecord, InsertAllRequest.RowToInsert> rows) {
+      PartitionedTableId tableId, SortedMap<SinkRecord, InsertAllRequest.RowToInsert> rows) {
     InsertAllResponse writeResponse = null;
     InsertAllRequest request = null;
 
@@ -158,8 +161,7 @@ public class AdaptiveBigQueryWriter extends BigQueryWriter {
           writeResponse = bigQuery.insertAll(request);
         } catch (BigQueryException exception) {
           if ((BigQueryErrorResponses.isNonExistentTableError(exception) && autoCreateTables)
-              || BigQueryErrorResponses.isTableMissingSchemaError(exception)
-          ) {
+              || BigQueryErrorResponses.isTableMissingSchemaError(exception)) {
             // no-op, we want to keep retrying the insert
             logger.debug("insertion failed", exception);
           } else {
@@ -173,7 +175,9 @@ public class AdaptiveBigQueryWriter extends BigQueryWriter {
       if (attemptCount >= RETRY_LIMIT) {
         throw new BigQueryConnectException(
             "Failed to write rows after BQ table creation or schema update within "
-                + RETRY_LIMIT + " attempts for: " + tableId.getBaseTableId());
+                + RETRY_LIMIT
+                + " attempts for: "
+                + tableId.getBaseTableId());
       }
       try {
         time.sleep(RETRY_WAIT_TIME);
@@ -198,8 +202,7 @@ public class AdaptiveBigQueryWriter extends BigQueryWriter {
     try {
       schemaManager.createTable(tableId, records);
     } catch (BigQueryException exception) {
-      throw new BigQueryConnectException(
-          "Failed to create table " + tableId, exception);
+      throw new BigQueryConnectException("Failed to create table " + tableId, exception);
     }
   }
 
@@ -217,7 +220,8 @@ public class AdaptiveBigQueryWriter extends BigQueryWriter {
     boolean invalidSchemaError = false;
     for (List<BigQueryError> errorList : errors.values()) {
       for (BigQueryError error : errorList) {
-        if (BigQueryErrorResponses.isMissingRequiredFieldError(error) || BigQueryErrorResponses.isUnrecognizedFieldError(error)) {
+        if (BigQueryErrorResponses.isMissingRequiredFieldError(error)
+            || BigQueryErrorResponses.isUnrecognizedFieldError(error)) {
           invalidSchemaError = true;
         } else if (!BigQueryErrorResponses.isStoppedError(error)) {
           /* if some rows are in the old schema format, and others aren't, the old schema

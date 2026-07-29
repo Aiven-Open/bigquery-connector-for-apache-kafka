@@ -39,8 +39,8 @@ import org.slf4j.LoggerFactory;
 /**
  * ThreadPoolExecutor for writing Rows to BigQuery.
  *
- * <p>Keeps track of the number of threads actively writing for each topic.
- * Keeps track of the number of failed threads in each batch of requests.
+ * <p>Keeps track of the number of threads actively writing for each topic. Keeps track of the
+ * number of failed threads in each batch of requests.
  */
 public class KcbqThreadPoolExecutor extends ThreadPoolExecutor {
 
@@ -49,22 +49,21 @@ public class KcbqThreadPoolExecutor extends ThreadPoolExecutor {
   private final AtomicReference<Throwable> encounteredError = new AtomicReference<>();
 
   /**
-   * @param config    the {@link BigQuerySinkTaskConfig}
+   * @param config the {@link BigQuerySinkTaskConfig}
    * @param workQueue the queue for storing tasks.
    */
   public KcbqThreadPoolExecutor(
       BigQuerySinkTaskConfig config,
       BlockingQueue<Runnable> workQueue,
-      ThreadFactory threadFactory
-  ) {
+      ThreadFactory threadFactory) {
     super(
         config.getInt(BigQuerySinkTaskConfig.THREAD_POOL_SIZE_CONFIG),
         config.getInt(BigQuerySinkTaskConfig.THREAD_POOL_SIZE_CONFIG),
         // the following line is irrelevant because the core and max thread counts are the same.
-        1, TimeUnit.SECONDS,
+        1,
+        TimeUnit.SECONDS,
         workQueue,
-        threadFactory
-    );
+        threadFactory);
   }
 
   @Override
@@ -72,7 +71,8 @@ public class KcbqThreadPoolExecutor extends ThreadPoolExecutor {
     super.afterExecute(runnable, throwable);
 
     if (throwable != null && !(throwable instanceof ExpectedInterruptException)) {
-      // Log at debug level since this will be shown to the user at error level by the Connect framework if it causes
+      // Log at debug level since this will be shown to the user at error level by the Connect
+      // framework if it causes
       // the task to fail, and will otherwise just pollute logs and potentially mislead users
       logger.debug("A write thread has failed with an unrecoverable error", throwable);
       encounteredError.compareAndSet(null, throwable);
@@ -83,7 +83,7 @@ public class KcbqThreadPoolExecutor extends ThreadPoolExecutor {
    * Wait for all the currently queued tasks to complete, and then return.
    *
    * @throws BigQueryConnectException if any of the tasks failed.
-   * @throws InterruptedException     if interrupted while waiting.
+   * @throws InterruptedException if interrupted while waiting.
    */
   public void awaitCurrentTasks() throws InterruptedException, BigQueryConnectException {
     /*
@@ -107,8 +107,11 @@ public class KcbqThreadPoolExecutor extends ThreadPoolExecutor {
    * @throws BigQueryConnectException if any of the tasks failed.
    */
   public void maybeThrowEncounteredError() {
-    Optional.ofNullable(encounteredError.get()).ifPresent(t -> {
-      throw new BigQueryConnectException("A write thread has failed with an unrecoverable error", t);
-    });
+    Optional.ofNullable(encounteredError.get())
+        .ifPresent(
+            t -> {
+              throw new BigQueryConnectException(
+                  "A write thread has failed with an unrecoverable error", t);
+            });
   }
 }

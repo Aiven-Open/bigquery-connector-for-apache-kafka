@@ -23,15 +23,14 @@
 
 package com.wepay.kafka.connect.bigquery.write.storage;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
 import com.google.cloud.storage.Storage;
 import com.wepay.kafka.connect.bigquery.GcpClientBuilder;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
-import org.junit.jupiter.api.Test;
-
 import java.util.HashMap;
 import java.util.Map;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import org.junit.jupiter.api.Test;
 
 public class GcsBuilderTest {
 
@@ -42,11 +41,8 @@ public class GcsBuilderTest {
     properties.put(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG, "dummy_dataset");
     BigQuerySinkConfig config = new BigQuerySinkConfig(properties);
 
-    Storage actualSettings = new GcpClientBuilder.GcsBuilder()
-        .withConfig(config)
-        .build();
+    Storage actualSettings = new GcpClientBuilder.GcsBuilder().withConfig(config).build();
 
     assertEquals(actualSettings.getOptions().getProjectId(), "abcd");
   }
-
 }

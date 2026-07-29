@@ -42,79 +42,72 @@ public class MultiPropertyValidatorTest {
 
   @Test
   public void testExistingErrorSkipsValidation() {
-    MultiPropertyValidator<Object> validator = new TestValidator<>(
-        "p",
-        Arrays.asList("d1", "d2", "d3"),
-        o -> {
-          fail("Validation should have been performed on property that already has an error");
-          return null;
-        }
-    );
+    MultiPropertyValidator<Object> validator =
+        new TestValidator<>(
+            "p",
+            Arrays.asList("d1", "d2", "d3"),
+            o -> {
+              fail("Validation should have been performed on property that already has an error");
+              return null;
+            });
 
-    ConfigValue configValue = new ConfigValue("p", "v", Collections.emptyList(), Collections.singletonList("an error"));
+    ConfigValue configValue =
+        new ConfigValue("p", "v", Collections.emptyList(), Collections.singletonList("an error"));
 
-    assertEquals(
-        Optional.empty(),
-        validator.validate(configValue, null, Collections.emptyMap())
-    );
+    assertEquals(Optional.empty(), validator.validate(configValue, null, Collections.emptyMap()));
   }
 
   @Test
   public void testDependentErrorSkipsValidation() {
-    MultiPropertyValidator<Object> validator = new TestValidator<>(
-        "p",
-        Arrays.asList("d1", "d2", "d3"),
-        o -> {
-          fail("Validation should have been performed on property whose dependent already has an error");
-          return null;
-        }
-    );
+    MultiPropertyValidator<Object> validator =
+        new TestValidator<>(
+            "p",
+            Arrays.asList("d1", "d2", "d3"),
+            o -> {
+              fail(
+                  "Validation should have been performed on property whose dependent already has an error");
+              return null;
+            });
 
-    ConfigValue configValue = new ConfigValue("p", "v", Collections.emptyList(), Collections.emptyList());
-    Map<String, ConfigValue> valuesByName = ImmutableMap.of(
-        "d1", new ConfigValue("d1", "v1", Collections.emptyList(), Collections.emptyList()),
-        "d2", new ConfigValue("d2", "v1", Collections.emptyList(), Collections.singletonList("an error"))
-    );
+    ConfigValue configValue =
+        new ConfigValue("p", "v", Collections.emptyList(), Collections.emptyList());
+    Map<String, ConfigValue> valuesByName =
+        ImmutableMap.of(
+            "d1", new ConfigValue("d1", "v1", Collections.emptyList(), Collections.emptyList()),
+            "d2",
+                new ConfigValue(
+                    "d2", "v1", Collections.emptyList(), Collections.singletonList("an error")));
 
-    assertEquals(
-        Optional.empty(),
-        validator.validate(configValue, null, valuesByName)
-    );
+    assertEquals(Optional.empty(), validator.validate(configValue, null, valuesByName));
   }
 
   @Test
   public void testValidationFails() {
     Optional<String> expectedError = Optional.of("an error");
-    MultiPropertyValidator<Object> validator = new TestValidator<>(
-        "p",
-        Collections.emptyList(),
-        o -> expectedError
-    );
+    MultiPropertyValidator<Object> validator =
+        new TestValidator<>("p", Collections.emptyList(), o -> expectedError);
 
-    ConfigValue configValue = new ConfigValue("p", "v", Collections.emptyList(), Collections.emptyList());
+    ConfigValue configValue =
+        new ConfigValue("p", "v", Collections.emptyList(), Collections.emptyList());
 
-    assertEquals(
-        expectedError,
-        validator.validate(configValue, null, Collections.emptyMap())
-    );
+    assertEquals(expectedError, validator.validate(configValue, null, Collections.emptyMap()));
   }
 
   @Test
   public void testUnexpectedErrorDuringValidation() {
-    MultiPropertyValidator<Object> validator = new TestValidator<>(
-        "p",
-        Collections.emptyList(),
-        o -> {
-          throw new RuntimeException("Some unexpected error");
-        }
-    );
+    MultiPropertyValidator<Object> validator =
+        new TestValidator<>(
+            "p",
+            Collections.emptyList(),
+            o -> {
+              throw new RuntimeException("Some unexpected error");
+            });
 
-    ConfigValue configValue = new ConfigValue("p", "v", Collections.emptyList(), Collections.emptyList());
+    ConfigValue configValue =
+        new ConfigValue("p", "v", Collections.emptyList(), Collections.emptyList());
 
     assertNotEquals(
-        Optional.empty(),
-        validator.validate(configValue, null, Collections.emptyMap())
-    );
+        Optional.empty(), validator.validate(configValue, null, Collections.emptyMap()));
   }
 
   private static class TestValidator<Config> extends MultiPropertyValidator<Config> {
@@ -122,7 +115,10 @@ public class MultiPropertyValidatorTest {
     private final List<String> dependents;
     private final Function<Config, Optional<String>> validationFunction;
 
-    public TestValidator(String propertyName, List<String> dependents, Function<Config, Optional<String>> validationFunction) {
+    public TestValidator(
+        String propertyName,
+        List<String> dependents,
+        Function<Config, Optional<String>> validationFunction) {
       super(propertyName);
       this.dependents = dependents;
       this.validationFunction = validationFunction;

@@ -24,8 +24,11 @@
 
 package io.aiven.kafka.config.tools;
 
-import io.aiven.kafka.utils.ConfigKeyBuilder;
-import io.aiven.kafka.utils.ExtendedConfigKey;
+import io.aiven.commons.kafka.config.ConfigKeyBuilder;
+import io.aiven.commons.kafka.config.DeprecatedInfo;
+import io.aiven.commons.kafka.config.ExtendedConfigKey;
+import io.aiven.commons.kafka.config.SinceInfo;
+import io.aiven.commons.kafka.config.docs.ExtendedConfigKeyBean;
 import org.apache.kafka.common.config.ConfigDef;
 import org.junit.jupiter.api.Test;
 
@@ -39,13 +42,14 @@ public class ExtendedConfigKeyBeanTest {
 
     @Test
     void testExtendedConfigKey() {
-        ExtendedConfigKey extendedConfigKey = ExtendedConfigKey.builder("testOpt").deprecatedInfo(ExtendedConfigKey.DeprecatedInfo.builder()).build();
+        ExtendedConfigKey extendedConfigKey = ExtendedConfigKey.builder("testOpt").deprecatedInfo(DeprecatedInfo.builder()).build();
         ExtendedConfigKeyBean underTest = new ExtendedConfigKeyBean(extendedConfigKey);
         assertTrue(underTest.isExtendedFlag());
         assertNotNull(underTest.deprecated());
-        assertNull(underTest.since());
+        assertEquals("", underTest.since());
 
-        extendedConfigKey = ExtendedConfigKey.builder("testOpt").deprecatedInfo(ExtendedConfigKey.DeprecatedInfo.builder()).since("Then").build();
+        extendedConfigKey = ExtendedConfigKey.builder("testOpt").deprecatedInfo(DeprecatedInfo.builder()).since(SinceInfo.builder()
+                .groupId("com.wepay.kcbq").artifactId("kcbq-connector").version("Then").build()).build();
         underTest = new ExtendedConfigKeyBean(extendedConfigKey);
         assertTrue(underTest.isExtendedFlag());
         assertNotNull(underTest.deprecated());

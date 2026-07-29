@@ -42,18 +42,22 @@ public abstract class MultiPropertyValidator<ConfigT> {
     return propertyName;
   }
 
-  public Optional<String> validate(ConfigValue value, ConfigT config, Map<String, ConfigValue> valuesByName) {
-    // Only perform follow-up validation if the property doesn't already have an error associated with it
+  public Optional<String> validate(
+      ConfigValue value, ConfigT config, Map<String, ConfigValue> valuesByName) {
+    // Only perform follow-up validation if the property doesn't already have an error associated
+    // with it
     if (!value.errorMessages().isEmpty()) {
       return Optional.empty();
     }
 
-    boolean dependentsAreValid = dependents().stream()
-        .map(valuesByName::get)
-        .filter(Objects::nonNull)
-        .map(ConfigValue::errorMessages)
-        .allMatch(List::isEmpty);
-    // Also ensure that all of the other properties that the validation for this one depends on don't already have errors
+    boolean dependentsAreValid =
+        dependents().stream()
+            .map(valuesByName::get)
+            .filter(Objects::nonNull)
+            .map(ConfigValue::errorMessages)
+            .allMatch(List::isEmpty);
+    // Also ensure that all of the other properties that the validation for this one depends on
+    // don't already have errors
     if (!dependentsAreValid) {
       return Optional.empty();
     }
@@ -63,8 +67,7 @@ public abstract class MultiPropertyValidator<ConfigT> {
     } catch (RuntimeException e) {
       return Optional.of(
           "An unexpected error occurred during validation"
-              + (e.getMessage() != null ? ": " + e.getMessage() : "")
-      );
+              + (e.getMessage() != null ? ": " + e.getMessage() : ""));
     }
   }
 

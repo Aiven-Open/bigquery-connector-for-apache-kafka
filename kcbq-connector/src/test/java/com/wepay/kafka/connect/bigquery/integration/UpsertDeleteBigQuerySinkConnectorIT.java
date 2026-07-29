@@ -61,7 +61,8 @@ import org.slf4j.LoggerFactory;
 @Tag("integration")
 public class UpsertDeleteBigQuerySinkConnectorIT extends BaseConnectorIT {
 
-  private static final Logger logger = LoggerFactory.getLogger(UpsertDeleteBigQuerySinkConnectorIT.class);
+  private static final Logger logger =
+      LoggerFactory.getLogger(UpsertDeleteBigQuerySinkConnectorIT.class);
 
   private static final long NUM_RECORDS_PRODUCED = 8;
   private static final int TASKS_MAX = 1;
@@ -72,9 +73,11 @@ public class UpsertDeleteBigQuerySinkConnectorIT extends BaseConnectorIT {
 
   @BeforeEach
   public void setup(TestInfo testInfo) {
-    String testMethod = testInfo.getTestMethod()
-        .map(Method::getName)
-        .orElseThrow(() -> new AssertionError("Test method not found"));
+    String testMethod =
+        testInfo
+            .getTestMethod()
+            .map(Method::getName)
+            .orElseThrow(() -> new AssertionError("Test method not found"));
     connectorName = "kcbq-sink-connector-" + testMethod;
     bigQuery = newBigQuery();
     startConnect();
@@ -87,9 +90,7 @@ public class UpsertDeleteBigQuerySinkConnectorIT extends BaseConnectorIT {
   }
 
   private Map<String, String> upsertDeleteProps(
-      boolean upsert,
-      boolean delete,
-      long mergeRecordsThreshold) {
+      boolean upsert, boolean delete, long mergeRecordsThreshold) {
     if (!upsert && !delete) {
       throw new IllegalArgumentException("At least one of upsert or delete must be enabled");
     }
@@ -110,7 +111,8 @@ public class UpsertDeleteBigQuerySinkConnectorIT extends BaseConnectorIT {
     // Hardcode merge flushes to just use number of records for now, as it's more deterministic and
     // faster to test
     result.put(BigQuerySinkConfig.MERGE_INTERVAL_MS_CONFIG, "-1");
-    result.put(BigQuerySinkConfig.MERGE_RECORDS_THRESHOLD_CONFIG, Long.toString(mergeRecordsThreshold));
+    result.put(
+        BigQuerySinkConfig.MERGE_RECORDS_THRESHOLD_CONFIG, Long.toString(mergeRecordsThreshold));
 
     result.put(BigQuerySinkConfig.KAFKA_KEY_FIELD_NAME_CONFIG, KAFKA_FIELD_NAME);
 
@@ -154,7 +156,11 @@ public class UpsertDeleteBigQuerySinkConnectorIT extends BaseConnectorIT {
       // present in the table at the end of the test
       String kafkaKey = key(keyConverter, topic, i / 2);
       String kafkaValue = value(valueConverter, topic, i, false);
-      logger.debug("Sending message with key '{}' and value '{}' to topic '{}'", kafkaKey, kafkaValue, topic);
+      logger.debug(
+          "Sending message with key '{}' and value '{}' to topic '{}'",
+          kafkaKey,
+          kafkaValue,
+          topic);
       connect.kafka().produce(topic, kafkaKey, kafkaValue);
     }
 
@@ -162,13 +168,16 @@ public class UpsertDeleteBigQuerySinkConnectorIT extends BaseConnectorIT {
     waitForCommittedRecords(connectorName, topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
 
     List<List<Object>> allRows = readAllRows(bigQuery, table, KAFKA_FIELD_NAME + ".k1");
-    List<List<Object>> expectedRows = LongStream.range(0, NUM_RECORDS_PRODUCED / 2)
-        .mapToObj(i -> Arrays.asList(
-            "another string",
-            (i - 1) % 3 == 0,
-            (i * 2 + 1) / 0.69,
-            Collections.singletonList(i)))
-        .collect(Collectors.toList());
+    List<List<Object>> expectedRows =
+        LongStream.range(0, NUM_RECORDS_PRODUCED / 2)
+            .mapToObj(
+                i ->
+                    Arrays.asList(
+                        "another string",
+                        (i - 1) % 3 == 0,
+                        (i * 2 + 1) / 0.69,
+                        Collections.singletonList(i)))
+            .collect(Collectors.toList());
     assertEquals(expectedRows, allRows);
   }
 
@@ -205,12 +214,18 @@ public class UpsertDeleteBigQuerySinkConnectorIT extends BaseConnectorIT {
 
     // Send records to Kafka
     for (int i = 0; i < NUM_RECORDS_PRODUCED; i++) {
-      // Each pair of records will share a key. Because upsert is not enabled, no deduplication will take place
+      // Each pair of records will share a key. Because upsert is not enabled, no deduplication will
+      // take place
       // and, unless a tombstone is written for that key, both will be inserted
       String kafkaKey = key(keyConverter, topic, i / 2);
-      // Every fourth record will be a tombstone, so every record pair with an odd-numbered key will be dropped
+      // Every fourth record will be a tombstone, so every record pair with an odd-numbered key will
+      // be dropped
       String kafkaValue = value(valueConverter, topic, i, i % 4 == 3);
-      logger.debug("Sending message with key '{}' and value '{}' to topic '{}'", kafkaKey, kafkaValue, topic);
+      logger.debug(
+          "Sending message with key '{}' and value '{}' to topic '{}'",
+          kafkaKey,
+          kafkaValue,
+          topic);
       connect.kafka().produce(topic, kafkaKey, kafkaValue);
     }
 
@@ -220,14 +235,17 @@ public class UpsertDeleteBigQuerySinkConnectorIT extends BaseConnectorIT {
     // Since we have multiple rows per key, order by key and the f3 field (which should be
     // monotonically increasing in insertion order)
     List<List<Object>> allRows = readAllRows(bigQuery, table, KAFKA_FIELD_NAME + ".k1, f3");
-    List<List<Object>> expectedRows = LongStream.range(0, NUM_RECORDS_PRODUCED)
-        .filter(i -> i % 4 < 2)
-        .mapToObj(i -> Arrays.asList(
-            i % 4 == 0 ? "a string" : "another string",
-            i % 3 == 0,
-            i / 0.69,
-            Collections.singletonList(i * 2 / 4)))
-        .collect(Collectors.toList());
+    List<List<Object>> expectedRows =
+        LongStream.range(0, NUM_RECORDS_PRODUCED)
+            .filter(i -> i % 4 < 2)
+            .mapToObj(
+                i ->
+                    Arrays.asList(
+                        i % 4 == 0 ? "a string" : "another string",
+                        i % 3 == 0,
+                        i / 0.69,
+                        Collections.singletonList(i * 2 / 4)))
+            .collect(Collectors.toList());
     assertEquals(expectedRows, allRows);
   }
 
@@ -267,9 +285,14 @@ public class UpsertDeleteBigQuerySinkConnectorIT extends BaseConnectorIT {
       // Each pair of records will share a key. Only the second record of each pair should be
       // present in the table at the end of the test
       String kafkaKey = key(keyConverter, topic, i / 2);
-      // Every fourth record will be a tombstone, so every record pair with an odd-numbered key will be dropped
+      // Every fourth record will be a tombstone, so every record pair with an odd-numbered key will
+      // be dropped
       String kafkaValue = value(valueConverter, topic, i, i % 4 == 3);
-      logger.debug("Sending message with key '{}' and value '{}' to topic '{}'", kafkaKey, kafkaValue, topic);
+      logger.debug(
+          "Sending message with key '{}' and value '{}' to topic '{}'",
+          kafkaKey,
+          kafkaValue,
+          topic);
       connect.kafka().produce(topic, kafkaKey, kafkaValue);
     }
 
@@ -279,14 +302,17 @@ public class UpsertDeleteBigQuerySinkConnectorIT extends BaseConnectorIT {
     // Since we have multiple rows per key, order by key and the f3 field (which should be
     // monotonically increasing in insertion order)
     List<List<Object>> allRows = readAllRows(bigQuery, table, KAFKA_FIELD_NAME + ".k1, f3");
-    List<List<Object>> expectedRows = LongStream.range(0, NUM_RECORDS_PRODUCED)
-        .filter(i -> i % 4 == 1)
-        .mapToObj(i -> Arrays.asList(
-            "another string",
-            i % 3 == 0,
-            i / 0.69,
-            Collections.singletonList(i * 2 / 4)))
-        .collect(Collectors.toList());
+    List<List<Object>> expectedRows =
+        LongStream.range(0, NUM_RECORDS_PRODUCED)
+            .filter(i -> i % 4 == 1)
+            .mapToObj(
+                i ->
+                    Arrays.asList(
+                        "another string",
+                        i % 3 == 0,
+                        i / 0.69,
+                        Collections.singletonList(i * 2 / 4)))
+            .collect(Collectors.toList());
     assertEquals(expectedRows, allRows);
   }
 
@@ -329,18 +355,20 @@ public class UpsertDeleteBigQuerySinkConnectorIT extends BaseConnectorIT {
     Map<String, String> props = baseConnectorProps(tasksMax);
     props.put(SinkConnectorConfig.TOPICS_CONFIG, topic);
     // Allow for at most 10,000 records per call to poll
-    props.put(ConnectorConfig.CONNECTOR_CLIENT_CONSUMER_OVERRIDES_PREFIX
+    props.put(
+        ConnectorConfig.CONNECTOR_CLIENT_CONSUMER_OVERRIDES_PREFIX
             + ConsumerConfig.MAX_POLL_RECORDS_CONFIG,
         "10000");
     // Try to get at least 1 MB per partition with each request
-    props.put(ConnectorConfig.CONNECTOR_CLIENT_CONSUMER_OVERRIDES_PREFIX
+    props.put(
+        ConnectorConfig.CONNECTOR_CLIENT_CONSUMER_OVERRIDES_PREFIX
             + ConsumerConfig.FETCH_MIN_BYTES_CONFIG,
         Integer.toString(ConsumerConfig.DEFAULT_MAX_PARTITION_FETCH_BYTES * numPartitions));
     // Wait up to one second for each batch to reach the requested size
-    props.put(ConnectorConfig.CONNECTOR_CLIENT_CONSUMER_OVERRIDES_PREFIX
+    props.put(
+        ConnectorConfig.CONNECTOR_CLIENT_CONSUMER_OVERRIDES_PREFIX
             + ConsumerConfig.FETCH_MAX_WAIT_MS_CONFIG,
-        "1000"
-    );
+        "1000");
 
     props.put(BigQuerySinkConfig.SANITIZE_TOPICS_CONFIG, "true");
     props.put(BigQuerySinkConfig.SCHEMA_RETRIEVER_CONFIG, IdentitySchemaRetriever.class.getName());
@@ -359,22 +387,31 @@ public class UpsertDeleteBigQuerySinkConnectorIT extends BaseConnectorIT {
 
     // wait for tasks to write to BigQuery and commit offsets for their records
     waitForCommittedRecords(
-        connectorName, Collections.singleton(topic), numRecords, tasksMax, TimeUnit.MINUTES.toMillis(10));
+        connectorName,
+        Collections.singleton(topic),
+        numRecords,
+        tasksMax,
+        TimeUnit.MINUTES.toMillis(10));
     long time = System.currentTimeMillis() - start;
-    logger.info("All records have been read and committed by the connector; "
-        + "total time from start to finish: {} seconds", time / 1000.0);
+    logger.info(
+        "All records have been read and committed by the connector; "
+            + "total time from start to finish: {} seconds",
+        time / 1000.0);
 
     // Since we have multiple rows per key, order by key and the f3 field (which should be
     // monotonically increasing in insertion order)
     List<List<Object>> allRows = readAllRows(bigQuery, table, KAFKA_FIELD_NAME + ".k1, f3");
-    List<List<Object>> expectedRows = LongStream.range(0, numRecords)
-        .filter(i -> i % 4 == 1)
-        .mapToObj(i -> Arrays.asList(
-            "another string",
-            i % 3 == 0,
-            i / 0.69,
-            Collections.singletonList(i * 2 / 4)))
-        .collect(Collectors.toList());
+    List<List<Object>> expectedRows =
+        LongStream.range(0, numRecords)
+            .filter(i -> i % 4 == 1)
+            .mapToObj(
+                i ->
+                    Arrays.asList(
+                        "another string",
+                        i % 3 == 0,
+                        i / 0.69,
+                        Collections.singletonList(i * 2 / 4)))
+            .collect(Collectors.toList());
     assertEquals(expectedRows, allRows);
   }
 
@@ -387,32 +424,31 @@ public class UpsertDeleteBigQuerySinkConnectorIT extends BaseConnectorIT {
   }
 
   private String key(Converter converter, String topic, long iteration) {
-    final Schema schema = SchemaBuilder.struct()
-        .field("k1", Schema.INT64_SCHEMA)
-        .build();
+    final Schema schema = SchemaBuilder.struct().field("k1", Schema.INT64_SCHEMA).build();
 
-    final Struct struct = new Struct(schema)
-        .put("k1", iteration);
+    final Struct struct = new Struct(schema).put("k1", iteration);
 
     return new String(converter.fromConnectData(topic, schema, struct));
   }
 
   private String value(Converter converter, String topic, long iteration, boolean tombstone) {
-    final Schema schema = SchemaBuilder.struct()
-        .optional()
-        .field("f1", Schema.STRING_SCHEMA)
-        .field("f2", Schema.BOOLEAN_SCHEMA)
-        .field("f3", Schema.FLOAT64_SCHEMA)
-        .build();
+    final Schema schema =
+        SchemaBuilder.struct()
+            .optional()
+            .field("f1", Schema.STRING_SCHEMA)
+            .field("f2", Schema.BOOLEAN_SCHEMA)
+            .field("f3", Schema.FLOAT64_SCHEMA)
+            .build();
 
     if (tombstone) {
       return new String(converter.fromConnectData(topic, schema, null));
     }
 
-    final Struct struct = new Struct(schema)
-        .put("f1", iteration % 2 == 0 ? "a string" : "another string")
-        .put("f2", iteration % 3 == 0)
-        .put("f3", iteration / 0.69);
+    final Struct struct =
+        new Struct(schema)
+            .put("f1", iteration % 2 == 0 ? "a string" : "another string")
+            .put("f2", iteration % 3 == 0)
+            .put("f3", iteration / 0.69);
 
     return new String(converter.fromConnectData(topic, schema, struct));
   }

@@ -28,6 +28,7 @@ import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.BigQueryException;
 import com.google.cloud.bigquery.FormatOptions;
 import com.google.cloud.bigquery.Job;
+import com.google.cloud.bigquery.JobId;
 import com.google.cloud.bigquery.JobInfo;
 import com.google.cloud.bigquery.JobStatus;
 import com.google.cloud.bigquery.LoadJobConfiguration;
@@ -40,6 +41,9 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.re2j.Matcher;
 import com.google.re2j.Pattern;
 import com.wepay.kafka.connect.bigquery.write.row.GcsToBqWriter;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -73,20 +77,26 @@ public class GcsToBqLoadRunnable implements Runnable {
   // see: https://cloud.google.com/bigquery/quotas#load_jobs
   private final Bucket bucket;
   private final Map<Job, List<BlobId>> activeJobs;
-  /**
-   * The set of blob Ids that the system is currently processing or are queued to process.
-   */
+
+  /** The set of blob Ids that the system is currently processing or are queued to process. */
   private final Set<BlobId> claimedBlobIds;
-  /**
-   * The set of blob Ids that the system can delete.
-   */
+
+  /** The set of blob Ids that the system can delete. */
   private final Set<BlobId> deletableBlobIds;
+
+  /**
+   * Tracks how many times each blob batch has been submitted as a load job (keyed by sorted blob
+   * names). Incremented when a job is confirmed to have genuinely failed, so that the next
+   * submission uses a different deterministic job ID and BigQuery creates a new load job rather
+   * than returning 409 for the already-known-failed one.
+   */
+  private final Map<String, Integer> blobBatchAttempts;
 
   /**
    * Create a {@link GcsToBqLoadRunnable} with the given bigquery, bucket, and ms wait interval.
    *
    * @param bigQuery the {@link BigQuery} instance.
-   * @param bucket   the GCS bucket to read from.
+   * @param bucket the GCS bucket to read from.
    */
   public GcsToBqLoadRunnable(BigQuery bigQuery, Bucket bucket) {
     this.bigQuery = bigQuery;
@@ -94,32 +104,50 @@ public class GcsToBqLoadRunnable implements Runnable {
     this.activeJobs = new HashMap<>();
     this.claimedBlobIds = new HashSet<>();
     this.deletableBlobIds = new HashSet<>();
+    this.blobBatchAttempts = new HashMap<>();
   }
 
   /**
    * Create a {@link GcsToBqLoadRunnable} with the given bigquery, bucket, and ms wait interval.
    *
    * @param bigQuery the {@link BigQuery} instance.
-   * @param bucket   the GCS bucket to read from.
+   * @param bucket the GCS bucket to read from.
    * @param activeJobs the map of job to the list of blobs it contains.
    * @param claimedBlobIds the list of Blob Ids being processed.
    * @param deletableBlobIds the list of Blob Ids that can be deleted.
    */
   @VisibleForTesting
-  GcsToBqLoadRunnable(BigQuery bigQuery, Bucket bucket, Map<Job, List<BlobId>> activeJobs, Set<BlobId> claimedBlobIds, Set<BlobId> deletableBlobIds) {
+  GcsToBqLoadRunnable(
+      BigQuery bigQuery,
+      Bucket bucket,
+      Map<Job, List<BlobId>> activeJobs,
+      Set<BlobId> claimedBlobIds,
+      Set<BlobId> deletableBlobIds) {
+    this(bigQuery, bucket, activeJobs, claimedBlobIds, deletableBlobIds, new HashMap<>());
+  }
+
+  @VisibleForTesting
+  GcsToBqLoadRunnable(
+      BigQuery bigQuery,
+      Bucket bucket,
+      Map<Job, List<BlobId>> activeJobs,
+      Set<BlobId> claimedBlobIds,
+      Set<BlobId> deletableBlobIds,
+      Map<String, Integer> blobBatchAttempts) {
     this.bigQuery = bigQuery;
     this.bucket = bucket;
     this.activeJobs = activeJobs;
     this.claimedBlobIds = claimedBlobIds;
     this.deletableBlobIds = deletableBlobIds;
+    this.blobBatchAttempts = blobBatchAttempts;
   }
 
   /**
    * Given a blob, return the {@link TableId} this blob should be inserted into.
    *
    * @param blob the blob
-   * @return the TableId this data should be loaded into, or null if we could not tell what
-   * table it should be loaded into.
+   * @return the TableId this data should be loaded into, or null if we could not tell what table it
+   *     should be loaded into.
    */
   public static TableId getTableFromBlob(Blob blob) {
     if (blob.getMetadata() == null
@@ -132,8 +160,8 @@ public class GcsToBqLoadRunnable implements Runnable {
     Matcher matcher = METADATA_TABLE_PATTERN.matcher(serializedTableId);
 
     if (!matcher.find()) {
-      logger.error("Found blob `{}/{}` with un-parsable table metadata.",
-          blob.getBucket(), blob.getName());
+      logger.error(
+          "Found blob `{}/{}` with un-parsable table metadata.", blob.getBucket(), blob.getName());
       return null;
     }
 
@@ -153,9 +181,9 @@ public class GcsToBqLoadRunnable implements Runnable {
    * Return a map of {@link TableId}s to a list of {@link Blob}s intended to be batch-loaded into
    * that table.
    *
-   * <p>Each blob list will not exceed the {@link #FILE_LOAD_LIMIT} in number of blobs or
-   * {@link #MAX_LOAD_SIZE_B} in total byte size. Blobs that are already claimed by an in-progress
-   * load job will also not be included.
+   * <p>Each blob list will not exceed the {@link #FILE_LOAD_LIMIT} in number of blobs or {@link
+   * #MAX_LOAD_SIZE_B} in total byte size. Blobs that are already claimed by an in-progress load job
+   * will also not be included.
    *
    * @return map from {@link TableId}s to {@link Blob}s.
    */
@@ -170,7 +198,8 @@ public class GcsToBqLoadRunnable implements Runnable {
     for (Blob blob : list.iterateAll()) {
       BlobId blobId = blob.getBlobId();
       TableId table = getTableFromBlob(blob);
-      logger.debug("Checking blob bucket={}, name={}, table={} ", blob.getBucket(), blob.getName(), table);
+      logger.debug(
+          "Checking blob bucket={}, name={}, table={} ", blob.getBucket(), blob.getName(), table);
 
       if (table == null || claimedBlobIds.contains(blobId) || deletableBlobIds.contains(blobId)) {
         // don't do anything if:
@@ -204,7 +233,7 @@ public class GcsToBqLoadRunnable implements Runnable {
    * with that table.
    *
    * @param tablesToBlobs a map of {@link TableId} to the list of {@link Blob}s to be loaded into
-   *                      that table.
+   *     that table.
    * @return a map from Jobs to the list of blobs being loaded in that job.
    */
   private Map<Job, List<Blob>> triggerBigQueryLoadJobs(Map<TableId, List<Blob>> tablesToBlobs) {
@@ -215,12 +244,12 @@ public class GcsToBqLoadRunnable implements Runnable {
     return newJobs;
   }
 
-  private Job triggerBigQueryLoadJob(TableId table, List<Blob> blobs) {
-    List<String> uris = blobs.stream()
-        .map(b -> String.format(SOURCE_URI_FORMAT,
-            bucket.getName(),
-            b.getName()))
-        .collect(Collectors.toList());
+  @VisibleForTesting
+  Job triggerBigQueryLoadJob(TableId table, List<Blob> blobs) {
+    List<String> uris =
+        blobs.stream()
+            .map(b -> String.format(SOURCE_URI_FORMAT, bucket.getName(), b.getName()))
+            .collect(Collectors.toList());
     // create job load configuration
     LoadJobConfiguration loadJobConfiguration =
         LoadJobConfiguration.newBuilder(table, uris)
@@ -228,20 +257,60 @@ public class GcsToBqLoadRunnable implements Runnable {
             .setCreateDisposition(JobInfo.CreateDisposition.CREATE_IF_NEEDED)
             .setWriteDisposition(JobInfo.WriteDisposition.WRITE_APPEND)
             .build();
-    // create and return the job.
-    Job job = bigQuery.create(JobInfo.of(loadJobConfiguration));
-    // update active jobs and claimed blobs.
     List<BlobId> blobIds = blobs.stream().map(Blob::getBlobId).collect(Collectors.toList());
+    String batchKey = blobBatchKey(blobIds);
+    int attempt = blobBatchAttempts.getOrDefault(batchKey, 0);
+    String jobId = stableJobId(blobIds, attempt);
+    // Submit with a deterministic job ID so that re-submission of the same blob batch after a
+    // task restart or a transient status-check failure returns 409 instead of running the load
+    // a second time. On 409 we retrieve the existing job and monitor it as usual.
+    Job job;
+    try {
+      job =
+          bigQuery.create(
+              JobInfo.newBuilder(loadJobConfiguration).setJobId(JobId.of(jobId)).build());
+    } catch (BigQueryException e) {
+      if (e.getCode() == 409) {
+        job = bigQuery.getJob(JobId.of(jobId));
+        logger.info("Load job {} already exists; will monitor its existing status.", jobId);
+      } else {
+        throw e;
+      }
+    }
+    // update active jobs and claimed blobs.
     activeJobs.put(job, blobIds);
     claimedBlobIds.addAll(blobIds);
     logger.info("Triggered load job for table {} with {} blobs.", table, blobs.size());
     return job;
   }
 
+  private String blobBatchKey(List<BlobId> blobIds) {
+    return blobIds.stream().map(BlobId::getName).sorted().collect(Collectors.joining(","));
+  }
+
+  private String stableJobId(List<BlobId> blobIds, int attempt) {
+    String input = blobBatchKey(blobIds) + ":attempt=" + attempt;
+    return "kcbq-" + sha256Hex(input);
+  }
+
+  private static String sha256Hex(String input) {
+    try {
+      MessageDigest md = MessageDigest.getInstance("SHA-256");
+      byte[] digest = md.digest(input.getBytes(StandardCharsets.UTF_8));
+      StringBuilder sb = new StringBuilder(digest.length * 2);
+      for (byte b : digest) {
+        sb.append(String.format("%02x", b & 0xff));
+      }
+      return sb.toString();
+    } catch (NoSuchAlgorithmException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
   /**
-   * Check all active jobs. Remove those that have completed successfully and log a message for
-   * any jobs that failed. We only log a message for failed jobs because those blobs will be
-   * retried during the next run.
+   * Check all active jobs. Remove those that have completed successfully and log a message for any
+   * jobs that failed. We only log a message for failed jobs because those blobs will be retried
+   * during the next run.
    */
   @VisibleForTesting
   void checkJobs() {
@@ -269,7 +338,9 @@ public class GcsToBqLoadRunnable implements Runnable {
             processSuccessfulJob(job, jobEntry.getValue());
             successCount++;
           } else {
-            processFailedJob(job, jobEntry.getValue());
+            // Genuinely failed: increment the attempt counter so the next submission uses a
+            // different job ID instead of hitting 409 for this already-failed job.
+            processFailedJob(job, jobEntry.getValue(), true);
             failureCount++;
           }
           jobIterator.remove();
@@ -278,13 +349,16 @@ public class GcsToBqLoadRunnable implements Runnable {
       } catch (BigQueryException ex) {
         // log a message.
         logger.warn("GCS to BQ load job failed", ex);
-        processFailedJob(job, jobEntry.getValue());
+        // Transient error — we don't know if the job actually succeeded. Don't increment the
+        // attempt counter: the next submission will use the same job ID, hit 409 if the job
+        // already exists, and retrieve its real status without running a second load.
+        processFailedJob(job, jobEntry.getValue(), false);
         failureCount++;
         jobIterator.remove();
         logger.trace("Job is removed from iterator: {}", job.getJobId());
       } finally {
-        logger.info("GCS To BQ job tally: {} successful jobs, {} failed jobs.",
-            successCount, failureCount);
+        logger.info(
+            "GCS To BQ job tally: {} successful jobs, {} failed jobs.", successCount, failureCount);
       }
     }
   }
@@ -294,24 +368,30 @@ public class GcsToBqLoadRunnable implements Runnable {
     logger.trace("Completed blobs have been removed from claimed set: {}", blobIdsToDelete);
     deletableBlobIds.addAll(blobIdsToDelete);
     logger.trace("Completed blobs marked as deletable: {}", blobIdsToDelete);
+    blobBatchAttempts.remove(blobBatchKey(blobIdsToDelete));
   }
 
-  private void processFailedJob(final Job job, final List<BlobId> blobsNotCompleted) {
+  private void processFailedJob(
+      final Job job, final List<BlobId> blobsNotCompleted, boolean incrementAttemptCounter) {
     logger.warn("Job {} failed with {}", job.getJobId(), job.getStatus().getError());
     if (job.getStatus().getExecutionErrors().isEmpty()) {
       logger.warn("No additional errors associated with job {}", job.getJobId());
     } else {
-      logger.warn("Additional errors associated with job {}: {}", job.getJobId(), job.getStatus().getExecutionErrors());
+      logger.warn(
+          "Additional errors associated with job {}: {}",
+          job.getJobId(),
+          job.getStatus().getExecutionErrors());
     }
     logger.warn("Blobs in job {}: {}", job.getJobId(), blobsNotCompleted);
+    if (incrementAttemptCounter) {
+      blobBatchAttempts.merge(blobBatchKey(blobsNotCompleted), 1, Integer::sum);
+    }
     // unclaim blobs
     blobsNotCompleted.forEach(claimedBlobIds::remove);
     logger.trace("Failed blobs reset as processable");
   }
 
-  /**
-   * Delete deletable blobs.
-   */
+  /** Delete deletable blobs. */
   private void deleteBlobs() {
     List<BlobId> blobIdsToDelete = new ArrayList<>();
     blobIdsToDelete.addAll(deletableBlobIds);
@@ -347,7 +427,8 @@ public class GcsToBqLoadRunnable implements Runnable {
       successfulDeletes = numberOfBlobs - failedDeletes;
       blobIdsToDelete.forEach(deletableBlobIds::remove);
 
-      logger.info("Successfully deleted {} blobs; failed to delete {} blobs",
+      logger.info(
+          "Successfully deleted {} blobs; failed to delete {} blobs",
           successfulDeletes,
           failedDeletes);
     } catch (StorageException ex) {
@@ -359,7 +440,8 @@ public class GcsToBqLoadRunnable implements Runnable {
   public void run() {
     logger.trace("Starting BQ load run");
     try {
-      logger.trace("Checking for finished job statuses. Moving uploaded blobs from claimed to deletable.");
+      logger.trace(
+          "Checking for finished job statuses. Moving uploaded blobs from claimed to deletable.");
       checkJobs();
       logger.trace("Deleting deletable blobs");
       deleteBlobs();

@@ -41,5 +41,4 @@ public class TestCaseLogger implements BeforeEachCallback, AfterEachCallback {
   public void afterEach(ExtensionContext extensionContext) throws Exception {
     logger.info("Finished test {}", extensionContext.getDisplayName());
   }
-
 }

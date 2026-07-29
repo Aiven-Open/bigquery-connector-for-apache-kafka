@@ -49,7 +49,7 @@ git log --format=' - %an'  ${commits} | sort -u  >> /tmp/proposed_changelog.txt;
 echo ' ' >> /tmp/proposed_changelog.txt;
 echo ' ' >> /tmp/proposed_changelog.txt;
 echo '### Full Changelog' >> /tmp/proposed_changelog.txt;
-echo 'https://github.com/Aiven-Open/salesforce-connector-for-apache-kafka/compare/'${startTag}'...v'${endVersion}  >> /tmp/proposed_changelog.txt;
+echo 'https://github.com/Aiven-Open/bigquery-connector-for-apache-kafka/compare/'${startTag}'...v'${endVersion}  >> /tmp/proposed_changelog.txt;
 echo ' ' >> /tmp/proposed_changelog.txt
 touch CHANGE_LOG.md
 cat /tmp/proposed_changelog.txt CHANGE_LOG.md >> /tmp/CHANGE_LOG.md
@@ -58,7 +58,7 @@ mv /tmp/CHANGE_LOG.md CHANGE_LOG.md
 git checkout -b changelog-${endVersion}
 
 git add CHANGE_LOG.md
-git commit -m "Changelog for ${startTag} to v${endVersion}"
+git commit -m "Update changelog for ${startTag} to v${endVersion}"
 git push --set-upstream origin changelog-${endVersion}
 
 mvn -P pre-release-check verify

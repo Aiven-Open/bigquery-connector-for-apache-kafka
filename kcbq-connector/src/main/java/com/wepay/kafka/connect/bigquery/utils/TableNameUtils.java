@@ -72,18 +72,18 @@ public class TableNameUtils {
       } else if (smtReplacement.length == 1) {
         tableName = smtReplacement[0];
       } else {
-        throw new ConnectException(String.format(
-            "Incorrect regex replacement format in topic name '%s'. "
-                + "SMT replacement should either produce the <dataset>:<tableName> format "
-                + "or just the <tableName> format.",
-            topic
-        ));
+        throw new ConnectException(
+            String.format(
+                "Incorrect regex replacement format in topic name '%s'. "
+                    + "SMT replacement should either produce the <dataset>:<tableName> format "
+                    + "or just the <tableName> format.",
+                topic));
       }
       if (config.getBoolean(BigQuerySinkConfig.SANITIZE_TOPICS_CONFIG)) {
         tableName = FieldNameSanitizer.sanitizeName(tableName);
       }
     }
 
-    return new String[]{dataset, tableName};
+    return new String[] {dataset, tableName};
   }
 }

@@ -23,10 +23,18 @@
 
 package com.wepay.kafka.connect.bigquery;
 
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
 import com.google.cloud.bigquery.*;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkTaskConfig;
 import com.wepay.kafka.connect.bigquery.write.batch.MergeBatches;
+import java.io.IOException;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import org.apache.kafka.common.record.TimestampType;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.errors.RetriableException;
@@ -36,230 +44,249 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
-import java.io.IOException;
-import java.time.LocalDate;
-import java.time.ZoneOffset;
-import java.time.format.DateTimeFormatter;
-
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-
 public class RecordTableResolverTest {
-    private static final String TOPIC = "topic";
-    private static final String DATASET = "dataset";
-    private static final String PROJECT = "project";
-    private static final TableId BASE_TABLE_ID = TableId.of("dataset", "topic");
-    private BigQuerySinkTaskConfig mockConfig;
-    private BigQuery mockBigQuery;
-    private MergeBatches mockMergeBatches;
-    private SinkRecord mockRecord;
-    private RecordTableResolver recordTableResolver;
+  private static final String TOPIC = "topic";
+  private static final String DATASET = "dataset";
+  private static final String PROJECT = "project";
+  private static final TableId BASE_TABLE_ID = TableId.of("dataset", "topic");
+  private BigQuerySinkTaskConfig mockConfig;
+  private BigQuery mockBigQuery;
+  private MergeBatches mockMergeBatches;
+  private SinkRecord mockRecord;
+  private RecordTableResolver recordTableResolver;
 
-    @BeforeEach
-    public void setUp() {
-        mockBigQuery = mock(BigQuery.class);
-        mockMergeBatches = mock(MergeBatches.class);
+  @BeforeEach
+  public void setUp() {
+    mockBigQuery = mock(BigQuery.class);
+    mockMergeBatches = mock(MergeBatches.class);
 
-        mockRecord = mock(SinkRecord.class);
-        when(mockRecord.topic()).thenReturn(TOPIC);
-        when(mockRecord.timestampType()).thenReturn(TimestampType.CREATE_TIME);
+    mockRecord = mock(SinkRecord.class);
+    when(mockRecord.topic()).thenReturn(TOPIC);
+    when(mockRecord.timestampType()).thenReturn(TimestampType.CREATE_TIME);
 
-        mockConfig = mock(BigQuerySinkTaskConfig.class);
-        when(mockConfig.getString(BigQuerySinkConfig.PROJECT_CONFIG)).thenReturn(PROJECT);
-        when(mockConfig.getString(BigQuerySinkConfig.TOPICS_CONFIG)).thenReturn(TOPIC);
-        when(mockConfig.getString(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG)).thenReturn(DATASET);
-        when(mockConfig.getBoolean(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG)).thenReturn(false);
-        when(mockConfig.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(false);
-        when(mockConfig.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(false);
-        when(mockConfig.getBoolean(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG)).thenReturn(false);
-        when(mockConfig.getBoolean(BigQuerySinkConfig.BIGQUERY_MESSAGE_TIME_PARTITIONING_CONFIG)).thenReturn(false);
-    }
+    mockConfig = mock(BigQuerySinkTaskConfig.class);
+    when(mockConfig.getString(BigQuerySinkConfig.PROJECT_CONFIG)).thenReturn(PROJECT);
+    when(mockConfig.getString(BigQuerySinkConfig.TOPICS_CONFIG)).thenReturn(TOPIC);
+    when(mockConfig.getString(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG)).thenReturn(DATASET);
+    when(mockConfig.getBoolean(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG)).thenReturn(false);
+    when(mockConfig.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(false);
+    when(mockConfig.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(false);
+    when(mockConfig.getBoolean(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG))
+        .thenReturn(false);
+    when(mockConfig.getBoolean(BigQuerySinkConfig.BIGQUERY_MESSAGE_TIME_PARTITIONING_CONFIG))
+        .thenReturn(false);
+  }
 
-    @Test
-    public void testGetRecordTable() {
-        recordTableResolver = new RecordTableResolver(mockConfig, mockMergeBatches, mockBigQuery, false, false, false);
-        TableId tableId = recordTableResolver.getRecordTable(mockRecord).getFullTableId();
+  @Test
+  public void testGetRecordTable() {
+    recordTableResolver =
+        new RecordTableResolver(mockConfig, mockMergeBatches, mockBigQuery, false, false, false);
+    TableId tableId = recordTableResolver.getRecordTable(mockRecord).getFullTableId();
 
-        assertEquals(TOPIC, tableId.getTable());
-    }
+    assertEquals(TOPIC, tableId.getTable());
+  }
 
-    @Test
-    public void testGetRecordTableUsesCredentialsProject() {
-        when(mockConfig.getBoolean(BigQuerySinkConfig.USE_CREDENTIALS_PROJECT_ID_CONFIG)).thenReturn(true);
+  @Test
+  public void testGetRecordTableUsesCredentialsProject() {
+    when(mockConfig.getBoolean(BigQuerySinkConfig.USE_CREDENTIALS_PROJECT_ID_CONFIG))
+        .thenReturn(true);
 
-        recordTableResolver = new RecordTableResolver(mockConfig, mockMergeBatches, mockBigQuery, false, false, false);
-        TableId tableId = recordTableResolver.getRecordTable(mockRecord).getFullTableId();
+    recordTableResolver =
+        new RecordTableResolver(mockConfig, mockMergeBatches, mockBigQuery, false, false, false);
+    TableId tableId = recordTableResolver.getRecordTable(mockRecord).getFullTableId();
 
-        assertEquals(PROJECT, tableId.getProject());
-    }
+    assertEquals(PROJECT, tableId.getProject());
+  }
 
-    @Test
-    public void testGetRecordTableUsesConfiguredProject() {
-        when(mockConfig.getBoolean(BigQuerySinkConfig.USE_CREDENTIALS_PROJECT_ID_CONFIG)).thenReturn(false);
+  @Test
+  public void testGetRecordTableUsesConfiguredProject() {
+    when(mockConfig.getBoolean(BigQuerySinkConfig.USE_CREDENTIALS_PROJECT_ID_CONFIG))
+        .thenReturn(false);
 
-        recordTableResolver = new RecordTableResolver(mockConfig, mockMergeBatches, mockBigQuery, false, false, false);
-        TableId tableId = recordTableResolver.getRecordTable(mockRecord).getFullTableId();
+    recordTableResolver =
+        new RecordTableResolver(mockConfig, mockMergeBatches, mockBigQuery, false, false, false);
+    TableId tableId = recordTableResolver.getRecordTable(mockRecord).getFullTableId();
 
-        assertNull(tableId.getProject());
-    }
+    assertNull(tableId.getProject());
+  }
 
-    @Test
-    public void testStorageApiAlwaysUsesConfiguredProject() {
-        when(mockConfig.getBoolean(BigQuerySinkConfig.USE_CREDENTIALS_PROJECT_ID_CONFIG)).thenReturn(false);
+  @Test
+  public void testStorageApiAlwaysUsesConfiguredProject() {
+    when(mockConfig.getBoolean(BigQuerySinkConfig.USE_CREDENTIALS_PROJECT_ID_CONFIG))
+        .thenReturn(false);
 
-        recordTableResolver = new RecordTableResolver(mockConfig, mockMergeBatches, mockBigQuery, false, false,  true);
-        TableId tableId = recordTableResolver.getRecordTable(mockRecord).getFullTableId();
+    recordTableResolver =
+        new RecordTableResolver(mockConfig, mockMergeBatches, mockBigQuery, false, false, true);
+    TableId tableId = recordTableResolver.getRecordTable(mockRecord).getFullTableId();
 
-        assertEquals(PROJECT, tableId.getProject());
-    }
+    assertEquals(PROJECT, tableId.getProject());
+  }
 
-    @Test
-    public void testUpsertDeleteResolvesIntermediateTable() {
-        when(mockConfig.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+  @Test
+  public void testUpsertDeleteResolvesIntermediateTable() {
+    when(mockConfig.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
 
-        String intermediateTable = "intermediate_topic";
-        TableId intermediateTableId = TableId.of(DATASET, intermediateTable);
-        when(mockMergeBatches.intermediateTableFor(BASE_TABLE_ID)).thenReturn(intermediateTableId);
+    String intermediateTable = "intermediate_topic";
+    TableId intermediateTableId = TableId.of(DATASET, intermediateTable);
+    when(mockMergeBatches.intermediateTableFor(BASE_TABLE_ID)).thenReturn(intermediateTableId);
 
-        recordTableResolver = new RecordTableResolver(mockConfig, mockMergeBatches, mockBigQuery, true, false, false);
-        TableId tableId = recordTableResolver.getRecordTable(mockRecord).getFullTableId();
+    recordTableResolver =
+        new RecordTableResolver(mockConfig, mockMergeBatches, mockBigQuery, true, false, false);
+    TableId tableId = recordTableResolver.getRecordTable(mockRecord).getFullTableId();
 
-        assertEquals(intermediateTable, tableId.getTable());
-    }
+    assertEquals(intermediateTable, tableId.getTable());
+  }
 
-    @Test
-    public void testPartitionDecoratorIgnoredWhenBatchModeEnabled() {
-        when(mockConfig.getBoolean(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG)).thenReturn(true);
-        when(mockConfig.getBoolean(BigQuerySinkConfig.ENABLE_BATCH_MODE_CONFIG)).thenReturn(true);
-        when(mockConfig.getBoolean(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG)).thenReturn(true);
+  @Test
+  public void testPartitionDecoratorIgnoredWhenBatchModeEnabled() {
+    when(mockConfig.getBoolean(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG))
+        .thenReturn(true);
+    when(mockConfig.getBoolean(BigQuerySinkConfig.ENABLE_BATCH_MODE_CONFIG)).thenReturn(true);
+    when(mockConfig.getBoolean(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG)).thenReturn(true);
 
-        mockTableWithPartitioning(null);
+    mockTableWithPartitioning(null);
 
-        recordTableResolver = new RecordTableResolver(mockConfig, mockMergeBatches, mockBigQuery, false, true, false);
-        TableId tableId = recordTableResolver.getRecordTable(mockRecord).getFullTableId();
-        assertEquals(TOPIC, tableId.getTable());
-    }
+    recordTableResolver =
+        new RecordTableResolver(mockConfig, mockMergeBatches, mockBigQuery, false, true, false);
+    TableId tableId = recordTableResolver.getRecordTable(mockRecord).getFullTableId();
+    assertEquals(TOPIC, tableId.getTable());
+  }
 
-    @Test
-    public void testPartitioningOnNowTime() {
-        String expectedTableName = TOPIC + "$" + LocalDate.now(ZoneOffset.UTC).format(DateTimeFormatter.BASIC_ISO_DATE);
+  @Test
+  public void testPartitioningOnNowTime() {
+    String expectedTableName =
+        TOPIC + "$" + LocalDate.now(ZoneOffset.UTC).format(DateTimeFormatter.BASIC_ISO_DATE);
 
-        when(mockConfig.getBoolean(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG)).thenReturn(true);
-        mockTableWithPartitioning(TimePartitioning.of(TimePartitioning.Type.DAY));
+    when(mockConfig.getBoolean(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG))
+        .thenReturn(true);
+    mockTableWithPartitioning(TimePartitioning.of(TimePartitioning.Type.DAY));
 
-        recordTableResolver = new RecordTableResolver(mockConfig, mockMergeBatches, mockBigQuery, false, false, false);
-        TableId tableId = recordTableResolver.getRecordTable(mockRecord).getFullTableId();
+    recordTableResolver =
+        new RecordTableResolver(mockConfig, mockMergeBatches, mockBigQuery, false, false, false);
+    TableId tableId = recordTableResolver.getRecordTable(mockRecord).getFullTableId();
 
-        assertEquals(expectedTableName, tableId.getTable());
-    }
+    assertEquals(expectedTableName, tableId.getTable());
+  }
 
-    @Test
-    public void testPartitioningOnMessageTime() {
-        when(mockConfig.getBoolean(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG)).thenReturn(true);
-        when(mockConfig.getBoolean(BigQuerySinkConfig.BIGQUERY_MESSAGE_TIME_PARTITIONING_CONFIG)).thenReturn(true);
-        when(mockRecord.timestamp()).thenReturn(1720000000000L);
-        mockTableWithPartitioning(TimePartitioning.of(TimePartitioning.Type.DAY));
+  @Test
+  public void testPartitioningOnMessageTime() {
+    when(mockConfig.getBoolean(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG))
+        .thenReturn(true);
+    when(mockConfig.getBoolean(BigQuerySinkConfig.BIGQUERY_MESSAGE_TIME_PARTITIONING_CONFIG))
+        .thenReturn(true);
+    when(mockRecord.timestamp()).thenReturn(1720000000000L);
+    mockTableWithPartitioning(TimePartitioning.of(TimePartitioning.Type.DAY));
 
-        recordTableResolver = new RecordTableResolver(mockConfig, mockMergeBatches, mockBigQuery, false, false, false);
-        TableId tableId = recordTableResolver.getRecordTable(mockRecord).getFullTableId();
+    recordTableResolver =
+        new RecordTableResolver(mockConfig, mockMergeBatches, mockBigQuery, false, false, false);
+    TableId tableId = recordTableResolver.getRecordTable(mockRecord).getFullTableId();
 
-        assertEquals("topic$20240703", tableId.getTable());
-    }
+    assertEquals("topic$20240703", tableId.getTable());
+  }
 
-    // tables should resolve successfully if BigQuery table is missing,
-    // table creation will be later handled via Schema Manager if autoCreate tables is enabled
-    @Test
-    public void testPartitioningWhenTableIsMissing() {
-        when(mockConfig.getBoolean(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG)).thenReturn(true);
-        when(mockBigQuery.getTable(BASE_TABLE_ID)).thenReturn(null);
+  // tables should resolve successfully if BigQuery table is missing,
+  // table creation will be later handled via Schema Manager if autoCreate tables is enabled
+  @Test
+  public void testPartitioningWhenTableIsMissing() {
+    when(mockConfig.getBoolean(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG))
+        .thenReturn(true);
+    when(mockBigQuery.getTable(BASE_TABLE_ID)).thenReturn(null);
 
-        recordTableResolver = new RecordTableResolver(mockConfig, mockMergeBatches, mockBigQuery, false, false, false);
-        String expectedSuffix = LocalDate.now(ZoneOffset.UTC).format(DateTimeFormatter.BASIC_ISO_DATE);
-        TableId tableId = recordTableResolver.getRecordTable(mockRecord).getFullTableId();
+    recordTableResolver =
+        new RecordTableResolver(mockConfig, mockMergeBatches, mockBigQuery, false, false, false);
+    String expectedSuffix = LocalDate.now(ZoneOffset.UTC).format(DateTimeFormatter.BASIC_ISO_DATE);
+    TableId tableId = recordTableResolver.getRecordTable(mockRecord).getFullTableId();
 
-        assertEquals("topic$" + expectedSuffix, tableId.getTable());
-    }
+    assertEquals("topic$" + expectedSuffix, tableId.getTable());
+  }
 
-    @Test
-    public void testPartitioningOnMessageTimeMissingTimestampType() {
-        when(mockConfig.getBoolean(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG)).thenReturn(true);
-        when(mockConfig.getBoolean(BigQuerySinkConfig.BIGQUERY_MESSAGE_TIME_PARTITIONING_CONFIG)).thenReturn(true);
-        when(mockRecord.timestampType()).thenReturn(TimestampType.NO_TIMESTAMP_TYPE);
-        mockTableWithPartitioning(TimePartitioning.of(TimePartitioning.Type.DAY));
+  @Test
+  public void testPartitioningOnMessageTimeMissingTimestampType() {
+    when(mockConfig.getBoolean(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG))
+        .thenReturn(true);
+    when(mockConfig.getBoolean(BigQuerySinkConfig.BIGQUERY_MESSAGE_TIME_PARTITIONING_CONFIG))
+        .thenReturn(true);
+    when(mockRecord.timestampType()).thenReturn(TimestampType.NO_TIMESTAMP_TYPE);
+    mockTableWithPartitioning(TimePartitioning.of(TimePartitioning.Type.DAY));
 
-        recordTableResolver = new RecordTableResolver(mockConfig, mockMergeBatches, mockBigQuery, false, false, false);
+    recordTableResolver =
+        new RecordTableResolver(mockConfig, mockMergeBatches, mockBigQuery, false, false, false);
 
+    assertThrows(ConnectException.class, () -> recordTableResolver.getRecordTable(mockRecord));
+  }
+
+  @Test
+  public void testPartitioningWhenTableIsNotPartitioned() {
+    when(mockConfig.getBoolean(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG))
+        .thenReturn(true);
+    mockTableWithPartitioning(null);
+
+    recordTableResolver =
+        new RecordTableResolver(mockConfig, mockMergeBatches, mockBigQuery, false, false, false);
+
+    ConnectException exception =
         assertThrows(ConnectException.class, () -> recordTableResolver.getRecordTable(mockRecord));
-    }
+    assertTrue(
+        exception.getMessage().contains("not partitioned"),
+        "Expected error message to indicate table being not partitioned");
+  }
 
-    @Test
-    public void testPartitioningWhenTableIsNotPartitioned() {
-        when(mockConfig.getBoolean(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG)).thenReturn(true);
-        mockTableWithPartitioning(null);
+  @ParameterizedTest
+  @EnumSource(
+      value = TimePartitioning.Type.class,
+      names = {"HOUR", "MONTH", "YEAR"},
+      mode = EnumSource.Mode.INCLUDE)
+  public void testPartitioningWhenTablePartitionedNotByDay(TimePartitioning.Type invalidType) {
+    when(mockConfig.getBoolean(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG))
+        .thenReturn(true);
+    mockTableWithPartitioning(TimePartitioning.of(invalidType));
 
-        recordTableResolver = new RecordTableResolver(mockConfig, mockMergeBatches, mockBigQuery, false, false, false);
+    recordTableResolver =
+        new RecordTableResolver(mockConfig, mockMergeBatches, mockBigQuery, false, false, false);
 
-        ConnectException exception = assertThrows(
-                ConnectException.class,
-                () -> recordTableResolver.getRecordTable(mockRecord)
-        );
-        assertTrue(exception.getMessage().contains("not partitioned"),
-                "Expected error message to indicate table being not partitioned");
-    }
+    ConnectException exception =
+        assertThrows(ConnectException.class, () -> recordTableResolver.getRecordTable(mockRecord));
+    assertTrue(
+        exception
+            .getMessage()
+            .contains("partitioned by " + invalidType.name().toLowerCase() + " and not by day"),
+        "Expected error message to indicate partitioning mismatch for " + invalidType);
+  }
 
-    @ParameterizedTest
-    @EnumSource(
-            value = TimePartitioning.Type.class,
-            names = {"HOUR", "MONTH", "YEAR"},
-            mode = EnumSource.Mode.INCLUDE
-    )
-    public void testPartitioningWhenTablePartitionedNotByDay(TimePartitioning.Type invalidType) {
-        when(mockConfig.getBoolean(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG)).thenReturn(true);
-        mockTableWithPartitioning(TimePartitioning.of(invalidType));
+  @Test
+  public void testPartitioningBigQueryAuthenticationException() {
+    when(mockConfig.getBoolean(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG))
+        .thenReturn(true);
 
-        recordTableResolver = new RecordTableResolver(mockConfig, mockMergeBatches, mockBigQuery, false, false, false);
+    BigQueryException authException = new BigQueryException(401, "Unauthorized");
+    when(mockBigQuery.getTable(BASE_TABLE_ID)).thenThrow(authException);
 
-        ConnectException exception = assertThrows(
-                ConnectException.class,
-                () -> recordTableResolver.getRecordTable(mockRecord)
-        );
-        assertTrue(
-                exception.getMessage().contains("partitioned by " + invalidType.name().toLowerCase() + " and not by day"),
-                "Expected error message to indicate partitioning mismatch for " + invalidType
-        );
-    }
+    recordTableResolver =
+        new RecordTableResolver(mockConfig, mockMergeBatches, mockBigQuery, false, false, false);
 
-    @Test
-    public void testPartitioningBigQueryAuthenticationException() {
-        when(mockConfig.getBoolean(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG)).thenReturn(true);
+    assertThrows(BigQueryException.class, () -> recordTableResolver.getRecordTable(mockRecord));
+  }
 
-        BigQueryException authException = new BigQueryException(401, "Unauthorized");
-        when(mockBigQuery.getTable(BASE_TABLE_ID)).thenThrow(authException);
+  @Test
+  public void testPartitioningBigQueryIoException() {
+    when(mockConfig.getBoolean(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG))
+        .thenReturn(true);
 
-        recordTableResolver = new RecordTableResolver(mockConfig, mockMergeBatches, mockBigQuery, false, false, false);
+    IOException ioCause = new IOException("Simulated IO error");
+    BigQueryException ioException = new BigQueryException(0, "wrapped IO error", ioCause);
+    when(mockBigQuery.getTable(BASE_TABLE_ID)).thenThrow(ioException);
 
-        assertThrows(BigQueryException.class, () -> recordTableResolver.getRecordTable(mockRecord));
-    }
+    recordTableResolver =
+        new RecordTableResolver(mockConfig, mockMergeBatches, mockBigQuery, false, false, false);
 
-    @Test
-    public void testPartitioningBigQueryIoException() {
-        when(mockConfig.getBoolean(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG)).thenReturn(true);
+    assertThrows(RetriableException.class, () -> recordTableResolver.getRecordTable(mockRecord));
+  }
 
-        IOException ioCause = new IOException("Simulated IO error");
-        BigQueryException ioException = new BigQueryException(0, "wrapped IO error", ioCause);
-        when(mockBigQuery.getTable(BASE_TABLE_ID)).thenThrow(ioException);
-
-        recordTableResolver = new RecordTableResolver(mockConfig, mockMergeBatches, mockBigQuery, false, false, false);
-
-        assertThrows(RetriableException.class, () -> recordTableResolver.getRecordTable(mockRecord));
-    }
-
-    private void mockTableWithPartitioning(TimePartitioning timePartitioning) {
-        Table table = mock(Table.class);
-        StandardTableDefinition tableDefinition = mock(StandardTableDefinition.class);
-        when(table.getDefinition()).thenReturn(tableDefinition);
-        when(tableDefinition.getTimePartitioning()).thenReturn(timePartitioning);
-        when(mockBigQuery.getTable(BASE_TABLE_ID)).thenReturn(table);
-    }
+  private void mockTableWithPartitioning(TimePartitioning timePartitioning) {
+    Table table = mock(Table.class);
+    StandardTableDefinition tableDefinition = mock(StandardTableDefinition.class);
+    when(table.getDefinition()).thenReturn(tableDefinition);
+    when(tableDefinition.getTimePartitioning()).thenReturn(timePartitioning);
+    when(mockBigQuery.getTable(BASE_TABLE_ID)).thenReturn(table);
+  }
 }
