@@ -44,7 +44,6 @@ import com.google.cloud.bigquery.TableId;
 import com.google.cloud.bigquery.TableInfo;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryErrorResponses;
 import com.wepay.kafka.connect.bigquery.integration.utils.TableClearer;
-import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -84,7 +83,7 @@ public class BigQueryErrorResponsesIT extends BaseConnectorIT {
                         table, RowToInsert.of(Collections.singletonMap("f1", "v1")))),
             "Should have failed to write to nonexistent table");
 
-    logger.debug("Nonexistent table write error:" + e.getMessage());
+    logger.debug("Nonexistent table write error: {}", e.getMessage());
     assertTrue(BigQueryErrorResponses.isNonExistentTableError(e));
   }
 
@@ -101,7 +100,7 @@ public class BigQueryErrorResponsesIT extends BaseConnectorIT {
     // Make sure that it exists...
     TestUtils.waitForCondition(
         () -> bigQuery.getTable(table) != null,
-        Duration.ofMinutes(1).toMillis(),
+        ONE_MINUTE,
         "Table does not appear to exist one minute after issuing create request");
     logger.info("Created {} successfully", table(table));
 
@@ -123,8 +122,12 @@ public class BigQueryErrorResponsesIT extends BaseConnectorIT {
                 InsertAllRequest.of(table, RowToInsert.of(Collections.singletonMap("f1", "v1"))));
             return false;
           } catch (BigQueryException e) {
-            logger.debug("Deleted table write error: " + e.getMessage());
-            return BigQueryErrorResponses.isNonExistentTableError(e);
+            if (BigQueryErrorResponses.isNonExistentTableError(e)) {
+              logger.debug("Deleted table write error: {}", e.getMessage());
+              return true;
+            }
+            logger.info("Unexpected error: {}", e.getMessage(), e);
+            return false;
           }
         },
         ONE_MINUTE,
