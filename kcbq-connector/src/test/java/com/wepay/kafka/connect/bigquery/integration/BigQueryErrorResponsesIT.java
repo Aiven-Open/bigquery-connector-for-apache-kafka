@@ -44,6 +44,7 @@ import com.google.cloud.bigquery.TableId;
 import com.google.cloud.bigquery.TableInfo;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryErrorResponses;
 import com.wepay.kafka.connect.bigquery.integration.utils.TableClearer;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -83,7 +84,7 @@ public class BigQueryErrorResponsesIT extends BaseConnectorIT {
                         table, RowToInsert.of(Collections.singletonMap("f1", "v1")))),
             "Should have failed to write to nonexistent table");
 
-    logger.debug("Nonexistent table write error", e);
+    logger.debug("Nonexistent table write error:" + e.getMessage());
     assertTrue(BigQueryErrorResponses.isNonExistentTableError(e));
   }
 
@@ -100,7 +101,7 @@ public class BigQueryErrorResponsesIT extends BaseConnectorIT {
     // Make sure that it exists...
     TestUtils.waitForCondition(
         () -> bigQuery.getTable(table) != null,
-        60_000L,
+        Duration.ofMinutes(1).toMillis(),
         "Table does not appear to exist one minute after issuing create request");
     logger.info("Created {} successfully", table(table));
 
@@ -110,7 +111,7 @@ public class BigQueryErrorResponsesIT extends BaseConnectorIT {
     // Make sure that it's deleted
     TestUtils.waitForCondition(
         () -> bigQuery.getTable(table) == null,
-        60_000L,
+        ONE_MINUTE,
         "Table still appears to exist  one minute after issuing delete request");
     logger.info("Deleted {} successfully", table(table));
 
@@ -122,16 +123,17 @@ public class BigQueryErrorResponsesIT extends BaseConnectorIT {
                 InsertAllRequest.of(table, RowToInsert.of(Collections.singletonMap("f1", "v1"))));
             return false;
           } catch (BigQueryException e) {
-            logger.debug("Deleted table write error", e);
+            logger.debug("Deleted table write error: " + e.getMessage());
             return BigQueryErrorResponses.isNonExistentTableError(e);
           }
         },
-        60_000L,
+        ONE_MINUTE,
         "Never failed to write to just-deleted table");
 
     // Recreate it...
     bigQuery.create(TableInfo.newBuilder(table, StandardTableDefinition.of(schema)).build());
 
+    // this one takes time so only check every second.
     TestUtils.waitForCondition(
         () -> {
           // Try to write to it...
@@ -140,12 +142,13 @@ public class BigQueryErrorResponsesIT extends BaseConnectorIT {
                 InsertAllRequest.of(table, RowToInsert.of(Collections.singletonMap("f1", "v1"))));
             return true;
           } catch (BigQueryException e) {
-            logger.debug("Recreated table write error", e);
+            logger.debug("Recreated table write error: {}", e.getMessage());
             return false;
           }
         },
-        60_000L,
-        "Never succeeded to write to just-recreated table");
+        ONE_MINUTE,
+        ONE_SECOND,
+        () -> "Never succeeded to write to just-recreated table");
   }
 
   @Test

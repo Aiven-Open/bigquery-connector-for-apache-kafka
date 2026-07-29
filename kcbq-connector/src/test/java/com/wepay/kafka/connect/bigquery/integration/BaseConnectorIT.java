@@ -100,6 +100,8 @@ public abstract class BaseConnectorIT {
   private static final String GCS_BUCKET_ENV_VAR = "KCBQ_TEST_BUCKET";
   private static final String GCS_FOLDER_ENV_VAR = "KCBQ_TEST_FOLDER";
   private static final String TEST_NAMESPACE_ENV_VAR = "KCBQ_TEST_TABLE_SUFFIX";
+  protected static final long ONE_MINUTE = 60_000L;
+  protected static final long ONE_SECOND = 1_000L;
 
   protected EmbeddedConnectCluster connect;
   private Admin kafkaAdminClient;
