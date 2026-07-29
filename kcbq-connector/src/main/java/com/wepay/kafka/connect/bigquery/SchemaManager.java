@@ -49,6 +49,7 @@ import com.wepay.kafka.connect.bigquery.utils.FieldNameSanitizer;
 import com.wepay.kafka.connect.bigquery.utils.TableNameUtils;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -475,8 +476,7 @@ public class SchemaManager {
    * @param records The sink records' schemas to add to the list of schemas
    * @return List of BigQuery schemas
    */
-  private List<SchemaAndPrimaryKeyColumns> getSchemasList(
-      TableId table, List<SinkRecord> records) {
+  private List<SchemaAndPrimaryKeyColumns> getSchemasList(TableId table, List<SinkRecord> records) {
     List<SchemaAndPrimaryKeyColumns> bigQuerySchemas = new ArrayList<>();
     Optional.ofNullable(readTableSchema(table)).ifPresent(bigQuerySchemas::add);
     for (SinkRecord record : records) {
@@ -526,8 +526,7 @@ public class SchemaManager {
    * @param schemas The list of BigQuery schemas to unionize
    * @return The resulting unionized BigQuery schema
    */
-  private SchemaAndPrimaryKeyColumns getUnionizedSchema(
-      List<SchemaAndPrimaryKeyColumns> schemas) {
+  private SchemaAndPrimaryKeyColumns getUnionizedSchema(List<SchemaAndPrimaryKeyColumns> schemas) {
     com.google.cloud.bigquery.Schema currentSchema = schemas.get(0).schema();
     com.google.cloud.bigquery.Schema proposedSchema;
     for (int i = 1; i < schemas.size(); i++) {
@@ -816,10 +815,9 @@ public class SchemaManager {
       Schema kafkaKeySchema, Schema kafkaValueSchema) {
     com.google.cloud.bigquery.Schema valueSchema = schemaConverter.convertSchema(kafkaValueSchema);
 
-    return
-        intermediateTables
-            ? getIntermediateSchema(valueSchema, kafkaKeySchema)
-            : getRegularSchema(valueSchema, kafkaKeySchema);
+    return intermediateTables
+        ? getIntermediateSchema(valueSchema, kafkaKeySchema)
+        : getRegularSchema(valueSchema, kafkaKeySchema);
   }
 
   private SchemaAndPrimaryKeyColumns getIntermediateSchema(

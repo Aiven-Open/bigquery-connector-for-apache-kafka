@@ -230,7 +230,7 @@ public class BigQuerySinkTask extends SinkTask {
           if (useStorageApi) {
             StorageWriteApiWriter.Builder storageWriterBuilder =
                 new StorageWriteApiWriter.Builder(
-                    storageApiWriter, table, recordConverter, config, batchHandler);
+                    storageApiWriter, table, recordConverter, batchHandler);
             if (trackPutAttempts) {
               storageWriterBuilder.withUlidSupplier(() -> ULID_GENERATOR.nextULID());
             }

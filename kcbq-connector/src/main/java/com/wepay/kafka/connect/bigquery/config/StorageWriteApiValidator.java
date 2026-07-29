@@ -36,7 +36,7 @@ import java.util.Optional;
 public class StorageWriteApiValidator extends MultiPropertyValidator<BigQuerySinkConfig> {
 
   public static final String legacyBatchNotSupportedError =
-          "Legacy Batch mode is not supported with Storage Write API."
+      "Legacy Batch mode is not supported with Storage Write API."
           + " Either disable Legacy Batch mode or disable Storage Write API";
   public static final String newBatchNotSupportedError =
       "Storage Write Api Batch load is supported only when useStorageWriteApi is "
