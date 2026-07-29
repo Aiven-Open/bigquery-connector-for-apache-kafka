@@ -267,15 +267,15 @@ public class BigQuerySinkTaskTest {
     properties.put(BigQuerySinkConfig.TOPICS_CONFIG, "test-topic");
     properties.put(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG, "scratch");
 
-    BigQuerySinkTask testTask = createTestTask(
-        mock(BigQuery.class),
-        mock(SchemaRetriever.class),
-        mock(Storage.class),
-        mock(SchemaManager.class),
-        mockedStorageWriteApiDefaultStream,
-        mockedBatchHandler,
-        time
-    );
+    BigQuerySinkTask testTask =
+        createTestTask(
+            mock(BigQuery.class),
+            mock(SchemaRetriever.class),
+            mock(Storage.class),
+            mock(SchemaManager.class),
+            mockedStorageWriteApiDefaultStream,
+            mockedBatchHandler,
+            time);
 
     testTask.start(properties);
 
@@ -289,15 +289,15 @@ public class BigQuerySinkTaskTest {
     properties.put(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG, "scratch");
     properties.put(BigQuerySinkConfig.USE_AVRO_TEMPORAL_LOGICAL_TYPES_CONFIG, "true");
 
-    BigQuerySinkTask testTask = createTestTask(
-        mock(BigQuery.class),
-        mock(SchemaRetriever.class),
-        mock(Storage.class),
-        mock(SchemaManager.class),
-        mockedStorageWriteApiDefaultStream,
-        mockedBatchHandler,
-        time
-    );
+    BigQuerySinkTask testTask =
+        createTestTask(
+            mock(BigQuery.class),
+            mock(SchemaRetriever.class),
+            mock(Storage.class),
+            mock(SchemaManager.class),
+            mockedStorageWriteApiDefaultStream,
+            mockedBatchHandler,
+            time);
 
     testTask.start(properties);
 

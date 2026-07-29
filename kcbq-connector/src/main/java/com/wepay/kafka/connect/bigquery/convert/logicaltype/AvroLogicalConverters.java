@@ -29,8 +29,8 @@ import java.util.Date;
 import org.apache.kafka.connect.data.Schema;
 
 /**
- * Class containing converters for Avro logical time types that are passed through as named
- * INT64 schemas by the Confluent schema registry AvroData converter.
+ * Class containing converters for Avro logical time types that are passed through as named INT64
+ * schemas by the Confluent schema registry AvroData converter.
  */
 public class AvroLogicalConverters {
 
@@ -46,11 +46,16 @@ public class AvroLogicalConverters {
   private static final long NANOS_IN_MICRO = 1000L;
 
   public static void initialize() {
-    LogicalConverterRegistry.registerIfAbsent(AVRO_LOGICAL_TIMESTAMP_MICROS, new TimestampMicrosConverter());
-    LogicalConverterRegistry.registerIfAbsent(AVRO_LOGICAL_TIMESTAMP_NANOS, new TimestampNanosConverter());
-    LogicalConverterRegistry.registerIfAbsent(AVRO_LOGICAL_LOCAL_TIMESTAMP_MILLIS, new LocalTimestampMillisConverter());
-    LogicalConverterRegistry.registerIfAbsent(AVRO_LOGICAL_LOCAL_TIMESTAMP_MICROS, new LocalTimestampMicrosConverter());
-    LogicalConverterRegistry.registerIfAbsent(AVRO_LOGICAL_LOCAL_TIMESTAMP_NANOS, new LocalTimestampNanosConverter());
+    LogicalConverterRegistry.registerIfAbsent(
+        AVRO_LOGICAL_TIMESTAMP_MICROS, new TimestampMicrosConverter());
+    LogicalConverterRegistry.registerIfAbsent(
+        AVRO_LOGICAL_TIMESTAMP_NANOS, new TimestampNanosConverter());
+    LogicalConverterRegistry.registerIfAbsent(
+        AVRO_LOGICAL_LOCAL_TIMESTAMP_MILLIS, new LocalTimestampMillisConverter());
+    LogicalConverterRegistry.registerIfAbsent(
+        AVRO_LOGICAL_LOCAL_TIMESTAMP_MICROS, new LocalTimestampMicrosConverter());
+    LogicalConverterRegistry.registerIfAbsent(
+        AVRO_LOGICAL_LOCAL_TIMESTAMP_NANOS, new LocalTimestampNanosConverter());
     LogicalConverterRegistry.registerIfAbsent(AVRO_LOGICAL_TIME_MICROS, new TimeMicrosConverter());
   }
 
@@ -67,9 +72,7 @@ public class AvroLogicalConverters {
     // do not instantiate.
   }
 
-  /**
-   * Converts Avro timestamp-micros (INT64, microseconds since epoch) to BigQuery TIMESTAMP.
-   */
+  /** Converts Avro timestamp-micros (INT64, microseconds since epoch) to BigQuery TIMESTAMP. */
   public static class TimestampMicrosConverter extends LogicalTypeConverter {
     public TimestampMicrosConverter() {
       super(AVRO_LOGICAL_TIMESTAMP_MICROS, Schema.Type.INT64, LegacySQLTypeName.TIMESTAMP);
@@ -84,7 +87,8 @@ public class AvroLogicalConverters {
 
   /**
    * Converts Avro timestamp-nanos (INT64, nanoseconds since epoch) to BigQuery TIMESTAMP.
-   * Nanosecond precision is truncated to microseconds since BigQuery TIMESTAMP supports up to micros.
+   * Nanosecond precision is truncated to microseconds since BigQuery TIMESTAMP supports up to
+   * micros.
    */
   public static class TimestampNanosConverter extends LogicalTypeConverter {
     public TimestampNanosConverter() {
@@ -100,7 +104,8 @@ public class AvroLogicalConverters {
   }
 
   /**
-   * Converts Avro local-timestamp-millis (INT64, milliseconds since epoch, no timezone) to BigQuery DATETIME.
+   * Converts Avro local-timestamp-millis (INT64, milliseconds since epoch, no timezone) to BigQuery
+   * DATETIME.
    */
   public static class LocalTimestampMillisConverter extends LogicalTypeConverter {
     public LocalTimestampMillisConverter() {
@@ -118,7 +123,8 @@ public class AvroLogicalConverters {
   }
 
   /**
-   * Converts Avro local-timestamp-micros (INT64, microseconds since epoch, no timezone) to BigQuery DATETIME.
+   * Converts Avro local-timestamp-micros (INT64, microseconds since epoch, no timezone) to BigQuery
+   * DATETIME.
    */
   public static class LocalTimestampMicrosConverter extends LogicalTypeConverter {
     public LocalTimestampMicrosConverter() {
@@ -133,8 +139,9 @@ public class AvroLogicalConverters {
   }
 
   /**
-   * Converts Avro local-timestamp-nanos (INT64, nanoseconds since epoch, no timezone) to BigQuery DATETIME.
-   * Nanosecond precision is truncated to microseconds since BigQuery DATETIME supports up to micros.
+   * Converts Avro local-timestamp-nanos (INT64, nanoseconds since epoch, no timezone) to BigQuery
+   * DATETIME. Nanosecond precision is truncated to microseconds since BigQuery DATETIME supports up
+   * to micros.
    */
   public static class LocalTimestampNanosConverter extends LogicalTypeConverter {
     public LocalTimestampNanosConverter() {
@@ -149,9 +156,7 @@ public class AvroLogicalConverters {
     }
   }
 
-  /**
-   * Converts Avro time-micros (INT64, microseconds since midnight) to BigQuery TIME.
-   */
+  /** Converts Avro time-micros (INT64, microseconds since midnight) to BigQuery TIME. */
   public static class TimeMicrosConverter extends LogicalTypeConverter {
     public TimeMicrosConverter() {
       super(AVRO_LOGICAL_TIME_MICROS, Schema.Type.INT64, LegacySQLTypeName.TIME);

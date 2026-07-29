@@ -92,30 +92,36 @@ public class AvroLogicalTypesIT extends BaseConnectorIT {
     schemaRegistry = new SchemaRegistryTestUtils(connect.kafka().bootstrapServers());
     schemaRegistry.start();
 
-    keySchema = SchemaBuilder.struct()
-        .field("id", org.apache.kafka.connect.data.Schema.INT64_SCHEMA)
-        .build();
+    keySchema =
+        SchemaBuilder.struct()
+            .field("id", org.apache.kafka.connect.data.Schema.INT64_SCHEMA)
+            .build();
 
-    valueSchema = SchemaBuilder.struct()
-        .field("ts_micros", SchemaBuilder.int64().name("timestamp-micros").optional().build())
-        .field("ts_nanos", SchemaBuilder.int64().name("timestamp-nanos").optional().build())
-        .field("local_ts_millis", SchemaBuilder.int64().name("local-timestamp-millis").optional().build())
-        .field("local_ts_micros", SchemaBuilder.int64().name("local-timestamp-micros").optional().build())
-        .field("local_ts_nanos", SchemaBuilder.int64().name("local-timestamp-nanos").optional().build())
-        .field("time_micros", SchemaBuilder.int64().name("time-micros").optional().build())
-        .build();
+    valueSchema =
+        SchemaBuilder.struct()
+            .field("ts_micros", SchemaBuilder.int64().name("timestamp-micros").optional().build())
+            .field("ts_nanos", SchemaBuilder.int64().name("timestamp-nanos").optional().build())
+            .field(
+                "local_ts_millis",
+                SchemaBuilder.int64().name("local-timestamp-millis").optional().build())
+            .field(
+                "local_ts_micros",
+                SchemaBuilder.int64().name("local-timestamp-micros").optional().build())
+            .field(
+                "local_ts_nanos",
+                SchemaBuilder.int64().name("local-timestamp-nanos").optional().build())
+            .field("time_micros", SchemaBuilder.int64().name("time-micros").optional().build())
+            .build();
 
     keyConverter = new AvroConverter();
     keyConverter.configure(
         Collections.singletonMap(SCHEMA_REGISTRY_URL_CONFIG, schemaRegistry.schemaRegistryUrl()),
-        true
-    );
+        true);
 
     valueConverter = new AvroConverter();
     valueConverter.configure(
         Collections.singletonMap(SCHEMA_REGISTRY_URL_CONFIG, schemaRegistry.schemaRegistryUrl()),
-        false
-    );
+        false);
   }
 
   @AfterEach
@@ -173,13 +179,14 @@ public class AvroLogicalTypesIT extends BaseConnectorIT {
 
   private void produceRecord(String topic, long id) {
     Struct key = new Struct(keySchema).put("id", id);
-    Struct value = new Struct(valueSchema)
-        .put("ts_micros", TIMESTAMP_MICROS)
-        .put("ts_nanos", TIMESTAMP_NANOS)
-        .put("local_ts_millis", TIMESTAMP_MILLIS)
-        .put("local_ts_micros", TIMESTAMP_MICROS)
-        .put("local_ts_nanos", TIMESTAMP_NANOS)
-        .put("time_micros", TIME_MICROS);
+    Struct value =
+        new Struct(valueSchema)
+            .put("ts_micros", TIMESTAMP_MICROS)
+            .put("ts_nanos", TIMESTAMP_NANOS)
+            .put("local_ts_millis", TIMESTAMP_MILLIS)
+            .put("local_ts_micros", TIMESTAMP_MICROS)
+            .put("local_ts_nanos", TIMESTAMP_NANOS)
+            .put("time_micros", TIME_MICROS);
 
     List<List<SchemaAndValue>> records = new ArrayList<>();
     List<SchemaAndValue> record = new ArrayList<>();
@@ -202,8 +209,7 @@ public class AvroLogicalTypesIT extends BaseConnectorIT {
     assertEquals(
         expectedType,
         field.getType(),
-        "Field '" + fieldName + "' should be " + expectedType + " but was " + field.getType()
-    );
+        "Field '" + fieldName + "' should be " + expectedType + " but was " + field.getType());
   }
 
   private java.util.Map<String, String> connectorProps(String topic) {
@@ -213,10 +219,12 @@ public class AvroLogicalTypesIT extends BaseConnectorIT {
     props.put(BigQuerySinkConfig.TABLE_CREATE_CONFIG, "true");
     props.put(BigQuerySinkConfig.SCHEMA_RETRIEVER_CONFIG, IdentitySchemaRetriever.class.getName());
     props.put(KEY_CONVERTER_CLASS_CONFIG, AvroConverter.class.getName());
-    props.put(KEY_CONVERTER_CLASS_CONFIG + "." + SCHEMA_REGISTRY_URL_CONFIG,
+    props.put(
+        KEY_CONVERTER_CLASS_CONFIG + "." + SCHEMA_REGISTRY_URL_CONFIG,
         schemaRegistry.schemaRegistryUrl());
     props.put(VALUE_CONVERTER_CLASS_CONFIG, AvroConverter.class.getName());
-    props.put(ConnectorConfig.VALUE_CONVERTER_CLASS_CONFIG + "." + SCHEMA_REGISTRY_URL_CONFIG,
+    props.put(
+        ConnectorConfig.VALUE_CONVERTER_CLASS_CONFIG + "." + SCHEMA_REGISTRY_URL_CONFIG,
         schemaRegistry.schemaRegistryUrl());
     return props;
   }

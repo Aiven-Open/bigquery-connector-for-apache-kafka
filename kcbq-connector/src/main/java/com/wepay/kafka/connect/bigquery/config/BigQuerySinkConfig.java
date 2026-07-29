@@ -209,11 +209,12 @@ public class BigQuerySinkConfig extends AbstractConfig {
 
   /**
    * Controls whether Avro temporal logical types introduced after Avro 1.12.1 (timestamp-micros,
-   * timestamp-nanos, time-micros, local-timestamp-millis, local-timestamp-micros, local-timestamp-nanos)
-   * are converted to their corresponding BigQuery types (TIMESTAMP, TIME, DATETIME) rather than
-   * being left as plain INTEGER. Disabled by default to preserve existing table schemas; enabling
-   * this for a topic whose BigQuery table already has these fields as INTEGER will require a manual
-   * schema migration, since BigQuery does not support in-place column type changes.
+   * timestamp-nanos, time-micros, local-timestamp-millis, local-timestamp-micros,
+   * local-timestamp-nanos) are converted to their corresponding BigQuery types (TIMESTAMP, TIME,
+   * DATETIME) rather than being left as plain INTEGER. Disabled by default to preserve existing
+   * table schemas; enabling this for a topic whose BigQuery table already has these fields as
+   * INTEGER will require a manual schema migration, since BigQuery does not support in-place column
+   * type changes.
    */
   public static final String USE_AVRO_TEMPORAL_LOGICAL_TYPES_CONFIG = "useAvroTemporalLogicalTypes";
 
@@ -1236,11 +1237,11 @@ public class BigQuerySinkConfig extends AbstractConfig {
             CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_DEFAULT,
             CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_IMPORTANCE)
         .defineInternal(
-                    USE_AVRO_TEMPORAL_LOGICAL_TYPES_CONFIG,
-                    USE_AVRO_TEMPORAL_LOGICAL_TYPES_TYPE,
-                    USE_AVRO_TEMPORAL_LOGICAL_TYPES_DEFAULT,
-                    USE_AVRO_TEMPORAL_LOGICAL_TYPES_IMPORTANCE
-            ).define(
+            USE_AVRO_TEMPORAL_LOGICAL_TYPES_CONFIG,
+            USE_AVRO_TEMPORAL_LOGICAL_TYPES_TYPE,
+            USE_AVRO_TEMPORAL_LOGICAL_TYPES_DEFAULT,
+            USE_AVRO_TEMPORAL_LOGICAL_TYPES_IMPORTANCE)
+        .define(
             ExtendedConfigKey.builder(CONVERT_DEBEZIUM_DECIMAL_CONFIG)
                 .type(ConfigDef.Type.BOOLEAN)
                 .defaultValue(false)
@@ -1364,10 +1365,11 @@ public class BigQuerySinkConfig extends AbstractConfig {
     return getBoolean(CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_CONFIG);
   }
 
-    /**
-     * Determines if Avro temporal logical types should be used.
-     * @return {@code true} if if Avro temporal logical types should be used, {@code false} otherwise.
-     */
+  /**
+   * Determines if Avro temporal logical types should be used.
+   *
+   * @return {@code true} if if Avro temporal logical types should be used, {@code false} otherwise.
+   */
   public boolean getShouldUseAvroTemporalLogicalTypes() {
     return getBoolean(USE_AVRO_TEMPORAL_LOGICAL_TYPES_CONFIG);
   }
