@@ -1159,11 +1159,11 @@ public class SchemaManagerTest {
       }
     }
 
-    SchemaManager.SchemaAndPrimaryKeyColumns proposedSchema =
+    SchemaManager.SchemaAndPrimaryKeyColumns proposedSchemaAndKeyColumns =
         schemaManager.getAndValidateProposedSchema(tableId, incomingSinkRecords);
 
     if (expectedSchema != null) {
-      assertEquals(expectedSchema, proposedSchema);
+      assertEquals(expectedSchema, proposedSchemaAndKeyColumns.schema());
     }
   }
 
