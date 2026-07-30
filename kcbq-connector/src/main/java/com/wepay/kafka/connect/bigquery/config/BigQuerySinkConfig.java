@@ -526,7 +526,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
                   "Value must be either -1 to disable, or at least 10000 (10 seconds).");
             }
           },
-          () -> "Either -1 to disable or a value of at least 10000 to enable");
+          () -> "Either -1 to disable or a value of at least 10000 (10 seconds) to enable");
   private static final ConfigDef.Importance MERGE_INTERVAL_MS_IMPORTANCE = ConfigDef.Importance.LOW;
   private static final String MERGE_INTERVAL_MS_DOC =
       "How often (in milliseconds) to perform a merge flush, if upsert/delete is enabled. Can be set to -1"

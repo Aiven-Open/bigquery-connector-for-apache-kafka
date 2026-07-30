@@ -189,6 +189,8 @@ public final class SinkRecordConverter {
    * @return the map of fields to values.
    */
   public Map<String, Object> getRegularRow(SinkRecord record, String writeAttemptId) {
+    // if delete is enabled and there is a null value then the record was deleted.  In other cases a
+    // null value may be appropriate and the converter will determine if there are any issues.
     Map<String, Object> result =
         config.getBoolean(config.DELETE_ENABLED_CONFIG) && record.value() == null
             ? new HashMap<>()

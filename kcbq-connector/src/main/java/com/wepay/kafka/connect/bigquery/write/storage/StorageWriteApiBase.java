@@ -68,6 +68,13 @@ import org.threeten.bp.Duration;
 public abstract class StorageWriteApiBase {
 
   private static final Logger logger = LoggerFactory.getLogger(StorageWriteApiBase.class);
+
+  /** If the stream name contains this text it is must end with the DEFAULT_STREAM_NAME_SUFFIX */
+  private static final String DEFAULT_STREAM_NAME_TRIGGER = "/streams/";
+
+  /** The requried suffix for default streams. */
+  private static final String DEFAULT_STREAM_NAME_SUFFIX = "/_default";
+
   protected static final String CHANGE_TYPE_PSEUDO_COLUMN = "_CHANGE_TYPE";
   protected static final String CHANGE_SEQUENCE_NUMBER_PSEUDO_COLUMN = "_CHANGE_SEQUENCE_NUMBER";
   private static final double RETRY_DELAY_MULTIPLIER = 1.1;
@@ -431,47 +438,65 @@ public abstract class StorageWriteApiBase {
     return String.format(TRACE_ID_FORMAT, "default");
   }
 
+  /**
+   * Creates the schema builder for a stream.
+   *
+   * @param streamName the stream name ot build the shcema for.
+   * @return a configured table schema builder.
+   */
+  private TableSchema.Builder createTableSchemaBuilder(final String streamName) {
+    final GetWriteStreamRequest writeStreamRequest =
+        GetWriteStreamRequest.newBuilder()
+            .setName(streamName)
+            .setView(WriteStreamView.FULL)
+            .build();
+    final WriteStream writeStream = writeClient.getWriteStream(writeStreamRequest);
+    return writeStream.hasTableSchema()
+        ? writeStream.getTableSchema().toBuilder()
+        : TableSchema.newBuilder();
+  }
+
+  /**
+   * Adds the pseudo columns necessary for upsert/delete processing.
+   *
+   * @param schemaBuilder the schma to update.
+   */
+  private void addUpsertDeletePseudoColumns(final TableSchema.Builder schemaBuilder) {
+    boolean hasChangeType = false;
+    boolean hasChangeSeq = false;
+    for (TableFieldSchema field : schemaBuilder.getFieldsList()) {
+      if (CHANGE_TYPE_PSEUDO_COLUMN.equals(field.getName())) {
+        hasChangeType = true;
+      }
+      if (CHANGE_SEQUENCE_NUMBER_PSEUDO_COLUMN.equals(field.getName())) {
+        hasChangeSeq = true;
+      }
+    }
+    if (!hasChangeType) {
+      schemaBuilder.addFields(
+          TableFieldSchema.newBuilder()
+              .setName(CHANGE_TYPE_PSEUDO_COLUMN)
+              .setType(TableFieldSchema.Type.STRING)
+              .setMode(TableFieldSchema.Mode.NULLABLE)
+              .build());
+    }
+    if (!hasChangeSeq) {
+      schemaBuilder.addFields(
+          TableFieldSchema.newBuilder()
+              .setName(CHANGE_SEQUENCE_NUMBER_PSEUDO_COLUMN)
+              .setType(TableFieldSchema.Type.STRING)
+              .setMode(TableFieldSchema.Mode.NULLABLE)
+              .build());
+    }
+  }
+
   private TableSchema getTableSchemaWithPseudoColumns(String streamName) {
     try {
-      GetWriteStreamRequest writeStreamRequest =
-          GetWriteStreamRequest.newBuilder()
-              .setName(streamName)
-              .setView(WriteStreamView.FULL)
-              .build();
-      WriteStream writeStream = writeClient.getWriteStream(writeStreamRequest);
-      TableSchema.Builder writeSchema =
-          writeStream.hasTableSchema()
-              ? writeStream.getTableSchema().toBuilder()
-              : TableSchema.newBuilder();
+      TableSchema.Builder schemaBuilder = createTableSchemaBuilder(streamName);
       if (upsertEnabled || deleteEnabled) {
-        boolean hasChangeType = false;
-        boolean hasChangeSeq = false;
-        for (TableFieldSchema field : writeSchema.getFieldsList()) {
-          if (CHANGE_TYPE_PSEUDO_COLUMN.equals(field.getName())) {
-            hasChangeType = true;
-          }
-          if (CHANGE_SEQUENCE_NUMBER_PSEUDO_COLUMN.equals(field.getName())) {
-            hasChangeSeq = true;
-          }
-        }
-        if (!hasChangeType) {
-          writeSchema.addFields(
-              TableFieldSchema.newBuilder()
-                  .setName(CHANGE_TYPE_PSEUDO_COLUMN)
-                  .setType(TableFieldSchema.Type.STRING)
-                  .setMode(TableFieldSchema.Mode.NULLABLE)
-                  .build());
-        }
-        if (!hasChangeSeq) {
-          writeSchema.addFields(
-              TableFieldSchema.newBuilder()
-                  .setName(CHANGE_SEQUENCE_NUMBER_PSEUDO_COLUMN)
-                  .setType(TableFieldSchema.Type.STRING)
-                  .setMode(TableFieldSchema.Mode.NULLABLE)
-                  .build());
-        }
+        addUpsertDeletePseudoColumns(schemaBuilder);
       }
-      return writeSchema.build();
+      return schemaBuilder.build();
     } catch (Exception e) {
       logger.warn("Failed to fetch schema for stream " + streamName, e);
       return null;
@@ -496,8 +521,8 @@ public abstract class StorageWriteApiBase {
       JsonStreamWriter.Builder builder;
       if (upsertEnabled || deleteEnabled) {
         String streamNameForSchema = streamOrTableName;
-        if (!streamNameForSchema.contains("/streams/")) {
-          streamNameForSchema += "/_default";
+        if (!streamNameForSchema.contains(DEFAULT_STREAM_NAME_TRIGGER)) {
+          streamNameForSchema += DEFAULT_STREAM_NAME_SUFFIX;
         }
         TableSchema tableSchema = getTableSchemaWithPseudoColumns(streamNameForSchema);
         if (tableSchema != null) {

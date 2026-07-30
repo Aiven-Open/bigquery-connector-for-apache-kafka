@@ -76,13 +76,6 @@ public abstract class UpsertDeleteValidator extends MultiPropertyValidator<BigQu
                 USE_STORAGE_WRITE_API_CONFIG));
       }
 
-      if (mergeInterval != -1 && mergeInterval < 10_000L) {
-        logger.warn(
-            "{} should not be set to less than 10 seconds. "
-                + "A validation would be introduced in a future release to this effect.",
-            MERGE_INTERVAL_MS_CONFIG);
-      }
-
     } else {
       // Storage Write API CDC path
       for (String property :

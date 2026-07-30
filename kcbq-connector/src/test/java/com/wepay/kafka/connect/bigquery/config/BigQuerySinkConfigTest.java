@@ -394,7 +394,6 @@ public class BigQuerySinkConfigTest {
   @Test
   void testKafkaKeyFieldWithDeleteAndDefaultWrite() {
     Map<String, String> configProperties = propertiesFactory.getProperties();
-    // configProperties.put(BigQuerySinkConfig.KAFKA_KEY_FIELD_NAME_CONFIG, "KeyField");
     configProperties.put(BigQuerySinkConfig.DELETE_ENABLED_CONFIG, "true");
     configProperties.put(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, "false");
 
