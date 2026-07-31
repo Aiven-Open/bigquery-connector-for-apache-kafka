@@ -93,7 +93,10 @@ public class StorageWriteApiCdcBigQuerySinkConnectorIT extends BaseConnectorIT {
         Field.of("k1", StandardSQLTypeName.INT64),
         Field.of("f1", StandardSQLTypeName.STRING)
     );
+    createTableWithPrimaryKey(table, tableSchema, keyColumns);
+  }
 
+  private void createTableWithPrimaryKey(String table, com.google.cloud.bigquery.Schema tableSchema, String... keyColumns) {
     TableId tableId = TableId.of(dataset(), table);
 
     PrimaryKey primaryKey = PrimaryKey.newBuilder()
@@ -208,7 +211,147 @@ public class StorageWriteApiCdcBigQuerySinkConnectorIT extends BaseConnectorIT {
     assertEquals(2L, allRows.get(0).get(0));       // k1
     assertEquals("other row", allRows.get(0).get(1)); // f1
   }
+  @Test
+  public void testStorageWriteApiCdcCompositeKey() throws Throwable {
+    final String topic = suffixedTableOrTopic("test-storage-write-api-cdc-composite");
+    connect.kafka().createTopic(topic, TASKS_MAX);
 
+    final String table = sanitizedTable(topic);
+    TableClearer.clearTables(bigQuery, dataset(), table);
+
+    // Pre-create table with composite primary key 'k1' and 'k2'
+    com.google.cloud.bigquery.Schema tableSchema = com.google.cloud.bigquery.Schema.of(
+        Field.of("k1", StandardSQLTypeName.INT64),
+        Field.of("k2", StandardSQLTypeName.STRING),
+        Field.of("f1", StandardSQLTypeName.STRING)
+    );
+    createTableWithPrimaryKey(table, tableSchema, "k1", "k2");
+
+    Map<String, String> props = baseConnectorProps(TASKS_MAX);
+    props.put(SinkConnectorConfig.TOPICS_CONFIG, topic);
+
+    props.put(BigQuerySinkConfig.SANITIZE_TOPICS_CONFIG, "true");
+    props.put(BigQuerySinkConfig.SCHEMA_RETRIEVER_CONFIG, IdentitySchemaRetriever.class.getName());
+    props.put(BigQuerySinkConfig.TABLE_CREATE_CONFIG, "false");
+    props.put(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG, "false");
+
+    // Enable native CDC modes
+    props.put(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, "true");
+    props.put(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG, "true");
+    props.put(BigQuerySinkConfig.DELETE_ENABLED_CONFIG, "true");
+
+    props.put(KEY_CONVERTER_CLASS_CONFIG, JsonConverter.class.getName());
+    props.put(VALUE_CONVERTER_CLASS_CONFIG, JsonConverter.class.getName());
+
+    // start the sink connector
+    connect.configureConnector(connectorName, props);
+    waitForConnectorToStart(connectorName, TASKS_MAX);
+
+    Converter keyConverter = converter(true);
+    Converter valueConverter = converter(false);
+
+    // 1. Insert record for key (1, "a") -> "original row 1"
+    connect.kafka().produce(topic, compositeKey(keyConverter, topic, 1L, "a"), value(valueConverter, topic, "original row 1", false));
+
+    // 2. Insert record for key (2, "b") -> "other row"
+    connect.kafka().produce(topic, compositeKey(keyConverter, topic, 2L, "b"), value(valueConverter, topic, "other row", false));
+
+    // 3. Update record for key (1, "a") -> "modified row 1"
+    connect.kafka().produce(topic, compositeKey(keyConverter, topic, 1L, "a"), value(valueConverter, topic, "modified row 1", false));
+
+    // 4. Delete record for key (1, "a") (Tombstone)
+    connect.kafka().produce(topic, compositeKey(keyConverter, topic, 1L, "a"), value(valueConverter, topic, null, true));
+
+    // Wait for all 4 records to be committed
+    waitForCommittedRecords(connectorName, topic, 4, TASKS_MAX);
+
+    // Read back rows from BigQuery, waiting for merge
+    org.apache.kafka.test.TestUtils.waitForCondition(
+        () -> {
+            try {
+                return readAllRows(bigQuery, table, "k1").size() == 1;
+            } catch (Exception e) {
+                return false;
+            }
+        },
+        60000,
+        "Timed out waiting for CDC table to merge and show 1 row"
+    );
+
+    List<List<Object>> allRows = readAllRows(bigQuery, table, "k1");
+
+    // The final result should contain only row 2, because key (1, "a") was updated then deleted.
+    assertEquals(1, allRows.size());
+    assertEquals(2L, allRows.get(0).get(0));       // k1
+    assertEquals("b", allRows.get(0).get(1));        // k2
+    assertEquals("other row", allRows.get(0).get(2)); // f1
+  }
+
+  private void waitForTaskToFail(String connectorName) throws InterruptedException {
+    org.apache.kafka.test.TestUtils.waitForCondition(
+        () -> {
+            try {
+                org.apache.kafka.connect.runtime.rest.entities.ConnectorStateInfo info = connect.connectorStatus(connectorName);
+                return info != null
+                    && info.tasks().stream().anyMatch(s -> s.state().equals("FAILED"));
+            } catch (Exception e) {
+                return false;
+            }
+        },
+        30000,
+        "Timed out waiting for connector task to fail"
+    );
+  }
+
+  @Test
+  public void testStorageWriteApiCdcDeleteDisabled() throws Throwable {
+    final String topic = suffixedTableOrTopic("test-storage-write-api-cdc-del-disabled");
+    connect.kafka().createTopic(topic, TASKS_MAX);
+
+    final String table = sanitizedTable(topic);
+    TableClearer.clearTables(bigQuery, dataset(), table);
+
+    // Pre-create table with primary key 'k1'
+    createTableWithPrimaryKey(table, "k1");
+
+    Map<String, String> props = baseConnectorProps(TASKS_MAX);
+    props.put(SinkConnectorConfig.TOPICS_CONFIG, topic);
+
+    props.put(BigQuerySinkConfig.SANITIZE_TOPICS_CONFIG, "true");
+    props.put(BigQuerySinkConfig.SCHEMA_RETRIEVER_CONFIG, IdentitySchemaRetriever.class.getName());
+    props.put(BigQuerySinkConfig.TABLE_CREATE_CONFIG, "false");
+    props.put(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG, "false");
+
+    // Enable native CDC modes, but DISABLE delete
+    props.put(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, "true");
+    props.put(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG, "true");
+    props.put(BigQuerySinkConfig.DELETE_ENABLED_CONFIG, "false"); // DISABLE DELETE
+
+    props.put(KEY_CONVERTER_CLASS_CONFIG, JsonConverter.class.getName());
+    props.put(VALUE_CONVERTER_CLASS_CONFIG, JsonConverter.class.getName());
+
+    // start the sink connector
+    connect.configureConnector(connectorName, props);
+    waitForConnectorToStart(connectorName, TASKS_MAX);
+
+    Converter keyConverter = converter(true);
+    Converter valueConverter = converter(false);
+
+    // 1. Insert record for key 1
+    connect.kafka().produce(topic, key(keyConverter, topic, 1L), value(valueConverter, topic, "original row 1", false));
+
+    // 2. Produce tombstone for key 1 (should fail because delete is disabled)
+    connect.kafka().produce(topic, key(keyConverter, topic, 1L), null);
+
+    // Wait for all 2 records to be committed (skipped records still have their offsets committed)
+    waitForCommittedRecords(connectorName, topic, 2, TASKS_MAX);
+
+    // Read back rows from BigQuery. The row should still exist because delete was disabled.
+    List<List<Object>> allRows = readAllRows(bigQuery, table, "k1");
+    assertEquals(1, allRows.size());
+    assertEquals(1L, allRows.get(0).get(0));
+    assertEquals("original row 1", allRows.get(0).get(1));
+  }
 
 
   private Converter converter(boolean isKey) {
@@ -242,6 +385,19 @@ public class StorageWriteApiCdcBigQuerySinkConnectorIT extends BaseConnectorIT {
 
     final Struct struct = new Struct(schema)
         .put("f1", val);
+
+    return new String(converter.fromConnectData(topic, schema, struct));
+  }
+
+  private String compositeKey(Converter converter, String topic, long id1, String id2) {
+    final Schema schema = SchemaBuilder.struct()
+        .field("k1", Schema.INT64_SCHEMA)
+        .field("k2", Schema.STRING_SCHEMA)
+        .build();
+
+    final Struct struct = new Struct(schema)
+        .put("k1", id1)
+        .put("k2", id2);
 
     return new String(converter.fromConnectData(topic, schema, struct));
   }

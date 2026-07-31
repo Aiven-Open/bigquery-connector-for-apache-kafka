@@ -31,6 +31,8 @@ import com.wepay.kafka.connect.bigquery.config.BigQuerySinkTaskConfig;
 import com.wepay.kafka.connect.bigquery.convert.KafkaDataBuilder;
 import com.wepay.kafka.connect.bigquery.convert.RecordConverter;
 import com.wepay.kafka.connect.bigquery.write.batch.MergeBatches;
+import java.time.Instant;
+import java.time.OffsetDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import org.apache.kafka.common.record.TimestampType;
@@ -156,6 +158,8 @@ public class SinkRecordConverter {
   }
 
   public Map<String, Object> getRegularRow(SinkRecord record, String writeAttemptId) {
+    logger.info("getRegularRow INPUT - Topic: {}, Offset: {}, Value: {}", 
+        record.topic(), record.kafkaOffset(), record.value());
     Map<String, Object> result = recordConverter.convertRecord(record, KafkaSchemaRecordType.VALUE);
 
     config.getKafkaDataFieldName().ifPresent(fieldName -> {
@@ -170,6 +174,8 @@ public class SinkRecordConverter {
       result.put(fieldName, keyData);
     });
 
+    logger.info("getRegularRow OUTPUT - Topic: {}, Offset: {}, Result Map: {}", 
+        record.topic(), record.kafkaOffset(), result);
     return maybeSanitize(result);
   }
 
@@ -178,6 +184,8 @@ public class SinkRecordConverter {
   }
 
   public Map<String, Object> getCdcRow(SinkRecord record, String writeAttemptId) {
+    logger.info("getCdcRow INPUT - Topic: {}, Offset: {}, Key: {}, Value: {}", 
+        record.topic(), record.kafkaOffset(), record.key(), record.value());
     Map<String, Object> result = new HashMap<>();
 
     // 1. Extract the Key fields
@@ -191,8 +199,9 @@ public class SinkRecordConverter {
     }
 
     // 2. Extract the Value fields (only if it's not a tombstone record)
+    Map<String, Object> convertedValue = null;
     if (record.value() != null) {
-      Map<String, Object> convertedValue = recordConverter.convertRecord(record, KafkaSchemaRecordType.VALUE);
+      convertedValue = recordConverter.convertRecord(record, KafkaSchemaRecordType.VALUE);
       if (convertedValue != null) {
         result.putAll(convertedValue); // Merges value fields into the root of the map
       }
@@ -207,18 +216,139 @@ public class SinkRecordConverter {
     });
 
     // 4. Set the CDC metadata columns
-    String changeType = (record.value() == null) ? "DELETE" : "UPSERT";
+    String changeType = "UPSERT";
+    if (record.value() == null) {
+      changeType = "DELETE";
+    } else if (convertedValue != null) {
+      Object deletedVal = convertedValue.get("__deleted");
+      if (deletedVal instanceof Boolean && (Boolean) deletedVal) {
+        changeType = "DELETE";
+      } else if (deletedVal instanceof String && Boolean.parseBoolean((String) deletedVal)) {
+        changeType = "DELETE";
+      }
+    }
     result.put("_CHANGE_TYPE", changeType);
-    result.put("_CHANGE_SEQUENCE_NUMBER", String.valueOf(record.kafkaOffset()));
+    // Strip the transient __deleted metadata field to prevent BigQuery ingestion crashes due to unknown fields.
+    result.remove("__deleted");
+    String customSeqField = config.getCdcChangeSequenceNumberField().orElse(null);
+    Object seqValue = null;
+
+    if (customSeqField != null && !customSeqField.isEmpty()) {
+      if ("_KAFKA_TIMESTAMP".equalsIgnoreCase(customSeqField)) {
+        seqValue = record.timestamp();
+      } else {
+        // 1. Try reading from Value Payload (if not null)
+        if (convertedValue != null) {
+          seqValue = convertedValue.get(customSeqField);
+        }
+        // 2. Try reading from Key Payload
+        if (seqValue == null && convertedKey != null) {
+          seqValue = convertedKey.get(customSeqField);
+        }
+      }
+    }
+
+    if (seqValue != null) {
+      result.put("_CHANGE_SEQUENCE_NUMBER", convertToHexSequence(seqValue, record));
+    } else {
+      if (customSeqField != null && !customSeqField.isEmpty()) {
+        // If the custom sequence field is missing (e.g. on raw tombstone deletes without SMT rewrite),
+        // fall back to the Kafka record timestamp to ensure the delete event is ordered correctly relative to inserts.
+        Long fallbackTimestamp = record.timestamp();
+        if (fallbackTimestamp == null || fallbackTimestamp < 0) {
+          fallbackTimestamp = System.currentTimeMillis();
+        }
+        result.put("_CHANGE_SEQUENCE_NUMBER", convertToHexSequence(fallbackTimestamp, record));
+      } else {
+        result.put("_CHANGE_SEQUENCE_NUMBER", String.format("%016x", record.kafkaOffset()));
+      }
+    }
+
+    logger.info("getCdcRow OUTPUT - Topic: {}, Offset: {}, Result Map: {}", 
+        record.topic(), record.kafkaOffset(), result);
 
     // 5. Sanitize column names if the user turned on the sanitize option (replacing
     // spaces/special characters)
     return maybeSanitize(result);
   }
 
-  
+  /**
+   * Formats the sequence value into a 16-character hexadecimal string, and appends the 16-character 
+   * hexadecimal Kafka offset as a tie-breaker segment (e.g., "[hex-seq]/[hex-offset]").
+   * This ensures deterministic chronological sorting in BigQuery, even when multiple events share 
+   * the same timestamp.
+   *
+   * @param seqValue The raw sequence number or timestamp
+   * @param record The sink record providing the offset
+   * @return The formatted composite hex sequence string
+   */
+  private String convertToHexSequence(Object seqValue, SinkRecord record) {
+    if (seqValue == null) {
+      return null;
+    }
+
+    String seqHex = null;
+
+    if (seqValue instanceof Number) {
+      seqHex = String.format("%016x", ((Number) seqValue).longValue());
+    } else {
+      String strVal = seqValue.toString().trim();
+      // Try to parse as raw Long first (e.g. "1785367800000")
+      try {
+        seqHex = String.format("%016x", Long.parseLong(strVal));
+      } catch (NumberFormatException e) {
+        // Not a raw number. Try parsing as a timestamp string.
+        try {
+          // Normalize format: replace space with 'T' (e.g., "2026-07-30 15:30:00Z" -> "2026-07-30T15:30:00Z")
+          String normalized = strVal.replace(' ', 'T');
+          Instant instant;
+          if (normalized.endsWith("Z")) {
+            instant = Instant.parse(normalized);
+          } else {
+            instant = OffsetDateTime.parse(normalized).toInstant();
+          }
+          seqHex = String.format("%016x", instant.toEpochMilli());
+        } catch (Exception ex) {
+          // If all parsing fails, fallback to raw character hex-encoding (legacy/fallback)
+          seqHex = hexEncodeString(strVal);
+        }
+      }
+    }
+
+    if (seqHex != null) {
+      // Append the Kafka offset as a second segment to break ties deterministically.
+      // Both segments will be 16 characters (8 bytes) which is well within BigQuery's 32-character limit per segment.
+      String offsetHex = String.format("%016x", record.kafkaOffset());
+      return seqHex + "/" + offsetHex;
+    }
+    return null;
+  }
+
+  private String hexEncodeString(String strVal) {
+    StringBuilder hexBuilder = new StringBuilder();
+    for (char c : strVal.toCharArray()) {
+      hexBuilder.append(String.format("%02x", (int) c));
+    }
+    return splitIntoSegments(hexBuilder.toString(), 32);
+  }
+
+  private String splitIntoSegments(String hexStr, int segmentSize) {
+    StringBuilder result = new StringBuilder();
+    int len = hexStr.length();
+    for (int i = 0; i < len; i += segmentSize) {
+      if (i > 0) {
+        result.append("/");
+      }
+      result.append(hexStr.substring(i, Math.min(len, i + segmentSize)));
+    }
+    return result.toString();
+  }
+
   public boolean isCdcEnabled() {
-    return config.getBoolean(config.USE_STORAGE_WRITE_API_CONFIG) && config.isUpsertDeleteEnabled();
+    boolean enabled = config.getBoolean(config.USE_STORAGE_WRITE_API_CONFIG) && config.isUpsertDeleteEnabled();
+    logger.info("isCdcEnabled check - USE_STORAGE_WRITE_API: {}, isUpsertDeleteEnabled: {}, Result: {}",
+        config.getBoolean(config.USE_STORAGE_WRITE_API_CONFIG), config.isUpsertDeleteEnabled(), enabled);
+    return enabled;
   }
 
   private Map<String, Object> maybeSanitize(Map<String, Object> convertedRecord) {

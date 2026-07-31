@@ -32,7 +32,9 @@ import com.google.cloud.bigquery.Clustering;
 import com.google.cloud.bigquery.Field;
 import com.google.cloud.bigquery.Field.Mode;
 import com.google.cloud.bigquery.LegacySQLTypeName;
+import com.google.cloud.bigquery.PrimaryKey;
 import com.google.cloud.bigquery.StandardTableDefinition;
+import com.google.cloud.bigquery.TableConstraints;
 import com.google.cloud.bigquery.TableId;
 import com.google.cloud.bigquery.TableInfo;
 import com.google.cloud.bigquery.TimePartitioning;
@@ -396,7 +398,11 @@ public class SchemaManager {
     } catch (BigQueryConnectException exception) {
       throw new BigQueryConnectException("Failed to unionize schemas of records for the table " + table, exception);
     }
-    return constructTableInfo(table, proposedSchema, tableDescription, createSchema);
+    List<String> primaryKeys = getPrimaryKeys(records);
+    if (primaryKeys != null && !primaryKeys.isEmpty()) {
+      proposedSchema = relaxNonKeyFields(proposedSchema, primaryKeys);
+    }
+    return constructTableInfo(table, proposedSchema, tableDescription, createSchema, primaryKeys);
   }
 
   @VisibleForTesting
@@ -696,8 +702,20 @@ public class SchemaManager {
   // package private for testing.
   TableInfo constructTableInfo(TableId table, com.google.cloud.bigquery.Schema bigQuerySchema, String tableDescription,
                                Boolean createSchema) {
+    return constructTableInfo(table, bigQuerySchema, tableDescription, createSchema, null);
+  }
+
+  // package private for testing.
+  TableInfo constructTableInfo(TableId table, com.google.cloud.bigquery.Schema bigQuerySchema, String tableDescription,
+                               Boolean createSchema, List<String> primaryKeys) {
     StandardTableDefinition.Builder builder = StandardTableDefinition.newBuilder()
         .setSchema(bigQuerySchema);
+
+    if (createSchema && primaryKeys != null && !primaryKeys.isEmpty()) {
+      PrimaryKey pk = PrimaryKey.newBuilder().setColumns(primaryKeys).build();
+      TableConstraints constraints = TableConstraints.newBuilder().setPrimaryKey(pk).build();
+      builder.setTableConstraints(constraints);
+    }
 
     if (intermediateTables) {
       // Shameful hack: make the table ingestion time-partitioned here so that the _PARTITIONTIME
@@ -819,6 +837,60 @@ public class SchemaManager {
     }
 
     return result;
+  }
+
+  /**
+   * Extracts primary key column names from the key schema of the first record in the batch.
+   * If field name sanitization is enabled, the column names are sanitized.
+   *
+   * @param records The batch of records to inspect
+   * @return A list of primary key column names, or null if no key schema is found
+   */
+  private List<String> getPrimaryKeys(List<SinkRecord> records) {
+    if (records == null || records.isEmpty()) {
+      return null;
+    }
+    SinkRecord record = records.get(0);
+    Schema keySchema = schemaRetriever.retrieveKeySchema(record);
+    if (keySchema == null) {
+      return null;
+    }
+    List<String> pkColumns = new ArrayList<>();
+    for (org.apache.kafka.connect.data.Field field : keySchema.fields()) {
+      String name = field.name();
+      if (sanitizeFieldNames) {
+        name = FieldNameSanitizer.sanitizeName(name);
+      }
+      pkColumns.add(name);
+    }
+    return pkColumns;
+  }
+
+  /**
+   * Relaxes the schema by converting non-primary-key required fields to nullable.
+   * This is necessary for CDC deletes (tombstones or rewritten deletes), which only
+   * populate primary key columns and omit required non-key columns. Without this relaxation,
+   * write operations for deletes would crash due to missing required fields.
+   *
+   * @param schema The proposed BigQuery schema
+   * @param primaryKeys The list of primary key columns
+   * @return The modified schema with relaxed non-key fields
+   */
+  private com.google.cloud.bigquery.Schema relaxNonKeyFields(
+      com.google.cloud.bigquery.Schema schema, List<String> primaryKeys) {
+    List<Field> relaxedFields = new ArrayList<>();
+    for (Field field : schema.getFields()) {
+      if (primaryKeys.contains(field.getName())) {
+        relaxedFields.add(field);
+      } else {
+        if (field.getMode() == Field.Mode.REQUIRED) {
+          relaxedFields.add(field.toBuilder().setMode(Field.Mode.NULLABLE).build());
+        } else {
+          relaxedFields.add(field);
+        }
+      }
+    }
+    return com.google.cloud.bigquery.Schema.of(relaxedFields);
   }
 
   private String table(TableId table) {

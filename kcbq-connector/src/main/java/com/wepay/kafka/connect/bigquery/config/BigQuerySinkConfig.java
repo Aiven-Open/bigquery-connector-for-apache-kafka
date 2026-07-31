@@ -147,6 +147,14 @@ public class BigQuerySinkConfig extends AbstractConfig {
   public static final boolean DELETE_ENABLED_DEFAULT = false;
   public static final String INTERMEDIATE_TABLE_SUFFIX_CONFIG = "intermediateTableSuffix";
   public static final String INTERMEDIATE_TABLE_SUFFIX_DEFAULT = "tmp";
+  public static final String CDC_CHANGE_SEQUENCE_NUMBER_FIELD_CONFIG = "cdcChangeSequenceNumberField";
+  public static final String CDC_CHANGE_SEQUENCE_NUMBER_FIELD_DEFAULT = null;
+  private static final ConfigDef.Type CDC_CHANGE_SEQUENCE_NUMBER_FIELD_TYPE = ConfigDef.Type.STRING;
+  private static final ConfigDef.Importance CDC_CHANGE_SEQUENCE_NUMBER_FIELD_IMPORTANCE = ConfigDef.Importance.MEDIUM;
+  private static final String CDC_CHANGE_SEQUENCE_NUMBER_FIELD_DOC =
+      "The name of the field or header to use as the change sequence number (_CHANGE_SEQUENCE_NUMBER) for BigQuery CDC. "
+      + "If not set, Kafka Offset is used as the default sequence number.";
+
   public static final String MERGE_INTERVAL_MS_CONFIG = "mergeIntervalMs";
   public static final String MERGE_RECORDS_THRESHOLD_CONFIG = "mergeRecordsThreshold";
   public static final long MERGE_INTERVAL_MS_DEFAULT = 60_000L;
@@ -886,6 +894,13 @@ public class BigQuerySinkConfig extends AbstractConfig {
                             .dependents(INTERMEDIATE_TABLE_SUFFIX_CONFIG, USE_STORAGE_WRITE_API_CONFIG, MERGE_INTERVAL_MS_CONFIG, KAFKA_KEY_FIELD_NAME_CONFIG)
                             .build()
             ).define(
+                    CDC_CHANGE_SEQUENCE_NUMBER_FIELD_CONFIG,
+                    CDC_CHANGE_SEQUENCE_NUMBER_FIELD_TYPE,
+                    CDC_CHANGE_SEQUENCE_NUMBER_FIELD_DEFAULT,
+                    CDC_CHANGE_SEQUENCE_NUMBER_FIELD_IMPORTANCE,
+                    CDC_CHANGE_SEQUENCE_NUMBER_FIELD_DOC
+
+            ).define(
                     INTERMEDIATE_TABLE_SUFFIX_CONFIG,
                     INTERMEDIATE_TABLE_SUFFIX_TYPE,
                     INTERMEDIATE_TABLE_SUFFIX_DEFAULT,
@@ -1297,6 +1312,16 @@ public class BigQuerySinkConfig extends AbstractConfig {
   public Optional<String> getKafkaDataFieldName() {
     return Optional.ofNullable(getString(KAFKA_DATA_FIELD_NAME_CONFIG));
   }
+
+  /**
+   * Returns the custom field or header name configured to be used as the change sequence number.
+   *
+   * @return The field/header name, or Optional.empty() if not configured.
+   */
+  public Optional<String> getCdcChangeSequenceNumberField() {
+    return Optional.ofNullable(getString(CDC_CHANGE_SEQUENCE_NUMBER_FIELD_CONFIG));
+  }
+
 
   public boolean isUpsertDeleteEnabled() {
     return getBoolean(UPSERT_ENABLED_CONFIG) || getBoolean(DELETE_ENABLED_CONFIG);
