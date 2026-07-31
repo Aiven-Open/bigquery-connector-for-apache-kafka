@@ -465,12 +465,8 @@ public abstract class StorageWriteApiBase {
     boolean hasChangeType = false;
     boolean hasChangeSeq = false;
     for (TableFieldSchema field : schemaBuilder.getFieldsList()) {
-      if (CHANGE_TYPE_PSEUDO_COLUMN.equals(field.getName())) {
-        hasChangeType = true;
-      }
-      if (CHANGE_SEQUENCE_NUMBER_PSEUDO_COLUMN.equals(field.getName())) {
-        hasChangeSeq = true;
-      }
+      hasChangeType |= CHANGE_TYPE_PSEUDO_COLUMN.equals(field.getName());
+      hasChangeSeq |= CHANGE_SEQUENCE_NUMBER_PSEUDO_COLUMN.equals(field.getName());
     }
     if (!hasChangeType) {
       schemaBuilder.addFields(
