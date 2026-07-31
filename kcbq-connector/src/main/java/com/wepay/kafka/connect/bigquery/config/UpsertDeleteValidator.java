@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Copyright 2022 Aiven Oy and
+ * Copyright 2022-2026 Aiven Oy and
  * bigquery-connector-for-apache-kafka project contributors
  *
  * This software contains code derived from the Confluent BigQuery
@@ -11,7 +11,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -28,6 +28,7 @@ import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.KAFKA_K
 import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.MERGE_INTERVAL_MS_CONFIG;
 import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.MERGE_RECORDS_THRESHOLD_CONFIG;
 import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.UPSERT_ENABLED_CONFIG;
+import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -42,7 +43,8 @@ public abstract class UpsertDeleteValidator extends MultiPropertyValidator<BigQu
           Arrays.asList(
               MERGE_INTERVAL_MS_CONFIG,
               MERGE_RECORDS_THRESHOLD_CONFIG,
-              KAFKA_KEY_FIELD_NAME_CONFIG));
+              KAFKA_KEY_FIELD_NAME_CONFIG,
+              USE_STORAGE_WRITE_API_CONFIG));
   private static final Logger logger = LoggerFactory.getLogger(UpsertDeleteValidator.class);
 
   private UpsertDeleteValidator(String propertyName) {
@@ -60,29 +62,41 @@ public abstract class UpsertDeleteValidator extends MultiPropertyValidator<BigQu
       return Optional.empty();
     }
 
-    long mergeInterval = config.getLong(MERGE_INTERVAL_MS_CONFIG);
-    long mergeRecordsThreshold = config.getLong(MERGE_RECORDS_THRESHOLD_CONFIG);
+    if (!config.useStorageWriteApi()) {
+      // Classic MERGE path: merge interval, threshold and kafkaKeyFieldName are all required
+      long mergeInterval = config.getLong(MERGE_INTERVAL_MS_CONFIG);
+      long mergeRecordsThreshold = config.getLong(MERGE_RECORDS_THRESHOLD_CONFIG);
 
-    if (mergeInterval == -1 && mergeRecordsThreshold == -1) {
-      return Optional.of(
-          String.format(
-              "%s and %s cannot both be -1",
-              MERGE_INTERVAL_MS_CONFIG, MERGE_RECORDS_THRESHOLD_CONFIG));
-    }
+      if (mergeInterval == -1 && mergeRecordsThreshold == -1) {
+        return Optional.of(
+            String.format(
+                "%s and %s cannot both be -1 when %s is false",
+                MERGE_INTERVAL_MS_CONFIG,
+                MERGE_RECORDS_THRESHOLD_CONFIG,
+                USE_STORAGE_WRITE_API_CONFIG));
+      }
 
-    if (mergeInterval != -1 && mergeInterval < 10_000L) {
-      logger.warn(
-          String.format(
-              "%s should not be set to less than 10 seconds. A validation would be introduced in a future release to "
-                  + "this effect.",
-              MERGE_INTERVAL_MS_CONFIG));
-    }
+    } else {
+      // Storage Write API CDC path
+      for (String property :
+          Arrays.asList(MERGE_INTERVAL_MS_CONFIG, MERGE_RECORDS_THRESHOLD_CONFIG)) {
+        if (config.originals().containsKey(property)) {
+          logger.warn(
+              "The {} property will be ignored because {} is set to true",
+              property,
+              USE_STORAGE_WRITE_API_CONFIG);
+        }
+      }
 
-    if (!config.getKafkaKeyFieldName().isPresent()) {
-      return Optional.of(
-          String.format(
-              "%s must be specified when %s is set to true",
-              KAFKA_KEY_FIELD_NAME_CONFIG, propertyName()));
+      // Delete-only mode is not supported with the Storage Write API
+      if (!config.isUpsertEnabled() && config.isDeleteEnabled()) {
+        return Optional.of(
+            String.format(
+                "Delete-only mode is not supported when the Storage Write API is enabled "
+                    + "(%s = true); please either disable delete support (set %s to false) "
+                    + "or enable upsert support (set %s to true)",
+                USE_STORAGE_WRITE_API_CONFIG, DELETE_ENABLED_CONFIG, UPSERT_ENABLED_CONFIG));
+      }
     }
 
     return Optional.empty();

@@ -189,7 +189,12 @@ public final class SinkRecordConverter {
    * @return the map of fields to values.
    */
   public Map<String, Object> getRegularRow(SinkRecord record, String writeAttemptId) {
-    Map<String, Object> result = recordConverter.convertRecord(record, KafkaSchemaRecordType.VALUE);
+    // if delete is enabled and there is a null value then the record was deleted.  In other cases a
+    // null value may be appropriate and the converter will determine if there are any issues.
+    Map<String, Object> result =
+        config.getBoolean(config.DELETE_ENABLED_CONFIG) && record.value() == null
+            ? new HashMap<>()
+            : recordConverter.convertRecord(record, KafkaSchemaRecordType.VALUE);
 
     config
         .getKafkaDataFieldName()
@@ -199,9 +204,15 @@ public final class SinkRecordConverter {
     config
         .getKafkaKeyFieldName()
         .ifPresent(
-            fieldName ->
-                result.put(
-                    fieldName, recordConverter.convertRecord(record, KafkaSchemaRecordType.KEY)));
+            fieldName -> {
+              Map<String, Object> keyData =
+                  recordConverter.convertRecord(record, KafkaSchemaRecordType.KEY);
+              if (fieldName.isEmpty()) {
+                result.putAll(keyData);
+              } else {
+                result.put(fieldName, keyData);
+              }
+            });
 
     return maybeSanitize(result);
   }

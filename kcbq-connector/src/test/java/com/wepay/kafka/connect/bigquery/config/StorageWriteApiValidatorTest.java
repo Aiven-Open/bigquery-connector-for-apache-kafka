@@ -62,7 +62,7 @@ public class StorageWriteApiValidatorTest {
   }
 
   @Test
-  public void testUpsertModeEnabled() {
+  public void testUpsertAndStorageWriteApiEnabled() {
     BigQuerySinkConfig config = mock(BigQuerySinkConfig.class);
 
     when(config.getBoolean(USE_STORAGE_WRITE_API_CONFIG)).thenReturn(true);
@@ -70,12 +70,11 @@ public class StorageWriteApiValidatorTest {
     when(config.getBoolean(DELETE_ENABLED_CONFIG)).thenReturn(false);
     when(config.getList(ENABLE_BATCH_CONFIG)).thenReturn(Collections.emptyList());
 
-    assertEquals(
-        Optional.of(upsertNotSupportedError), new StorageWriteApiValidator().doValidate(config));
+    assertEquals(Optional.empty(), new StorageWriteApiValidator().doValidate(config));
   }
 
   @Test
-  public void testDeleteModeEnabled() {
+  public void testDeleteAndStorageWriteApiEnabled() {
     BigQuerySinkConfig config = mock(BigQuerySinkConfig.class);
 
     when(config.getBoolean(USE_STORAGE_WRITE_API_CONFIG)).thenReturn(true);
@@ -83,8 +82,7 @@ public class StorageWriteApiValidatorTest {
     when(config.getBoolean(DELETE_ENABLED_CONFIG)).thenReturn(true);
     when(config.getList(ENABLE_BATCH_CONFIG)).thenReturn(Collections.emptyList());
 
-    assertEquals(
-        Optional.of(deleteNotSupportedError), new StorageWriteApiValidator().doValidate(config));
+    assertEquals(Optional.empty(), new StorageWriteApiValidator().doValidate(config));
   }
 
   @Test

@@ -146,6 +146,7 @@ public class BigQueryRecordConverter implements RecordConverter<Map<String, Obje
         recordType == KafkaSchemaRecordType.KEY ? record.key() : record.value();
     if (kafkaConnectSchema == null) {
       if (kafkaConnectStruct instanceof Map) {
+        // null value becomes a null map here.
         return (Map<String, Object>) convertSchemalessRecord(kafkaConnectStruct);
       }
       throw new ConversionConnectException(
@@ -248,9 +249,11 @@ public class BigQueryRecordConverter implements RecordConverter<Map<String, Obje
   private Map<String, Object> convertStruct(Object kafkaConnectObject, Schema kafkaConnectSchema) {
     Map<String, Object> bigQueryRecord = new HashMap<>();
     List<Field> kafkaConnectSchemaFields = kafkaConnectSchema.fields();
+    if (kafkaConnectObject == null) {
+      throw new ConversionConnectException("Kafka Connect 'struct' value may not be null");
+    }
     Struct kafkaConnectStruct = (Struct) kafkaConnectObject;
     for (Field kafkaConnectField : kafkaConnectSchemaFields) {
-      // ignore empty structures
       boolean isEmptyStruct =
           kafkaConnectField.schema().type() == Schema.Type.STRUCT
               && kafkaConnectField.schema().fields().isEmpty();
