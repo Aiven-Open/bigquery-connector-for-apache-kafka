@@ -701,6 +701,14 @@ public class BigQuerySinkConfig extends AbstractConfig {
   private static final Boolean USE_AVRO_TEMPORAL_LOGICAL_TYPES_DEFAULT = false;
   private static final ConfigDef.Importance USE_AVRO_TEMPORAL_LOGICAL_TYPES_IMPORTANCE =
       ConfigDef.Importance.MEDIUM;
+  private static final String USE_AVRO_TEMPORAL_LOGICAL_TYPES_DOC =
+      "Controls whether Avro temporal logical types introduced after Avro 1.12.1 (timestamp-micros, "
+          + "timestamp-nanos, time-micros, local-timestamp-millis, local-timestamp-micros, "
+          + "local-timestamp-nanos) are converted to their corresponding BigQuery types (TIMESTAMP, TIME, "
+          + "DATETIME) rather than being left as plain INTEGER. Disabled by default to preserve existing "
+          + "table schemas; enabling this for a topic whose BigQuery table already has these fields as "
+          + "INTEGER will require a manual schema migration, since BigQuery does not support in-place column "
+          + "type changes.";
   private static final ConfigDef.Type TIME_PARTITIONING_TYPE_TYPE = ConfigDef.Type.STRING;
   private static final ConfigDef.Importance TIME_PARTITIONING_TYPE_IMPORTANCE =
       ConfigDef.Importance.LOW;
@@ -847,7 +855,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
     SinceInfo v2m7 = since.version("2.7.0").build().setVersionOnly();
     SinceInfo v2m8 = since.version("2.8.0").build().setVersionOnly();
     SinceInfo v2m10 = since.version("2.10.0").build().setVersionOnly();
-    // CHECKSTYLE:N
+    SinceInfo v2m15 = since.version("2.15.0").build().setVersionOnly();
     return new ConfigDef()
         .define(
             TOPICS_CONFIG,
@@ -1235,11 +1243,6 @@ public class BigQuerySinkConfig extends AbstractConfig {
             CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_TYPE,
             CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_DEFAULT,
             CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_IMPORTANCE)
-        .defineInternal(
-            USE_AVRO_TEMPORAL_LOGICAL_TYPES_CONFIG,
-            USE_AVRO_TEMPORAL_LOGICAL_TYPES_TYPE,
-            USE_AVRO_TEMPORAL_LOGICAL_TYPES_DEFAULT,
-            USE_AVRO_TEMPORAL_LOGICAL_TYPES_IMPORTANCE)
         .define(
             ExtendedConfigKey.builder(CONVERT_DEBEZIUM_DECIMAL_CONFIG)
                 .type(ConfigDef.Type.BOOLEAN)
@@ -1270,6 +1273,14 @@ public class BigQuerySinkConfig extends AbstractConfig {
                 .importance(DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_IMPORTANCE)
                 .documentation(DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_DOC)
                 .since(v2m7)
+                .build())
+        .define(
+            ExtendedConfigKey.builder(USE_AVRO_TEMPORAL_LOGICAL_TYPES_CONFIG)
+                .type(USE_AVRO_TEMPORAL_LOGICAL_TYPES_TYPE)
+                .defaultValue(USE_AVRO_TEMPORAL_LOGICAL_TYPES_DEFAULT)
+                .importance(USE_AVRO_TEMPORAL_LOGICAL_TYPES_IMPORTANCE)
+                .documentation(USE_AVRO_TEMPORAL_LOGICAL_TYPES_DOC)
+                .since(v2m15)
                 .build())
         .define(
             ExtendedConfigKey.builder(PRESERVE_KAFKA_TOPIC_PARTITION_OFFSET__CONFIG)
