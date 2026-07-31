@@ -1208,4 +1208,48 @@ public class SchemaManagerTest {
     );
   }
 
+  @Test
+  public void testCheckAndApplyTableOptions() throws Exception {
+    String maxStalenessVal = "0 MINUTE";
+    SchemaManager schemaManager = new SchemaManager(
+        new IdentitySchemaRetriever(),
+        mockSchemaConverter,
+        mockBigQuery,
+        false, false, false, false,
+        Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+        Optional.of(TimePartitioning.Type.DAY),
+        false, 0L, 1,
+        Optional.of(maxStalenessVal)
+    );
+
+    Table mockTable = mock(Table.class);
+    when(mockBigQuery.getTable(tableId)).thenReturn(mockTable);
+
+    com.google.cloud.bigquery.TableResult mockResult = mock(com.google.cloud.bigquery.TableResult.class);
+    when(mockBigQuery.query(any(com.google.cloud.bigquery.QueryJobConfiguration.class))).thenReturn(mockResult);
+
+    // 1. First invocation: should execute the query
+    schemaManager.checkAndApplyTableOptions(tableId);
+
+    String expectedQuery = String.format(
+        "ALTER TABLE `%s`.`%s` SET OPTIONS (max_staleness = INTERVAL %s)",
+        tableId.getDataset(),
+        tableId.getTable(),
+        maxStalenessVal
+    );
+
+    ArgumentCaptor<com.google.cloud.bigquery.QueryJobConfiguration> captor = 
+        ArgumentCaptor.forClass(com.google.cloud.bigquery.QueryJobConfiguration.class);
+    verify(mockBigQuery, times(1)).query(captor.capture());
+    assertEquals(expectedQuery, captor.getValue().getQuery());
+
+    // Reset mock for next assertion
+    org.mockito.Mockito.clearInvocations(mockBigQuery);
+    when(mockBigQuery.getTable(tableId)).thenReturn(mockTable);
+
+    // 2. Second invocation: should skip query execution (deduped via checkedTableOptions)
+    schemaManager.checkAndApplyTableOptions(tableId);
+    verify(mockBigQuery, org.mockito.Mockito.never()).query(any(com.google.cloud.bigquery.QueryJobConfiguration.class));
+  }
+
 }

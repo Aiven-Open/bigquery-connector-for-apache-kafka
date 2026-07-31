@@ -209,7 +209,7 @@ public class StorageWriteApiDefaultStreamTest {
         BigQueryStorageWriteApiConnectException.class,
         () -> defaultStream.initializeAndWriteRecords(mockedPartitionedTableId, testRows, null)
     );
-    verifyNoInteractions(mockedSchemaManager);
+    verify(mockedSchemaManager, org.mockito.Mockito.never()).updateSchema(any(), any());
   }
 
   @ParameterizedTest(name = "{index} – {0}")

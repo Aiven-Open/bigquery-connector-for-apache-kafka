@@ -86,6 +86,7 @@ public class SchemaManager {
   private final boolean mediateConcurrentSchemaUpdates;
   private final long concurrentSchemaUpdateRetryWaitMs;
   private final int concurrentSchemaUpdateMaxRetries;
+  private final Optional<String> tableMaxStaleness;
 
   /**
    * @param schemaRetriever                Used to determine the Kafka Connect Schema that should be used for a
@@ -141,6 +142,45 @@ public class SchemaManager {
         mediateConcurrentSchemaUpdates,
         concurrentSchemaUpdateRetryWaitMs,
         concurrentSchemaUpdateMaxRetries,
+        Optional.empty());
+  }
+
+  public SchemaManager(
+      SchemaRetriever schemaRetriever,
+      SchemaConverter<com.google.cloud.bigquery.Schema> schemaConverter,
+      BigQuery bigQuery,
+      boolean allowNewBqFields,
+      boolean allowBqRequiredFieldRelaxation,
+      boolean allowSchemaUnionization,
+      boolean sanitizeFieldNames,
+      Optional<String> kafkaKeyFieldName,
+      Optional<String> kafkaDataFieldName,
+      Optional<String> timestampPartitionFieldName,
+      Optional<Long> partitionExpiration,
+      Optional<List<String>> clusteringFieldName,
+      Optional<TimePartitioning.Type> timePartitioningType,
+      boolean mediateConcurrentSchemaUpdates,
+      long concurrentSchemaUpdateRetryWaitMs,
+      int concurrentSchemaUpdateMaxRetries,
+      Optional<String> tableMaxStaleness) {
+    this(
+        schemaRetriever,
+        schemaConverter,
+        bigQuery,
+        allowNewBqFields,
+        allowBqRequiredFieldRelaxation,
+        allowSchemaUnionization,
+        sanitizeFieldNames,
+        kafkaKeyFieldName,
+        kafkaDataFieldName,
+        timestampPartitionFieldName,
+        partitionExpiration,
+        clusteringFieldName,
+        timePartitioningType,
+        mediateConcurrentSchemaUpdates,
+        concurrentSchemaUpdateRetryWaitMs,
+        concurrentSchemaUpdateMaxRetries,
+        tableMaxStaleness,
         false,
         new ConcurrentHashMap<>(),
         new ConcurrentHashMap<>(),
@@ -164,6 +204,7 @@ public class SchemaManager {
       boolean mediateConcurrentSchemaUpdates,
       long concurrentSchemaUpdateRetryWaitMs,
       int concurrentSchemaUpdateMaxRetries,
+      Optional<String> tableMaxStaleness,
       boolean intermediateTables,
       ConcurrentMap<TableId, Object> tableCreateLocks,
       ConcurrentMap<TableId, Object> tableUpdateLocks,
@@ -184,6 +225,7 @@ public class SchemaManager {
     this.mediateConcurrentSchemaUpdates = mediateConcurrentSchemaUpdates;
     this.concurrentSchemaUpdateRetryWaitMs = concurrentSchemaUpdateRetryWaitMs;
     this.concurrentSchemaUpdateMaxRetries = concurrentSchemaUpdateMaxRetries;
+    this.tableMaxStaleness = tableMaxStaleness;
     this.intermediateTables = intermediateTables;
     this.tableCreateLocks = tableCreateLocks;
     this.tableUpdateLocks = tableUpdateLocks;
@@ -208,6 +250,7 @@ public class SchemaManager {
         mediateConcurrentSchemaUpdates,
         concurrentSchemaUpdateRetryWaitMs,
         concurrentSchemaUpdateMaxRetries,
+        Optional.empty(),
         true,
         tableCreateLocks,
         tableUpdateLocks,
@@ -271,6 +314,10 @@ public class SchemaManager {
         bigQuery.create(tableInfo);
         logger.debug("Successfully created {}", table(table));
         schemaCache.put(table, tableInfo.getDefinition().getSchema());
+        if (tableMaxStaleness.isPresent()) {
+          applyMaxStaleness(table);
+          checkedTableOptions.add(table);
+        }
         return true;
       } catch (BigQueryException e) {
         if (e.getCode() == 409) {
@@ -304,6 +351,10 @@ public class SchemaManager {
           bigQuery.update(tableInfo);
           logger.debug("Successfully updated {}", table(table));
           schemaCache.put(table, tableInfo.getDefinition().getSchema());
+          if (tableMaxStaleness.isPresent()) {
+            applyMaxStaleness(table);
+            checkedTableOptions.add(table);
+          }
         } catch (BigQueryException e) {
           if (!mediateConcurrentSchemaUpdates) {
             throw e;
@@ -908,5 +959,50 @@ public class SchemaManager {
 
   private Object lock(ConcurrentMap<TableId, Object> locks, TableId table) {
     return locks.computeIfAbsent(table, t -> new Object());
+  }
+
+  private final java.util.Set<TableId> checkedTableOptions = ConcurrentHashMap.newKeySet();
+
+  public void checkAndApplyTableOptions(TableId table) {
+    if (intermediateTables) {
+      return;
+    }
+    if (!tableMaxStaleness.isPresent()) {
+      return;
+    }
+    if (checkedTableOptions.contains(table)) {
+      return;
+    }
+
+    synchronized (lock(tableUpdateLocks, table)) {
+      if (checkedTableOptions.contains(table)) {
+        return;
+      }
+      if (bigQuery.getTable(table) != null) {
+        applyMaxStaleness(table);
+        checkedTableOptions.add(table);
+      }
+    }
+  }
+
+  private void applyMaxStaleness(TableId table) {
+    String maxStalenessVal = tableMaxStaleness.get();
+    String fullyQualifiedTable = table.getProject() != null
+        ? String.format("`%s`.`%s`.`%s`", table.getProject(), table.getDataset(), table.getTable())
+        : String.format("`%s`.`%s`", table.getDataset(), table.getTable());
+
+    String query = String.format(
+        "ALTER TABLE %s SET OPTIONS (max_staleness = INTERVAL %s)",
+        fullyQualifiedTable,
+        maxStalenessVal
+    );
+
+    logger.info("Applying max_staleness option of '{}' to table {} using query: {}", maxStalenessVal, table(table), query);
+    try {
+      bigQuery.query(com.google.cloud.bigquery.QueryJobConfiguration.of(query));
+      logger.info("Successfully set max_staleness to '{}' on table {}", maxStalenessVal, table(table));
+    } catch (Exception e) {
+      throw new BigQueryConnectException("Failed to apply max_staleness option to table " + table(table), e);
+    }
   }
 }

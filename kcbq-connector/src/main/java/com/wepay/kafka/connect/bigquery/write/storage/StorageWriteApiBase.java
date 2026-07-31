@@ -221,6 +221,7 @@ public abstract class StorageWriteApiBase {
    */
   public void initializeAndWriteRecords(PartitionedTableId table, List<ConvertedRecord> rows, String streamName,
                                         SinkRecordConverter recordConverter, Supplier<String> ulidSupplier) {
+    schemaManager.checkAndApplyTableOptions(table.getBaseTableId());
     TableName tableName = TableNameUtils.tableName(table.getFullTableId());
     StorageWriteApiRetryHandler retryHandler = new StorageWriteApiRetryHandler(table.getBaseTableId(), getSinkRecords(rows), retry, retryWait, time);
     logger.debug("Sending {} records to write Api Application stream {}", rows.size(), streamName);

@@ -154,7 +154,14 @@ public class BigQuerySinkConfig extends AbstractConfig {
   private static final String CDC_CHANGE_SEQUENCE_NUMBER_FIELD_DOC =
       "The name of the field or header to use as the change sequence number (_CHANGE_SEQUENCE_NUMBER) for BigQuery CDC. "
       + "If not set, Kafka Offset is used as the default sequence number.";
-
+  public static final String TABLE_MAX_STALENESS_CONFIG = "tableMaxStaleness";
+  public static final String TABLE_MAX_STALENESS_DEFAULT = null;
+  private static final ConfigDef.Type TABLE_MAX_STALENESS_TYPE = ConfigDef.Type.STRING;
+  private static final ConfigDef.Importance TABLE_MAX_STALENESS_IMPORTANCE = ConfigDef.Importance.MEDIUM;
+  private static final String TABLE_MAX_STALENESS_DOC =
+      "The maximum staleness allowed for the destination BigQuery table. "
+      + "Must be formatted as a BigQuery SQL INTERVAL literal (e.g., '0', '30 MINUTE', '1 HOUR'). "
+      + "Only applicable if upsert/delete (CDC) is enabled with the Storage Write API.";
   public static final String MERGE_INTERVAL_MS_CONFIG = "mergeIntervalMs";
   public static final String MERGE_RECORDS_THRESHOLD_CONFIG = "mergeRecordsThreshold";
   public static final long MERGE_INTERVAL_MS_DEFAULT = 60_000L;
@@ -899,7 +906,12 @@ public class BigQuerySinkConfig extends AbstractConfig {
                     CDC_CHANGE_SEQUENCE_NUMBER_FIELD_DEFAULT,
                     CDC_CHANGE_SEQUENCE_NUMBER_FIELD_IMPORTANCE,
                     CDC_CHANGE_SEQUENCE_NUMBER_FIELD_DOC
-
+            ).define(
+                    TABLE_MAX_STALENESS_CONFIG,
+                    TABLE_MAX_STALENESS_TYPE,
+                    TABLE_MAX_STALENESS_DEFAULT,
+                    TABLE_MAX_STALENESS_IMPORTANCE,
+                    TABLE_MAX_STALENESS_DOC
             ).define(
                     INTERMEDIATE_TABLE_SUFFIX_CONFIG,
                     INTERMEDIATE_TABLE_SUFFIX_TYPE,
@@ -1322,6 +1334,9 @@ public class BigQuerySinkConfig extends AbstractConfig {
     return Optional.ofNullable(getString(CDC_CHANGE_SEQUENCE_NUMBER_FIELD_CONFIG));
   }
 
+  public Optional<String> getTableMaxStaleness() {
+    return Optional.ofNullable(getString(TABLE_MAX_STALENESS_CONFIG));
+  }
 
   public boolean isUpsertDeleteEnabled() {
     return getBoolean(UPSERT_ENABLED_CONFIG) || getBoolean(DELETE_ENABLED_CONFIG);

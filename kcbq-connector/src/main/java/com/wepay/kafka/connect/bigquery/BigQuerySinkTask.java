@@ -369,12 +369,14 @@ public class BigQuerySinkTask extends SinkTask {
         config.getLong(BigQuerySinkConfig.CONCURRENT_SCHEMA_UPDATE_RETRY_WAIT_MS_CONFIG);
     int concurrentSchemaUpdateMaxRetries =
         config.getInt(BigQuerySinkConfig.CONCURRENT_SCHEMA_UPDATE_MAX_RETRIES_CONFIG);
+    Optional<String> tableMaxStaleness = config.getTableMaxStaleness();
     return new SchemaManager(schemaRetriever, schemaConverter, getBigQuery(),
         allowNewBigQueryFields, allowRequiredFieldRelaxation, allowSchemaUnionization,
         sanitizeFieldNames,
         kafkaKeyFieldName, kafkaDataFieldName,
         timestampPartitionFieldName, partitionExpiration, clusteringFieldName, timePartitioningType,
-        mediateConcurrentSchemaUpdates, concurrentSchemaUpdateRetryWaitMs, concurrentSchemaUpdateMaxRetries);
+        mediateConcurrentSchemaUpdates, concurrentSchemaUpdateRetryWaitMs, concurrentSchemaUpdateMaxRetries,
+        tableMaxStaleness);
   }
 
   private BigQueryWriter getBigQueryWriter(ErrantRecordHandler errantRecordHandler) {
@@ -500,12 +502,12 @@ public class BigQuerySinkTask extends SinkTask {
 
     if (config.getBoolean(BigQuerySinkTaskConfig.GCS_BQ_TASK_CONFIG)) {
       startGcsToBqLoadTask();
+    } else if (useStorageApi) {
+      initializeStorageApiMode();
     } else if (upsertDelete) {
       mergeQueries =
           new MergeQueries(config, mergeBatches, executor, getBigQuery(), getSchemaManager(), context);
       maybeStartMergeFlushTask();
-    } else if (useStorageApi) {
-      initializeStorageApiMode();
     }
 
     recordConverter = getConverter(config);
