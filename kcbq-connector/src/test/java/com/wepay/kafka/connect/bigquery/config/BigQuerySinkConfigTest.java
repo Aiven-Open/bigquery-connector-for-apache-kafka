@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Copyright 2022 Aiven Oy and
+ * Copyright 2022-2026 Aiven Oy and
  * bigquery-connector-for-apache-kafka project contributors
  *
  * This software contains code derived from the Confluent BigQuery
@@ -11,7 +11,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -26,6 +26,7 @@ package com.wepay.kafka.connect.bigquery.config;
 import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.CONVERT_DEBEZIUM_DECIMAL_CONFIG;
 import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_CONFIG;
 import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.DECIMAL_HANDLING_MODE_CONFIG;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -43,7 +44,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import org.apache.kafka.common.config.Config;
 import org.apache.kafka.common.config.ConfigException;
+import org.apache.kafka.common.config.ConfigValue;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -345,5 +348,61 @@ public class BigQuerySinkConfigTest {
         config.getVariableScaleDecimalHandlingMode());
     assertEquals(BigQuerySinkConfig.DecimalHandlingMode.FLOAT, config.getDecimalHandlingMode());
     assertFalse(config.getShouldConvertDebeziumTimestampToInteger());
+  }
+
+  private Map<String, ConfigValue> errorMap(Config cfg) {
+    Map<String, ConfigValue> result = new HashMap<>();
+    cfg.configValues().stream()
+        .filter(cv -> !cv.errorMessages().isEmpty())
+        .forEach(cv -> result.put(cv.name(), cv));
+    return result;
+  }
+
+  @Test
+  void testKafkaKeyFieldWithUpsertAndStorageWriteApi() {
+    Map<String, String> configProperties = propertiesFactory.getProperties();
+    configProperties.put(BigQuerySinkConfig.KAFKA_KEY_FIELD_NAME_CONFIG, "KeyField");
+    configProperties.put(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG, "true");
+    configProperties.put(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, "true");
+
+    BigQuerySinkConfig config = new BigQuerySinkConfig(configProperties);
+    Map<String, ConfigValue> errors = errorMap(config.validate());
+    assertThat(errors.keySet())
+        .containsExactlyInAnyOrder(
+            BigQuerySinkConfig.KAFKA_KEY_FIELD_NAME_CONFIG,
+            BigQuerySinkConfig.GCS_BUCKET_NAME_CONFIG,
+            "keyfile");
+  }
+
+  @Test
+  void testKafkaKeyFieldWithDeleteAndStorageWriteApi() {
+    Map<String, String> configProperties = propertiesFactory.getProperties();
+    configProperties.put(BigQuerySinkConfig.KAFKA_KEY_FIELD_NAME_CONFIG, "KeyField");
+    configProperties.put(BigQuerySinkConfig.DELETE_ENABLED_CONFIG, "true");
+    configProperties.put(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, "true");
+
+    BigQuerySinkConfig config = new BigQuerySinkConfig(configProperties);
+    Map<String, ConfigValue> errors = errorMap(config.validate());
+    assertThat(errors.keySet())
+        .containsExactlyInAnyOrder(
+            BigQuerySinkConfig.KAFKA_KEY_FIELD_NAME_CONFIG,
+            BigQuerySinkConfig.GCS_BUCKET_NAME_CONFIG,
+            "keyfile",
+            BigQuerySinkConfig.DELETE_ENABLED_CONFIG);
+  }
+
+  @Test
+  void testKafkaKeyFieldWithDeleteAndDefaultWrite() {
+    Map<String, String> configProperties = propertiesFactory.getProperties();
+    configProperties.put(BigQuerySinkConfig.DELETE_ENABLED_CONFIG, "true");
+    configProperties.put(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, "false");
+
+    BigQuerySinkConfig config = new BigQuerySinkConfig(configProperties);
+    Map<String, ConfigValue> errors = errorMap(config.validate());
+    assertThat(errors.keySet())
+        .containsExactlyInAnyOrder(
+            BigQuerySinkConfig.KAFKA_KEY_FIELD_NAME_CONFIG,
+            BigQuerySinkConfig.GCS_BUCKET_NAME_CONFIG,
+            "keyfile");
   }
 }

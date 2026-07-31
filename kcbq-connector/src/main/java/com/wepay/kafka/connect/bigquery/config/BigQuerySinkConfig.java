@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Copyright 2022 Aiven Oy and
+ * Copyright 2022-2026 Aiven Oy and
  * bigquery-connector-for-apache-kafka project contributors
  *
  * This software contains code derived from the Confluent BigQuery
@@ -55,6 +55,7 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.config.Config;
 import org.apache.kafka.common.config.ConfigDef;
@@ -408,13 +409,12 @@ public class BigQuerySinkConfig extends AbstractConfig {
           + "kafkaDataFieldName is not configured. Enabling this on an existing table requires "
           + "allowNewBigQueryFields=true. Default false (disabled).";
   private static final ConfigDef.Type KAFKA_KEY_FIELD_NAME_TYPE = ConfigDef.Type.STRING;
-  private static final ConfigDef.Validator KAFKA_KEY_FIELD_NAME_VALIDATOR =
-      new ConfigDef.NonEmptyString();
   private static final ConfigDef.Importance KAFKA_KEY_FIELD_NAME_IMPORTANCE =
       ConfigDef.Importance.LOW;
   private static final String KAFKA_KEY_FIELD_NAME_DOC =
       "The name of the field of Kafka key. "
-          + "Default to be null, which means Kafka Key Field will not be included.";
+          + "Default to be null, which means Kafka Key Field will not be included. "
+          + "To include all fields from the key in the top-level record, specify a blank string for this property.";
   private static final ConfigDef.Type KAFKA_DATA_FIELD_NAME_TYPE = ConfigDef.Type.STRING;
   private static final ConfigDef.Validator KAFKA_DATA_FIELD_NAME_VALIDATOR =
       new ConfigDef.NonEmptyString();
@@ -526,7 +526,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
                   "Value must be either -1 to disable, or at least 10000 (10 seconds).");
             }
           },
-          () -> "Either -1 to disable or a value of at least 10000 to enable");
+          () -> "Either -1 to disable or a value of at least 10000 (10 seconds) to enable");
   private static final ConfigDef.Importance MERGE_INTERVAL_MS_IMPORTANCE = ConfigDef.Importance.LOW;
   private static final String MERGE_INTERVAL_MS_DOC =
       "How often (in milliseconds) to perform a merge flush, if upsert/delete is enabled. Can be set to -1"
@@ -768,7 +768,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
     MULTI_PROPERTY_VALIDATIONS.add(new StorageWriteApiValidator.StorageWriteApiBatchValidator());
     MULTI_PROPERTY_VALIDATIONS.add(new UpsertDeleteValidator.UpsertValidator());
     MULTI_PROPERTY_VALIDATIONS.add(new UpsertDeleteValidator.DeleteValidator());
-
+    MULTI_PROPERTY_VALIDATIONS.add(new KafkaKeyFieldNameValidator());
     // Determine if we are running under Kafak 3.6 or later
     boolean kafkaConnectApiPost36;
     try {
@@ -932,7 +932,6 @@ public class BigQuerySinkConfig extends AbstractConfig {
             KAFKA_KEY_FIELD_NAME_CONFIG,
             KAFKA_KEY_FIELD_NAME_TYPE,
             KAFKA_KEY_FIELD_NAME_DEFAULT,
-            KAFKA_KEY_FIELD_NAME_VALIDATOR,
             KAFKA_KEY_FIELD_NAME_IMPORTANCE,
             KAFKA_KEY_FIELD_NAME_DOC)
         .define(
@@ -1425,7 +1424,13 @@ public class BigQuerySinkConfig extends AbstractConfig {
    * @return Field name of Kafka Key to be used in BigQuery
    */
   public Optional<String> getKafkaKeyFieldName() {
-    return Optional.ofNullable(getString(KAFKA_KEY_FIELD_NAME_CONFIG));
+    String value = getString(KAFKA_KEY_FIELD_NAME_CONFIG);
+    if (StringUtils.isBlank(value)
+        && (isUpsertEnabled() || isDeleteEnabled())
+        && useStorageWriteApi()) {
+      return Optional.of("");
+    }
+    return Optional.ofNullable(value);
   }
 
   /**
