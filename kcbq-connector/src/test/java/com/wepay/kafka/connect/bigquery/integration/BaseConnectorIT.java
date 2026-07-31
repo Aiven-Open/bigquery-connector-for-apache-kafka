@@ -40,6 +40,7 @@ import static org.apache.kafka.test.TestUtils.waitForCondition;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.google.cloud.Date;
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.Field;
 import com.google.cloud.bigquery.FieldValue;
@@ -52,7 +53,12 @@ import com.wepay.kafka.connect.bigquery.GcpClientBuilder;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.integration.utils.TestCaseLogger;
 import com.wepay.kafka.connect.bigquery.utils.FieldNameSanitizer;
+
+import java.sql.Time;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -299,7 +305,9 @@ public abstract class BaseConnectorIT {
         } else if (fieldSchema.getType().equals(TIME)) {
           return field.getStringValue();
         } else if (fieldSchema.getType().equals(DATETIME)) {
-          return field.getTimestampValue();
+          // return micro seconds.
+          Instant instant = LocalDateTime.parse(field.getStringValue(), DateTimeFormatter.ISO_LOCAL_DATE_TIME).atOffset(ZoneOffset.UTC).toInstant();
+          return instant.getEpochSecond() * 1_000_000 + instant.getNano() / 1_000;
         } else if (fieldSchema.getType().equals(FLOAT)) {
           return field.getDoubleValue();
         } else if (fieldSchema.getType().equals(INTEGER)) {

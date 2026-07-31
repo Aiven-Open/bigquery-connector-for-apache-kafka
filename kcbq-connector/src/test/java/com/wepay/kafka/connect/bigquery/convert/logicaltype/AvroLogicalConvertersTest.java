@@ -46,6 +46,8 @@ public class AvroLogicalConvertersTest {
   // 22:20:38.808123 (time of day, microseconds since midnight)
   private static final long TIME_MICROS = (22 * 3600L + 20 * 60L + 38) * 1_000_000L + 808_123L;
 
+  private static final String EXPECTED_STRING = "2017-03-01 22:20:38.808123";
+
   @Test
   public void testTimestampMicrosConverterSchemaType() {
     TimestampMicrosConverter converter = new TimestampMicrosConverter();

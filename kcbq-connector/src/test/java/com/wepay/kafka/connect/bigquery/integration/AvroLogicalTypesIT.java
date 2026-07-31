@@ -217,6 +217,7 @@ public class AvroLogicalTypesIT extends BaseConnectorIT {
     props.put(SinkConnectorConfig.TOPICS_CONFIG, topic);
     props.put(BigQuerySinkConfig.SANITIZE_TOPICS_CONFIG, "true");
     props.put(BigQuerySinkConfig.TABLE_CREATE_CONFIG, "true");
+    props.put(BigQuerySinkConfig.USE_AVRO_TEMPORAL_LOGICAL_TYPES_CONFIG, "true");
     props.put(BigQuerySinkConfig.SCHEMA_RETRIEVER_CONFIG, IdentitySchemaRetriever.class.getName());
     props.put(KEY_CONVERTER_CLASS_CONFIG, AvroConverter.class.getName());
     props.put(
