@@ -218,6 +218,7 @@ public class SinkRecordConverter {
     // 4. Set the CDC metadata columns
     String changeType = "UPSERT";
     if (record.value() == null) {
+      logger.info("Tombstone record (null value) detected for key {} at offset {}", record.key(), record.kafkaOffset());
       changeType = "DELETE";
     } else if (convertedValue != null) {
       Object deletedVal = convertedValue.get("__deleted");
@@ -287,15 +288,15 @@ public class SinkRecordConverter {
       return null;
     }
 
-    String seqHex = null;
+    Long seqLong = null;
 
     if (seqValue instanceof Number) {
-      seqHex = String.format("%016x", ((Number) seqValue).longValue());
+      seqLong = ((Number) seqValue).longValue();
     } else {
       String strVal = seqValue.toString().trim();
       // Try to parse as raw Long first (e.g. "1785367800000")
       try {
-        seqHex = String.format("%016x", Long.parseLong(strVal));
+        seqLong = Long.parseLong(strVal);
       } catch (NumberFormatException e) {
         // Not a raw number. Try parsing as a timestamp string.
         try {
@@ -307,19 +308,25 @@ public class SinkRecordConverter {
           } else {
             instant = OffsetDateTime.parse(normalized).toInstant();
           }
-          seqHex = String.format("%016x", instant.toEpochMilli());
+          seqLong = instant.toEpochMilli();
         } catch (Exception ex) {
           // If all parsing fails, fallback to raw character hex-encoding (legacy/fallback)
-          seqHex = hexEncodeString(strVal);
+          return hexEncodeString(strVal);
         }
       }
     }
 
-    if (seqHex != null) {
-      // Append the Kafka offset as a second segment to break ties deterministically.
-      // Both segments will be 16 characters (8 bytes) which is well within BigQuery's 32-character limit per segment.
-      String offsetHex = String.format("%016x", record.kafkaOffset());
-      return seqHex + "/" + offsetHex;
+    if (seqLong != null) {
+      // Check if the sequence value fits in 32 bits to allow compound sequence generation
+      if (seqLong >= 0 && seqLong <= 0xFFFFFFFFL) {
+        long kafkaOffset = record.kafkaOffset();
+        long compoundSeq = (seqLong << 32) | (kafkaOffset & 0xFFFFFFFFL);
+        return String.format("%016x", compoundSeq);
+      } else {
+        // Overflow (e.g. timestamp). Use the raw 64-bit value directly.
+        // Timestamps are high resolution enough that collisions are rare.
+        return String.format("%016x", seqLong);
+      }
     }
     return null;
   }
