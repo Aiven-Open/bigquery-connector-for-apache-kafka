@@ -65,8 +65,8 @@ jobs:
 
       - name: Build (Maven)
         env:
-          NPROC: ${{project.nproc}}
-          LOAD: ${{project.load}}
+          NPROC: ${{ steps.project.outputs.nproc }}
+          LOAD: ${{ steps.project.outputs.load }}
         run:  mvn -ntp -P ci clean install -DskipITs
 
       - name: Upload test results (Maven)
