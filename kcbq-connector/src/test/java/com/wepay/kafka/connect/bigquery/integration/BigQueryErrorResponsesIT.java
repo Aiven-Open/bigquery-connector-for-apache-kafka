@@ -44,12 +44,16 @@ import com.google.cloud.bigquery.TableId;
 import com.google.cloud.bigquery.TableInfo;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryErrorResponses;
 import com.wepay.kafka.connect.bigquery.integration.utils.TableClearer;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 import org.apache.kafka.test.TestUtils;
@@ -114,6 +118,8 @@ public class BigQueryErrorResponsesIT extends BaseConnectorIT {
         "Table still appears to exist  one minute after issuing delete request");
     logger.info("Deleted {} successfully", table(table));
 
+    final ExceptionTracker exceptionTracker = new ExceptionTracker();
+
     TestUtils.waitForCondition(
         () -> {
           // Try to write to it...
@@ -126,15 +132,17 @@ public class BigQueryErrorResponsesIT extends BaseConnectorIT {
               logger.debug("Deleted table write error: {}", e.getMessage());
               return true;
             }
-            logger.info("Unexpected error: {}", e.getMessage(), e);
+            logger.info("Unexpected error: {}", exceptionTracker.recordException(e).getMessage());
             return false;
           }
         },
         ONE_MINUTE,
-        "Never failed to write to just-deleted table");
+        exceptionTracker.report("Never failed to write to just-deleted table."));
 
     // Recreate it...
     bigQuery.create(TableInfo.newBuilder(table, StandardTableDefinition.of(schema)).build());
+
+    exceptionTracker.reset();
 
     // this one takes time so only check every second.
     TestUtils.waitForCondition(
@@ -145,13 +153,15 @@ public class BigQueryErrorResponsesIT extends BaseConnectorIT {
                 InsertAllRequest.of(table, RowToInsert.of(Collections.singletonMap("f1", "v1"))));
             return true;
           } catch (BigQueryException e) {
-            logger.debug("Recreated table write error: {}", e.getMessage());
+            logger.debug(
+                "Recreated table write error: {}",
+                exceptionTracker.recordException(e).getMessage());
             return false;
           }
         },
         ONE_MINUTE,
         ONE_SECOND,
-        () -> "Never succeeded to write to just-recreated table");
+        () -> exceptionTracker.report("Never succeeded to write to just-recreated table."));
   }
 
   @Test
@@ -319,5 +329,59 @@ public class BigQueryErrorResponsesIT extends BaseConnectorIT {
   private <T> T assertListHasSingleElement(List<T> list) {
     assertEquals(1, list.size());
     return list.get(0);
+  }
+
+  /** Tracks the latest BigQueryException. */
+  private static final class ExceptionTracker {
+    private BigQueryException lastError = null;
+
+    /**
+     * Record the occurrence of the exception.
+     *
+     * @param exception the exception that was thrown.
+     * @return the exception.
+     */
+    public BigQueryException recordException(BigQueryException exception) {
+      lastError = exception;
+      return exception;
+    }
+
+    /**
+     * Produces a report for the exception, if any. Adds the exception stack trace to the base
+     * message if an exception was thrown. Otherwise returns the base message. May be used in lamda
+     * expressions to track exceptions and output detailed reports.
+     *
+     * @param baseMsg the basic message.
+     * @return the report message.
+     */
+    public String report(final String baseMsg) {
+      try (StringWriter sr = new StringWriter();
+          PrintWriter writer = new PrintWriter(sr)) {
+        writer.append(baseMsg);
+        if (lastError != null) {
+          writer.append(" Latest exception: ");
+          lastError.printStackTrace(writer);
+        }
+        writer.flush();
+        return sr.toString();
+      } catch (IOException e) {
+        return baseMsg;
+      }
+    }
+
+    /**
+     * Returns an Optional containing the last exception, if one was thrown, otherwise, an empty
+     * Optional.
+     *
+     * @return an Optional containing the last exception thrown.
+     */
+    public Optional<BigQueryException> getException() {
+      return Optional.ofNullable(lastError);
+    }
+
+    /** Resets the last error so that this tracker can be reused. */
+    public void reset() {
+      lastError = null;
+    }
   }
 }
