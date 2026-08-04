@@ -46,18 +46,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v7.0.1
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5.7.0
         with:
-          distribution: 'adopt'
+          distribution: 'temurin'
           java-version: 17
           cache: maven
       - name: Build (Maven)
         run:  mvn -ntp -P ci clean install -DskipITs
       - name: Upload test results (Maven)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.1
         with:
           path: |
             **/target/*-reports/*
@@ -86,7 +86,7 @@ jobs:
         env:
           KCBQ_TEST_PROJECT: ${{ secrets.KCBQ_TEST_PROJECT }}
         #if: KCBQ_TEST_PROJECT != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.1
         with:
           path: |
             **/target/*-reports/*
