@@ -47,14 +47,28 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v7.0.1
+
       - name: Set up JDK 17
         uses: actions/setup-java@v5.7.0
         with:
           distribution: 'temurin'
           java-version: 17
           cache: maven
+
+      - name: Calc load
+        run: |
+          echo "load=$(uptime | cut -d, -f3 | cut -d: -f2)" >> $GITHUB_OUTPUT;
+          echo "nproc=$(nproc)" >> $GITHUB_OUTPUT;
+          echo "scale=4;${load} / $(nproc)" | bc
+        id: project
+
+
       - name: Build (Maven)
+        env:
+          NPROC: ${{project.nproc}}
+          LOAD: ${{project.load}}
         run:  mvn -ntp -P ci clean install -DskipITs
+
       - name: Upload test results (Maven)
         if: always()
         uses: actions/upload-artifact@v7.0.1

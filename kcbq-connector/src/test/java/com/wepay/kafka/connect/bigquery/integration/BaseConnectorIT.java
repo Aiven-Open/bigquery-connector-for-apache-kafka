@@ -118,6 +118,10 @@ public abstract class BaseConnectorIT {
     return Arrays.asList(result);
   }
 
+  protected BaseConnectorIT() {
+    logger.info("load:{} nproc:{} wait factor: {}", load(), nproc(), waitFactor());
+  }
+
   protected void startConnect() {
     Map<String, String> workerProps = new HashMap<>();
     workerProps.put(
@@ -395,6 +399,7 @@ public abstract class BaseConnectorIT {
       return Optional.of(msgs.isEmpty());
     } catch (Exception e) {
       logger.warn("Could not check connector state info.", e);
+      connectorStatus = null;
       return Optional.empty();
     }
   }
@@ -423,6 +428,18 @@ public abstract class BaseConnectorIT {
 
   private String readEnvVar(String var, String defaultVal) {
     return System.getenv().getOrDefault(var, defaultVal).trim();
+  }
+
+  protected double waitFactor() {
+    return load() / nproc();
+  }
+
+  protected double load() {
+    return Double.parseDouble(readEnvVar("LOAD", "1.0"));
+  }
+
+  protected int nproc() {
+    return Integer.parseInt(readEnvVar("NPROC", "1"));
   }
 
   protected String keyFile() {
