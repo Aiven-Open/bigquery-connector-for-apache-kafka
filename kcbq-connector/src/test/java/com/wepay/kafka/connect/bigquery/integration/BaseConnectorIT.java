@@ -104,8 +104,10 @@ public abstract class BaseConnectorIT {
   protected static final long ONE_SECOND = 1_000L;
 
   protected EmbeddedConnectCluster connect;
+
   /** The status message if there are any issues with the connector status check */
   protected String connectorStatus;
+
   private Admin kafkaAdminClient;
 
   protected static List<Byte> boxByteArray(byte[] bytes) {
