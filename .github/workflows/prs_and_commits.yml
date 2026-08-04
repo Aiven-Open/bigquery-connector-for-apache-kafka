@@ -59,6 +59,7 @@ jobs:
         run: |
           echo $(which uptime)
           echo $(uptime | cut -d, -f3 | cut -d: -f2)
+          echo "load=$(uptime | cut -d, -f3 | cut -d: -f2)"
           echo "load=$(uptime | cut -d, -f3 | cut -d: -f2)" >> $GITHUB_OUTPUT;
           echo "nproc=$(nproc)" >> $GITHUB_OUTPUT;
           echo "scale=4;${load} / $(nproc)" | bc
