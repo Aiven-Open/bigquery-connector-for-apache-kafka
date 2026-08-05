@@ -70,8 +70,8 @@ jobs:
           echo LOAD=${{ steps.project.outputs.load }}
           echo NPROC=${{ steps.project.outputs.nproc }}
           mvn -ntp -P ci clean install -DskipITs
-          mvn -ntp -P ci -f tools clean install
-          mvn -ntp -P ci -f site clean install
+          mvn -ntp -P ci -f tools/ clean install
+          mvn -ntp -P ci -f docs/ clean install
       - name: Upload test results (Maven)
         if: always()
         uses: actions/upload-artifact@v7.0.1
