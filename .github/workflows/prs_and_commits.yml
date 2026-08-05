@@ -59,8 +59,6 @@ jobs:
         run: |
           echo "load=$(uptime | cut -d, -f3 | cut -d: -f2 | xargs)" >> $GITHUB_OUTPUT;
           echo "nproc=$(nproc)" >> $GITHUB_OUTPUT;
-          echo LOAD=${{ steps.project.outputs.load }}
-          echo NPROC=${{ steps.project.outputs.nproc }}
         id: project
 
 
@@ -69,6 +67,8 @@ jobs:
           NPROC: ${{ steps.project.outputs.nproc }}
           LOAD: ${{ steps.project.outputs.load }}
         run:  |
+          echo LOAD=${{ steps.project.outputs.load }}
+          echo NPROC=${{ steps.project.outputs.nproc }}
           mvn -ntp -P ci clean install -DskipITs
           mvn -ntp -P ci -f tools clean install
           mvn -ntp -P ci -f site clean install
