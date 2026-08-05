@@ -59,6 +59,8 @@ jobs:
         run: |
           echo "load=$(uptime | cut -d, -f3 | cut -d: -f2 | xargs)" >> $GITHUB_OUTPUT;
           echo "nproc=$(nproc)" >> $GITHUB_OUTPUT;
+          echo LOAD=${{ steps.project.outputs.load }}
+          echo NPROC=${{ steps.project.outputs.nproc }}
         id: project
 
 
