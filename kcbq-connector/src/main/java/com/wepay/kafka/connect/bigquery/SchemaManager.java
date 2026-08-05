@@ -86,7 +86,7 @@ public class SchemaManager {
   private final boolean mediateConcurrentSchemaUpdates;
   private final long concurrentSchemaUpdateRetryWaitMs;
   private final int concurrentSchemaUpdateMaxRetries;
-  private final Optional<String> tableMaxStaleness;
+  private final Optional<Integer> tableMaxStaleness;
 
   /**
    * @param schemaRetriever                Used to determine the Kafka Connect Schema that should be used for a
@@ -162,7 +162,7 @@ public class SchemaManager {
       boolean mediateConcurrentSchemaUpdates,
       long concurrentSchemaUpdateRetryWaitMs,
       int concurrentSchemaUpdateMaxRetries,
-      Optional<String> tableMaxStaleness) {
+      Optional<Integer> tableMaxStaleness) {
     this(
         schemaRetriever,
         schemaConverter,
@@ -204,7 +204,7 @@ public class SchemaManager {
       boolean mediateConcurrentSchemaUpdates,
       long concurrentSchemaUpdateRetryWaitMs,
       int concurrentSchemaUpdateMaxRetries,
-      Optional<String> tableMaxStaleness,
+      Optional<Integer> tableMaxStaleness,
       boolean intermediateTables,
       ConcurrentMap<TableId, Object> tableCreateLocks,
       ConcurrentMap<TableId, Object> tableUpdateLocks,
@@ -986,13 +986,13 @@ public class SchemaManager {
   }
 
   private void applyMaxStaleness(TableId table) {
-    String maxStalenessVal = tableMaxStaleness.get();
+    Integer maxStalenessVal = tableMaxStaleness.get();
     String fullyQualifiedTable = table.getProject() != null
         ? String.format("`%s`.`%s`.`%s`", table.getProject(), table.getDataset(), table.getTable())
         : String.format("`%s`.`%s`", table.getDataset(), table.getTable());
 
     String query = String.format(
-        "ALTER TABLE %s SET OPTIONS (max_staleness = INTERVAL %s)",
+        "ALTER TABLE %s SET OPTIONS (max_staleness = INTERVAL %d SECOND)",
         fullyQualifiedTable,
         maxStalenessVal
     );

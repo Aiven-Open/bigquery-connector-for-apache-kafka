@@ -124,6 +124,7 @@ public class BigQuerySchemaConverter implements SchemaConverter<com.google.cloud
     throwOnCycle(kafkaConnectSchema, new ArrayList<>());
 
     List<com.google.cloud.bigquery.Field> fields = kafkaConnectSchema.fields().stream()
+        .filter(kafkaConnectField -> !kafkaConnectField.name().equals("__deleted"))
         .flatMap(kafkaConnectField ->
             convertField(kafkaConnectField.schema(), kafkaConnectField.name())
                 .map(Stream::of)
@@ -223,6 +224,7 @@ public class BigQuerySchemaConverter implements SchemaConverter<com.google.cloud
                                                                           String fieldName) {
     List<com.google.cloud.bigquery.Field> bigQueryRecordFields = kafkaConnectSchema.fields()
         .stream()
+        .filter(kafkaConnectField -> !kafkaConnectField.name().equals("__deleted"))
         .flatMap(kafkaConnectField ->
             convertField(kafkaConnectField.schema(), kafkaConnectField.name())
                 .map(Stream::of)

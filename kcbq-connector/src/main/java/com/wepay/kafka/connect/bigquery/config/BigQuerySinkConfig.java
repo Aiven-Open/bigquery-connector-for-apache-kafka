@@ -155,12 +155,11 @@ public class BigQuerySinkConfig extends AbstractConfig {
       "The name of the field or header to use as the change sequence number (_CHANGE_SEQUENCE_NUMBER) for BigQuery CDC. "
       + "If not set, Kafka Offset is used as the default sequence number.";
   public static final String TABLE_MAX_STALENESS_CONFIG = "tableMaxStaleness";
-  public static final String TABLE_MAX_STALENESS_DEFAULT = null;
-  private static final ConfigDef.Type TABLE_MAX_STALENESS_TYPE = ConfigDef.Type.STRING;
+  public static final Integer TABLE_MAX_STALENESS_DEFAULT = null;
+  private static final ConfigDef.Type TABLE_MAX_STALENESS_TYPE = ConfigDef.Type.INT;
   private static final ConfigDef.Importance TABLE_MAX_STALENESS_IMPORTANCE = ConfigDef.Importance.MEDIUM;
   private static final String TABLE_MAX_STALENESS_DOC =
-      "The maximum staleness allowed for the destination BigQuery table. "
-      + "Must be formatted as a BigQuery SQL INTERVAL literal (e.g., '0', '30 MINUTE', '1 HOUR'). "
+      "The maximum staleness allowed for the destination BigQuery table in seconds. "
       + "Only applicable if upsert/delete (CDC) is enabled with the Storage Write API.";
   public static final String MERGE_INTERVAL_MS_CONFIG = "mergeIntervalMs";
   public static final String MERGE_RECORDS_THRESHOLD_CONFIG = "mergeRecordsThreshold";
@@ -1334,8 +1333,8 @@ public class BigQuerySinkConfig extends AbstractConfig {
     return Optional.ofNullable(getString(CDC_CHANGE_SEQUENCE_NUMBER_FIELD_CONFIG));
   }
 
-  public Optional<String> getTableMaxStaleness() {
-    return Optional.ofNullable(getString(TABLE_MAX_STALENESS_CONFIG));
+  public Optional<Integer> getTableMaxStaleness() {
+    return Optional.ofNullable(getInt(TABLE_MAX_STALENESS_CONFIG));
   }
 
   public boolean isUpsertDeleteEnabled() {

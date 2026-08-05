@@ -59,8 +59,7 @@ import com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiBase;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiBatchApplicationStream;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiDefaultStream;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiWriter;
-import de.huxhorn.sulky.ulid.ULID;
-import io.aiven.commons.system.VersionInfo;
+import com.wepay.kafka.connect.bigquery.utils.ULID;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collection;
@@ -369,7 +368,7 @@ public class BigQuerySinkTask extends SinkTask {
         config.getLong(BigQuerySinkConfig.CONCURRENT_SCHEMA_UPDATE_RETRY_WAIT_MS_CONFIG);
     int concurrentSchemaUpdateMaxRetries =
         config.getInt(BigQuerySinkConfig.CONCURRENT_SCHEMA_UPDATE_MAX_RETRIES_CONFIG);
-    Optional<String> tableMaxStaleness = config.getTableMaxStaleness();
+    Optional<Integer> tableMaxStaleness = config.getTableMaxStaleness();
     return new SchemaManager(schemaRetriever, schemaConverter, getBigQuery(),
         allowNewBigQueryFields, allowRequiredFieldRelaxation, allowSchemaUnionization,
         sanitizeFieldNames,
@@ -670,7 +669,7 @@ public class BigQuerySinkTask extends SinkTask {
 
   @Override
   public String version() {
-    String version = new VersionInfo(BigQuerySinkTask.class).getVersion();
+    String version = "2.15.0-SNAPSHOT";
     logger.trace("task.version() = {}", version);
     return version;
   }
