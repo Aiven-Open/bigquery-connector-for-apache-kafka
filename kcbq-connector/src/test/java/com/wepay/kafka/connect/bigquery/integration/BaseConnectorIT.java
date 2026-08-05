@@ -100,8 +100,14 @@ public abstract class BaseConnectorIT {
   private static final String GCS_BUCKET_ENV_VAR = "KCBQ_TEST_BUCKET";
   private static final String GCS_FOLDER_ENV_VAR = "KCBQ_TEST_FOLDER";
   private static final String TEST_NAMESPACE_ENV_VAR = "KCBQ_TEST_TABLE_SUFFIX";
+  protected static final long ONE_MINUTE = 60_000L;
+  protected static final long ONE_SECOND = 1_000L;
 
   protected EmbeddedConnectCluster connect;
+
+  /** The status message if there are any issues with the connector status check */
+  protected String connectorStatus;
+
   private Admin kafkaAdminClient;
 
   protected static List<Byte> boxByteArray(byte[] bytes) {
@@ -110,6 +116,10 @@ public abstract class BaseConnectorIT {
       result[i] = bytes[i];
     }
     return Arrays.asList(result);
+  }
+
+  protected BaseConnectorIT() {
+    logger.info("load:{} nproc:{} wait factor: {}", load(), nproc(), waitFactor());
   }
 
   protected void startConnect() {
@@ -206,7 +216,7 @@ public abstract class BaseConnectorIT {
             try {
               assertTrue(
                   assertConnectorAndTasksRunning(connector, numTasks).orElse(false),
-                  "Connector or one of its tasks failed during testing");
+                  () -> "Connector or one of its tasks failed during testing: " + connectorStatus);
             } catch (AssertionError e) {
               throw new NoRetryException(e);
             }
@@ -353,7 +363,7 @@ public abstract class BaseConnectorIT {
     waitForCondition(
         () -> assertConnectorAndTasksRunning(name, numTasks).orElse(false),
         CONNECTOR_STARTUP_DURATION_MS,
-        "Connector tasks did not start in time.");
+        "Connector tasks did not start in time: " + connectorStatus);
   }
 
   /**
@@ -361,21 +371,35 @@ public abstract class BaseConnectorIT {
    *
    * @param connectorName the connector
    * @param numTasks the minimum number of tasks
-   * @return an Optional {@code true} if the connector and tasks are in RUNNING state; {@code false}
-   *     if they are not and an empty Optional if there was an Exception thrown.
+   * @return an Optional {@code String} if the connector and tasks are not in RUNNING state; {@code
+   *     empty} if they are an empty Optional if there was an Exception thrown.
    */
   protected Optional<Boolean> assertConnectorAndTasksRunning(String connectorName, int numTasks) {
     try {
       ConnectorStateInfo info = connect.connectorStatus(connectorName);
-      boolean result =
-          info != null
-              && info.tasks().size() >= numTasks
-              && info.connector().state().equals(AbstractStatus.State.RUNNING.toString())
-              && info.tasks().stream()
-                  .allMatch(s -> s.state().equals(AbstractStatus.State.RUNNING.toString()));
-      return Optional.of(result);
+      List<String> msgs = new ArrayList<>();
+      if (info == null) {
+        msgs.add("Could not retrieve connector status.");
+      } else {
+        if (info.tasks().size() < numTasks) {
+          msgs.add(
+              String.format("Too few tasks expected %s got %s.", info.tasks().size(), numTasks));
+        }
+        if (!info.connector().state().equals(AbstractStatus.State.RUNNING.toString())) {
+          msgs.add("Connector state is " + info.connector().state());
+        }
+        info.tasks().stream()
+            .filter(s -> !s.state().equals(AbstractStatus.State.RUNNING.toString()))
+            .forEach(
+                ts ->
+                    msgs.add(
+                        String.format("Task %s is not running: %s.", ts.workerId(), ts.trace())));
+      }
+      connectorStatus = msgs.isEmpty() ? null : String.join(System.lineSeparator(), msgs);
+      return Optional.of(msgs.isEmpty());
     } catch (Exception e) {
       logger.warn("Could not check connector state info.", e);
+      connectorStatus = null;
       return Optional.empty();
     }
   }
@@ -404,6 +428,18 @@ public abstract class BaseConnectorIT {
 
   private String readEnvVar(String var, String defaultVal) {
     return System.getenv().getOrDefault(var, defaultVal).trim();
+  }
+
+  protected double waitFactor() {
+    return load() / nproc();
+  }
+
+  protected double load() {
+    return Double.parseDouble(readEnvVar("LOAD", "1.0"));
+  }
+
+  protected int nproc() {
+    return Integer.parseInt(readEnvVar("NPROC", "1"));
   }
 
   protected String keyFile() {

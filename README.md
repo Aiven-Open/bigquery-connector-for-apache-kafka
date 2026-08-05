@@ -1,5 +1,8 @@
 # Kafka Connect BigQuery Connector
 
+
+[![Build site and deploy](https://github.com/Aiven-Open/bigquery-connector-for-apache-kafka/actions/workflows/build_site.yml/badge.svg)](https://github.com/Aiven-Open/bigquery-connector-for-apache-kafka/actions/workflows/build_site.yml)
+
 This is an implementation of a sink connector from [Apache Kafka](http://kafka.apache.org) to 
 [Google BigQuery](https://cloud.google.com/bigquery/), built on top 
 of [Apache Kafka Connect](https://kafka.apache.org/documentation.html#connect).

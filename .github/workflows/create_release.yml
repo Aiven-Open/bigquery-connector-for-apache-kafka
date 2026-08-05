@@ -1,5 +1,5 @@
 #
-# Copyright 2024 Copyright 2022 Aiven Oy and
+# Copyright 2022-2026 Aiven Oy and
 # bigquery-connector-for-apache-kafka project contributors
 #
 # This software contains code derived from the Confluent BigQuery
@@ -41,7 +41,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v7.0.1
         with:
           ref: ${{ github.event.inputs.commit_hash }}
 
@@ -58,11 +58,20 @@ jobs:
           export version=$(echo ${commit_title} | sed s/^Release\ version\ //g)
           echo "Will use version ${version}"
           echo "version=${version}" >> $GITHUB_ENV
+          
+          if [[ `grep -c "^## " CHANGE_LOG.md` -gt 1 ]]
+          then
+            grep -B 999 -m2 "^## " CHANGE_LOG.md  | head -n -1  | tail -n +5 > /tmp/release_body.txt
+          else
+            cp CHANGE_LOG.md /tmp/release_body.txt
+          fi
+        id: project
 
-      - name: Set up JDK 8
-        uses: actions/setup-java@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v5.7.0
         with:
-          distribution: 'adopt'
+          distribution: 'temurin'
           java-version: 17
           cache: maven
 
@@ -88,17 +97,14 @@ jobs:
 
       - name: Create release draft
         id: create_release
-        uses: actions/create-release@v1
+        uses: softprops/action-gh-release@v2.6.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: "v${{ env.version }}"
-          release_name: "v${{ env.version }}"
-          commitish: ${{ github.event.inputs.commit_hash }}
-          body: |
-            *Fill in*
+          target_commitish: ${{ github.event.inputs.commit_hash }}
           draft: true
           prerelease: false
+          body_path: /tmp/release_body.txt
 
       - name: Upload tar
         uses: actions/upload-release-asset@v1
