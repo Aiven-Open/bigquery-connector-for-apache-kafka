@@ -21,8 +21,13 @@
  * under the License.
  */
 
-
 package io.aiven.kafka.config.tools;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.aiven.commons.kafka.config.ConfigKeyBuilder;
 import io.aiven.commons.kafka.config.DeprecatedInfo;
@@ -32,38 +37,40 @@ import io.aiven.commons.kafka.config.docs.ExtendedConfigKeyBean;
 import org.apache.kafka.common.config.ConfigDef;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 public class ExtendedConfigKeyBeanTest {
 
-    @Test
-    void testExtendedConfigKey() {
-        ExtendedConfigKey extendedConfigKey = ExtendedConfigKey.builder("testOpt").deprecatedInfo(DeprecatedInfo.builder()).build();
-        ExtendedConfigKeyBean underTest = new ExtendedConfigKeyBean(extendedConfigKey);
-        assertTrue(underTest.isExtendedFlag());
-        assertNotNull(underTest.deprecated());
-        assertEquals("", underTest.since());
+  @Test
+  void testExtendedConfigKey() {
+    ExtendedConfigKey extendedConfigKey =
+        ExtendedConfigKey.builder("testOpt").deprecatedInfo(DeprecatedInfo.builder()).build();
+    ExtendedConfigKeyBean underTest = new ExtendedConfigKeyBean(extendedConfigKey);
+    assertTrue(underTest.isExtendedFlag());
+    assertNotNull(underTest.deprecated());
+    assertEquals("", underTest.since());
 
-        extendedConfigKey = ExtendedConfigKey.builder("testOpt").deprecatedInfo(DeprecatedInfo.builder()).since(SinceInfo.builder()
-                .groupId("com.wepay.kcbq").artifactId("kcbq-connector").version("Then").build()).build();
-        underTest = new ExtendedConfigKeyBean(extendedConfigKey);
-        assertTrue(underTest.isExtendedFlag());
-        assertNotNull(underTest.deprecated());
-        assertEquals("Then", underTest.since());
+    extendedConfigKey =
+        ExtendedConfigKey.builder("testOpt")
+            .deprecatedInfo(DeprecatedInfo.builder())
+            .since(
+                SinceInfo.builder()
+                    .groupId("com.wepay.kcbq")
+                    .artifactId("kcbq-connector")
+                    .version("Then")
+                    .build()
+                    .setVersionOnly())
+            .build();
+    underTest = new ExtendedConfigKeyBean(extendedConfigKey);
+    assertTrue(underTest.isExtendedFlag());
+    assertNotNull(underTest.deprecated());
+    assertEquals("Then", underTest.since());
+  }
 
-    }
-
-    @Test
-    void testConfigKey() {
-        ConfigDef.ConfigKey configKey = new ConfigKeyBuilder<>("testOpt").build();
-        ExtendedConfigKeyBean underTest = new ExtendedConfigKeyBean(configKey);
-        assertFalse(underTest.isExtendedFlag());
-        assertNull(underTest.deprecated());
-        assertNull(underTest.since());
-    }
-
+  @Test
+  void testConfigKey() {
+    ConfigDef.ConfigKey configKey = new ConfigKeyBuilder<>("testOpt").build();
+    ExtendedConfigKeyBean underTest = new ExtendedConfigKeyBean(configKey);
+    assertFalse(underTest.isExtendedFlag());
+    assertNull(underTest.deprecated());
+    assertNull(underTest.since());
+  }
 }
