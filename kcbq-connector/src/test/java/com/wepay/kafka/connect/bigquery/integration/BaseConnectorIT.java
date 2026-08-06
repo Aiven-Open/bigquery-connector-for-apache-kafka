@@ -120,10 +120,6 @@ public abstract class BaseConnectorIT {
     return Arrays.asList(result);
   }
 
-  protected BaseConnectorIT() {
-    logger.info("load:{} nproc:{} wait factor: {}", load(), nproc(), waitFactor());
-  }
-
   protected void startConnect() {
     Map<String, String> workerProps = new HashMap<>();
     workerProps.put(
@@ -437,16 +433,28 @@ public abstract class BaseConnectorIT {
     return System.getenv().getOrDefault(var, defaultVal).trim();
   }
 
+  protected long scaledWait(long definedWaitTime) {
+    return Double.valueOf(definedWaitTime * waitFactor()).longValue();
+  }
+
   protected double waitFactor() {
-    return load() / nproc();
+    double load;
+    int nproc;
+    try {
+      load = Double.parseDouble(load());
+      nproc = Integer.parseInt(nproc());
+    } catch (NumberFormatException e) {
+      return 1.0;
+    }
+    return Math.max(load / nproc, 1.0);
   }
 
-  protected double load() {
-    return Double.parseDouble(readEnvVar("LOAD", "1.0"));
+  protected String load() {
+    return readEnvVar("LOAD", "unknown");
   }
 
-  protected int nproc() {
-    return Integer.parseInt(readEnvVar("NPROC", "1"));
+  protected String nproc() {
+    return readEnvVar("NPROC", "unknown");
   }
 
   protected String keyFile() {

@@ -186,6 +186,8 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
         !(isBatchMode() && usePartitionDecorator),
         "Skipping partition decorator test in batch mode");
 
+    logger.info("load:{} nproc:{} waitFactor:{}", load(), nproc(), waitFactor());
+
     // create topic in Kafka
     final String topic = suffixedTableOrTopic("storage-api-append-json" + testCase);
     final String table = sanitizedTable(topic);
