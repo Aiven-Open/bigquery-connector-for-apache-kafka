@@ -348,6 +348,18 @@ public class BigQuerySinkConfigTest {
         config.getVariableScaleDecimalHandlingMode());
     assertEquals(BigQuerySinkConfig.DecimalHandlingMode.FLOAT, config.getDecimalHandlingMode());
     assertFalse(config.getShouldConvertDebeziumTimestampToInteger());
+    assertFalse(config.getShouldUseAvroTemporalLogicalTypes());
+  }
+
+  @Test
+  void testUseAvroLogicalTypesConfig() {
+    Map<String, String> configProperties = propertiesFactory.getProperties();
+    BigQuerySinkConfig config = new BigQuerySinkConfig(configProperties);
+    assertFalse(config.getShouldUseAvroTemporalLogicalTypes());
+
+    configProperties.put(BigQuerySinkConfig.USE_AVRO_TEMPORAL_LOGICAL_TYPES_CONFIG, "true");
+    config = new BigQuerySinkConfig(configProperties);
+    assertTrue(config.getShouldUseAvroTemporalLogicalTypes());
   }
 
   private Map<String, ConfigValue> errorMap(Config cfg) {

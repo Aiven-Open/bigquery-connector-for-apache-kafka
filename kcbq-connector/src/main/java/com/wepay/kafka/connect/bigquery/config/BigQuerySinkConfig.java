@@ -208,6 +208,17 @@ public class BigQuerySinkConfig extends AbstractConfig {
   public static final String CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_CONFIG =
       "convertDebeziumTimestampToInteger";
 
+  /**
+   * Controls whether Avro temporal logical types introduced after Avro 1.12.1 (timestamp-micros,
+   * timestamp-nanos, time-micros, local-timestamp-millis, local-timestamp-micros,
+   * local-timestamp-nanos) are converted to their corresponding BigQuery types (TIMESTAMP, TIME,
+   * DATETIME) rather than being left as plain INTEGER. Disabled by default to preserve existing
+   * table schemas; enabling this for a topic whose BigQuery table already has these fields as
+   * INTEGER will require a manual schema migration, since BigQuery does not support in-place column
+   * type changes.
+   */
+  public static final String USE_AVRO_TEMPORAL_LOGICAL_TYPES_CONFIG = "useAvroTemporalLogicalTypes";
+
   public static final String DECIMAL_HANDLING_MODE_CONFIG = "decimalHandlingMode";
   public static final ConfigDef.Type DECIMAL_HANDLING_MODE_TYPE = ConfigDef.Type.STRING;
   public static final String DECIMAL_HANDLING_MODE_DEFAULT = DecimalHandlingMode.FLOAT.name();
@@ -686,6 +697,18 @@ public class BigQuerySinkConfig extends AbstractConfig {
   private static final Boolean CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_DEFAULT = false;
   private static final ConfigDef.Importance CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_IMPORTANCE =
       ConfigDef.Importance.MEDIUM;
+  private static final ConfigDef.Type USE_AVRO_TEMPORAL_LOGICAL_TYPES_TYPE = ConfigDef.Type.BOOLEAN;
+  private static final Boolean USE_AVRO_TEMPORAL_LOGICAL_TYPES_DEFAULT = false;
+  private static final ConfigDef.Importance USE_AVRO_TEMPORAL_LOGICAL_TYPES_IMPORTANCE =
+      ConfigDef.Importance.MEDIUM;
+  private static final String USE_AVRO_TEMPORAL_LOGICAL_TYPES_DOC =
+      "Controls whether Avro temporal logical types introduced after Avro 1.12.1 (timestamp-micros, "
+          + "timestamp-nanos, time-micros, local-timestamp-millis, local-timestamp-micros, "
+          + "local-timestamp-nanos) are converted to their corresponding BigQuery types (TIMESTAMP, TIME, "
+          + "DATETIME) rather than being left as plain INTEGER. Disabled by default to preserve existing "
+          + "table schemas; enabling this for a topic whose BigQuery table already has these fields as "
+          + "INTEGER will require a manual schema migration, since BigQuery does not support in-place column "
+          + "type changes.";
   private static final ConfigDef.Type TIME_PARTITIONING_TYPE_TYPE = ConfigDef.Type.STRING;
   private static final ConfigDef.Importance TIME_PARTITIONING_TYPE_IMPORTANCE =
       ConfigDef.Importance.LOW;
@@ -832,7 +855,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
     SinceInfo v2m7 = since.version("2.7.0").build().setVersionOnly();
     SinceInfo v2m8 = since.version("2.8.0").build().setVersionOnly();
     SinceInfo v2m10 = since.version("2.10.0").build().setVersionOnly();
-    // CHECKSTYLE:N
+    SinceInfo v2m15 = since.version("2.15.0").build().setVersionOnly();
     return new ConfigDef()
         .define(
             TOPICS_CONFIG,
@@ -1252,6 +1275,14 @@ public class BigQuerySinkConfig extends AbstractConfig {
                 .since(v2m7)
                 .build())
         .define(
+            ExtendedConfigKey.builder(USE_AVRO_TEMPORAL_LOGICAL_TYPES_CONFIG)
+                .type(USE_AVRO_TEMPORAL_LOGICAL_TYPES_TYPE)
+                .defaultValue(USE_AVRO_TEMPORAL_LOGICAL_TYPES_DEFAULT)
+                .importance(USE_AVRO_TEMPORAL_LOGICAL_TYPES_IMPORTANCE)
+                .documentation(USE_AVRO_TEMPORAL_LOGICAL_TYPES_DOC)
+                .since(v2m15)
+                .build())
+        .define(
             ExtendedConfigKey.builder(PRESERVE_KAFKA_TOPIC_PARTITION_OFFSET__CONFIG)
                 .type(PRESERVE_KAFKA_TOPIC_PARTITION_OFFSET__TYPE)
                 .defaultValue(PRESERVE_KAFKA_TOPIC_PARTITION_OFFSET__DEFAULT)
@@ -1342,6 +1373,15 @@ public class BigQuerySinkConfig extends AbstractConfig {
 
   public boolean getShouldConvertDebeziumTimestampToInteger() {
     return getBoolean(CONVERT_DEBEZIUM_TIMESTAMP_TO_INTEGER_CONFIG);
+  }
+
+  /**
+   * Determines if Avro temporal logical types should be used.
+   *
+   * @return {@code true} if if Avro temporal logical types should be used, {@code false} otherwise.
+   */
+  public boolean getShouldUseAvroTemporalLogicalTypes() {
+    return getBoolean(USE_AVRO_TEMPORAL_LOGICAL_TYPES_CONFIG);
   }
 
   /**
