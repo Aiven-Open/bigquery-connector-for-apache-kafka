@@ -52,7 +52,7 @@ jobs:
           fi
 
       - name: Checkout main
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7.0.1
         with:
           ref: main
           fetch-depth: 0
@@ -71,9 +71,9 @@ jobs:
         id: project
 
       - name: Set up Java ${{ steps.project.outputs.java_version }}
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v5.7.0
         with:
-          distribution: 'adopt'
+          distribution: 'temurin'
           java-version: ${{ steps.project.outputs.java_version }}
           cache: maven
 
@@ -81,13 +81,28 @@ jobs:
         run: |
           git config --local user.name "GitHub Action"
           git config --local user.email "action@github.com"
-          mvn -e -B -V -ntp versions:set versions:update-child-modules versions:set-property -Dproperty=latestRelease -DgenerateBackupPoms=false -DnewVersion=${{ github.event.inputs.release_version }} 
+          #
+          # | options | Description|
+          # |----------|------------|
+          # | -e       | Produce execution error messages|
+          # | -B       | Run in non interactive (batch) mode (disables output colour) |
+          # | -V       | Display version information without stopping the build |
+          # | -ntp     | Do not display transfer progress when downloading or uploading|
+          # | -f       | Force the use of an alternative POM file or directory with pom.xml |
+          #        
+          mvn -e -B -V -ntp versions:set versions:update-child-modules versions:set-property -Dproperty=latestRelease -DgenerateBackupPoms=false -DnewVersion=${{ github.event.inputs.release_version }}
           mvn -e -B -V -ntp enforcer:enforce -Denforcer.rules=requireReleaseDeps
+          mvn -e -B -V -ntp -f docs versions:update-parent -DgenerateBackupPoms=false -DnewVersion=${{ github.event.inputs.release_version }}  
+          mvn -e -B -V -ntp -f docs enforcer:enforce -Denforcer.rules=requireReleaseDeps
+          mvn -e -B -V -ntp -f tools versions:update-parent -DgenerateBackupPoms=false -DnewVersion=${{ github.event.inputs.release_version }} 
+          mvn -e -B -V -ntp -f tools enforcer:enforce -Denforcer.rules=requireReleaseDeps
           git add pom.xml **/pom.xml
           git commit -m "Release version ${{ github.event.inputs.release_version }}"
           git tag -a "v${{ steps.project.outputs.version }}" -m "Release version ${{ steps.project.outputs.version }}"
-    
-          mvn -e -B -V -ntp versions:set versions:update-child-modules -DgenerateBackupPoms=false -DnewVersion=${{ github.event.inputs.snapshot_version }}
+
+          mvn -e -B -V -ntp versions:set versions:update-child-modules -DgenerateBackupPoms=false -DnewVersion=${{ github.event.inputs.snapshot_version }} install
+          mvn -e -B -V -ntp -f docs versions:update-parent -DgenerateBackupPoms=false -DnewVersion=${{ github.event.inputs.snapshot_version }} -DallowSnapshots=true
+          mvn -e -B -V -ntp -f tools versions:update-parent -DgenerateBackupPoms=false -DnewVersion=${{ github.event.inputs.release_version }} -DallowSnapshots=true 
           git add pom.xml **/pom.xml
           git commit -m "Bump version to ${{ github.event.inputs.snapshot_version }}"
 
