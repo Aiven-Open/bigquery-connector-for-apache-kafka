@@ -233,6 +233,14 @@ BigQuery Sink Connector Configuration Options
   * Default: false
   * Importance: low
 
+``flushTimeoutMs``
+  The maximum time, in milliseconds, to wait for in-flight writes to complete during flush (offset commit) before failing the flush. This bounds the wait when a write hangs; the framework logs the failure and retries from the last committed offsets. Must be set well below the consumer's max.poll.interval.ms. 0 means wait indefinitely.
+
+  * Type: long
+  * Default: 0
+  * Valid Values: [0,...]
+  * Importance: low
+
 ``intermediateTableSuffix``
   A suffix that will be appended to the names of destination tables to create the names for the corresponding intermediate tables. Multiple intermediate tables may be created for a single destination table, but their names will always start with the name of the destination table, followed by this suffix, and possibly followed by an additional suffix.
 

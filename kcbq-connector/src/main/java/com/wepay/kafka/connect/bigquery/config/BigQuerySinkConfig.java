@@ -169,6 +169,8 @@ public class BigQuerySinkConfig extends AbstractConfig {
   public static final String QUEUE_SIZE_CONFIG = "queueSize";
   // should this even have a default?
   public static final Long QUEUE_SIZE_DEFAULT = -1L;
+  public static final String FLUSH_TIMEOUT_MS_CONFIG = "flushTimeoutMs";
+  public static final long FLUSH_TIMEOUT_MS_DEFAULT = 0L;
   public static final String BIGQUERY_RETRY_CONFIG = "bigQueryRetry";
   public static final Integer BIGQUERY_RETRY_DEFAULT = 0;
   public static final String BIGQUERY_RETRY_WAIT_CONFIG = "bigQueryRetryWait";
@@ -587,6 +589,14 @@ public class BigQuerySinkConfig extends AbstractConfig {
           + "requests before all topics are paused. This is a soft limit; the size of the queue can "
           + "go over this before topics are paused. All topics will be resumed once a flush is "
           + "requested or the size of the queue drops under half of the maximum size.";
+  private static final ConfigDef.Type FLUSH_TIMEOUT_MS_TYPE = ConfigDef.Type.LONG;
+  private static final ConfigDef.Validator FLUSH_TIMEOUT_MS_VALIDATOR = ConfigDef.Range.atLeast(0);
+  private static final ConfigDef.Importance FLUSH_TIMEOUT_MS_IMPORTANCE = ConfigDef.Importance.LOW;
+  private static final String FLUSH_TIMEOUT_MS_DOC =
+      "The maximum time, in milliseconds, to wait for in-flight writes to complete during flush "
+          + "(offset commit) before failing the flush. This bounds the wait when a write hangs; "
+          + "the framework logs the failure and retries from the last committed offsets. Must be "
+          + "set well below the consumer's max.poll.interval.ms. 0 means wait indefinitely.";
   private static final ConfigDef.Type BIGQUERY_RETRY_TYPE = ConfigDef.Type.INT;
   private static final ConfigDef.Validator BIGQUERY_RETRY_VALIDATOR = ConfigDef.Range.atLeast(0);
   private static final ConfigDef.Importance BIGQUERY_RETRY_IMPORTANCE = ConfigDef.Importance.MEDIUM;
@@ -1073,6 +1083,13 @@ public class BigQuerySinkConfig extends AbstractConfig {
             QUEUE_SIZE_VALIDATOR,
             QUEUE_SIZE_IMPORTANCE,
             QUEUE_SIZE_DOC)
+        .define(
+            FLUSH_TIMEOUT_MS_CONFIG,
+            FLUSH_TIMEOUT_MS_TYPE,
+            FLUSH_TIMEOUT_MS_DEFAULT,
+            FLUSH_TIMEOUT_MS_VALIDATOR,
+            FLUSH_TIMEOUT_MS_IMPORTANCE,
+            FLUSH_TIMEOUT_MS_DOC)
         .define(
             BIGQUERY_RETRY_CONFIG,
             BIGQUERY_RETRY_TYPE,
