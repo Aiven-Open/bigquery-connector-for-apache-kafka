@@ -41,6 +41,16 @@ public class AvroLogicalConverters {
   static final String AVRO_LOGICAL_LOCAL_TIMESTAMP_NANOS = "local-timestamp-nanos";
   static final String AVRO_LOGICAL_TIME_MICROS = "time-micros";
 
+  /** The list of all logical types supported by this converter */
+  public static final String[] SUPPORTED_LOGICAL_TYPES = {
+    AVRO_LOGICAL_TIMESTAMP_MICROS,
+    AVRO_LOGICAL_TIMESTAMP_NANOS,
+    AVRO_LOGICAL_LOCAL_TIMESTAMP_MILLIS,
+    AVRO_LOGICAL_LOCAL_TIMESTAMP_MICROS,
+    AVRO_LOGICAL_LOCAL_TIMESTAMP_NANOS,
+    AVRO_LOGICAL_TIME_MICROS
+  };
+
   private static final int MICROS_IN_MILLI = 1000;
   private static final long MICROS_IN_SEC = 1_000_000L;
   private static final long NANOS_IN_MICRO = 1000L;

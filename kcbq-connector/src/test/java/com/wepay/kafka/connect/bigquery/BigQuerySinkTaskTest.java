@@ -279,7 +279,11 @@ public class BigQuerySinkTaskTest {
 
     testTask.start(properties);
 
-    assertFalse(LogicalConverterRegistry.isRegisteredLogicalType("timestamp-micros"));
+    for (String logicalType : AvroLogicalConverters.SUPPORTED_LOGICAL_TYPES) {
+      assertFalse(
+          LogicalConverterRegistry.isRegisteredLogicalType(logicalType),
+          () -> logicalType + " is missing.");
+    }
   }
 
   @Test

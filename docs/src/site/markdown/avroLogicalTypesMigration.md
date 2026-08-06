@@ -29,12 +29,12 @@ You are affected if **all** of the following are true:
 - Your Avro schemas use any of the logical types listed above
 - You have existing BigQuery tables where these fields were previously written
   as `INTEGER`
-- You are upgrading both the Avro converter and this connector simultaneously
+- You have enabled the use of the Avro temporal logical types by adding `useAvroTemporalLogicalTypes=true` to the configuration.
 
-If your tables were created after upgrading, or these field types were not
+If your tables were created after Avro temporal logical type enablement, or these field types were not
 present in your schemas, no action is needed.
 
-## Migration path
+## Migration path 
 
 BigQuery does not support changing a column's type in place. The recommended
 approach is to rename the old `INTEGER` column out of the way, recreate it with
