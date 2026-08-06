@@ -49,33 +49,41 @@ public class SimpleBigQueryWriter extends BigQueryWriter {
   private final BigQuery bigQuery;
 
   /**
-   * @param bigQuery            The object used to send write requests to BigQuery.
-   * @param retry               How many retries to make in the event of a 500/503 error.
-   * @param retryWait           How long to wait in between retries.
+   * @param bigQuery The object used to send write requests to BigQuery.
+   * @param retry How many retries to make in the event of a 500/503 error.
+   * @param retryWait How long to wait in between retries.
    * @param errantRecordHandler Used to handle errant records
-   * @param time                used to wait during backoff periods
-   * @param config              Connector configurations
+   * @param time used to wait during backoff periods
+   * @param config Connector configurations
    */
-  public SimpleBigQueryWriter(BigQuery bigQuery, int retry, long retryWait, ErrantRecordHandler errantRecordHandler,
-                              Time time, BigQuerySinkConfig config) {
+  public SimpleBigQueryWriter(
+      BigQuery bigQuery,
+      int retry,
+      long retryWait,
+      ErrantRecordHandler errantRecordHandler,
+      Time time,
+      BigQuerySinkConfig config) {
     super(retry, retryWait, errantRecordHandler, time, config);
     this.bigQuery = bigQuery;
   }
 
   /**
-   * @param bigQuery            The object used to send write requests to BigQuery.
-   * @param retry               How many retries to make in the event of a 500/503 error.
-   * @param retryWait           How long to wait in between retries.
+   * @param bigQuery The object used to send write requests to BigQuery.
+   * @param retry How many retries to make in the event of a 500/503 error.
+   * @param retryWait How long to wait in between retries.
    * @param errantRecordHandler Used to handle errant records
-   * @param time                used to wait during backoff periods
-   *
-   * @deprecated This constructor does not support configuration of additional write settings.
-   * Use {@link #SimpleBigQueryWriter(BigQuery bigQuery, int retry, long retryWait, ErrantRecordHandler errantRecordHandler,
-   * Time time, BigQuerySinkConfig config)}.
+   * @param time used to wait during backoff periods
+   * @deprecated This constructor does not support configuration of additional write settings. Use
+   *     {@link #SimpleBigQueryWriter(BigQuery bigQuery, int retry, long retryWait,
+   *     ErrantRecordHandler errantRecordHandler, Time time, BigQuerySinkConfig config)}.
    */
   @Deprecated
-  public SimpleBigQueryWriter(BigQuery bigQuery, int retry, long retryWait, ErrantRecordHandler errantRecordHandler,
-                              Time time) {
+  public SimpleBigQueryWriter(
+      BigQuery bigQuery,
+      int retry,
+      long retryWait,
+      ErrantRecordHandler errantRecordHandler,
+      Time time) {
     super(retry, retryWait, errantRecordHandler, time);
     this.bigQuery = bigQuery;
   }
@@ -87,16 +95,16 @@ public class SimpleBigQueryWriter extends BigQueryWriter {
    * @see BigQueryWriter#performWriteRequest(PartitionedTableId, SortedMap)
    */
   @Override
-  public Map<Long, List<BigQueryError>> performWriteRequest(PartitionedTableId tableId,
-                                                            SortedMap<SinkRecord, InsertAllRequest.RowToInsert> rows) {
+  public Map<Long, List<BigQueryError>> performWriteRequest(
+      PartitionedTableId tableId, SortedMap<SinkRecord, InsertAllRequest.RowToInsert> rows) {
     InsertAllRequest request = createInsertAllRequest(tableId, rows.values());
     InsertAllResponse writeResponse = bigQuery.insertAll(request);
     if (writeResponse.hasErrors()) {
       logger.warn(
           "You may want to enable schema updates by specifying "
               + "{}=true or {}=true in the properties file",
-          BigQuerySinkConfig.ALLOW_NEW_BIGQUERY_FIELDS_CONFIG, BigQuerySinkConfig.ALLOW_BIGQUERY_REQUIRED_FIELD_RELAXATION_CONFIG
-      );
+          BigQuerySinkConfig.ALLOW_NEW_BIGQUERY_FIELDS_CONFIG,
+          BigQuerySinkConfig.ALLOW_BIGQUERY_REQUIRED_FIELD_RELAXATION_CONFIG);
       return writeResponse.getInsertErrors();
     } else {
       logger.debug("table insertion completed with no reported errors");

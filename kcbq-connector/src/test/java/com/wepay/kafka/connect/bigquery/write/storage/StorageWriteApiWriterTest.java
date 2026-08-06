@@ -25,6 +25,7 @@ package com.wepay.kafka.connect.bigquery.write.storage;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -44,14 +45,13 @@ import com.wepay.kafka.connect.bigquery.SchemaManager;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkTaskConfig;
 import com.wepay.kafka.connect.bigquery.convert.BigQueryRecordConverter;
-import com.wepay.kafka.connect.bigquery.convert.KafkaDataBuilder;
 import com.wepay.kafka.connect.bigquery.convert.RecordConverter;
 import com.wepay.kafka.connect.bigquery.utils.MockTime;
 import com.wepay.kafka.connect.bigquery.utils.PartitionedTableId;
 import com.wepay.kafka.connect.bigquery.utils.SinkRecordConverter;
 import com.wepay.kafka.connect.bigquery.utils.TableNameUtils;
 import com.wepay.kafka.connect.bigquery.write.batch.TableWriterBuilder;
-import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -72,30 +72,48 @@ import org.mockito.Mockito;
 
 public class StorageWriteApiWriterTest {
   Schema keySchema = SchemaBuilder.struct().field("key", Schema.STRING_SCHEMA).build();
-  Schema valueSchema = SchemaBuilder.struct()
+  Schema valueSchema =
+      SchemaBuilder.struct()
           .field("id", Schema.INT64_SCHEMA)
           .field("name", Schema.STRING_SCHEMA)
           .field("available-name", Schema.BOOLEAN_SCHEMA)
           .field("bytes_check", Schema.BYTES_SCHEMA)
           .build();
 
+  private static BigQuerySinkTaskConfig createConfig(Map<String, String> overrides) {
+    Map<String, String> properties = new HashMap<>();
+    properties.put("project", "project");
+    properties.put("defaultDataset", "defaultDataset");
+    properties.put("taskId", "1");
+    properties.putAll(overrides);
+    return new BigQuerySinkTaskConfig(properties);
+  }
+
   @Test
   public void testRecordConversion() {
     StorageWriteApiBase mockStreamWriter = Mockito.mock(StorageWriteApiBase.class);
-    BigQuerySinkTaskConfig mockedConfig = Mockito.mock(BigQuerySinkTaskConfig.class);
-    when(mockedConfig.getBoolean(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG)).thenReturn(true);
-    RecordConverter<Map<String, Object>> recordConverter = new BigQueryRecordConverter(
-        false,
-        true
-    );
-    when(mockedConfig.getRecordConverter()).thenReturn(recordConverter);
+    BigQuerySinkTaskConfig config =
+        createConfig(
+            Map.of(
+                BigQuerySinkConfig.KAFKA_DATA_FIELD_NAME_CONFIG,
+                "i_am_kafka_record_detail",
+                BigQuerySinkConfig.KAFKA_KEY_FIELD_NAME_CONFIG,
+                "i_am_kafka_key",
+                BigQuerySinkConfig.SANITIZE_FIELD_NAME_CONFIG,
+                "true",
+                BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG,
+                "true",
+                BigQuerySinkConfig.CONVERT_DOUBLE_SPECIAL_VALUES_CONFIG,
+                "false"));
+
     StorageApiBatchModeHandler batchModeHandler = mock(StorageApiBatchModeHandler.class);
-    SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(mockedConfig, null, null);
-    PartitionedTableId table = new PartitionedTableId.Builder(
-            TableId.of("test-project", "scratch", "dummy_table")
-    ).build();
-    TableWriterBuilder builder = new StorageWriteApiWriter.Builder(
-        mockStreamWriter, table, sinkRecordConverter, batchModeHandler);
+    SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(config, null, null);
+    PartitionedTableId table =
+        new PartitionedTableId.Builder(TableId.of("test-project", "scratch", "dummy_table"))
+            .build();
+    TableWriterBuilder builder =
+        new StorageWriteApiWriter.Builder(
+            mockStreamWriter, table, sinkRecordConverter, batchModeHandler);
     @SuppressWarnings("unchecked")
     ArgumentCaptor<List<ConvertedRecord>> records = ArgumentCaptor.forClass(List.class);
     String expectedKafkaKey = "{\"key\":\"12345\"}";
@@ -107,15 +125,11 @@ public class StorageWriteApiWriterTest {
     expectedKeys.add("i_am_kafka_record_detail");
     expectedKeys.add("bytes_check");
 
-    Mockito.when(mockedConfig.getKafkaDataFieldName()).thenReturn(Optional.of("i_am_kafka_record_detail"));
-    Mockito.when(mockedConfig.getKafkaKeyFieldName()).thenReturn(Optional.of("i_am_kafka_key"));
-    Mockito.when(mockedConfig.getBoolean(BigQuerySinkConfig.SANITIZE_FIELD_NAME_CONFIG)).thenReturn(true);
-
     builder.addRow(createRecord("abc", 100), null);
     builder.build().run();
 
     verify(mockStreamWriter, times(1))
-        .initializeAndWriteRecords(any(PartitionedTableId.class), records.capture(), any());
+        .initializeAndWriteRecords(any(PartitionedTableId.class), records.capture(), anyString());
     assertEquals(1, records.getValue().size());
 
     JSONObject actual = records.getValue().get(0).converted();
@@ -143,12 +157,13 @@ public class StorageWriteApiWriterTest {
     TableName expectedTableName = TableNameUtils.tableName(baseTableId);
     String expectedStreamName = expectedTableName.toString() + "_s1";
 
-    StorageWriteApiBase mockStreamWriter = Mockito.mock(StorageWriteApiBatchApplicationStream.class);
+    StorageWriteApiBase mockStreamWriter =
+        Mockito.mock(StorageWriteApiBatchApplicationStream.class);
     BigQuerySinkTaskConfig mockedConfig = Mockito.mock(BigQuerySinkTaskConfig.class);
     when(mockedConfig.getBoolean(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG)).thenReturn(true);
-    RecordConverter<Map<String, Object>> recordConverter = new BigQueryRecordConverter(
-        false, false);
-    when (mockedConfig.getRecordConverter()).thenReturn(recordConverter);
+    RecordConverter<Map<String, Object>> recordConverter =
+        new BigQueryRecordConverter(false, false);
+    when(mockedConfig.getRecordConverter()).thenReturn(recordConverter);
     when(mockedConfig.getKafkaDataFieldName()).thenReturn(Optional.empty());
     when(mockedConfig.getKafkaKeyFieldName()).thenReturn(Optional.of("i_am_kafka_key"));
     when(mockedConfig.getBoolean(BigQuerySinkConfig.SANITIZE_FIELD_NAME_CONFIG)).thenReturn(true);
@@ -157,10 +172,11 @@ public class StorageWriteApiWriterTest {
     StorageApiBatchModeHandler batchModeHandler = mock(StorageApiBatchModeHandler.class);
     ArgumentCaptor<String> tableNameCaptor = ArgumentCaptor.forClass(String.class);
     when(batchModeHandler.updateOffsetsOnStream(tableNameCaptor.capture(), any()))
-            .thenReturn(expectedStreamName);
+        .thenReturn(expectedStreamName);
 
     SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(mockedConfig, null, null);
-    TableWriterBuilder builder = new StorageWriteApiWriter.Builder(
+    TableWriterBuilder builder =
+        new StorageWriteApiWriter.Builder(
             mockStreamWriter, partitionedTableId, sinkRecordConverter, batchModeHandler);
 
     builder.addRow(createRecord("abc", 100), null);
@@ -169,77 +185,27 @@ public class StorageWriteApiWriterTest {
     // Capture stream name initializeAndWriteRecords was called with
     ArgumentCaptor<String> streamNameCaptor = ArgumentCaptor.forClass(String.class);
     verify(mockStreamWriter, times(1))
-            .initializeAndWriteRecords(any(PartitionedTableId.class), any(), streamNameCaptor.capture());
+        .initializeAndWriteRecords(
+            any(PartitionedTableId.class), any(), streamNameCaptor.capture());
 
     assertEquals(expectedStreamName, streamNameCaptor.getValue());
     String tableNameUsedInUpdate = tableNameCaptor.getValue();
-    assertFalse(tableNameUsedInUpdate.contains("$"), "Partition decorator ($...) should not be used");
-    assertEquals(expectedTableName.toString(), tableNameUsedInUpdate, "Base table name should be used for stream construction");
+    assertFalse(
+        tableNameUsedInUpdate.contains("$"), "Partition decorator ($...) should not be used");
+    assertEquals(
+        expectedTableName.toString(),
+        tableNameUsedInUpdate,
+        "Base table name should be used for stream construction");
   }
 
   @Test
   public void testWriteAttemptIdRefreshedOnStorageApiInternalRetry() throws Exception {
-    KafkaDataBuilder.setTrackPutAttempts(true);
-    try {
-      BigQuerySinkTaskConfig mockedConfig = buildTrackedConfig();
-      SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(mockedConfig, null, null);
 
-      StorageWriteApiDefaultStream stream = mock(StorageWriteApiDefaultStream.class, CALLS_REAL_METHODS);
-      JsonStreamWriter jsonWriter = mock(JsonStreamWriter.class);
-      stream.tableToStream = new ConcurrentHashMap<>();
-      stream.schemaManager = mock(SchemaManager.class);
-      stream.errantRecordHandler = mock(ErrantRecordHandler.class);
-      stream.time = new MockTime();
-      doReturn(jsonWriter).when(stream).getDefaultStream(any(), any());
-      doReturn(true).when(stream).canAttemptSchemaUpdate();
+    BigQuerySinkTaskConfig config = buildTrackedConfig(true);
+    SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(config, null, null);
 
-      AppendRowsResponse schemaUpdateResponse = AppendRowsResponse.newBuilder()
-          .setUpdatedSchema(TableSchema.newBuilder().build())
-          .build();
-      AppendRowsResponse successResponse = AppendRowsResponse.newBuilder()
-          .setAppendResult(AppendRowsResponse.AppendResult.newBuilder().getDefaultInstanceForType())
-          .build();
-      ApiFuture<AppendRowsResponse> future1 = mock(ApiFuture.class);
-      when(future1.get()).thenReturn(schemaUpdateResponse);
-      ApiFuture<AppendRowsResponse> future2 = mock(ApiFuture.class);
-      when(future2.get()).thenReturn(successResponse);
-      when(jsonWriter.append(any(JSONArray.class))).thenReturn(future1).thenReturn(future2);
-
-      AtomicInteger counter = new AtomicInteger(0);
-      Supplier<String> ulidSupplier = () -> "ULID-" + counter.incrementAndGet();
-
-      PartitionedTableId table = new PartitionedTableId.Builder(
-          TableId.of("test-project", "scratch", "dummy_table")).build();
-      StorageApiBatchModeHandler batchModeHandler = mock(StorageApiBatchModeHandler.class);
-      StorageWriteApiWriter.Builder builder = new StorageWriteApiWriter.Builder(
-          stream, table, sinkRecordConverter, batchModeHandler);
-      builder.withUlidSupplier(ulidSupplier);
-      builder.addRow(createRecord("abc", 100), null);
-      builder.build().run();
-
-      ArgumentCaptor<JSONArray> captor = ArgumentCaptor.forClass(JSONArray.class);
-      verify(jsonWriter, times(2)).append(captor.capture());
-
-      String idFirst = extractPutAttemptId(captor.getAllValues().get(0));
-      String idRetry = extractPutAttemptId(captor.getAllValues().get(1));
-
-      assertNotNull(idFirst, "First attempt should have a putAttemptId");
-      assertNotNull(idRetry, "Retry attempt should have a putAttemptId");
-      assertNotEquals(idFirst, idRetry,
-          "Internal retry must produce a different putAttemptId than the first attempt");
-    } finally {
-      KafkaDataBuilder.setTrackPutAttempts(false);
-    }
-  }
-
-  @Test
-  public void testWriteAttemptIdNotSetWhenTrackingDisabledStorageApi() throws Exception {
-    KafkaDataBuilder.setTrackPutAttempts(false);
-
-    BigQuerySinkTaskConfig mockedConfig = buildTrackedConfig();
-    SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(mockedConfig, null, null);
-
-    StorageWriteApiDefaultStream stream = mock(StorageWriteApiDefaultStream.class, CALLS_REAL_METHODS);
+    StorageWriteApiDefaultStream stream =
+        mock(StorageWriteApiDefaultStream.class, CALLS_REAL_METHODS);
     JsonStreamWriter jsonWriter = mock(JsonStreamWriter.class);
     stream.tableToStream = new ConcurrentHashMap<>();
     stream.schemaManager = mock(SchemaManager.class);
@@ -248,12 +214,68 @@ public class StorageWriteApiWriterTest {
     doReturn(jsonWriter).when(stream).getDefaultStream(any(), any());
     doReturn(true).when(stream).canAttemptSchemaUpdate();
 
-    AppendRowsResponse schemaUpdateResponse = AppendRowsResponse.newBuilder()
-        .setUpdatedSchema(TableSchema.newBuilder().build())
-        .build();
-    AppendRowsResponse successResponse = AppendRowsResponse.newBuilder()
-        .setAppendResult(AppendRowsResponse.AppendResult.newBuilder().getDefaultInstanceForType())
-        .build();
+    AppendRowsResponse schemaUpdateResponse =
+        AppendRowsResponse.newBuilder().setUpdatedSchema(TableSchema.newBuilder().build()).build();
+    AppendRowsResponse successResponse =
+        AppendRowsResponse.newBuilder()
+            .setAppendResult(
+                AppendRowsResponse.AppendResult.newBuilder().getDefaultInstanceForType())
+            .build();
+    ApiFuture<AppendRowsResponse> future1 = mock(ApiFuture.class);
+    when(future1.get()).thenReturn(schemaUpdateResponse);
+    ApiFuture<AppendRowsResponse> future2 = mock(ApiFuture.class);
+    when(future2.get()).thenReturn(successResponse);
+    when(jsonWriter.append(any(JSONArray.class))).thenReturn(future1).thenReturn(future2);
+
+    AtomicInteger counter = new AtomicInteger(0);
+    Supplier<String> ulidSupplier = () -> "ULID-" + counter.incrementAndGet();
+
+    PartitionedTableId table =
+        new PartitionedTableId.Builder(TableId.of("test-project", "scratch", "dummy_table"))
+            .build();
+    StorageApiBatchModeHandler batchModeHandler = mock(StorageApiBatchModeHandler.class);
+    StorageWriteApiWriter.Builder builder =
+        new StorageWriteApiWriter.Builder(stream, table, sinkRecordConverter, batchModeHandler);
+    builder.withUlidSupplier(ulidSupplier);
+    builder.addRow(createRecord("abc", 100), null);
+    builder.build().run();
+
+    ArgumentCaptor<JSONArray> captor = ArgumentCaptor.forClass(JSONArray.class);
+    verify(jsonWriter, times(2)).append(captor.capture());
+
+    String idFirst = extractPutAttemptId(captor.getAllValues().get(0));
+    String idRetry = extractPutAttemptId(captor.getAllValues().get(1));
+
+    assertNotNull(idFirst, "First attempt should have a putAttemptId");
+    assertNotNull(idRetry, "Retry attempt should have a putAttemptId");
+    assertNotEquals(
+        idFirst,
+        idRetry,
+        "Internal retry must produce a different putAttemptId than the first attempt");
+  }
+
+  @Test
+  public void testWriteAttemptIdNotSetWhenTrackingDisabledStorageApi() throws Exception {
+    BigQuerySinkTaskConfig config = buildTrackedConfig(false);
+    SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(config, null, null);
+
+    StorageWriteApiDefaultStream stream =
+        mock(StorageWriteApiDefaultStream.class, CALLS_REAL_METHODS);
+    JsonStreamWriter jsonWriter = mock(JsonStreamWriter.class);
+    stream.tableToStream = new ConcurrentHashMap<>();
+    stream.schemaManager = mock(SchemaManager.class);
+    stream.errantRecordHandler = mock(ErrantRecordHandler.class);
+    stream.time = new MockTime();
+    doReturn(jsonWriter).when(stream).getDefaultStream(any(), any());
+    doReturn(true).when(stream).canAttemptSchemaUpdate();
+
+    AppendRowsResponse schemaUpdateResponse =
+        AppendRowsResponse.newBuilder().setUpdatedSchema(TableSchema.newBuilder().build()).build();
+    AppendRowsResponse successResponse =
+        AppendRowsResponse.newBuilder()
+            .setAppendResult(
+                AppendRowsResponse.AppendResult.newBuilder().getDefaultInstanceForType())
+            .build();
     ApiFuture<AppendRowsResponse> future1 = mock(ApiFuture.class);
     when(future1.get()).thenReturn(schemaUpdateResponse);
     ApiFuture<AppendRowsResponse> future2 = mock(ApiFuture.class);
@@ -261,11 +283,12 @@ public class StorageWriteApiWriterTest {
     when(jsonWriter.append(any(JSONArray.class))).thenReturn(future1).thenReturn(future2);
 
     // No withUlidSupplier() call — tracking disabled
-    PartitionedTableId table = new PartitionedTableId.Builder(
-        TableId.of("test-project", "scratch", "dummy_table")).build();
+    PartitionedTableId table =
+        new PartitionedTableId.Builder(TableId.of("test-project", "scratch", "dummy_table"))
+            .build();
     StorageApiBatchModeHandler batchModeHandler = mock(StorageApiBatchModeHandler.class);
-    StorageWriteApiWriter.Builder builder = new StorageWriteApiWriter.Builder(
-        stream, table, sinkRecordConverter, batchModeHandler);
+    StorageWriteApiWriter.Builder builder =
+        new StorageWriteApiWriter.Builder(stream, table, sinkRecordConverter, batchModeHandler);
     builder.addRow(createRecord("abc", 100), null);
     builder.build().run();
 
@@ -281,57 +304,55 @@ public class StorageWriteApiWriterTest {
 
   @Test
   public void testWriteAttemptIdPresentOnFirstAttemptStorageApi() throws Exception {
-    KafkaDataBuilder.setTrackPutAttempts(true);
-    try {
-      BigQuerySinkTaskConfig mockedConfig = buildTrackedConfig();
-      SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(mockedConfig, null, null);
+    BigQuerySinkTaskConfig config = buildTrackedConfig(true);
+    SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(config, null, null);
 
-      StorageWriteApiDefaultStream stream = mock(StorageWriteApiDefaultStream.class, CALLS_REAL_METHODS);
-      JsonStreamWriter jsonWriter = mock(JsonStreamWriter.class);
-      stream.tableToStream = new ConcurrentHashMap<>();
-      stream.schemaManager = mock(SchemaManager.class);
-      stream.errantRecordHandler = mock(ErrantRecordHandler.class);
-      stream.time = new MockTime();
-      doReturn(jsonWriter).when(stream).getDefaultStream(any(), any());
+    StorageWriteApiDefaultStream stream =
+        mock(StorageWriteApiDefaultStream.class, CALLS_REAL_METHODS);
+    JsonStreamWriter jsonWriter = mock(JsonStreamWriter.class);
+    stream.tableToStream = new ConcurrentHashMap<>();
+    stream.schemaManager = mock(SchemaManager.class);
+    stream.errantRecordHandler = mock(ErrantRecordHandler.class);
+    stream.time = new MockTime();
+    doReturn(jsonWriter).when(stream).getDefaultStream(any(), any());
 
-      AppendRowsResponse successResponse = AppendRowsResponse.newBuilder()
-          .setAppendResult(AppendRowsResponse.AppendResult.newBuilder().getDefaultInstanceForType())
-          .build();
-      ApiFuture<AppendRowsResponse> future = mock(ApiFuture.class);
-      when(future.get()).thenReturn(successResponse);
-      when(jsonWriter.append(any(JSONArray.class))).thenReturn(future);
+    AppendRowsResponse successResponse =
+        AppendRowsResponse.newBuilder()
+            .setAppendResult(
+                AppendRowsResponse.AppendResult.newBuilder().getDefaultInstanceForType())
+            .build();
+    ApiFuture<AppendRowsResponse> future = mock(ApiFuture.class);
+    when(future.get()).thenReturn(successResponse);
+    when(jsonWriter.append(any(JSONArray.class))).thenReturn(future);
 
-      AtomicInteger counter = new AtomicInteger(0);
-      Supplier<String> ulidSupplier = () -> "ULID-" + counter.incrementAndGet();
+    AtomicInteger counter = new AtomicInteger(0);
+    Supplier<String> ulidSupplier = () -> "ULID-" + counter.incrementAndGet();
 
-      PartitionedTableId table = new PartitionedTableId.Builder(
-          TableId.of("test-project", "scratch", "dummy_table")).build();
-      StorageApiBatchModeHandler batchModeHandler = mock(StorageApiBatchModeHandler.class);
-      StorageWriteApiWriter.Builder builder = new StorageWriteApiWriter.Builder(
-          stream, table, sinkRecordConverter, batchModeHandler);
-      builder.withUlidSupplier(ulidSupplier);
-      builder.addRow(createRecord("abc", 100), null);
-      builder.build().run();
+    PartitionedTableId table =
+        new PartitionedTableId.Builder(TableId.of("test-project", "scratch", "dummy_table"))
+            .build();
+    StorageApiBatchModeHandler batchModeHandler = mock(StorageApiBatchModeHandler.class);
+    StorageWriteApiWriter.Builder builder =
+        new StorageWriteApiWriter.Builder(stream, table, sinkRecordConverter, batchModeHandler);
+    builder.withUlidSupplier(ulidSupplier);
+    builder.addRow(createRecord("abc", 100), null);
+    builder.build().run();
 
-      ArgumentCaptor<JSONArray> captor = ArgumentCaptor.forClass(JSONArray.class);
-      verify(jsonWriter, times(1)).append(captor.capture());
+    ArgumentCaptor<JSONArray> captor = ArgumentCaptor.forClass(JSONArray.class);
+    verify(jsonWriter, times(1)).append(captor.capture());
 
-      String writeAttemptId = extractPutAttemptId(captor.getValue());
-      assertNotNull(writeAttemptId, "First (and only) write attempt should carry a write-attempt ID");
-    } finally {
-      KafkaDataBuilder.setTrackPutAttempts(false);
-    }
+    String writeAttemptId = extractPutAttemptId(captor.getValue());
+    assertNotNull(writeAttemptId, "First (and only) write attempt should carry a write-attempt ID");
   }
 
-  private BigQuerySinkTaskConfig buildTrackedConfig() {
-    BigQuerySinkTaskConfig mockedConfig = Mockito.mock(BigQuerySinkTaskConfig.class);
-    when(mockedConfig.getBoolean(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG)).thenReturn(true);
-    when(mockedConfig.getKafkaDataFieldName()).thenReturn(Optional.of("_kafka_data"));
-    when(mockedConfig.getKafkaKeyFieldName()).thenReturn(Optional.empty());
-    when(mockedConfig.getBoolean(BigQuerySinkConfig.SANITIZE_FIELD_NAME_CONFIG)).thenReturn(false);
-    RecordConverter<Map<String, Object>> rc = new BigQueryRecordConverter(false, false);
-    when(mockedConfig.getRecordConverter()).thenReturn(rc);
-    return mockedConfig;
+  private BigQuerySinkTaskConfig buildTrackedConfig(boolean useWriteApi) {
+    return createConfig(
+        Map.of(
+            BigQuerySinkConfig.KAFKA_DATA_FIELD_NAME_CONFIG, "_kafka_data",
+            BigQuerySinkConfig.SANITIZE_FIELD_NAME_CONFIG, "false",
+            BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, "true",
+            BigQuerySinkConfig.CONVERT_DOUBLE_SPECIAL_VALUES_CONFIG, Boolean.toString(useWriteApi),
+            BigQuerySinkConfig.TRACK_PUT_ATTEMPTS_CONFIG, "true"));
   }
 
   private String extractPutAttemptId(JSONArray records) {
@@ -348,11 +369,12 @@ public class StorageWriteApiWriterTest {
 
   private SinkRecord createRecord(String topic, long offset) {
     Object key = new Struct(keySchema).put("key", "12345");
-    Object value = new Struct(valueSchema)
-        .put("id", 1L)
-        .put("name", "1")
-        .put("available-name", true)
-        .put("bytes_check", new byte[]{47, 48, 49});
+    Object value =
+        new Struct(valueSchema)
+            .put("id", 1L)
+            .put("name", "1")
+            .put("available-name", true)
+            .put("bytes_check", new byte[] {47, 48, 49});
     return new SinkRecord(topic, 0, keySchema, key, valueSchema, value, offset);
   }
 }

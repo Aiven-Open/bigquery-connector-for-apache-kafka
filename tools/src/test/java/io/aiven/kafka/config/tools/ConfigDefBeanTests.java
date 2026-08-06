@@ -24,6 +24,8 @@
 package io.aiven.kafka.config.tools;
 
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
+import io.aiven.commons.kafka.config.docs.ConfigDefBean;
+import io.aiven.commons.kafka.config.docs.ConfigKeyBean;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
@@ -37,7 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class ConfigDefBeanTests {
 
-    private BaseConfigDefBean<ConfigKeyBean> underTest = new BaseConfigDefBean<ConfigKeyBean>(BigQuerySinkConfig.getConfig(), ConfigKeyBean::new) {
+    private ConfigDefBean<ConfigKeyBean> underTest = new ConfigDefBean<ConfigKeyBean>(BigQuerySinkConfig.getConfig(), ConfigKeyBean::new) {
         };
 
 

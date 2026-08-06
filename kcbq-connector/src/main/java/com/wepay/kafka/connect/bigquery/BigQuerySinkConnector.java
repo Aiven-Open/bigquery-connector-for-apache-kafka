@@ -25,7 +25,7 @@ package com.wepay.kafka.connect.bigquery;
 
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkTaskConfig;
-import io.aiven.commons.system.VersionInfo;
+import io.aiven.commons.util.system.VersionInfo;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -39,8 +39,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * A {@link SinkConnector} used to delegate BigQuery data writes to
- * {@link org.apache.kafka.connect.sink.SinkTask SinkTasks}.
+ * A {@link SinkConnector} used to delegate BigQuery data writes to {@link
+ * org.apache.kafka.connect.sink.SinkTask SinkTasks}.
  */
 public class BigQuerySinkConnector extends SinkConnector {
 
@@ -57,8 +57,10 @@ public class BigQuerySinkConnector extends SinkConnector {
   @Override
   public Config validate(Map<String, String> properties) {
     List<ConfigValue> singlePropertyValidations = config().validate(properties);
-    // If any of our properties had malformed syntax or failed a validation to ensure, e.g., that it fell within an
-    // acceptable numeric range, we only report those errors since they prevent us from being able to construct a
+    // If any of our properties had malformed syntax or failed a validation to ensure, e.g., that it
+    // fell within an
+    // acceptable numeric range, we only report those errors since they prevent us from being able
+    // to construct a
     // valid BigQuerySinkConfig instance
     if (singlePropertyValidations.stream().anyMatch(v -> !v.errorMessages().isEmpty())) {
       return new Config(singlePropertyValidations);

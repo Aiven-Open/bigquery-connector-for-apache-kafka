@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Copyright 2022 Aiven Oy and
+ * Copyright 2022-2026 Aiven Oy and
  * bigquery-connector-for-apache-kafka project contributors
  *
  * This software contains code derived from the Confluent BigQuery
@@ -11,7 +11,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -26,6 +26,7 @@ package com.wepay.kafka.connect.bigquery.config;
 import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.CONVERT_DEBEZIUM_DECIMAL_CONFIG;
 import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_CONFIG;
 import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.DECIMAL_HANDLING_MODE_CONFIG;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -43,7 +44,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import org.apache.kafka.common.config.Config;
 import org.apache.kafka.common.config.ConfigException;
+import org.apache.kafka.common.config.ConfigValue;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -93,20 +96,12 @@ public class BigQuerySinkConfigTest {
   public void testInvalidAvroCacheSize() {
     Map<String, String> badConfigProperties = propertiesFactory.getProperties();
 
-    badConfigProperties.put(
-        BigQuerySinkConfig.AVRO_DATA_CACHE_SIZE_CONFIG,
-        "-1"
-    );
+    badConfigProperties.put(BigQuerySinkConfig.AVRO_DATA_CACHE_SIZE_CONFIG, "-1");
 
-    assertThrows(
-        ConfigException.class,
-        () -> new BigQuerySinkConfig(badConfigProperties)
-    );
+    assertThrows(ConfigException.class, () -> new BigQuerySinkConfig(badConfigProperties));
   }
 
-  /**
-   * Test the default for the field name is not present.
-   */
+  /** Test the default for the field name is not present. */
   @Test
   public void testEmptyTimestampPartitionFieldName() {
     Map<String, String> configProperties = propertiesFactory.getProperties();
@@ -114,9 +109,7 @@ public class BigQuerySinkConfigTest {
     assertFalse(testConfig.getTimestampPartitionFieldName().isPresent());
   }
 
-  /**
-   * Test the field name being non-empty and the decorator set to false works correctly.
-   */
+  /** Test the field name being non-empty and the decorator set to false works correctly. */
   @Test
   public void testTimestampPartitionFieldName() {
     Map<String, String> configProperties = propertiesFactory.getProperties();
@@ -127,9 +120,7 @@ public class BigQuerySinkConfigTest {
     assertFalse(testConfig.getBoolean(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG));
   }
 
-  /**
-   * Test the default for the field names is not present.
-   */
+  /** Test the default for the field names is not present. */
   @Test
   public void testEmptyClusteringFieldNames() {
     Map<String, String> configProperties = propertiesFactory.getProperties();
@@ -137,50 +128,38 @@ public class BigQuerySinkConfigTest {
     assertFalse(testConfig.getClusteringPartitionFieldNames().isPresent());
   }
 
-  /**
-   * Test if the field names are more than four fields errors correctly.
-   */
+  /** Test if the field names are more than four fields errors correctly. */
   @Test
   public void testClusteringPartitionFieldNamesWithMoreThanFourFieldsError() {
     Map<String, String> configProperties = propertiesFactory.getProperties();
     configProperties.put(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG, "true");
     configProperties.put(
         BigQuerySinkConfig.BIGQUERY_CLUSTERING_FIELD_NAMES_CONFIG,
-        "column1,column2,column3,column4,column5"
-    );
+        "column1,column2,column3,column4,column5");
 
-    assertThrows(
-        ConfigException.class,
-        () -> new BigQuerySinkConfig(configProperties)
-    );
+    assertThrows(ConfigException.class, () -> new BigQuerySinkConfig(configProperties));
   }
 
-  /**
-   * Test the field names being non-empty and the partitioning field exists works correctly.
-   */
+  /** Test the field names being non-empty and the partitioning field exists works correctly. */
   @Test
   public void testClusteringFieldNames() {
     Map<String, String> configProperties = propertiesFactory.getProperties();
     configProperties.put(BigQuerySinkConfig.BIGQUERY_TIMESTAMP_PARTITION_FIELD_NAME_CONFIG, "name");
     configProperties.put(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG, "false");
     configProperties.put(
-        BigQuerySinkConfig.BIGQUERY_CLUSTERING_FIELD_NAMES_CONFIG,
-        "column1,column2"
-    );
+        BigQuerySinkConfig.BIGQUERY_CLUSTERING_FIELD_NAMES_CONFIG, "column1,column2");
 
-    ArrayList<String> expectedClusteringPartitionFieldName = new ArrayList<>(
-        Arrays.asList("column1", "column2")
-    );
+    ArrayList<String> expectedClusteringPartitionFieldName =
+        new ArrayList<>(Arrays.asList("column1", "column2"));
 
     BigQuerySinkConfig testConfig = new BigQuerySinkConfig(configProperties);
-    Optional<List<String>> testClusteringPartitionFieldName = testConfig.getClusteringPartitionFieldNames();
+    Optional<List<String>> testClusteringPartitionFieldName =
+        testConfig.getClusteringPartitionFieldNames();
     assertTrue(testClusteringPartitionFieldName.isPresent());
     assertEquals(expectedClusteringPartitionFieldName, testClusteringPartitionFieldName.get());
   }
 
-  /**
-   * Test the default for the partition expiration is not present.
-   */
+  /** Test the default for the partition expiration is not present. */
   @Test
   public void testEmptyPartitionExpirationMs() {
     Map<String, String> configProperties = propertiesFactory.getProperties();
@@ -188,9 +167,7 @@ public class BigQuerySinkConfigTest {
     assertFalse(testConfig.getPartitionExpirationMs().isPresent());
   }
 
-  /**
-   * Test the partition expiration is set correctly for a valid value.
-   */
+  /** Test the partition expiration is set correctly for a valid value. */
   @Test
   public void testValidPartitionExpirationMs() {
     Map<String, String> configProperties = propertiesFactory.getProperties();
@@ -200,17 +177,12 @@ public class BigQuerySinkConfigTest {
     assertEquals(Optional.of(1L), testConfig.getPartitionExpirationMs());
   }
 
-  /**
-   * Test the partition expiration being non-positive errors correctly.
-   */
+  /** Test the partition expiration being non-positive errors correctly. */
   @Test
   public void testMinimumPartitionExpirationMs() {
     Map<String, String> configProperties = propertiesFactory.getProperties();
     configProperties.put(BigQuerySinkConfig.BIGQUERY_PARTITION_EXPIRATION_CONFIG, "0");
-    assertThrows(
-        ConfigException.class,
-        () -> new BigQuerySinkConfig(configProperties)
-    );
+    assertThrows(ConfigException.class, () -> new BigQuerySinkConfig(configProperties));
   }
 
   @Test
@@ -219,13 +191,17 @@ public class BigQuerySinkConfigTest {
 
     for (TimePartitioning.Type type : TimePartitioning.Type.values()) {
       configProperties.put(BigQuerySinkConfig.TIME_PARTITIONING_TYPE_CONFIG, type.name());
-      Optional<TimePartitioning.Type> timePartitioningType = new BigQuerySinkConfig(configProperties).getTimePartitioningType();
+      Optional<TimePartitioning.Type> timePartitioningType =
+          new BigQuerySinkConfig(configProperties).getTimePartitioningType();
       assertTrue(timePartitioningType.isPresent());
       assertEquals(type, timePartitioningType.get());
     }
 
-    configProperties.put(BigQuerySinkConfig.TIME_PARTITIONING_TYPE_CONFIG, BigQuerySinkConfig.TIME_PARTITIONING_TYPE_NONE);
-    Optional<TimePartitioning.Type> timePartitioningType = new BigQuerySinkConfig(configProperties).getTimePartitioningType();
+    configProperties.put(
+        BigQuerySinkConfig.TIME_PARTITIONING_TYPE_CONFIG,
+        BigQuerySinkConfig.TIME_PARTITIONING_TYPE_NONE);
+    Optional<TimePartitioning.Type> timePartitioningType =
+        new BigQuerySinkConfig(configProperties).getTimePartitioningType();
     assertEquals(Optional.empty(), timePartitioningType);
   }
 
@@ -234,30 +210,21 @@ public class BigQuerySinkConfigTest {
     Map<String, String> configProperties = propertiesFactory.getProperties();
 
     configProperties.put(BigQuerySinkConfig.TIME_PARTITIONING_TYPE_CONFIG, "fortnight");
-        assertThrows(
-        ConfigException.class,
-        () -> new BigQuerySinkConfig(configProperties)
-    );
+    assertThrows(ConfigException.class, () -> new BigQuerySinkConfig(configProperties));
   }
 
   @Test
   public void testTopic2TableInvalidFormat() {
     Map<String, String> configProperties = propertiesFactory.getProperties();
     configProperties.put(BigQuerySinkConfig.TOPIC2TABLE_MAP_CONFIG, "topic:");
-        assertThrows(
-        ConfigException.class,
-        () -> new BigQuerySinkConfig(configProperties)
-    );
+    assertThrows(ConfigException.class, () -> new BigQuerySinkConfig(configProperties));
   }
 
   @Test
   public void testTopic2TableDuplicateTopic() {
     Map<String, String> configProperties = propertiesFactory.getProperties();
     configProperties.put(BigQuerySinkConfig.TOPIC2TABLE_MAP_CONFIG, "topic:table, topic:table2");
-        assertThrows(
-        ConfigException.class,
-        () -> new BigQuerySinkConfig(configProperties)
-    );
+    assertThrows(ConfigException.class, () -> new BigQuerySinkConfig(configProperties));
   }
 
   @Test
@@ -271,10 +238,7 @@ public class BigQuerySinkConfigTest {
   public void testTopic2TableSemicolonOnly() {
     Map<String, String> configProperties = propertiesFactory.getProperties();
     configProperties.put(BigQuerySinkConfig.TOPIC2TABLE_MAP_CONFIG, ":");
-    assertThrows(
-        ConfigException.class,
-        () -> new BigQuerySinkConfig(configProperties)
-    );
+    assertThrows(ConfigException.class, () -> new BigQuerySinkConfig(configProperties));
   }
 
   @Test
@@ -308,57 +272,54 @@ public class BigQuerySinkConfigTest {
   public void testInvalidMaxRetries() {
     Map<String, String> badConfigProperties = propertiesFactory.getProperties();
 
-    badConfigProperties.put(
-        BigQuerySinkConfig.MAX_RETRIES_CONFIG,
-        "-1"
-    );
+    badConfigProperties.put(BigQuerySinkConfig.MAX_RETRIES_CONFIG, "-1");
 
-    assertThrows(
-        ConfigException.class,
-        () -> new BigQuerySinkConfig(badConfigProperties)
-    );
+    assertThrows(ConfigException.class, () -> new BigQuerySinkConfig(badConfigProperties));
   }
 
   @Test
   public void testInvalidCommitInterval() {
     Map<String, String> badConfigProperties = propertiesFactory.getProperties();
 
-    badConfigProperties.put(
-        BigQuerySinkConfig.COMMIT_INTERVAL_SEC_CONFIG,
-        "0"
-    );
+    badConfigProperties.put(BigQuerySinkConfig.COMMIT_INTERVAL_SEC_CONFIG, "0");
 
-    assertThrows(
-        ConfigException.class,
-        () -> new BigQuerySinkConfig(badConfigProperties)
-    );
+    assertThrows(ConfigException.class, () -> new BigQuerySinkConfig(badConfigProperties));
   }
 
   @Test
   public void testConvertDebeziumVariableScaleDecimal() {
     Map<String, String> configProperties = propertiesFactory.getProperties();
     BigQuerySinkConfig config = new BigQuerySinkConfig(configProperties);
-    assertEquals(BigQuerySinkConfig.DecimalHandlingMode.RECORD, config.getVariableScaleDecimalHandlingMode());
+    assertEquals(
+        BigQuerySinkConfig.DecimalHandlingMode.RECORD,
+        config.getVariableScaleDecimalHandlingMode());
 
     configProperties.put(CONVERT_DEBEZIUM_DECIMAL_CONFIG, "true");
     config = new BigQuerySinkConfig(configProperties);
-    assertEquals(BigQuerySinkConfig.DecimalHandlingMode.NUMERIC, config.getVariableScaleDecimalHandlingMode());
+    assertEquals(
+        BigQuerySinkConfig.DecimalHandlingMode.NUMERIC,
+        config.getVariableScaleDecimalHandlingMode());
 
-    configProperties.put(DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_CONFIG, BigQuerySinkConfig.DecimalHandlingMode.FLOAT.name());
+    configProperties.put(
+        DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_CONFIG,
+        BigQuerySinkConfig.DecimalHandlingMode.FLOAT.name());
     config = new BigQuerySinkConfig(configProperties);
-    assertEquals(BigQuerySinkConfig.DecimalHandlingMode.FLOAT, config.getVariableScaleDecimalHandlingMode());
-
+    assertEquals(
+        BigQuerySinkConfig.DecimalHandlingMode.FLOAT, config.getVariableScaleDecimalHandlingMode());
   }
 
   @ParameterizedTest
   @EnumSource(BigQuerySinkConfig.DecimalHandlingMode.class)
-  void testDebeziumVariableScaleDecimalHandlingMode(BigQuerySinkConfig.DecimalHandlingMode handlingMode) {
+  void testDebeziumVariableScaleDecimalHandlingMode(
+      BigQuerySinkConfig.DecimalHandlingMode handlingMode) {
     Map<String, String> configProperties = propertiesFactory.getProperties();
     configProperties.put(DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_CONFIG, handlingMode.name());
     BigQuerySinkConfig config = new BigQuerySinkConfig(configProperties);
     assertEquals(handlingMode, config.getVariableScaleDecimalHandlingMode());
 
-    configProperties.put(DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_CONFIG, handlingMode.name().toLowerCase(Locale.ROOT));
+    configProperties.put(
+        DEBEZIUM_VARIABLE_SCALE_DECIMAL_HANDLING_MODE_CONFIG,
+        handlingMode.name().toLowerCase(Locale.ROOT));
     config = new BigQuerySinkConfig(configProperties);
     assertEquals(handlingMode, config.getVariableScaleDecimalHandlingMode());
   }
@@ -371,7 +332,8 @@ public class BigQuerySinkConfigTest {
     BigQuerySinkConfig config = new BigQuerySinkConfig(configProperties);
     assertEquals(handlingMode, config.getDecimalHandlingMode());
 
-    configProperties.put(DECIMAL_HANDLING_MODE_CONFIG, handlingMode.name().toLowerCase(Locale.ROOT));
+    configProperties.put(
+        DECIMAL_HANDLING_MODE_CONFIG, handlingMode.name().toLowerCase(Locale.ROOT));
     config = new BigQuerySinkConfig(configProperties);
     assertEquals(handlingMode, config.getDecimalHandlingMode());
   }
@@ -381,8 +343,78 @@ public class BigQuerySinkConfigTest {
     Map<String, String> configProperties = propertiesFactory.getProperties();
     BigQuerySinkConfig config = new BigQuerySinkConfig(configProperties);
 
-    assertEquals(BigQuerySinkConfig.DecimalHandlingMode.RECORD, config.getVariableScaleDecimalHandlingMode());
+    assertEquals(
+        BigQuerySinkConfig.DecimalHandlingMode.RECORD,
+        config.getVariableScaleDecimalHandlingMode());
     assertEquals(BigQuerySinkConfig.DecimalHandlingMode.FLOAT, config.getDecimalHandlingMode());
     assertFalse(config.getShouldConvertDebeziumTimestampToInteger());
+    assertFalse(config.getShouldUseAvroTemporalLogicalTypes());
+  }
+
+  @Test
+  void testUseAvroLogicalTypesConfig() {
+    Map<String, String> configProperties = propertiesFactory.getProperties();
+    BigQuerySinkConfig config = new BigQuerySinkConfig(configProperties);
+    assertFalse(config.getShouldUseAvroTemporalLogicalTypes());
+
+    configProperties.put(BigQuerySinkConfig.USE_AVRO_TEMPORAL_LOGICAL_TYPES_CONFIG, "true");
+    config = new BigQuerySinkConfig(configProperties);
+    assertTrue(config.getShouldUseAvroTemporalLogicalTypes());
+  }
+
+  private Map<String, ConfigValue> errorMap(Config cfg) {
+    Map<String, ConfigValue> result = new HashMap<>();
+    cfg.configValues().stream()
+        .filter(cv -> !cv.errorMessages().isEmpty())
+        .forEach(cv -> result.put(cv.name(), cv));
+    return result;
+  }
+
+  @Test
+  void testKafkaKeyFieldWithUpsertAndStorageWriteApi() {
+    Map<String, String> configProperties = propertiesFactory.getProperties();
+    configProperties.put(BigQuerySinkConfig.KAFKA_KEY_FIELD_NAME_CONFIG, "KeyField");
+    configProperties.put(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG, "true");
+    configProperties.put(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, "true");
+
+    BigQuerySinkConfig config = new BigQuerySinkConfig(configProperties);
+    Map<String, ConfigValue> errors = errorMap(config.validate());
+    assertThat(errors.keySet())
+        .containsExactlyInAnyOrder(
+            BigQuerySinkConfig.KAFKA_KEY_FIELD_NAME_CONFIG,
+            BigQuerySinkConfig.GCS_BUCKET_NAME_CONFIG,
+            "keyfile");
+  }
+
+  @Test
+  void testKafkaKeyFieldWithDeleteAndStorageWriteApi() {
+    Map<String, String> configProperties = propertiesFactory.getProperties();
+    configProperties.put(BigQuerySinkConfig.KAFKA_KEY_FIELD_NAME_CONFIG, "KeyField");
+    configProperties.put(BigQuerySinkConfig.DELETE_ENABLED_CONFIG, "true");
+    configProperties.put(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, "true");
+
+    BigQuerySinkConfig config = new BigQuerySinkConfig(configProperties);
+    Map<String, ConfigValue> errors = errorMap(config.validate());
+    assertThat(errors.keySet())
+        .containsExactlyInAnyOrder(
+            BigQuerySinkConfig.KAFKA_KEY_FIELD_NAME_CONFIG,
+            BigQuerySinkConfig.GCS_BUCKET_NAME_CONFIG,
+            "keyfile",
+            BigQuerySinkConfig.DELETE_ENABLED_CONFIG);
+  }
+
+  @Test
+  void testKafkaKeyFieldWithDeleteAndDefaultWrite() {
+    Map<String, String> configProperties = propertiesFactory.getProperties();
+    configProperties.put(BigQuerySinkConfig.DELETE_ENABLED_CONFIG, "true");
+    configProperties.put(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, "false");
+
+    BigQuerySinkConfig config = new BigQuerySinkConfig(configProperties);
+    Map<String, ConfigValue> errors = errorMap(config.validate());
+    assertThat(errors.keySet())
+        .containsExactlyInAnyOrder(
+            BigQuerySinkConfig.KAFKA_KEY_FIELD_NAME_CONFIG,
+            BigQuerySinkConfig.GCS_BUCKET_NAME_CONFIG,
+            "keyfile");
   }
 }

@@ -54,13 +54,13 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build connector
-        run: mvn install -DskipITs
+        run: mvn install -ntp -DskipITs
 
       - name: Build site tools
-        run: mvn -f tools
+        run: mvn -f tools -ntp
 
       - name: Build site
-        run: mvn -f docs
+        run: mvn -f docs -ntp
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

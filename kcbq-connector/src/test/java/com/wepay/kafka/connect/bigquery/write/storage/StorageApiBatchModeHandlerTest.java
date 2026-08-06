@@ -43,13 +43,12 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 public class StorageApiBatchModeHandlerTest {
-  StorageWriteApiBatchApplicationStream mockedStreamApi = mock(StorageWriteApiBatchApplicationStream.class);
+  StorageWriteApiBatchApplicationStream mockedStreamApi =
+      mock(StorageWriteApiBatchApplicationStream.class);
   BigQuerySinkTaskConfig mockedConfig = mock(BigQuerySinkTaskConfig.class);
   Map<TopicPartition, OffsetAndMetadata> offsetInfo = new HashMap<>();
-  StorageApiBatchModeHandler batchModeHandler = new StorageApiBatchModeHandler(
-      mockedStreamApi,
-      mockedConfig
-  );
+  StorageApiBatchModeHandler batchModeHandler =
+      new StorageApiBatchModeHandler(mockedStreamApi, mockedConfig);
   List<ConvertedRecord> rows = new ArrayList<>();
 
   @BeforeEach
@@ -57,9 +56,8 @@ public class StorageApiBatchModeHandlerTest {
     when(mockedConfig.getString(BigQuerySinkTaskConfig.PROJECT_CONFIG)).thenReturn("p");
     when(mockedConfig.getString(BigQuerySinkTaskConfig.DEFAULT_DATASET_CONFIG)).thenReturn("d1");
     when(mockedConfig.getBoolean(BigQuerySinkTaskConfig.SANITIZE_TOPICS_CONFIG)).thenReturn(false);
-    when(mockedConfig.getList(BigQuerySinkTaskConfig.TOPICS_CONFIG)).thenReturn(
-        Arrays.asList("topic1", "topic2")
-    );
+    when(mockedConfig.getList(BigQuerySinkTaskConfig.TOPICS_CONFIG))
+        .thenReturn(Arrays.asList("topic1", "topic2"));
     when(mockedStreamApi.maybeCreateStream(any(), any())).thenReturn(true);
     when(mockedStreamApi.updateOffsetsOnStream(any(), any())).thenReturn("s1_app_stream");
     when(mockedStreamApi.getCommitableOffsets()).thenReturn(offsetInfo);
@@ -72,8 +70,8 @@ public class StorageApiBatchModeHandlerTest {
 
   @Test
   public void testUpdateOffsetsOnStream() {
-    String actualStreamName = batchModeHandler.updateOffsetsOnStream(
-        TableName.of("p", "d1", "topic1").toString(), rows);
+    String actualStreamName =
+        batchModeHandler.updateOffsetsOnStream(TableName.of("p", "d1", "topic1").toString(), rows);
 
     assertEquals("s1_app_stream", actualStreamName);
     verify(mockedStreamApi, times(1))

@@ -39,9 +39,9 @@ import java.util.Optional;
 
 public class GcsBucketValidator extends MultiPropertyValidator<BigQuerySinkConfig> {
 
-  private static final Collection<String> DEPENDENTS = Collections.unmodifiableCollection(Arrays.asList(
-      ENABLE_BATCH_CONFIG, AUTO_CREATE_BUCKET_CONFIG
-  ));
+  private static final Collection<String> DEPENDENTS =
+      Collections.unmodifiableCollection(
+          Arrays.asList(ENABLE_BATCH_CONFIG, AUTO_CREATE_BUCKET_CONFIG));
 
   public GcsBucketValidator() {
     super(GCS_BUCKET_NAME_CONFIG);
@@ -56,14 +56,12 @@ public class GcsBucketValidator extends MultiPropertyValidator<BigQuerySinkConfi
   protected Optional<String> doValidate(BigQuerySinkConfig config) {
     Storage gcs;
     try {
-      gcs = new GcpClientBuilder.GcsBuilder()
-          .withConfig(config)
-          .build();
+      gcs = new GcpClientBuilder.GcsBuilder().withConfig(config).build();
     } catch (RuntimeException e) {
-      return Optional.of(String.format(
-          "Failed to construct GCS client%s",
-          e.getMessage() != null ? ": " + e.getMessage() : ""
-      ));
+      return Optional.of(
+          String.format(
+              "Failed to construct GCS client%s",
+              e.getMessage() != null ? ": " + e.getMessage() : ""));
     }
     return doValidate(gcs, config);
   }
@@ -87,12 +85,12 @@ public class GcsBucketValidator extends MultiPropertyValidator<BigQuerySinkConfi
 
     Bucket bucket = gcs.get(bucketName);
     if (bucket == null) {
-      return Optional.of(String.format(
-          "Automatic bucket creation is disabled but the GCS bucket %s does not exist. "
-              + "Please either manually create this table before restarting the connector or enable automatic bucket creation "
-              + "by the connector",
-          bucketName
-      ));
+      return Optional.of(
+          String.format(
+              "Automatic bucket creation is disabled but the GCS bucket %s does not exist. "
+                  + "Please either manually create this table before restarting the connector or enable automatic bucket creation "
+                  + "by the connector",
+              bucketName));
     }
 
     return Optional.empty();

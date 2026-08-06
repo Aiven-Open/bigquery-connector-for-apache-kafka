@@ -81,12 +81,13 @@ public class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
     schemaRegistry.start();
     schemaRegistryUrl = schemaRegistry.schemaRegistryUrl();
 
-    valueSchema = SchemaBuilder.struct()
-        .optional()
-        .field("f1", org.apache.kafka.connect.data.Schema.STRING_SCHEMA)
-        .field("f2", org.apache.kafka.connect.data.Schema.BOOLEAN_SCHEMA)
-        .field("f3", org.apache.kafka.connect.data.Schema.STRING_SCHEMA)
-        .build();
+    valueSchema =
+        SchemaBuilder.struct()
+            .optional()
+            .field("f1", org.apache.kafka.connect.data.Schema.STRING_SCHEMA)
+            .field("f2", org.apache.kafka.connect.data.Schema.BOOLEAN_SCHEMA)
+            .field("f3", org.apache.kafka.connect.data.Schema.STRING_SCHEMA)
+            .build();
   }
 
   @AfterEach
@@ -114,13 +115,11 @@ public class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
 
     // Instantiate the converters we'll use to send records to the connector
     converter = new AvroConverter();
-    converter.configure(Collections.singletonMap(
-            SCHEMA_REGISTRY_URL_CONFIG, schemaRegistryUrl
-        ), false
-    );
+    converter.configure(
+        Collections.singletonMap(SCHEMA_REGISTRY_URL_CONFIG, schemaRegistryUrl), false);
 
     List<SchemaAndValue> records = getRecords();
-    //generating invalid records which leads to INVALID_ARGUMENT error on data ingestion
+    // generating invalid records which leads to INVALID_ARGUMENT error on data ingestion
     schemaRegistry.produceRecords(converter, records, topic);
 
     // Check records show up in dlq topic
@@ -149,7 +148,11 @@ public class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
     for (int i = 0; i < NUM_RECORDS_PRODUCED; i++) {
       String kafkaKey = key(keyConverter, topic, i);
       String kafkaValue = value(valueConverter, topic, i);
-      logger.debug("Sending message with key '{}' and value '{}' to topic '{}'", kafkaKey, kafkaValue, topic);
+      logger.debug(
+          "Sending message with key '{}' and value '{}' to topic '{}'",
+          kafkaKey,
+          kafkaValue,
+          topic);
       connect.kafka().produce(topic, kafkaKey, kafkaValue);
     }
 
@@ -179,21 +182,27 @@ public class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
     for (int i = 0; i < NUM_RECORDS_PRODUCED; i++) {
       String kafkaKey = "key-" + i;
       String kafkaValue = "\"f1\":1";
-      logger.debug("Sending message with key '{}' and value '{}' to topic '{}'", kafkaKey, kafkaValue, topic);
+      logger.debug(
+          "Sending message with key '{}' and value '{}' to topic '{}'",
+          kafkaKey,
+          kafkaValue,
+          topic);
       connect.kafka().produce(topic, kafkaKey, kafkaValue);
     }
 
     // Check records show up in dlq topic
-    ConsumerRecords<byte[], byte[]> records = connect.kafka().consume(
-        (int) NUM_RECORDS_PRODUCED,
-        Duration.ofSeconds(120).toMillis(), dlqTopic);
+    ConsumerRecords<byte[], byte[]> records =
+        connect
+            .kafka()
+            .consume((int) NUM_RECORDS_PRODUCED, Duration.ofSeconds(120).toMillis(), dlqTopic);
 
     assertEquals(NUM_RECORDS_PRODUCED, records.count());
   }
 
   @Test
   public void testRecordsSentToDlqOnInvalidArgumentAvroBatchStorageApi() throws Exception {
-    final String topic = suffixedTableOrTopic("test-dlq-invalid-argument-storage-write-api-batch-avro");
+    final String topic =
+        suffixedTableOrTopic("test-dlq-invalid-argument-storage-write-api-batch-avro");
     final String dlqTopic = topic + "_dlq_topic";
     int recordCount = 2;
 
@@ -209,10 +218,8 @@ public class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
 
     // Instantiate the converters we'll use to send records to the connector
     converter = new AvroConverter();
-    converter.configure(Collections.singletonMap(
-            SCHEMA_REGISTRY_URL_CONFIG, schemaRegistryUrl
-        ), false
-    );
+    converter.configure(
+        Collections.singletonMap(SCHEMA_REGISTRY_URL_CONFIG, schemaRegistryUrl), false);
 
     List<SchemaAndValue> records = getRecords(recordCount);
     schemaRegistry.produceRecords(converter, records, topic);
@@ -244,7 +251,11 @@ public class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
     for (int i = 0; i < recordCount; i++) {
       String kafkaKey = key(keyConverter, topic, i);
       String kafkaValue = value(valueConverter, topic, i);
-      logger.debug("Sending message with key '{}' and value '{}' to topic '{}'", kafkaKey, kafkaValue, topic);
+      logger.debug(
+          "Sending message with key '{}' and value '{}' to topic '{}'",
+          kafkaKey,
+          kafkaValue,
+          topic);
       connect.kafka().produce(topic, kafkaKey, kafkaValue);
     }
 
@@ -253,7 +264,8 @@ public class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
   }
 
   @Test
-  public void testRecordsSentToDlqOnRecordConversionErrorBatchStorageApi() throws InterruptedException {
+  public void testRecordsSentToDlqOnRecordConversionErrorBatchStorageApi()
+      throws InterruptedException {
     final String topic = suffixedTableOrTopic("test-dlq-conversion-error-storage-write-api-batch");
     final String dlqTopic = topic + "_dlq_topic";
     int recordCount = 2;
@@ -274,18 +286,20 @@ public class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
     for (int i = 0; i < recordCount; i++) {
       String kafkaKey = "key-" + i;
       String kafkaValue = "\"f1\":1";
-      logger.debug("Sending message with key '{}' and value '{}' to topic '{}'", kafkaKey, kafkaValue, topic);
+      logger.debug(
+          "Sending message with key '{}' and value '{}' to topic '{}'",
+          kafkaKey,
+          kafkaValue,
+          topic);
       connect.kafka().produce(topic, kafkaKey, kafkaValue);
     }
 
     // Check records show up in dlq topic
-    ConsumerRecords<byte[], byte[]> records = connect.kafka().consume(
-        recordCount,
-        Duration.ofSeconds(180).toMillis(), dlqTopic);
+    ConsumerRecords<byte[], byte[]> records =
+        connect.kafka().consume(recordCount, Duration.ofSeconds(180).toMillis(), dlqTopic);
 
     assertEquals(recordCount, records.count());
   }
-
 
   @Test
   public void testRecordsSentToDlqOnInvalidReasonAvro() throws Exception {
@@ -303,10 +317,8 @@ public class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
 
     // Instantiate the converters we'll use to send records to the connector
     converter = new AvroConverter();
-    converter.configure(Collections.singletonMap(
-            SCHEMA_REGISTRY_URL_CONFIG, schemaRegistryUrl
-        ), false
-    );
+    converter.configure(
+        Collections.singletonMap(SCHEMA_REGISTRY_URL_CONFIG, schemaRegistryUrl), false);
 
     List<SchemaAndValue> records = getRecords();
     schemaRegistry.produceRecords(converter, records, topic);
@@ -337,14 +349,17 @@ public class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
     for (int i = 0; i < NUM_RECORDS_PRODUCED; i++) {
       String kafkaKey = key(keyConverter, topic, i);
       String kafkaValue = value(valueConverter, topic, i);
-      logger.debug("Sending message with key '{}' and value '{}' to topic '{}'", kafkaKey, kafkaValue, topic);
+      logger.debug(
+          "Sending message with key '{}' and value '{}' to topic '{}'",
+          kafkaKey,
+          kafkaValue,
+          topic);
       connect.kafka().produce(topic, kafkaKey, kafkaValue);
     }
 
     // Check records show up in dlq topic
     verify(dlqTopic, 120, (int) NUM_RECORDS_PRODUCED);
   }
-
 
   @Test
   public void testRecordsSentToDlqOnRecordConversionError() throws InterruptedException {
@@ -367,14 +382,19 @@ public class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
     for (int i = 0; i < NUM_RECORDS_PRODUCED; i++) {
       String kafkaKey = "key-" + i;
       String kafkaValue = "\"f1\":1";
-      logger.debug("Sending message with key '{}' and value '{}' to topic '{}'", kafkaKey, kafkaValue, topic);
+      logger.debug(
+          "Sending message with key '{}' and value '{}' to topic '{}'",
+          kafkaKey,
+          kafkaValue,
+          topic);
       connect.kafka().produce(topic, kafkaKey, kafkaValue);
     }
 
     // Check records show up in dlq topic
-    ConsumerRecords<byte[], byte[]> records = connect.kafka().consume(
-        (int) NUM_RECORDS_PRODUCED,
-        Duration.ofSeconds(120).toMillis(), dlqTopic);
+    ConsumerRecords<byte[], byte[]> records =
+        connect
+            .kafka()
+            .consume((int) NUM_RECORDS_PRODUCED, Duration.ofSeconds(120).toMillis(), dlqTopic);
 
     assertEquals(NUM_RECORDS_PRODUCED, records.count());
   }
@@ -430,12 +450,12 @@ public class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
   }
 
   private String key(Converter converter, String topic, long iteration) {
-    final org.apache.kafka.connect.data.Schema schema = SchemaBuilder.struct()
-        .field("k1", org.apache.kafka.connect.data.Schema.INT64_SCHEMA)
-        .build();
+    final org.apache.kafka.connect.data.Schema schema =
+        SchemaBuilder.struct()
+            .field("k1", org.apache.kafka.connect.data.Schema.INT64_SCHEMA)
+            .build();
 
-    final Struct struct = new Struct(schema)
-        .put("k1", iteration);
+    final Struct struct = new Struct(schema).put("k1", iteration);
 
     return new String(converter.fromConnectData(topic, schema, struct));
   }
@@ -470,11 +490,11 @@ public class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
 
     final String table = sanitizedTable(topic);
     // Create table schema
-    Schema schema = Schema.of(
-        Field.of("f1", StandardSQLTypeName.STRING),
-        Field.of("f2", StandardSQLTypeName.BOOL),
-        Field.of("f3", StandardSQLTypeName.INT64)
-    );
+    Schema schema =
+        Schema.of(
+            Field.of("f1", StandardSQLTypeName.STRING),
+            Field.of("f2", StandardSQLTypeName.BOOL),
+            Field.of("f3", StandardSQLTypeName.INT64));
 
     // Try to create BigQuery table
     try {
@@ -482,17 +502,14 @@ public class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
     } catch (BigQueryException ex) {
       if (!ex.getError().getReason().equalsIgnoreCase("duplicate"))
         throw new ConnectException("Failed to create table: ", ex);
-      else
-        logger.info("Table {} already exist", table);
+      else logger.info("Table {} already exist", table);
     }
   }
 
   private void verify(String dlqTopic, int duration, int recordCount) {
-    ConsumerRecords<byte[], byte[]> records = connect.kafka().consume(
-        recordCount,
-        Duration.ofSeconds(duration).toMillis(), dlqTopic);
+    ConsumerRecords<byte[], byte[]> records =
+        connect.kafka().consume(recordCount, Duration.ofSeconds(duration).toMillis(), dlqTopic);
 
     assertEquals(recordCount, records.count());
   }
-
 }

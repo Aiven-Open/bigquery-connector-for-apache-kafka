@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Copyright 2022 Aiven Oy and
+ * Copyright 2026 Aiven Oy and
  * bigquery-connector-for-apache-kafka project contributors
  *
  * This software contains code derived from the Confluent BigQuery
@@ -20,26 +20,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package com.wepay.kafka.connect.bigquery.utils;
 
+import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
+import java.util.Map;
 
-package com.wepay.kafka.connect.bigquery.config;
+public class TestingBigQuerySinkConfig extends BigQuerySinkConfig {
 
-import io.aiven.kafka.config.tools.BaseConfigDefBean;
-import io.aiven.kafka.config.tools.ExtendedConfigKeyBean;
-import org.apache.velocity.tools.config.DefaultKey;
-import org.apache.velocity.tools.config.ValidScope;
+  public TestingBigQuerySinkConfig(Map<String, String> properties) {
+    super(properties);
+  }
 
-/**
- * A BaseConfigDefBean instance that uses the {@link BigQuerySinkConfig#getConfig} for data and returns {@link ExtendedConfigKeyBean} objects.
- */
-@SuppressWarnings("unused")
-@DefaultKey("extendedConfigDef")
-@ValidScope({"application"})
-public class BigQueryConfigDefBean extends BaseConfigDefBean<ExtendedConfigKeyBean> {
-  /**
-   * Constructor.
-   */
-  public BigQueryConfigDefBean() {
-    super(BigQuerySinkConfig.getConfig(), ExtendedConfigKeyBean::new);
+  @Override
+  public void setPost3_6Flag(boolean state) {
+    super.setPost3_6Flag(state);
   }
 }

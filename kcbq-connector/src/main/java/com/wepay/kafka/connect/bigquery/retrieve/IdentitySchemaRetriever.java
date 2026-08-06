@@ -28,14 +28,11 @@ import java.util.Map;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.sink.SinkRecord;
 
-/**
- * Fetches the key Schema and value Schema from a Sink Record
- */
+/** Fetches the key Schema and value Schema from a Sink Record */
 public class IdentitySchemaRetriever implements SchemaRetriever {
 
   @Override
-  public void configure(Map<String, String> properties) {
-  }
+  public void configure(Map<String, String> properties) {}
 
   @Override
   public Schema retrieveKeySchema(SinkRecord record) {

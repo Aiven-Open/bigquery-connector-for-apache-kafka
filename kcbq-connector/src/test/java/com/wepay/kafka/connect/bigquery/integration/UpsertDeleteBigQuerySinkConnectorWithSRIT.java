@@ -61,7 +61,8 @@ import org.slf4j.LoggerFactory;
 @Tag("integration")
 public class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
 
-  private static final Logger logger = LoggerFactory.getLogger(UpsertDeleteBigQuerySinkConnectorWithSRIT.class);
+  private static final Logger logger =
+      LoggerFactory.getLogger(UpsertDeleteBigQuerySinkConnectorWithSRIT.class);
 
   private static final long NUM_RECORDS_PRODUCED = 8;
   private static final int TASKS_MAX = 1;
@@ -79,9 +80,11 @@ public class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
 
   @BeforeEach
   public void setup(TestInfo testInfo) throws Exception {
-    String testMethod = testInfo.getTestMethod()
-        .map(Method::getName)
-        .orElseThrow(() -> new AssertionError("Test method not found"));
+    String testMethod =
+        testInfo
+            .getTestMethod()
+            .map(Method::getName)
+            .orElseThrow(() -> new AssertionError("Test method not found"));
     connectorName = "kcbq-sink-connector-" + testMethod + "-sr";
     startConnect();
     bigQuery = newBigQuery();
@@ -90,16 +93,15 @@ public class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
     schemaRegistry.start();
     schemaRegistryUrl = schemaRegistry.schemaRegistryUrl();
 
-    valueSchema = SchemaBuilder.struct()
-        .optional()
-        .field("f1", Schema.STRING_SCHEMA)
-        .field("f2", Schema.BOOLEAN_SCHEMA)
-        .field("f3", Schema.FLOAT64_SCHEMA)
-        .build();
+    valueSchema =
+        SchemaBuilder.struct()
+            .optional()
+            .field("f1", Schema.STRING_SCHEMA)
+            .field("f2", Schema.BOOLEAN_SCHEMA)
+            .field("f3", Schema.FLOAT64_SCHEMA)
+            .build();
 
-    keySchema = SchemaBuilder.struct()
-        .field("k1", Schema.INT64_SCHEMA)
-        .build();
+    keySchema = SchemaBuilder.struct().field("k1", Schema.INT64_SCHEMA).build();
   }
 
   @AfterEach
@@ -112,9 +114,7 @@ public class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
   }
 
   private Map<String, String> upsertDeleteProps(
-      boolean upsert,
-      boolean delete,
-      long mergeRecordsThreshold) {
+      boolean upsert, boolean delete, long mergeRecordsThreshold) {
     if (!upsert && !delete) {
       throw new IllegalArgumentException("At least one of upsert or delete must be enabled");
     }
@@ -141,7 +141,8 @@ public class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
     // Hardcode merge flushes to just use number of records for now, as it's more deterministic and
     // faster to test
     result.put(BigQuerySinkConfig.MERGE_INTERVAL_MS_CONFIG, "-1");
-    result.put(BigQuerySinkConfig.MERGE_RECORDS_THRESHOLD_CONFIG, Long.toString(mergeRecordsThreshold));
+    result.put(
+        BigQuerySinkConfig.MERGE_RECORDS_THRESHOLD_CONFIG, Long.toString(mergeRecordsThreshold));
 
     result.put(BigQuerySinkConfig.KAFKA_KEY_FIELD_NAME_CONFIG, KAFKA_FIELD_NAME);
 
@@ -186,10 +187,14 @@ public class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
       // present in the table at the end of the test
       List<SchemaAndValue> record = new ArrayList<>();
       SchemaAndValue schemaAndValue = new SchemaAndValue(valueSchema, data(i));
-      SchemaAndValue keyschemaAndValue = new SchemaAndValue(keySchema, new Struct(keySchema)
-          .put("k1", i / 2l));
+      SchemaAndValue keyschemaAndValue =
+          new SchemaAndValue(keySchema, new Struct(keySchema).put("k1", i / 2l));
 
-      logger.debug("Sending message with key '{}' and value '{}' to topic '{}'", keyschemaAndValue, schemaAndValue, topic);
+      logger.debug(
+          "Sending message with key '{}' and value '{}' to topic '{}'",
+          keyschemaAndValue,
+          schemaAndValue,
+          topic);
 
       record.add(keyschemaAndValue);
       record.add(schemaAndValue);
@@ -204,13 +209,16 @@ public class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
     waitForCommittedRecords(connectorName, topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
 
     List<List<Object>> allRows = readAllRows(bigQuery, table, KAFKA_FIELD_NAME + ".k1");
-    List<List<Object>> expectedRows = LongStream.range(0, NUM_RECORDS_PRODUCED / 2)
-        .mapToObj(i -> Arrays.asList(
-            "another string",
-            (i - 1) % 3 == 0,
-            (i * 2 + 1) / 0.69,
-            Collections.singletonList(i)))
-        .collect(Collectors.toList());
+    List<List<Object>> expectedRows =
+        LongStream.range(0, NUM_RECORDS_PRODUCED / 2)
+            .mapToObj(
+                i ->
+                    Arrays.asList(
+                        "another string",
+                        (i - 1) % 3 == 0,
+                        (i * 2 + 1) / 0.69,
+                        Collections.singletonList(i)))
+            .collect(Collectors.toList());
     assertEquals(expectedRows, allRows);
   }
 
@@ -248,20 +256,26 @@ public class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
 
     // Prepare records
     for (int i = 0; i < NUM_RECORDS_PRODUCED; i++) {
-      // Each pair of records will share a key. Because upsert is not enabled, no deduplication will take place
+      // Each pair of records will share a key. Because upsert is not enabled, no deduplication will
+      // take place
       // and, unless a tombstone is written for that key, both will be inserted
       List<SchemaAndValue> record = new ArrayList<>();
       SchemaAndValue schemaAndValue;
-      // Every fourth record will be a tombstone, so every record pair with an odd-numbered key will be dropped
+      // Every fourth record will be a tombstone, so every record pair with an odd-numbered key will
+      // be dropped
       if (i % 4 == 3) {
         schemaAndValue = new SchemaAndValue(valueSchema, null);
       } else {
         schemaAndValue = new SchemaAndValue(valueSchema, data(i));
       }
-      SchemaAndValue keyschemaAndValue = new SchemaAndValue(keySchema, new Struct(keySchema)
-          .put("k1", i / 2L));
+      SchemaAndValue keyschemaAndValue =
+          new SchemaAndValue(keySchema, new Struct(keySchema).put("k1", i / 2L));
 
-      logger.debug("Sending message with key '{}' and value '{}' to topic '{}'", keyschemaAndValue, schemaAndValue, topic);
+      logger.debug(
+          "Sending message with key '{}' and value '{}' to topic '{}'",
+          keyschemaAndValue,
+          schemaAndValue,
+          topic);
 
       record.add(keyschemaAndValue);
       record.add(schemaAndValue);
@@ -278,14 +292,17 @@ public class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
     // Since we have multiple rows per key, order by key and the f3 field (which should be
     // monotonically increasing in insertion order)
     List<List<Object>> allRows = readAllRows(bigQuery, table, KAFKA_FIELD_NAME + ".k1, f3");
-    List<List<Object>> expectedRows = LongStream.range(0, NUM_RECORDS_PRODUCED)
-        .filter(i -> i % 4 < 2)
-        .mapToObj(i -> Arrays.asList(
-            i % 4 == 0 ? "a string" : "another string",
-            i % 3 == 0,
-            i / 0.69,
-            Collections.singletonList(i * 2 / 4)))
-        .collect(Collectors.toList());
+    List<List<Object>> expectedRows =
+        LongStream.range(0, NUM_RECORDS_PRODUCED)
+            .filter(i -> i % 4 < 2)
+            .mapToObj(
+                i ->
+                    Arrays.asList(
+                        i % 4 == 0 ? "a string" : "another string",
+                        i % 3 == 0,
+                        i / 0.69,
+                        Collections.singletonList(i * 2 / 4)))
+            .collect(Collectors.toList());
     assertEquals(expectedRows, allRows);
   }
 
@@ -327,17 +344,22 @@ public class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
       // present in the table at the end of the test
       List<SchemaAndValue> record = new ArrayList<>();
       SchemaAndValue schemaAndValue;
-      // Every fourth record will be a tombstone, so every record pair with an odd-numbered key will be dropped
+      // Every fourth record will be a tombstone, so every record pair with an odd-numbered key will
+      // be dropped
       if (i % 4 == 3) {
         schemaAndValue = new SchemaAndValue(valueSchema, null);
       } else {
         schemaAndValue = new SchemaAndValue(valueSchema, data(i));
       }
 
-      SchemaAndValue keyschemaAndValue = new SchemaAndValue(keySchema, new Struct(keySchema)
-          .put("k1", i / 2L));
+      SchemaAndValue keyschemaAndValue =
+          new SchemaAndValue(keySchema, new Struct(keySchema).put("k1", i / 2L));
 
-      logger.debug("Sending message with key '{}' and value '{}' to topic '{}'", keyschemaAndValue, schemaAndValue, topic);
+      logger.debug(
+          "Sending message with key '{}' and value '{}' to topic '{}'",
+          keyschemaAndValue,
+          schemaAndValue,
+          topic);
 
       record.add(keyschemaAndValue);
       record.add(schemaAndValue);
@@ -354,28 +376,27 @@ public class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
     // Since we have multiple rows per key, order by key and the f3 field (which should be
     // monotonically increasing in insertion order)
     List<List<Object>> allRows = readAllRows(bigQuery, table, KAFKA_FIELD_NAME + ".k1, f3");
-    List<List<Object>> expectedRows = LongStream.range(0, NUM_RECORDS_PRODUCED)
-        .filter(i -> i % 4 == 1)
-        .mapToObj(i -> Arrays.asList(
-            "another string",
-            i % 3 == 0,
-            i / 0.69,
-            Collections.singletonList(i * 2 / 4)))
-        .collect(Collectors.toList());
+    List<List<Object>> expectedRows =
+        LongStream.range(0, NUM_RECORDS_PRODUCED)
+            .filter(i -> i % 4 == 1)
+            .mapToObj(
+                i ->
+                    Arrays.asList(
+                        "another string",
+                        i % 3 == 0,
+                        i / 0.69,
+                        Collections.singletonList(i * 2 / 4)))
+            .collect(Collectors.toList());
     assertEquals(expectedRows, allRows);
   }
 
   private void initialiseConverters() {
     keyConverter = new AvroConverter();
     valueConverter = new AvroConverter();
-    keyConverter.configure(Collections.singletonMap(
-            SCHEMA_REGISTRY_URL_CONFIG, schemaRegistryUrl
-        ), true
-    );
-    valueConverter.configure(Collections.singletonMap(
-            SCHEMA_REGISTRY_URL_CONFIG, schemaRegistryUrl
-        ), false
-    );
+    keyConverter.configure(
+        Collections.singletonMap(SCHEMA_REGISTRY_URL_CONFIG, schemaRegistryUrl), true);
+    valueConverter.configure(
+        Collections.singletonMap(SCHEMA_REGISTRY_URL_CONFIG, schemaRegistryUrl), false);
   }
 
   private Struct data(long iteration) {
@@ -384,5 +405,4 @@ public class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
         .put("f2", iteration % 3 == 0)
         .put("f3", iteration / 0.69);
   }
-
 }

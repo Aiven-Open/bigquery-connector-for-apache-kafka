@@ -39,10 +39,7 @@ public class PartitioningModeValidatorTest {
     BigQuerySinkConfig config = mock(BigQuerySinkConfig.class);
     when(config.getBoolean(BIGQUERY_PARTITION_DECORATOR_CONFIG)).thenReturn(false);
 
-    assertEquals(
-        Optional.empty(),
-        new PartitioningModeValidator().doValidate(config)
-    );
+    assertEquals(Optional.empty(), new PartitioningModeValidator().doValidate(config));
   }
 
   @Test
@@ -51,10 +48,7 @@ public class PartitioningModeValidatorTest {
     when(config.getBoolean(BIGQUERY_PARTITION_DECORATOR_CONFIG)).thenReturn(true);
     when(config.getTimestampPartitionFieldName()).thenReturn(Optional.empty());
 
-    assertEquals(
-        Optional.empty(),
-        new PartitioningModeValidator().doValidate(config)
-    );
+    assertEquals(Optional.empty(), new PartitioningModeValidator().doValidate(config));
   }
 
   @Test
@@ -63,10 +57,7 @@ public class PartitioningModeValidatorTest {
     when(config.getBoolean(BIGQUERY_PARTITION_DECORATOR_CONFIG)).thenReturn(true);
     when(config.getTimestampPartitionFieldName()).thenReturn(Optional.of("f1"));
 
-    assertNotEquals(
-        Optional.empty(),
-        new PartitioningModeValidator().doValidate(config)
-    );
+    assertNotEquals(Optional.empty(), new PartitioningModeValidator().doValidate(config));
   }
 
   @Test
@@ -75,9 +66,6 @@ public class PartitioningModeValidatorTest {
     when(config.getBoolean(BIGQUERY_PARTITION_DECORATOR_CONFIG)).thenReturn(false);
     when(config.getTimestampPartitionFieldName()).thenReturn(Optional.of("f1"));
 
-    assertEquals(
-        Optional.empty(),
-        new PartitioningModeValidator().doValidate(config)
-    );
+    assertEquals(Optional.empty(), new PartitioningModeValidator().doValidate(config));
   }
 }

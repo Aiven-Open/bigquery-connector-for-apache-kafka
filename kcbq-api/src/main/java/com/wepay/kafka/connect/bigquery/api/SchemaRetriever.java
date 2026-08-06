@@ -28,13 +28,13 @@ import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.sink.SinkRecord;
 
 /**
- * Interface for retrieving the most up-to-date schemas for a given Sink Record. Used in
- * automatic table creation and schema updates.
+ * Interface for retrieving the most up-to-date schemas for a given Sink Record. Used in automatic
+ * table creation and schema updates.
  */
 public interface SchemaRetriever {
   /**
-   * Called with all of the configuration settings passed to the connector via its
-   * {@link org.apache.kafka.connect.sink.SinkConnector#start(Map)} method.
+   * Called with all of the configuration settings passed to the connector via its {@link
+   * org.apache.kafka.connect.sink.SinkConnector#start(Map)} method.
    *
    * @param properties The configuration settings of the connector.
    */

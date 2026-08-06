@@ -58,7 +58,7 @@ public class BigQuerySinkConnectorTest {
 
     testConnector.start(properties);
 
-    for (int i : new int[]{1, 2, 10, 100}) {
+    for (int i : new int[] {1, 2, 10, 100}) {
       Map<String, String> expectedProperties = new HashMap<>(properties);
       List<Map<String, String>> taskConfigs = testConnector.taskConfigs(i);
       assertEquals(i, taskConfigs.size());
@@ -67,21 +67,18 @@ public class BigQuerySinkConnectorTest {
         assertEquals(
             expectedProperties,
             taskConfigs.get(j),
-            "Connector properties should match task configs"
-        );
+            "Connector properties should match task configs");
         assertNotSame(
             properties,
             taskConfigs.get(j),
-            "Properties should not be referentially equal to task config"
-        );
+            "Properties should not be referentially equal to task config");
         // A little overboard, sure, but since it's only in the ballpark of 10,000 iterations this
         // should be fine
         for (int k = j + 1; k < i; k++) {
           assertNotSame(
               taskConfigs.get(j),
               taskConfigs.get(k),
-              "Task configs should not be referentially equal to each other"
-          );
+              "Task configs should not be referentially equal to each other");
         }
       }
     }

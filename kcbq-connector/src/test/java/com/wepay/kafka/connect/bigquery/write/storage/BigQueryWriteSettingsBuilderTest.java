@@ -42,11 +42,9 @@ public class BigQueryWriteSettingsBuilderTest {
     properties.put(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG, "dummy_dataset");
     BigQuerySinkConfig config = new BigQuerySinkConfig(properties);
 
-    BigQueryWriteSettings actualSettings = new GcpClientBuilder.BigQueryWriteSettingsBuilder()
-        .withConfig(config)
-        .build();
+    BigQueryWriteSettings actualSettings =
+        new GcpClientBuilder.BigQueryWriteSettingsBuilder().withConfig(config).build();
 
     assertEquals(actualSettings.getQuotaProjectId(), "abcd");
   }
-
 }

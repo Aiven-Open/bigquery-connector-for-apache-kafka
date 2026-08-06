@@ -52,7 +52,9 @@ import com.wepay.kafka.connect.bigquery.GcpClientBuilder;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.integration.utils.TestCaseLogger;
 import com.wepay.kafka.connect.bigquery.utils.FieldNameSanitizer;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -69,7 +71,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
-
 import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
@@ -101,8 +102,14 @@ public abstract class BaseConnectorIT {
   private static final String GCS_BUCKET_ENV_VAR = "KCBQ_TEST_BUCKET";
   private static final String GCS_FOLDER_ENV_VAR = "KCBQ_TEST_FOLDER";
   private static final String TEST_NAMESPACE_ENV_VAR = "KCBQ_TEST_TABLE_SUFFIX";
+  protected static final long ONE_MINUTE = 60_000L;
+  protected static final long ONE_SECOND = 1_000L;
 
   protected EmbeddedConnectCluster connect;
+
+  /** The status message if there are any issues with the connector status check */
+  protected String connectorStatus;
+
   private Admin kafkaAdminClient;
 
   protected static List<Byte> boxByteArray(byte[] bytes) {
@@ -118,21 +125,20 @@ public abstract class BaseConnectorIT {
     workerProps.put(
         WorkerConfig.OFFSET_COMMIT_INTERVAL_MS_CONFIG, Long.toString(OFFSET_COMMIT_INTERVAL_MS));
     // Allow per-connector consumer configuration for throughput testing
-    workerProps.put(
-        WorkerConfig.CONNECTOR_CLIENT_POLICY_CLASS_CONFIG, "All");
+    workerProps.put(WorkerConfig.CONNECTOR_CLIENT_POLICY_CLASS_CONFIG, "All");
     // Some external plugin dependencies don't yet have service loader manifests
-    workerProps.put(
-        WorkerConfig.PLUGIN_DISCOVERY_CONFIG, "HYBRID_WARN");
+    workerProps.put(WorkerConfig.PLUGIN_DISCOVERY_CONFIG, "HYBRID_WARN");
 
     Properties brokerProps = new Properties();
     brokerProps.put(ServerConfigs.MESSAGE_MAX_BYTES_CONFIG, 10 * 1024 * 1024);
 
-    connect = new EmbeddedConnectCluster.Builder()
-        .name("kcbq-connect-cluster")
-        .numBrokers(1)
-        .brokerProps(brokerProps)
-        .workerProps(workerProps)
-        .build();
+    connect =
+        new EmbeddedConnectCluster.Builder()
+            .name("kcbq-connect-cluster")
+            .numBrokers(1)
+            .brokerProps(brokerProps)
+            .workerProps(workerProps)
+            .build();
 
     // start the clusters
     connect.start();
@@ -140,8 +146,7 @@ public abstract class BaseConnectorIT {
     kafkaAdminClient = connect.kafka().createAdminClient();
 
     // the exception handler installed by the embedded zookeeper instance is noisy and unnecessary
-    Thread.setDefaultUncaughtExceptionHandler((t, e) -> {
-    });
+    Thread.setDefaultUncaughtExceptionHandler((t, e) -> {});
   }
 
   protected void stopConnect() {
@@ -176,10 +181,10 @@ public abstract class BaseConnectorIT {
   protected BigQuery newBigQuery() {
     try {
       return new GcpClientBuilder.BigQueryBuilder()
-              .withKey(keyFile())
-              .withKeySource(GcpClientBuilder.KeySource.valueOf(keySource()))
-              .withProject(project())
-              .build();
+          .withKey(keyFile())
+          .withKeySource(GcpClientBuilder.KeySource.valueOf(keySource()))
+          .withProject(project())
+          .build();
     } catch (RuntimeException e) {
       LoggerFactory.getLogger(BaseConnectorIT.class).error("query error", e);
       throw e;
@@ -187,33 +192,37 @@ public abstract class BaseConnectorIT {
   }
 
   protected void waitForCommittedRecords(
-      String connector, String topic, long numRecords, int numTasks
-  ) throws InterruptedException {
-    waitForCommittedRecords(connector, Collections.singleton(topic), numRecords, numTasks, COMMIT_MAX_DURATION_MS);
+      String connector, String topic, long numRecords, int numTasks) throws InterruptedException {
+    waitForCommittedRecords(
+        connector, Collections.singleton(topic), numRecords, numTasks, COMMIT_MAX_DURATION_MS);
   }
 
   protected void waitForCommittedRecords(
-      String connector, Collection<String> topics, long numRecords, int numTasks, long timeoutMs
-  ) throws InterruptedException {
+      String connector, Collection<String> topics, long numRecords, int numTasks, long timeoutMs)
+      throws InterruptedException {
     waitForCondition(
         () -> {
           long totalCommittedRecords = totalCommittedRecords(connector, topics);
           if (totalCommittedRecords >= numRecords) {
-            logger.debug("Connector has successfully committed {} records for topics {}",
-                totalCommittedRecords, topics);
+            logger.debug(
+                "Connector has successfully committed {} records for topics {}",
+                totalCommittedRecords,
+                topics);
             return true;
           } else {
             // Check to make sure the connector is still running. If not, fail fast
             try {
               assertTrue(
                   assertConnectorAndTasksRunning(connector, numTasks).orElse(false),
-                  "Connector or one of its tasks failed during testing"
-              );
+                  () -> "Connector or one of its tasks failed during testing: " + connectorStatus);
             } catch (AssertionError e) {
               throw new NoRetryException(e);
             }
-            logger.debug("Connector has only committed {} records for topics {} so far; {} expected",
-                totalCommittedRecords, topics, numRecords);
+            logger.debug(
+                "Connector has only committed {} records for topics {} so far; {} expected",
+                totalCommittedRecords,
+                topics,
+                numRecords);
             // Sleep here so as not to spam Kafka with list-offsets requests
             Thread.sleep(OFFSET_COMMIT_INTERVAL_MS / 2);
             return false;
@@ -223,13 +232,16 @@ public abstract class BaseConnectorIT {
         "Either the connector failed, or the message commit duration expired without all expected messages committed");
   }
 
-  protected synchronized long totalCommittedRecords(String connector, Collection<String> topics) throws TimeoutException, ExecutionException, InterruptedException {
-    // See https://github.com/apache/kafka/blob/f7c38d83c727310f4b0678886ba410ae2fae9379/connect/runtime/src/main/java/org/apache/kafka/connect/util/SinkUtils.java
+  protected synchronized long totalCommittedRecords(String connector, Collection<String> topics)
+      throws TimeoutException, ExecutionException, InterruptedException {
+    // See
+    // https://github.com/apache/kafka/blob/f7c38d83c727310f4b0678886ba410ae2fae9379/connect/runtime/src/main/java/org/apache/kafka/connect/util/SinkUtils.java
     // for how the consumer group ID is constructed for sink connectors
-    Map<TopicPartition, OffsetAndMetadata> offsets = kafkaAdminClient
-        .listConsumerGroupOffsets("connect-" + connector)
-        .partitionsToOffsetAndMetadata()
-        .get(OFFSETS_READ_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+    Map<TopicPartition, OffsetAndMetadata> offsets =
+        kafkaAdminClient
+            .listConsumerGroupOffsets("connect-" + connector)
+            .partitionsToOffsetAndMetadata()
+            .get(OFFSETS_READ_TIMEOUT_MS, TimeUnit.MILLISECONDS);
 
     logger.trace("Connector {} has so far committed offsets {}", connector, offsets);
 
@@ -242,25 +254,22 @@ public abstract class BaseConnectorIT {
   /**
    * Read all rows from the given table.
    *
-   * @param bigQuery   used to connect to BigQuery
-   * @param tableName  the table to read
+   * @param bigQuery used to connect to BigQuery
+   * @param tableName the table to read
    * @param sortColumn a column to sort rows by (can use dot notation to refer to nested fields)
    * @return a list of all rows from the table, in random order.
    */
-  protected List<List<Object>> readAllRows(
-      BigQuery bigQuery, String tableName, String sortColumn) throws InterruptedException {
+  protected List<List<Object>> readAllRows(BigQuery bigQuery, String tableName, String sortColumn)
+      throws InterruptedException {
 
     Table table = bigQuery.getTable(dataset(), tableName);
-    Schema schema = table
-        .getDefinition()
-        .getSchema();
+    Schema schema = table.getDefinition().getSchema();
 
-    TableResult tableResult = bigQuery.query(QueryJobConfiguration.of(String.format(
-        "SELECT * FROM `%s`.`%s` ORDER BY %s ASC",
-        dataset(),
-        tableName,
-        sortColumn
-    )));
+    TableResult tableResult =
+        bigQuery.query(
+            QueryJobConfiguration.of(
+                String.format(
+                    "SELECT * FROM `%s`.`%s` ORDER BY %s ASC", dataset(), tableName, sortColumn)));
 
     return StreamSupport.stream(tableResult.iterateAll().spliterator(), false)
         .map(fieldValues -> convertRow(schema.getFields(), fieldValues))
@@ -268,9 +277,10 @@ public abstract class BaseConnectorIT {
   }
 
   protected long countRows(BigQuery bigQuery, String tableName) throws InterruptedException {
-    TableResult tableResult = bigQuery.query(QueryJobConfiguration.of(
-        "SELECT COUNT(*) FROM `" + dataset() + "`.`" + tableName + "`"
-    ));
+    TableResult tableResult =
+        bigQuery.query(
+            QueryJobConfiguration.of(
+                "SELECT COUNT(*) FROM `" + dataset() + "`.`" + tableName + "`"));
     assertEquals(1, tableResult.getTotalRows());
     FieldValueList fieldValueList = tableResult.iterateAll().iterator().next();
     return fieldValueList.get(0).getLongValue();
@@ -297,7 +307,12 @@ public abstract class BaseConnectorIT {
         } else if (fieldSchema.getType().equals(TIME)) {
           return field.getStringValue();
         } else if (fieldSchema.getType().equals(DATETIME)) {
-          return field.getTimestampValue();
+          // return micro seconds.
+          Instant instant =
+              LocalDateTime.parse(field.getStringValue(), DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                  .atOffset(ZoneOffset.UTC)
+                  .toInstant();
+          return instant.getEpochSecond() * 1_000_000 + instant.getNano() / 1_000;
         } else if (fieldSchema.getType().equals(FLOAT)) {
           return field.getDoubleValue();
         } else if (fieldSchema.getType().equals(INTEGER)) {
@@ -306,11 +321,12 @@ public abstract class BaseConnectorIT {
           return field.getStringValue();
         } else if (fieldSchema.getType().equals(TIMESTAMP)) {
           return field.getTimestampValue();
-        } else if (fieldSchema.getType().equals(BIGNUMERIC) || fieldSchema.getType().equals(NUMERIC)) {
+        } else if (fieldSchema.getType().equals(BIGNUMERIC)
+            || fieldSchema.getType().equals(NUMERIC)) {
           return field.getNumericValue();
         } else {
-          throw new RuntimeException("Cannot convert primitive field type "
-              + fieldSchema.getType());
+          throw new RuntimeException(
+              "Cannot convert primitive field type " + fieldSchema.getType());
         }
       case REPEATED:
         List<Object> result = new ArrayList<>();
@@ -339,10 +355,10 @@ public abstract class BaseConnectorIT {
   }
 
   /**
-   * Wait up to {@link #CONNECTOR_STARTUP_DURATION_MS maximum time limit} for the connector with the given
-   * name to start the specified number of tasks.
+   * Wait up to {@link #CONNECTOR_STARTUP_DURATION_MS maximum time limit} for the connector with the
+   * given name to start the specified number of tasks.
    *
-   * @param name     the name of the connector
+   * @param name the name of the connector
    * @param numTasks the minimum number of tasks that are expected
    * @throws InterruptedException if this was interrupted
    */
@@ -350,28 +366,43 @@ public abstract class BaseConnectorIT {
     waitForCondition(
         () -> assertConnectorAndTasksRunning(name, numTasks).orElse(false),
         CONNECTOR_STARTUP_DURATION_MS,
-        "Connector tasks did not start in time."
-    );
+        "Connector tasks did not start in time: " + connectorStatus);
   }
 
   /**
    * Confirm that a connector with an exact number of tasks is running.
    *
    * @param connectorName the connector
-   * @param numTasks      the minimum number of tasks
-   * @return an Optional {@code true} if the connector and tasks are in RUNNING state; {@code false} if they are not and
-   * an empty Optional if there was an Exception thrown.
+   * @param numTasks the minimum number of tasks
+   * @return an Optional {@code String} if the connector and tasks are not in RUNNING state; {@code
+   *     empty} if they are an empty Optional if there was an Exception thrown.
    */
   protected Optional<Boolean> assertConnectorAndTasksRunning(String connectorName, int numTasks) {
     try {
       ConnectorStateInfo info = connect.connectorStatus(connectorName);
-      boolean result = info != null
-          && info.tasks().size() >= numTasks
-          && info.connector().state().equals(AbstractStatus.State.RUNNING.toString())
-          && info.tasks().stream().allMatch(s -> s.state().equals(AbstractStatus.State.RUNNING.toString()));
-      return Optional.of(result);
+      List<String> msgs = new ArrayList<>();
+      if (info == null) {
+        msgs.add("Could not retrieve connector status.");
+      } else {
+        if (info.tasks().size() < numTasks) {
+          msgs.add(
+              String.format("Too few tasks expected %s got %s.", info.tasks().size(), numTasks));
+        }
+        if (!info.connector().state().equals(AbstractStatus.State.RUNNING.toString())) {
+          msgs.add("Connector state is " + info.connector().state());
+        }
+        info.tasks().stream()
+            .filter(s -> !s.state().equals(AbstractStatus.State.RUNNING.toString()))
+            .forEach(
+                ts ->
+                    msgs.add(
+                        String.format("Task %s is not running: %s.", ts.workerId(), ts.trace())));
+      }
+      connectorStatus = msgs.isEmpty() ? null : String.join(System.lineSeparator(), msgs);
+      return Optional.of(msgs.isEmpty());
     } catch (Exception e) {
       logger.warn("Could not check connector state info.", e);
+      connectorStatus = null;
       return Optional.empty();
     }
   }
@@ -391,15 +422,39 @@ public abstract class BaseConnectorIT {
   private String readEnvVar(String var) {
     String result = System.getenv(var);
     if (StringUtils.isEmpty(result)) {
-      throw new IllegalStateException(String.format(
-          "Environment variable '%s' must be supplied to run integration tests",
-          var));
+      throw new IllegalStateException(
+          String.format(
+              "Environment variable '%s' must be supplied to run integration tests", var));
     }
     return result.trim();
   }
 
   private String readEnvVar(String var, String defaultVal) {
     return System.getenv().getOrDefault(var, defaultVal).trim();
+  }
+
+  protected long scaledWait(long definedWaitTime) {
+    return Double.valueOf(definedWaitTime * waitFactor()).longValue();
+  }
+
+  protected double waitFactor() {
+    double load;
+    int nproc;
+    try {
+      load = Double.parseDouble(load());
+      nproc = Integer.parseInt(nproc());
+    } catch (NumberFormatException e) {
+      return 1.0;
+    }
+    return Math.max(load / nproc, 1.0);
+  }
+
+  protected String load() {
+    return readEnvVar("LOAD", "unknown");
+  }
+
+  protected String nproc() {
+    return readEnvVar("NPROC", "unknown");
   }
 
   protected String keyFile() {

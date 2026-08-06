@@ -41,11 +41,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
-public abstract class CredentialsValidator<ClientBuilderT extends GcpClientBuilder<?>> extends MultiPropertyValidator<BigQuerySinkConfig> {
+public abstract class CredentialsValidator<ClientBuilderT extends GcpClientBuilder<?>>
+    extends MultiPropertyValidator<BigQuerySinkConfig> {
 
-  private static final Collection<String> DEPENDENTS = Collections.unmodifiableCollection(Arrays.asList(
-      PROJECT_CONFIG, KEY_SOURCE_CONFIG
-  ));
+  private static final Collection<String> DEPENDENTS =
+      Collections.unmodifiableCollection(Arrays.asList(PROJECT_CONFIG, KEY_SOURCE_CONFIG));
 
   public CredentialsValidator() {
     super(KEYFILE_CONFIG);
@@ -62,23 +62,27 @@ public abstract class CredentialsValidator<ClientBuilderT extends GcpClientBuild
     KeySource keySource = config.getKeySource();
 
     if (keySource == KeySource.APPLICATION_DEFAULT && keyFile != null && !keyFile.isEmpty()) {
-      String errorMessage = KEYFILE_CONFIG + " should not be provided if " + KEY_SOURCE_CONFIG
-          + " is " + KeySource.APPLICATION_DEFAULT;
+      String errorMessage =
+          KEYFILE_CONFIG
+              + " should not be provided if "
+              + KEY_SOURCE_CONFIG
+              + " is "
+              + KeySource.APPLICATION_DEFAULT;
       return Optional.of(errorMessage);
     }
 
-    if ((keyFile == null || keyFile.isEmpty()) && config.getKeySource() != GcpClientBuilder.KeySource.APPLICATION_DEFAULT) {
+    if ((keyFile == null || keyFile.isEmpty())
+        && config.getKeySource() != GcpClientBuilder.KeySource.APPLICATION_DEFAULT) {
       // No credentials to validate
       return Optional.empty();
     }
 
     try {
-      clientBuilder()
-          .withConfig(config)
-          .build();
+      clientBuilder().withConfig(config).build();
       return Optional.empty();
     } catch (RuntimeException e) {
-      String errorMessage = "An unexpected error occurred while validating credentials for " + gcpService();
+      String errorMessage =
+          "An unexpected error occurred while validating credentials for " + gcpService();
       if (e.getMessage() != null) {
         errorMessage += ": " + e.getMessage();
       }
@@ -90,7 +94,8 @@ public abstract class CredentialsValidator<ClientBuilderT extends GcpClientBuild
 
   protected abstract ClientBuilderT clientBuilder();
 
-  public static class BigQueryCredentialsValidator extends CredentialsValidator<GcpClientBuilder<BigQuery>> {
+  public static class BigQueryCredentialsValidator
+      extends CredentialsValidator<GcpClientBuilder<BigQuery>> {
     @Override
     public String gcpService() {
       return "BigQueryLegacyApi";
@@ -102,7 +107,8 @@ public abstract class CredentialsValidator<ClientBuilderT extends GcpClientBuild
     }
   }
 
-  public static class BigQueryStorageWriteApiCredentialsValidator extends CredentialsValidator<GcpClientBuilder<BigQueryWriteSettings>> {
+  public static class BigQueryStorageWriteApiCredentialsValidator
+      extends CredentialsValidator<GcpClientBuilder<BigQueryWriteSettings>> {
     @Override
     public String gcpService() {
       return "BigQueryStorageWriteApi";
@@ -114,7 +120,8 @@ public abstract class CredentialsValidator<ClientBuilderT extends GcpClientBuild
     }
   }
 
-  public static class GcsCredentialsValidator extends CredentialsValidator<GcpClientBuilder<Storage>> {
+  public static class GcsCredentialsValidator
+      extends CredentialsValidator<GcpClientBuilder<Storage>> {
 
     private static final Collection<String> DEPENDENTS;
 

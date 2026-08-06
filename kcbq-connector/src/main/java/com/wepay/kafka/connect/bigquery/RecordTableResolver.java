@@ -44,7 +44,8 @@ import org.apache.kafka.connect.errors.RetriableException;
 import org.apache.kafka.connect.sink.SinkRecord;
 
 /**
- * Class for resolving a {@link PartitionedTableId PartitionedTableId} of a {@link SinkRecord SinkRecord}
+ * Class for resolving a {@link PartitionedTableId PartitionedTableId} of a {@link SinkRecord
+ * SinkRecord}
  */
 class RecordTableResolver {
   private final BigQuerySinkTaskConfig config;
@@ -56,16 +57,25 @@ class RecordTableResolver {
   private final boolean useMessageTimeDatePartitioning;
   private final boolean forceProjectFromConfig;
 
-  public RecordTableResolver(BigQuerySinkTaskConfig config, MergeBatches mergeBatches, BigQuery bigQuery,
-                             boolean upsertDelete, boolean useStorageApiBatchMode, boolean useStorageApi) {
+  public RecordTableResolver(
+      BigQuerySinkTaskConfig config,
+      MergeBatches mergeBatches,
+      BigQuery bigQuery,
+      boolean upsertDelete,
+      boolean useStorageApiBatchMode,
+      boolean useStorageApi) {
     this.config = config;
     this.mergeBatches = mergeBatches;
     this.bigQuery = bigQuery;
 
     this.upsertDelete = upsertDelete;
-    this.useMessageTimeDatePartitioning = config.getBoolean(BigQuerySinkConfig.BIGQUERY_MESSAGE_TIME_PARTITIONING_CONFIG);
-    this.usePartitionDecorator = !useStorageApiBatchMode && config.getBoolean(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG);
-    this.forceProjectFromConfig = config.getBoolean(BigQuerySinkConfig.USE_CREDENTIALS_PROJECT_ID_CONFIG) || useStorageApi;
+    this.useMessageTimeDatePartitioning =
+        config.getBoolean(BigQuerySinkConfig.BIGQUERY_MESSAGE_TIME_PARTITIONING_CONFIG);
+    this.usePartitionDecorator =
+        !useStorageApiBatchMode
+            && config.getBoolean(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG);
+    this.forceProjectFromConfig =
+        config.getBoolean(BigQuerySinkConfig.USE_CREDENTIALS_PROJECT_ID_CONFIG) || useStorageApi;
   }
 
   public PartitionedTableId getRecordTable(SinkRecord record) {
@@ -80,7 +90,8 @@ class RecordTableResolver {
     if (usePartitionDecorator) {
       if (useMessageTimeDatePartitioning) {
         if (record.timestampType() == TimestampType.NO_TIMESTAMP_TYPE) {
-          throw new ConnectException("Message has no timestamp type, cannot use message timestamp to partition.");
+          throw new ConnectException(
+              "Message has no timestamp type, cannot use message timestamp to partition.");
         }
         builder.setDayPartition(record.timestamp());
       } else {
@@ -91,23 +102,25 @@ class RecordTableResolver {
   }
 
   private TableId getBaseTableId(String topic) {
-    return topicToTableId.computeIfAbsent(topic, topicName -> {
-      String[] datasetAndTable = TableNameUtils.getDataSetAndTableName(config, topic);
-      TableId baseTableId;
+    return topicToTableId.computeIfAbsent(
+        topic,
+        topicName -> {
+          String[] datasetAndTable = TableNameUtils.getDataSetAndTableName(config, topic);
+          TableId baseTableId;
 
-      if (forceProjectFromConfig) {
-        String project = config.getString(BigQuerySinkConfig.PROJECT_CONFIG);
-        baseTableId = TableId.of(project, datasetAndTable[0], datasetAndTable[1]);
-      } else {
-        baseTableId = TableId.of(datasetAndTable[0], datasetAndTable[1]);
-      }
+          if (forceProjectFromConfig) {
+            String project = config.getString(BigQuerySinkConfig.PROJECT_CONFIG);
+            baseTableId = TableId.of(project, datasetAndTable[0], datasetAndTable[1]);
+          } else {
+            baseTableId = TableId.of(datasetAndTable[0], datasetAndTable[1]);
+          }
 
-      if (usePartitionDecorator) {
-        validatePartitioningForDecorator(baseTableId);
-      }
+          if (usePartitionDecorator) {
+            validatePartitioningForDecorator(baseTableId);
+          }
 
-      return baseTableId;
-    });
+          return baseTableId;
+        });
   }
 
   private void validatePartitioningForDecorator(TableId tableId) {
@@ -119,17 +132,16 @@ class RecordTableResolver {
     }
     TimePartitioning partitioning = definition.getTimePartitioning();
     if (partitioning == null) {
-      throw new ConnectException(String.format(
+      throw new ConnectException(
+          String.format(
               "Cannot use decorator syntax to write to %s as it is not partitioned",
-              TableNameUtils.table(tableId)
-      ));
+              TableNameUtils.table(tableId)));
     }
     if (partitioning.getType() != TimePartitioning.Type.DAY) {
-      throw new ConnectException(String.format(
+      throw new ConnectException(
+          String.format(
               "Cannot use decorator syntax to write to %s as it is partitioned by %s and not by day",
-              TableNameUtils.table(tableId),
-              partitioning.getType().name().toLowerCase()
-      ));
+              TableNameUtils.table(tableId), partitioning.getType().name().toLowerCase()));
     }
   }
 
@@ -139,7 +151,8 @@ class RecordTableResolver {
       return table == null ? null : table.getDefinition();
     } catch (BigQueryException e) {
       if (BigQueryErrorResponses.isAuthenticationError(e)) {
-        throw new BigQueryConnectException("Failed to authenticate client for table " + tableId + " with error " + e, e);
+        throw new BigQueryConnectException(
+            "Failed to authenticate client for table " + tableId + " with error " + e, e);
       } else if (BigQueryErrorResponses.isIoError(e)) {
         throw new RetriableException("Failed to retrieve information for table " + tableId, e);
       } else {
