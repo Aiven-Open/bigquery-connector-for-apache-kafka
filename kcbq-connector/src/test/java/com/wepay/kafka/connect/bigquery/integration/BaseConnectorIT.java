@@ -374,8 +374,8 @@ public abstract class BaseConnectorIT {
    *
    * @param connectorName the connector
    * @param numTasks the minimum number of tasks
-   * @return an Optional {@code String} if the connector and tasks are not in RUNNING state; {@code
-   *     empty} if they are an empty Optional if there was an Exception thrown.
+   * @return an Optional {@code true} if the connector and tasks are in RUNNING state; {@code false}
+   *     if they are not and an empty Optional if there was an Exception thrown.
    */
   protected Optional<Boolean> assertConnectorAndTasksRunning(String connectorName, int numTasks) {
     try {
