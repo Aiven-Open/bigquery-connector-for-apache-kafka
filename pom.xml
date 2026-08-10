@@ -530,6 +530,7 @@
             <inputExclude>**/*.properties</inputExclude>
             <inputExclude>LICENSE.md</inputExclude>
             <inputExclude>README.md</inputExclude>
+            <inputExclude>README_TESTS.md</inputExclude>
             <inputExclude>CHANGE_LOG.md</inputExclude>
             <inputExclude>docs/**</inputExclude>
             <inputExclude>**/META-INF/services/**</inputExclude>
@@ -584,32 +585,32 @@
         <pluginManagement>
           <plugins>
             <plugin>
-                <groupId>org.apache.rat</groupId>
-                <artifactId>apache-rat-plugin</artifactId>
-                <version>${rat.plugin.version}</version>
-                <executions>
-                    <execution>
-                        <id>rat-checks</id>
-                        <phase>validate</phase>
-                        <goals>
-                            <goal>check</goal>
-                        </goals>
-                    </execution>
-                </executions>
-                <configuration>
-                    <excludeSubProjects>false</excludeSubProjects>
-                    <config>big-query-rat-config.xml</config>
-                    <inputExcludes>
-                        <inputExclude>**/*.vm</inputExclude>
-                        <inputExclude>**/*.properties</inputExclude>
-                        <inputExclude>LICENSE.md</inputExclude>
-                        <inputExclude>README.md</inputExclude>
-                        <inputExclude>README_TESTS.md</inputExclude>
-                        <inputExclude>CHANGE_LOG.md</inputExclude>
-                        <inputExclude>docs/**</inputExclude>
-                        <inputExclude>**/META-INF/services/**</inputExclude>
-                    </inputExcludes>
-                </configuration>
+              <groupId>org.apache.rat</groupId>
+              <artifactId>apache-rat-plugin</artifactId>
+              <version>${rat.plugin.version}</version>
+              <configuration>
+                <excludeSubProjects>false</excludeSubProjects>
+                <config>big-query-rat-config.xml</config>
+                <inputExcludes>
+                  <inputExclude>**/*.vm</inputExclude>
+                  <inputExclude>**/*.properties</inputExclude>
+                  <inputExclude>LICENSE.md</inputExclude>
+                  <inputExclude>README.md</inputExclude>
+                  <inputExclude>README_TESTS.md</inputExclude>
+                  <inputExclude>CHANGE_LOG.md</inputExclude>
+                  <inputExclude>docs/**</inputExclude>
+                  <inputExclude>**/META-INF/services/**</inputExclude>
+                </inputExcludes>
+              </configuration>
+              <executions>
+                <execution>
+                  <id>rat-checks</id>
+                  <goals>
+                    <goal>check</goal>
+                  </goals>
+                  <phase>validate</phase>
+                </execution>
+              </executions>
             </plugin>
             <plugin>
               <groupId>org.apache.maven.plugins</groupId>

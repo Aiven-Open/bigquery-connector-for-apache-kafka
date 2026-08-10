@@ -59,7 +59,6 @@ import com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiBatchApplic
 import com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiDefaultStream;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiWriter;
 import de.huxhorn.sulky.ulid.ULID;
-import io.aiven.commons.util.system.VersionInfo;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collection;

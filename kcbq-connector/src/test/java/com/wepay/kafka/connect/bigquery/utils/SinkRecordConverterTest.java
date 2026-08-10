@@ -35,7 +35,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.wepay.kafka.connect.bigquery.SchemaManager;
-import com.wepay.kafka.connect.bigquery.api.KafkaSchemaRecordType;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkTaskConfig;
 import com.wepay.kafka.connect.bigquery.convert.BigQueryRecordConverter;
@@ -82,27 +81,25 @@ public class SinkRecordConverterTest {
 
   @BeforeEach
   public void setUp() {
-    keySchema = SchemaBuilder.struct()
-        .field("id", Schema.INT64_SCHEMA)
-        .build();
-    keyStruct = new Struct(keySchema)
-        .put("id", 123L);
+    keySchema = SchemaBuilder.struct().field("id", Schema.INT64_SCHEMA).build();
+    keyStruct = new Struct(keySchema).put("id", 123L);
 
-    valueSchema = SchemaBuilder.struct()
-        .field("id", Schema.INT64_SCHEMA)
-        .field("name", Schema.STRING_SCHEMA)
-        .build();
-    valueStruct = new Struct(valueSchema)
-        .put("id", 123L)
-        .put("name", "Alice");
+    valueSchema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT64_SCHEMA)
+            .field("name", Schema.STRING_SCHEMA)
+            .build();
+    valueStruct = new Struct(valueSchema).put("id", 123L).put("name", "Alice");
 
     config = mock(BigQuerySinkTaskConfig.class);
     recordConverter = new BigQueryRecordConverter(false, true);
 
     when(config.getRecordConverter()).thenReturn(recordConverter);
     when(config.getLong(BigQuerySinkConfig.MERGE_RECORDS_THRESHOLD_CONFIG)).thenReturn(-1L);
-    when(config.getBoolean(BigQuerySinkConfig.BIGQUERY_MESSAGE_TIME_PARTITIONING_CONFIG)).thenReturn(false);
-    when(config.getBoolean(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG)).thenReturn(true);
+    when(config.getBoolean(BigQuerySinkConfig.BIGQUERY_MESSAGE_TIME_PARTITIONING_CONFIG))
+        .thenReturn(false);
+    when(config.getBoolean(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG))
+        .thenReturn(true);
     when(config.getBoolean(BigQuerySinkConfig.SANITIZE_FIELD_NAME_CONFIG)).thenReturn(false);
     when(config.getKafkaKeyFieldName()).thenReturn(Optional.empty());
     when(config.getKafkaDataFieldName()).thenReturn(Optional.empty());
@@ -114,7 +111,8 @@ public class SinkRecordConverterTest {
     when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
     when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
 
-    SinkRecord record = new SinkRecord(TOPIC, PARTITION, keySchema, keyStruct, valueSchema, valueStruct, OFFSET);
+    SinkRecord record =
+        new SinkRecord(TOPIC, PARTITION, keySchema, keyStruct, valueSchema, valueStruct, OFFSET);
 
     SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(config, null, null);
     Map<String, Object> actual = sinkRecordConverter.getCdcRow(record);
@@ -153,7 +151,8 @@ public class SinkRecordConverterTest {
     when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
     when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
 
-    SinkRecord record = new SinkRecord(TOPIC, PARTITION, null, null, valueSchema, valueStruct, OFFSET);
+    SinkRecord record =
+        new SinkRecord(TOPIC, PARTITION, null, null, valueSchema, valueStruct, OFFSET);
 
     SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(config, null, null);
     assertThrows(ConnectException.class, () -> sinkRecordConverter.getCdcRow(record));
@@ -165,13 +164,14 @@ public class SinkRecordConverterTest {
     when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
     when(config.getCdcChangeSequenceNumberField()).thenReturn(Optional.of("name"));
 
-    SinkRecord record = new SinkRecord(TOPIC, PARTITION, keySchema, keyStruct, valueSchema, valueStruct, OFFSET);
+    SinkRecord record =
+        new SinkRecord(TOPIC, PARTITION, keySchema, keyStruct, valueSchema, valueStruct, OFFSET);
 
     SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(config, null, null);
     Map<String, Object> actual = sinkRecordConverter.getCdcRow(record);
 
     assertEquals("UPSERT", actual.get("_CHANGE_TYPE"));
-    assertEquals("416c696365/000000000000002a", actual.get("_CHANGE_SEQUENCE_NUMBER"));
+    assertEquals("416c696365", actual.get("_CHANGE_SEQUENCE_NUMBER"));
   }
 
   @Test
@@ -186,7 +186,7 @@ public class SinkRecordConverterTest {
     Map<String, Object> actual = sinkRecordConverter.getCdcRow(record);
 
     assertEquals("DELETE", actual.get("_CHANGE_TYPE"));
-    assertEquals("000000000000007b/000000000000002a", actual.get("_CHANGE_SEQUENCE_NUMBER"));
+    assertEquals("0000007b0000002a", actual.get("_CHANGE_SEQUENCE_NUMBER"));
   }
 
   @Test
@@ -196,13 +196,23 @@ public class SinkRecordConverterTest {
     when(config.getCdcChangeSequenceNumberField()).thenReturn(Optional.of("_KAFKA_TIMESTAMP"));
 
     long recordTimestamp = 123456789L;
-    SinkRecord record = new SinkRecord(TOPIC, PARTITION, keySchema, keyStruct, valueSchema, valueStruct, OFFSET, recordTimestamp, org.apache.kafka.common.record.TimestampType.CREATE_TIME);
+    SinkRecord record =
+        new SinkRecord(
+            TOPIC,
+            PARTITION,
+            keySchema,
+            keyStruct,
+            valueSchema,
+            valueStruct,
+            OFFSET,
+            recordTimestamp,
+            org.apache.kafka.common.record.TimestampType.CREATE_TIME);
 
     SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(config, null, null);
     Map<String, Object> actual = sinkRecordConverter.getCdcRow(record);
 
     assertEquals("UPSERT", actual.get("_CHANGE_TYPE"));
-    assertEquals("00000000075bcd15/000000000000002a", actual.get("_CHANGE_SEQUENCE_NUMBER"));
+    assertEquals("075bcd150000002a", actual.get("_CHANGE_SEQUENCE_NUMBER"));
   }
 
   @Test
@@ -211,26 +221,30 @@ public class SinkRecordConverterTest {
     when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
     when(config.getCdcChangeSequenceNumberField()).thenReturn(Optional.of("version_id"));
 
-    Schema rewriteValueSchema = SchemaBuilder.struct()
-        .field("id", Schema.INT64_SCHEMA)
-        .field("name", Schema.STRING_SCHEMA)
-        .field("version_id", Schema.INT64_SCHEMA)
-        .field("__deleted", Schema.BOOLEAN_SCHEMA)
-        .build();
-    
-    Struct rewriteValueStruct = new Struct(rewriteValueSchema)
-        .put("id", 123L)
-        .put("name", "Alice")
-        .put("version_id", 3L)
-        .put("__deleted", true);
+    Schema rewriteValueSchema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT64_SCHEMA)
+            .field("name", Schema.STRING_SCHEMA)
+            .field("version_id", Schema.INT64_SCHEMA)
+            .field("__deleted", Schema.BOOLEAN_SCHEMA)
+            .build();
 
-    SinkRecord record = new SinkRecord(TOPIC, PARTITION, keySchema, keyStruct, rewriteValueSchema, rewriteValueStruct, OFFSET);
+    Struct rewriteValueStruct =
+        new Struct(rewriteValueSchema)
+            .put("id", 123L)
+            .put("name", "Alice")
+            .put("version_id", 3L)
+            .put("__deleted", true);
+
+    SinkRecord record =
+        new SinkRecord(
+            TOPIC, PARTITION, keySchema, keyStruct, rewriteValueSchema, rewriteValueStruct, OFFSET);
 
     SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(config, null, null);
     Map<String, Object> actual = sinkRecordConverter.getCdcRow(record);
 
     assertEquals("DELETE", actual.get("_CHANGE_TYPE"));
-    assertEquals("0000000000000003/000000000000002a", actual.get("_CHANGE_SEQUENCE_NUMBER"));
+    assertEquals("000000030000002a", actual.get("_CHANGE_SEQUENCE_NUMBER"));
   }
 
   @Test
@@ -239,26 +253,30 @@ public class SinkRecordConverterTest {
     when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
     when(config.getCdcChangeSequenceNumberField()).thenReturn(Optional.of("version_id"));
 
-    Schema rewriteValueSchema = SchemaBuilder.struct()
-        .field("id", Schema.INT64_SCHEMA)
-        .field("name", Schema.STRING_SCHEMA)
-        .field("version_id", Schema.INT64_SCHEMA)
-        .field("__deleted", Schema.STRING_SCHEMA)
-        .build();
-    
-    Struct rewriteValueStruct = new Struct(rewriteValueSchema)
-        .put("id", 123L)
-        .put("name", "Alice")
-        .put("version_id", 3L)
-        .put("__deleted", "true");
+    Schema rewriteValueSchema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT64_SCHEMA)
+            .field("name", Schema.STRING_SCHEMA)
+            .field("version_id", Schema.INT64_SCHEMA)
+            .field("__deleted", Schema.STRING_SCHEMA)
+            .build();
 
-    SinkRecord record = new SinkRecord(TOPIC, PARTITION, keySchema, keyStruct, rewriteValueSchema, rewriteValueStruct, OFFSET);
+    Struct rewriteValueStruct =
+        new Struct(rewriteValueSchema)
+            .put("id", 123L)
+            .put("name", "Alice")
+            .put("version_id", 3L)
+            .put("__deleted", "true");
+
+    SinkRecord record =
+        new SinkRecord(
+            TOPIC, PARTITION, keySchema, keyStruct, rewriteValueSchema, rewriteValueStruct, OFFSET);
 
     SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(config, null, null);
     Map<String, Object> actual = sinkRecordConverter.getCdcRow(record);
 
     assertEquals("DELETE", actual.get("_CHANGE_TYPE"));
-    assertEquals("0000000000000003/000000000000002a", actual.get("_CHANGE_SEQUENCE_NUMBER"));
+    assertEquals("000000030000002a", actual.get("_CHANGE_SEQUENCE_NUMBER"));
   }
 
   @Test
@@ -268,13 +286,23 @@ public class SinkRecordConverterTest {
     when(config.getCdcChangeSequenceNumberField()).thenReturn(Optional.of("updated_at"));
 
     long recordTimestamp = 9876543210L;
-    SinkRecord record = new SinkRecord(TOPIC, PARTITION, keySchema, keyStruct, null, null, OFFSET, recordTimestamp, org.apache.kafka.common.record.TimestampType.CREATE_TIME);
+    SinkRecord record =
+        new SinkRecord(
+            TOPIC,
+            PARTITION,
+            keySchema,
+            keyStruct,
+            null,
+            null,
+            OFFSET,
+            recordTimestamp,
+            org.apache.kafka.common.record.TimestampType.CREATE_TIME);
 
     SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(config, null, null);
     Map<String, Object> actual = sinkRecordConverter.getCdcRow(record);
 
     assertEquals("DELETE", actual.get("_CHANGE_TYPE"));
-    assertEquals("000000024cb016ea/000000000000002a", actual.get("_CHANGE_SEQUENCE_NUMBER"));
+    assertEquals("000000024cb016ea", actual.get("_CHANGE_SEQUENCE_NUMBER"));
   }
 
   @Test
@@ -283,20 +311,24 @@ public class SinkRecordConverterTest {
     when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
     when(config.getCdcChangeSequenceNumberField()).thenReturn(Optional.of("version_id"));
 
-    Schema rewriteValueSchema = SchemaBuilder.struct()
-        .field("id", Schema.INT64_SCHEMA)
-        .field("name", Schema.STRING_SCHEMA)
-        .field("version_id", Schema.INT64_SCHEMA)
-        .field("__deleted", Schema.BOOLEAN_SCHEMA)
-        .build();
-    
-    Struct rewriteValueStruct = new Struct(rewriteValueSchema)
-        .put("id", 123L)
-        .put("name", "Alice")
-        .put("version_id", 3L)
-        .put("__deleted", true);
+    Schema rewriteValueSchema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT64_SCHEMA)
+            .field("name", Schema.STRING_SCHEMA)
+            .field("version_id", Schema.INT64_SCHEMA)
+            .field("__deleted", Schema.BOOLEAN_SCHEMA)
+            .build();
 
-    SinkRecord record = new SinkRecord(TOPIC, PARTITION, keySchema, keyStruct, rewriteValueSchema, rewriteValueStruct, OFFSET);
+    Struct rewriteValueStruct =
+        new Struct(rewriteValueSchema)
+            .put("id", 123L)
+            .put("name", "Alice")
+            .put("version_id", 3L)
+            .put("__deleted", true);
+
+    SinkRecord record =
+        new SinkRecord(
+            TOPIC, PARTITION, keySchema, keyStruct, rewriteValueSchema, rewriteValueStruct, OFFSET);
 
     SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(config, null, null);
     Map<String, Object> actual = sinkRecordConverter.getCdcRow(record);

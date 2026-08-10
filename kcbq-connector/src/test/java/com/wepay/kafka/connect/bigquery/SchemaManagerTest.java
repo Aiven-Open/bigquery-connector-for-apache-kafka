@@ -1621,35 +1621,32 @@ public class SchemaManagerTest {
 
   @Test
   public void testCheckAndApplyTableOptions() throws Exception {
-    String maxStalenessVal = "0 MINUTE";
-    SchemaManager schemaManager = new SchemaManager(
-        new IdentitySchemaRetriever(),
-        mockSchemaConverter,
-        mockBigQuery,
-        false, false, false, false,
-        Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
-        Optional.of(TimePartitioning.Type.DAY),
-        false, 0L, 1,
-        Optional.of(maxStalenessVal)
-    );
+    int maxStalenessSeconds = 0;
+    SchemaManagerTestConfig config =
+        createConfig(
+            Map.of(
+                BigQuerySinkConfig.TABLE_MAX_STALENESS_CONFIG,
+                Integer.toString(maxStalenessSeconds)));
+    config.schemaConverter = mockSchemaConverter;
+    SchemaManager schemaManager = new SchemaManager(config, mockBigQuery);
 
     Table mockTable = mock(Table.class);
     when(mockBigQuery.getTable(tableId)).thenReturn(mockTable);
 
-    com.google.cloud.bigquery.TableResult mockResult = mock(com.google.cloud.bigquery.TableResult.class);
-    when(mockBigQuery.query(any(com.google.cloud.bigquery.QueryJobConfiguration.class))).thenReturn(mockResult);
+    com.google.cloud.bigquery.TableResult mockResult =
+        mock(com.google.cloud.bigquery.TableResult.class);
+    when(mockBigQuery.query(any(com.google.cloud.bigquery.QueryJobConfiguration.class)))
+        .thenReturn(mockResult);
 
     // 1. First invocation: should execute the query
     schemaManager.checkAndApplyTableOptions(tableId);
 
-    String expectedQuery = String.format(
-        "ALTER TABLE `%s`.`%s` SET OPTIONS (max_staleness = INTERVAL %s)",
-        tableId.getDataset(),
-        tableId.getTable(),
-        maxStalenessVal
-    );
+    String expectedQuery =
+        String.format(
+            "ALTER TABLE `%s`.`%s` SET OPTIONS (max_staleness = INTERVAL %d SECOND)",
+            tableId.getDataset(), tableId.getTable(), maxStalenessSeconds);
 
-    ArgumentCaptor<com.google.cloud.bigquery.QueryJobConfiguration> captor = 
+    ArgumentCaptor<com.google.cloud.bigquery.QueryJobConfiguration> captor =
         ArgumentCaptor.forClass(com.google.cloud.bigquery.QueryJobConfiguration.class);
     verify(mockBigQuery, times(1)).query(captor.capture());
     assertEquals(expectedQuery, captor.getValue().getQuery());
@@ -1660,7 +1657,8 @@ public class SchemaManagerTest {
 
     // 2. Second invocation: should skip query execution (deduped via checkedTableOptions)
     schemaManager.checkAndApplyTableOptions(tableId);
-    verify(mockBigQuery, org.mockito.Mockito.never()).query(any(com.google.cloud.bigquery.QueryJobConfiguration.class));
+    verify(mockBigQuery, org.mockito.Mockito.never())
+        .query(any(com.google.cloud.bigquery.QueryJobConfiguration.class));
   }
 
   static class SchemaManagerTestConfig extends BigQuerySinkConfig {
