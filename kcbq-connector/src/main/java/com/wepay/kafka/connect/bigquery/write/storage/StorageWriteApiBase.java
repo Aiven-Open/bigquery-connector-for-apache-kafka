@@ -263,7 +263,7 @@ public abstract class StorageWriteApiBase {
             Map<Integer, String> rowErrorMapping = Collections.singletonMap(0, e.getMessage());
             batch =
                 maybeHandleDlqRoutingAndFilterRecords(
-                    batch, rowErrorMapping, table.getBaseTableId().getTable());
+                    batch, rowErrorMapping, table.getBaseTableId().getTable(), e);
             if (!batch.isEmpty()) {
               retryHandler.maybeRetry("write to table " + tableName);
             }
@@ -280,7 +280,7 @@ public abstract class StorageWriteApiBase {
         } catch (MalformedRowsException e) {
           batch =
               maybeHandleDlqRoutingAndFilterRecords(
-                  batch, e.getRowErrorMapping(), table.getBaseTableId().getTable());
+                  batch, e.getRowErrorMapping(), table.getBaseTableId().getTable(), e);
           if (!batch.isEmpty()) {
             // TODO: Does this actually make sense? Should we count this as part of our retry logic?
             //       As long as we're guaranteed that the number of rows in the batch is decreasing,
@@ -621,14 +621,25 @@ public abstract class StorageWriteApiBase {
     return errorMap;
   }
 
+  /**
+   * Send the error records to the DLQ and return the good records.
+   * If the DLQ is not configured, lot and error, with the original exception and return
+   * a BigQueryStorageWriteApiConnectException.
+   * @param rows the rows that were in the write attempt.
+   * @param errorMap the map of row index to associated error message.
+   * @param tableName the name of the table.
+   * @param exception the exception that was thrown to get us here.
+   * @return the list of records from {@code rows} that did not have errors.
+   * @throws BigQueryStorageWriteApiConnectException if the DLQ is not configured.
+   */
   protected List<ConvertedRecord> maybeHandleDlqRoutingAndFilterRecords(
-      List<ConvertedRecord> rows, Map<Integer, String> errorMap, String tableName) {
+      List<ConvertedRecord> rows, Map<Integer, String> errorMap, String tableName, Exception exception) {
     if (errantRecordHandler.getErrantRecordReporter() != null) {
       // Routes to DLQ
       return sendErrantRecordsToDlqAndFilterValidRecords(rows, errorMap);
     } else {
       // Fail if no DLQ
-      logger.warn("DLQ is not configured!");
+      logger.error("DLQ is not configured! {}", exception.getMessage(), exception);
       throw new BigQueryStorageWriteApiConnectException(tableName, errorMap);
     }
   }
