@@ -174,13 +174,11 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
     stopConnect();
   }
 
-
   private void testBaseJson(String testCase, boolean usePartitionDecorator)
       throws InterruptedException {
     assumeTrue(
         !(isBatchMode() && usePartitionDecorator),
         "Skipping partition decorator test in batch mode");
-
 
     // create topic in Kafka
     final String topic = suffixedTableOrTopic("storage-api-append-json" + testCase);
