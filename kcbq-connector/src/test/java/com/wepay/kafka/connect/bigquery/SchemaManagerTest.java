@@ -1619,6 +1619,48 @@ public class SchemaManagerTest {
     }
   }
 
+  @Test
+  public void testCheckAndApplyTableOptions() throws Exception {
+    int maxStalenessSeconds = 0;
+    SchemaManagerTestConfig config =
+        createConfig(
+            Map.of(
+                BigQuerySinkConfig.TABLE_MAX_STALENESS_CONFIG,
+                Integer.toString(maxStalenessSeconds)));
+    config.schemaConverter = mockSchemaConverter;
+    SchemaManager schemaManager = new SchemaManager(config, mockBigQuery);
+
+    Table mockTable = mock(Table.class);
+    when(mockBigQuery.getTable(tableId)).thenReturn(mockTable);
+
+    com.google.cloud.bigquery.TableResult mockResult =
+        mock(com.google.cloud.bigquery.TableResult.class);
+    when(mockBigQuery.query(any(com.google.cloud.bigquery.QueryJobConfiguration.class)))
+        .thenReturn(mockResult);
+
+    // 1. First invocation: should execute the query
+    schemaManager.checkAndApplyTableOptions(tableId);
+
+    String expectedQuery =
+        String.format(
+            "ALTER TABLE `%s`.`%s` SET OPTIONS (max_staleness = INTERVAL %d SECOND)",
+            tableId.getDataset(), tableId.getTable(), maxStalenessSeconds);
+
+    ArgumentCaptor<com.google.cloud.bigquery.QueryJobConfiguration> captor =
+        ArgumentCaptor.forClass(com.google.cloud.bigquery.QueryJobConfiguration.class);
+    verify(mockBigQuery, times(2)).query(captor.capture());
+    assertEquals(expectedQuery, captor.getValue().getQuery());
+
+    // Reset mock for next assertion
+    org.mockito.Mockito.clearInvocations(mockBigQuery);
+    when(mockBigQuery.getTable(tableId)).thenReturn(mockTable);
+
+    // 2. Second invocation: should skip query execution (deduped via checkedTableOptions)
+    schemaManager.checkAndApplyTableOptions(tableId);
+    verify(mockBigQuery, org.mockito.Mockito.never())
+        .query(any(com.google.cloud.bigquery.QueryJobConfiguration.class));
+  }
+
   static class SchemaManagerTestConfig extends BigQuerySinkConfig {
 
     SchemaConverter<com.google.cloud.bigquery.Schema> schemaConverter;

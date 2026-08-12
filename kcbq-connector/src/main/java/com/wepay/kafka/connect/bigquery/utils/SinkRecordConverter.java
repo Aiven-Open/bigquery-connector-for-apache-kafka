@@ -189,6 +189,12 @@ public final class SinkRecordConverter {
    * @return the map of fields to values.
    */
   public Map<String, Object> getRegularRow(SinkRecord record, String writeAttemptId) {
+    logger.info(
+        "getRegularRow INPUT - Topic: {}, Offset: {}, Value: {}",
+        record.topic(),
+        record.kafkaOffset(),
+        record.value());
+
     // if delete is enabled and there is a null value then the record was deleted.  In other cases a
     // null value may be appropriate and the converter will determine if there are any issues.
     Map<String, Object> result =
@@ -214,7 +220,100 @@ public final class SinkRecordConverter {
               }
             });
 
+    logger.info(
+        "getRegularRow OUTPUT - Topic: {}, Offset: {}, Result Map: {}",
+        record.topic(),
+        record.kafkaOffset(),
+        result);
     return maybeSanitize(result);
+  }
+
+  public Map<String, Object> getCdcRow(SinkRecord record) {
+    return getCdcRow(record, currentPutAttemptId);
+  }
+
+  public Map<String, Object> getCdcRow(SinkRecord record, String writeAttemptId) {
+    logger.info(
+        "getCdcRow INPUT - Topic: {}, Offset: {}, Key: {}, Value: {}",
+        record.topic(),
+        record.kafkaOffset(),
+        record.key(),
+        record.value());
+    Map<String, Object> result = new HashMap<>();
+
+    // 1. Extract the Key fields
+    Map<String, Object> convertedKey =
+        recordConverter.convertRecord(record, KafkaSchemaRecordType.KEY);
+    if (convertedKey != null) {
+      result.putAll(convertedKey);
+    } else if (record.value() == null) {
+      // If the value is null, it's a DELETE. We cannot delete a row if we don't know
+      // its key!
+      throw new ConnectException("Record keys must be non-null when upsert/delete is enabled");
+    }
+
+    // 2. Extract the Value fields (only if it's not a tombstone record)
+    Map<String, Object> convertedValue = null;
+    if (record.value() != null) {
+      convertedValue = recordConverter.convertRecord(record, KafkaSchemaRecordType.VALUE);
+      if (convertedValue != null) {
+        result.putAll(convertedValue); // Merges value fields into the root of the map
+      }
+    }
+
+    // 3. Optional Kafka metadata (e.g. insert time, topic, partition, offset)
+    config
+        .getKafkaDataFieldName()
+        .ifPresent(
+            fieldName -> {
+              Map<String, Object> kafkaDataField = buildKafkaDataRecord(record, writeAttemptId);
+              result.put(fieldName, kafkaDataField);
+            });
+
+    // 4. Set the CDC metadata columns
+    String changeType = "UPSERT";
+    if (record.value() == null) {
+      logger.info(
+          "Tombstone record (null value) detected for key {} at offset {}",
+          record.key(),
+          record.kafkaOffset());
+      changeType = "DELETE";
+    } else if (convertedValue != null) {
+      Object deletedVal = convertedValue.get("__deleted");
+      if (deletedVal instanceof Boolean && (Boolean) deletedVal) {
+        changeType = "DELETE";
+      } else if (deletedVal instanceof String && Boolean.parseBoolean((String) deletedVal)) {
+        changeType = "DELETE";
+      }
+    }
+    result.put("_CHANGE_TYPE", changeType);
+    // Strip the transient __deleted metadata field to prevent BigQuery ingestion crashes due to
+    // unknown fields.
+    result.remove("__deleted");
+    // For PR 1: Default Kafka Offset Sequencing (Zero-Padded to 20 digits for BigQuery
+    // Lexicographical Sorting)
+    result.put("_CHANGE_SEQUENCE_NUMBER", String.format("%016X", record.kafkaOffset()));
+
+    logger.info(
+        "getCdcRow OUTPUT - Topic: {}, Offset: {}, Result Map: {}",
+        record.topic(),
+        record.kafkaOffset(),
+        result);
+
+    // 5. Sanitize column names if the user turned on the sanitize option (replacing
+    // spaces/special characters)
+    return maybeSanitize(result);
+  }
+
+  public boolean isCdcEnabled() {
+    boolean enabled =
+        config.getBoolean(config.USE_STORAGE_WRITE_API_CONFIG) && config.isUpsertDeleteEnabled();
+    logger.info(
+        "isCdcEnabled check - USE_STORAGE_WRITE_API: {}, isUpsertDeleteEnabled: {}, Result: {}",
+        config.getBoolean(config.USE_STORAGE_WRITE_API_CONFIG),
+        config.isUpsertDeleteEnabled(),
+        enabled);
+    return enabled;
   }
 
   /**

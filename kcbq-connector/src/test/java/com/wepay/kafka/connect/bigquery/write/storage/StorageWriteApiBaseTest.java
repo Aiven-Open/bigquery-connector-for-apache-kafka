@@ -156,7 +156,7 @@ class StorageWriteApiBaseTest {
     RowsTooLargeStreamWriter streamWriter =
         new RowsTooLargeStreamWriter("appendRowsTooLargeTestWithStorageWriteAPI");
     BigQuerySinkTaskConfig config = storageWriteApiConfig();
-    executeInitializeAndWriteRecordsTestData(streamWriter, config, null);
+    executeInitializeAndWriteRecordsTestData(streamWriter, config, mock(SchemaManager.class));
 
     // verify the results
     List<JSONArray> result = streamWriter.appendCalls;
@@ -177,7 +177,7 @@ class StorageWriteApiBaseTest {
     RowsTooLargeStreamWriter streamWriter =
         new RowsTooLargeStreamWriter("appendRowsTooLargeTestWithStorageWriteGCS");
     BigQuerySinkTaskConfig config = storageWriteGCSConfig();
-    executeInitializeAndWriteRecordsTestData(streamWriter, config, null);
+    executeInitializeAndWriteRecordsTestData(streamWriter, config, mock(SchemaManager.class));
 
     // verify the results
     List<JSONArray> result = streamWriter.appendCalls;

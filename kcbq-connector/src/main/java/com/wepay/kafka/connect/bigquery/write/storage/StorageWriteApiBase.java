@@ -87,8 +87,11 @@ public abstract class StorageWriteApiBase {
   private final boolean ignoreUnknownFields;
   private final BigQueryWriteSettings writeSettings;
   private final boolean attemptSchemaUpdate;
+
+  protected final boolean isCdcEnabled;
   protected final boolean upsertEnabled;
   protected final boolean deleteEnabled;
+
   protected SchemaManager schemaManager;
   @VisibleForTesting protected Time time;
   ErrantRecordHandler errantRecordHandler;
@@ -122,6 +125,9 @@ public abstract class StorageWriteApiBase {
     this.upsertEnabled = config.isUpsertEnabled();
     this.deleteEnabled = config.isDeleteEnabled();
     this.ignoreUnknownFields = config.isIgnoreUnknownFields();
+    this.isCdcEnabled =
+        config.getBoolean(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG)
+            && config.isUpsertDeleteEnabled();
     try {
       this.writeClient = getWriteClient();
     } catch (IOException e) {
@@ -164,6 +170,7 @@ public abstract class StorageWriteApiBase {
     this.schemaManager = schemaManager;
     this.attemptSchemaUpdate = attemptSchemaUpdate;
     this.ignoreUnknownFields = false;
+    this.isCdcEnabled = false;
     this.upsertEnabled = false;
     this.deleteEnabled = false;
     try {
@@ -236,6 +243,8 @@ public abstract class StorageWriteApiBase {
       String streamName,
       SinkRecordConverter recordConverter,
       Supplier<String> ulidSupplier) {
+    schemaManager.checkAndApplyTableOptions(table.getBaseTableId());
+
     TableName tableName = TableNameUtils.tableName(table.getFullTableId());
     StorageWriteApiRetryHandler retryHandler =
         new StorageWriteApiRetryHandler(
@@ -489,7 +498,7 @@ public abstract class StorageWriteApiBase {
   private TableSchema getTableSchemaWithPseudoColumns(String streamName) {
     try {
       TableSchema.Builder schemaBuilder = createTableSchemaBuilder(streamName);
-      if (upsertEnabled || deleteEnabled) {
+      if (upsertEnabled || deleteEnabled || isCdcEnabled) {
         addUpsertDeletePseudoColumns(schemaBuilder);
       }
       return schemaBuilder.build();
@@ -515,7 +524,7 @@ public abstract class StorageWriteApiBase {
             .build();
     return streamOrTableName -> {
       JsonStreamWriter.Builder builder;
-      if (upsertEnabled || deleteEnabled) {
+      if (upsertEnabled || deleteEnabled || isCdcEnabled) {
         String streamNameForSchema = streamOrTableName;
         if (!streamNameForSchema.contains(DEFAULT_STREAM_NAME_TRIGGER)) {
           streamNameForSchema += DEFAULT_STREAM_NAME_SUFFIX;
@@ -672,15 +681,21 @@ public abstract class StorageWriteApiBase {
       JSONObject converted = item.converted();
       if ((item.original().value() != null && upsertEnabled)
           || (item.original().value() == null && deleteEnabled)) {
-        Long timestamp = item.original().timestamp();
-        long ts = (timestamp != null && timestamp >= 0) ? timestamp : 0L;
-        String sequenceNumber =
-            String.format(
-                "%016X/%08X/%016X",
-                ts, item.original().kafkaPartition(), item.original().kafkaOffset());
-        converted.put(
-            CHANGE_TYPE_PSEUDO_COLUMN, item.original().value() != null ? "UPSERT" : "DELETE");
-        converted.put(CHANGE_SEQUENCE_NUMBER_PSEUDO_COLUMN, sequenceNumber);
+
+        if (!converted.has(CHANGE_TYPE_PSEUDO_COLUMN)) {
+          converted.put(
+              CHANGE_TYPE_PSEUDO_COLUMN, item.original().value() != null ? "UPSERT" : "DELETE");
+        }
+
+        if (!converted.has(CHANGE_SEQUENCE_NUMBER_PSEUDO_COLUMN)) {
+          Long timestamp = item.original().timestamp();
+          long ts = (timestamp != null && timestamp >= 0) ? timestamp : 0L;
+          String sequenceNumber =
+              String.format(
+                  "%016X/%08X/%016X",
+                  ts, item.original().kafkaPartition(), item.original().kafkaOffset());
+          converted.put(CHANGE_SEQUENCE_NUMBER_PSEUDO_COLUMN, sequenceNumber);
+        }
       }
       jsonRecords.put(converted);
     }

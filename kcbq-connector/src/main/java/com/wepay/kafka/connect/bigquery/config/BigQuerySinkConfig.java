@@ -160,6 +160,14 @@ public class BigQuerySinkConfig extends AbstractConfig {
   public static final boolean DELETE_ENABLED_DEFAULT = false;
   public static final String INTERMEDIATE_TABLE_SUFFIX_CONFIG = "intermediateTableSuffix";
   public static final String INTERMEDIATE_TABLE_SUFFIX_DEFAULT = "tmp";
+  public static final String TABLE_MAX_STALENESS_CONFIG = "tableMaxStaleness";
+  public static final Integer TABLE_MAX_STALENESS_DEFAULT = null;
+  private static final ConfigDef.Type TABLE_MAX_STALENESS_TYPE = ConfigDef.Type.INT;
+  private static final ConfigDef.Importance TABLE_MAX_STALENESS_IMPORTANCE =
+      ConfigDef.Importance.MEDIUM;
+  private static final String TABLE_MAX_STALENESS_DOC =
+      "The maximum staleness allowed for the destination BigQuery table in seconds. "
+          + "Only applicable if upsert/delete (CDC) is enabled with the Storage Write API.";
   public static final String MERGE_INTERVAL_MS_CONFIG = "mergeIntervalMs";
   public static final String MERGE_RECORDS_THRESHOLD_CONFIG = "mergeRecordsThreshold";
   public static final long MERGE_INTERVAL_MS_DEFAULT = 60_000L;
@@ -1039,6 +1047,12 @@ public class BigQuerySinkConfig extends AbstractConfig {
                     KAFKA_KEY_FIELD_NAME_CONFIG)
                 .build())
         .define(
+            TABLE_MAX_STALENESS_CONFIG,
+            TABLE_MAX_STALENESS_TYPE,
+            TABLE_MAX_STALENESS_DEFAULT,
+            TABLE_MAX_STALENESS_IMPORTANCE,
+            TABLE_MAX_STALENESS_DOC)
+        .define(
             INTERMEDIATE_TABLE_SUFFIX_CONFIG,
             INTERMEDIATE_TABLE_SUFFIX_TYPE,
             INTERMEDIATE_TABLE_SUFFIX_DEFAULT,
@@ -1482,6 +1496,14 @@ public class BigQuerySinkConfig extends AbstractConfig {
    */
   public Optional<String> getKafkaDataFieldName() {
     return Optional.ofNullable(getString(KAFKA_DATA_FIELD_NAME_CONFIG));
+  }
+
+  public Optional<Integer> getTableMaxStaleness() {
+    return Optional.ofNullable(getInt(TABLE_MAX_STALENESS_CONFIG));
+  }
+
+  public boolean isUpsertDeleteEnabled() {
+    return getBoolean(UPSERT_ENABLED_CONFIG) || getBoolean(DELETE_ENABLED_CONFIG);
   }
 
   /**

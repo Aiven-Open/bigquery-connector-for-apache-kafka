@@ -63,6 +63,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongFunction;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
+import java.util.stream.Stream;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaAndValue;
 import org.apache.kafka.connect.data.SchemaBuilder;
@@ -80,6 +81,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -174,11 +178,15 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
     stopConnect();
   }
 
-  private void testBaseJson(String testCase, boolean usePartitionDecorator)
+  @ParameterizedTest
+  @MethodSource("testArguments")
+  public void testBaseJson(String testCase, boolean usePartitionDecorator)
       throws InterruptedException {
     assumeTrue(
         !(isBatchMode() && usePartitionDecorator),
         "Skipping partition decorator test in batch mode");
+
+    logger.info("load:{} nproc:{} waitFactor:{}", load(), nproc(), waitFactor());
 
     // create topic in Kafka
     final String topic = suffixedTableOrTopic("storage-api-append-json" + testCase);
@@ -235,14 +243,10 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
         expectedRows(), testRows.stream().map(row -> row.get(0)).collect(Collectors.toSet()));
   }
 
-  @Test
-  void jsonWithPartitionDecorator() throws InterruptedException {
-    testBaseJson("with-partition-decorator", true);
-  }
-
-  @Test
-  void jsonWithoutPartitionDecorator() throws InterruptedException {
-    testBaseJson("without-partition-decorator", false);
+  public static Stream<Arguments> testArguments() {
+    return Stream.of(
+        Arguments.of("with-partition-decorator", true),
+        Arguments.of("without-partition-decorator", false));
   }
 
   @Test
