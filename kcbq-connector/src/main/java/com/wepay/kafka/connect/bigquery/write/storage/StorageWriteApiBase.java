@@ -622,9 +622,10 @@ public abstract class StorageWriteApiBase {
   }
 
   /**
-   * Send the error records to the DLQ and return the good records.
-   * If the DLQ is not configured, lot and error, with the original exception and return
-   * a BigQueryStorageWriteApiConnectException.
+   * Send the error records to the DLQ and return the good records. If the DLQ is not configured,
+   * lot and error, with the original exception and return a
+   * BigQueryStorageWriteApiConnectException.
+   *
    * @param rows the rows that were in the write attempt.
    * @param errorMap the map of row index to associated error message.
    * @param tableName the name of the table.
@@ -633,7 +634,10 @@ public abstract class StorageWriteApiBase {
    * @throws BigQueryStorageWriteApiConnectException if the DLQ is not configured.
    */
   protected List<ConvertedRecord> maybeHandleDlqRoutingAndFilterRecords(
-      List<ConvertedRecord> rows, Map<Integer, String> errorMap, String tableName, Exception exception) {
+      List<ConvertedRecord> rows,
+      Map<Integer, String> errorMap,
+      String tableName,
+      Exception exception) {
     if (errantRecordHandler.getErrantRecordReporter() != null) {
       // Routes to DLQ
       return sendErrantRecordsToDlqAndFilterValidRecords(rows, errorMap);
