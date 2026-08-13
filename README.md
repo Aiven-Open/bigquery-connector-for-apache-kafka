@@ -67,12 +67,7 @@ JSON-encoded values and writes their values to BigQuery:
   "keyfile": "/tmp/bigquery-credentials.json"
 }
 ```
-
-### Complete docs
-See the [configuration documentation](https://aiven-open.github.io/bigquery-connector-for-apache-kafka/configuration.html) for a list of the connector's
-configuration properties.
-
-## Schema evolution
+### Schema evolution
 
 If your Kafka records evolve over time (for example, new optional fields are added), consider enabling the following options:
 
@@ -104,6 +99,11 @@ are not supported by Kafka Connect's `AvroConverter`. Optional fields should ins
   "default": null
 }
 ```
+
+### Complete docs
+See the [configuration documentation](https://aiven-open.github.io/bigquery-connector-for-apache-kafka/configuration.html) for a list of the connector's
+configuration properties.
+
 ## Download
 
 Download information is available on the [project web site]((https://aiven-open.github.io/bigquery-connector-for-apache-kafka)). 
