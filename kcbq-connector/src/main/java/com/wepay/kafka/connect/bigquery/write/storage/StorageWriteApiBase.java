@@ -53,13 +53,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-
 import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.json.JSONArray;
@@ -596,16 +594,20 @@ public abstract class StorageWriteApiBase {
   }
 
   /**
-   * Filters ConvertedRecord so that only records that do not have errors are returned.  All errors with
-   * records are passed to the BiConsumer along with their error message.
+   * Filters ConvertedRecord so that only records that do not have errors are returned. All errors
+   * with records are passed to the BiConsumer along with their error message.
    *
    * @param rows the rows that were attempted to be inserted in the table.
-   * @param indexToErrorMap the map of row indexes to error messages, indicating which rows have errors.
-   * @param errorConsumer the consumer of the converted record and error message pair.  This consumer should handle
-   *                      reporting the error or placing it in a contianer that will be used to handle it later.
+   * @param indexToErrorMap the map of row indexes to error messages, indicating which rows have
+   *     errors.
+   * @param errorConsumer the consumer of the converted record and error message pair. This consumer
+   *     should handle reporting the error or placing it in a contianer that will be used to handle
+   *     it later.
    */
   protected List<ConvertedRecord> filterRecordsWithError(
-          final List<ConvertedRecord> rows, final Map<Integer, String> indexToErrorMap, final BiConsumer<ConvertedRecord, String> errorConsumer) {
+      final List<ConvertedRecord> rows,
+      final Map<Integer, String> indexToErrorMap,
+      final BiConsumer<ConvertedRecord, String> errorConsumer) {
 
     List<ConvertedRecord> filteredRecords = new ArrayList<>();
     for (int i = 0; i < rows.size(); i++) {
@@ -638,14 +640,20 @@ public abstract class StorageWriteApiBase {
     // a map of records to throwables for the DLQ to handle
     final Map<SinkRecord, Throwable> recordsToDlq = new LinkedHashMap<>();
     // a consumer to put the errored records into the {@code recordsToDlq} map.
-    BiConsumer<ConvertedRecord, String> dlqConsumer = (convertedRecord, errorMsg) -> {
-      recordsToDlq.put(convertedRecord.original(), new Throwable(errorMsg));
-    };
+    BiConsumer<ConvertedRecord, String> dlqConsumer =
+        (convertedRecord, errorMsg) -> {
+          recordsToDlq.put(convertedRecord.original(), new Throwable(errorMsg));
+        };
     // a consumer to log errored records and otherwise ignore  them.
-    BiConsumer<ConvertedRecord, String> logConsumer = (convertedRecord, errorMsg) -> {
-      logger.error("{} in {} \nJson: {}\n" +
-              "Original: {}.", errorMsg, tableName, convertedRecord.converted(), convertedRecord.original());
-    };
+    BiConsumer<ConvertedRecord, String> logConsumer =
+        (convertedRecord, errorMsg) -> {
+          logger.error(
+              "{} in {} \nJson: {}\n" + "Original: {}.",
+              errorMsg,
+              tableName,
+              convertedRecord.converted(),
+              convertedRecord.original());
+        };
 
     if (errantRecordHandler.getErrantRecordReporter() != null) {
       // Routes to DLQ
@@ -654,7 +662,10 @@ public abstract class StorageWriteApiBase {
       return result;
     } else {
       // Fail if no DLQ
-      logger.warn("DLQ is not configured! {}", StringUtils.defaultIfEmpty(exception.getMessage(), ""), exception);
+      logger.warn(
+          "DLQ is not configured! {}",
+          StringUtils.defaultIfEmpty(exception.getMessage(), ""),
+          exception);
       filterRecordsWithError(rows, errorMap, logConsumer);
       throw new BigQueryStorageWriteApiConnectException(tableName, errorMap);
     }
