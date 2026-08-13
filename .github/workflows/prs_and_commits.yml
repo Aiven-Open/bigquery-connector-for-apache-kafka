@@ -95,7 +95,7 @@ jobs:
           KCBQ_TEST_DATASET:    ${{ secrets.KCBQ_TEST_DATASET }}
           KCBQ_TEST_BUCKET:     ${{ secrets.KCBQ_TEST_BUCKET }}
           KCBQ_TEST_TABLE_SUFFIX: $GITHUB_REF
-        if:  KCBQ_TEST_PROJECT != ''
+        #if:  KCBQ_TEST_PROJECT != ''
         run: |
           echo "$CREDENTIALS_JSON" > /tmp/creds.json
           export KCBQ_TEST_TABLE_SUFFIX=_$(date +%s)_$RANDOM
