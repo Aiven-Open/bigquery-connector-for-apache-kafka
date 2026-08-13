@@ -53,10 +53,14 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
+import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -578,36 +582,6 @@ public abstract class StorageWriteApiBase {
   }
 
   /**
-   * Sends errant records to configured DLQ and returns remaining
-   *
-   * @param input List of pre- and post-conversion records
-   * @param indexToErrorMap Map of record index to error received from api call
-   * @return Returns list of good records filtered from input which needs to be retried. Append row
-   *     does not write partially even if there is a single failure, good data has to be retried
-   */
-  protected List<ConvertedRecord> sendErrantRecordsToDlqAndFilterValidRecords(
-      List<ConvertedRecord> input, Map<Integer, String> indexToErrorMap) {
-    List<ConvertedRecord> filteredRecords = new ArrayList<>();
-    Map<SinkRecord, Throwable> recordsToDlq = new LinkedHashMap<>();
-
-    for (int i = 0; i < input.size(); i++) {
-      if (indexToErrorMap.containsKey(i)) {
-        SinkRecord inputRecord = input.get(i).original();
-        Throwable error = new Throwable(indexToErrorMap.get(i));
-        recordsToDlq.put(inputRecord, error);
-      } else {
-        filteredRecords.add(input.get(i));
-      }
-    }
-
-    if (errantRecordHandler.getErrantRecordReporter() != null) {
-      errantRecordHandler.reportErrantRecords(recordsToDlq);
-    }
-
-    return filteredRecords;
-  }
-
-  /**
    * Converts Row Error to Map
    *
    * @param rowErrors List of row errors
@@ -622,28 +596,66 @@ public abstract class StorageWriteApiBase {
   }
 
   /**
+   * Filters ConvertedRecord so that only records that do not have errors are returned.  All errors with
+   * records are passed to the BiConsumer along with their error message.
+   *
+   * @param rows the rows that were attempted to be inserted in the table.
+   * @param indexToErrorMap the map of row indexes to error messages, indicating which rows have errors.
+   * @param errorConsumer the consumer of the converted record and error message pair.  This consumer should handle
+   *                      reporting the error or placing it in a contianer that will be used to handle it later.
+   */
+  protected List<ConvertedRecord> filterRecordsWithError(
+          final List<ConvertedRecord> rows, final Map<Integer, String> indexToErrorMap, final BiConsumer<ConvertedRecord, String> errorConsumer) {
+
+    List<ConvertedRecord> filteredRecords = new ArrayList<>();
+    for (int i = 0; i < rows.size(); i++) {
+      if (indexToErrorMap.containsKey(i)) {
+        errorConsumer.accept(rows.get(i), indexToErrorMap.get(i));
+      } else {
+        filteredRecords.add(rows.get(i));
+      }
+    }
+    return filteredRecords;
+  }
+
+  /**
    * Send the error records to the DLQ and return the good records. If the DLQ is not configured,
-   * lot and error, with the original exception and return a
-   * BigQueryStorageWriteApiConnectException.
+   * entries with errors are logged and a BigQueryStorageWriteApiConnectException thrown.
    *
    * @param rows the rows that were in the write attempt.
    * @param errorMap the map of row index to associated error message.
    * @param tableName the name of the table.
    * @param exception the exception that was thrown to get us here.
    * @return the list of records from {@code rows} that did not have errors.
-   * @throws BigQueryStorageWriteApiConnectException if the DLQ is not configured.
+   * @throws BigQueryStorageWriteApiConnectException
    */
   protected List<ConvertedRecord> maybeHandleDlqRoutingAndFilterRecords(
-      List<ConvertedRecord> rows,
-      Map<Integer, String> errorMap,
-      String tableName,
-      Exception exception) {
+      final List<ConvertedRecord> rows,
+      final Map<Integer, String> errorMap,
+      final String tableName,
+      final Exception exception) {
+
+    // a map of records to throwables for the DLQ to handle
+    final Map<SinkRecord, Throwable> recordsToDlq = new LinkedHashMap<>();
+    // a consumer to put the errored records into the {@code recordsToDlq} map.
+    BiConsumer<ConvertedRecord, String> dlqConsumer = (convertedRecord, errorMsg) -> {
+      recordsToDlq.put(convertedRecord.original(), new Throwable(errorMsg));
+    };
+    // a consumer to log errored records and otherwise ignore  them.
+    BiConsumer<ConvertedRecord, String> logConsumer = (convertedRecord, errorMsg) -> {
+      logger.error("{} in {} \nJson: {}\n" +
+              "Original: {}.", errorMsg, tableName, convertedRecord.converted(), convertedRecord.original());
+    };
+
     if (errantRecordHandler.getErrantRecordReporter() != null) {
       // Routes to DLQ
-      return sendErrantRecordsToDlqAndFilterValidRecords(rows, errorMap);
+      List<ConvertedRecord> result = filterRecordsWithError(rows, errorMap, dlqConsumer);
+      errantRecordHandler.reportErrantRecords(recordsToDlq);
+      return result;
     } else {
       // Fail if no DLQ
-      logger.error("DLQ is not configured! {}", exception.getMessage(), exception);
+      logger.warn("DLQ is not configured! {}", StringUtils.defaultIfEmpty(exception.getMessage(), ""), exception);
+      filterRecordsWithError(rows, errorMap, logConsumer);
       throw new BigQueryStorageWriteApiConnectException(tableName, errorMap);
     }
   }
