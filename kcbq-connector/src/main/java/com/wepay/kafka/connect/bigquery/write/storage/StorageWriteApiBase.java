@@ -74,7 +74,7 @@ public abstract class StorageWriteApiBase {
   /** If the stream name contains this text it is must end with the DEFAULT_STREAM_NAME_SUFFIX */
   private static final String DEFAULT_STREAM_NAME_TRIGGER = "/streams/";
 
-  /** The requried suffix for default streams. */
+  /** The required suffix for default streams. */
   private static final String DEFAULT_STREAM_NAME_SUFFIX = "/_default";
 
   protected static final String CHANGE_TYPE_PSEUDO_COLUMN = "_CHANGE_TYPE";
@@ -427,7 +427,7 @@ public abstract class StorageWriteApiBase {
    * Creates Storage Api write client which carries all write settings information
    *
    * @return Returns BigQueryWriteClient object
-   * @throws IOException
+   * @throws IOException if claient can not be created
    */
   protected BigQueryWriteClient getWriteClient() throws IOException {
     if (this.writeClient == null) {
@@ -648,7 +648,7 @@ public abstract class StorageWriteApiBase {
     BiConsumer<ConvertedRecord, String> logConsumer =
         (convertedRecord, errorMsg) -> {
           logger.error(
-              "{} in {} \nJson: {}\n" + "Original: {}.",
+              "{} in {} \n\nJson: {}\n\n" + "Original: {}.",
               errorMsg,
               tableName,
               convertedRecord.converted(),
