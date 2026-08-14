@@ -417,4 +417,13 @@ public class BigQuerySinkConfigTest {
             BigQuerySinkConfig.GCS_BUCKET_NAME_CONFIG,
             "keyfile");
   }
+
+  @Test
+  void testCdcChangeSequenceNumberFieldConfig() {
+    Map<String, String> configProperties = propertiesFactory.getProperties();
+    configProperties.put(BigQuerySinkConfig.CDC_CHANGE_SEQUENCE_NUMBER_FIELD_CONFIG, "version_id");
+
+    BigQuerySinkConfig config = new BigQuerySinkConfig(configProperties);
+    assertEquals(Optional.of("version_id"), config.getCdcChangeSequenceNumberField());
+  }
 }

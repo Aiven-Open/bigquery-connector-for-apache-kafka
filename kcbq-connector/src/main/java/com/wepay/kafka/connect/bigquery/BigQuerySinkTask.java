@@ -293,6 +293,12 @@ public class BigQuerySinkTask extends SinkTask {
 
   @Override
   public void put(Collection<SinkRecord> records) {
+    if (records != null && !records.isEmpty()) {
+      logger.info(
+          "BigQuerySinkTask.put - Task ID {} received {} records",
+          config != null ? config.getInt(BigQuerySinkTaskConfig.TASK_ID_CONFIG) : -1,
+          records.size());
+    }
     if (trackPutAttempts) {
       recordConverter.setCurrentPutAttemptId(ULID_GENERATOR.nextULID());
     }
@@ -441,6 +447,15 @@ public class BigQuerySinkTask extends SinkTask {
         !useStorageApi
             && (config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)
                 || config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG));
+
+    logger.info(
+        "BigQuerySinkTask.start - Task ID: {}, useStorageApi: {}, upsertEnabled: {}, deleteEnabled: {}, isUpsertDeleteEnabled: {}, autoCreateTables: {}",
+        config.getInt(BigQuerySinkTaskConfig.TASK_ID_CONFIG),
+        useStorageApi,
+        config.isUpsertEnabled(),
+        config.isDeleteEnabled(),
+        config.isUpsertDeleteEnabled(),
+        autoCreateTables);
 
     retry = config.getInt(BigQuerySinkConfig.BIGQUERY_RETRY_CONFIG);
     retryWait = config.getLong(BigQuerySinkConfig.BIGQUERY_RETRY_WAIT_CONFIG);

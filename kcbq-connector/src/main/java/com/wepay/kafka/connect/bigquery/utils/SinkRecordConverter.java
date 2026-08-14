@@ -32,6 +32,8 @@ import com.wepay.kafka.connect.bigquery.api.KafkaSchemaRecordType;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.convert.RecordConverter;
 import com.wepay.kafka.connect.bigquery.write.batch.MergeBatches;
+import java.time.Instant;
+import java.time.OffsetDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import org.apache.kafka.common.record.TimestampType;
@@ -290,9 +292,43 @@ public final class SinkRecordConverter {
     // Strip the transient __deleted metadata field to prevent BigQuery ingestion crashes due to
     // unknown fields.
     result.remove("__deleted");
-    // For PR 1: Default Kafka Offset Sequencing (Zero-Padded to 20 digits for BigQuery
-    // Lexicographical Sorting)
-    result.put("_CHANGE_SEQUENCE_NUMBER", String.format("%016X", record.kafkaOffset()));
+
+    String customSeqField = config.getCdcChangeSequenceNumberField().orElse(null);
+    Object seqValue = null;
+
+    if (customSeqField != null && !customSeqField.isEmpty()) {
+      if ("_KAFKA_TIMESTAMP".equalsIgnoreCase(customSeqField)) {
+        seqValue = record.timestamp();
+      } else {
+        // 1. Try reading from Value Payload (if not null)
+        if (convertedValue != null) {
+          seqValue = convertedValue.get(customSeqField);
+        }
+        // 2. Try reading from Key Payload
+        if (seqValue == null && convertedKey != null) {
+          seqValue = convertedKey.get(customSeqField);
+        }
+      }
+    }
+
+    if (seqValue != null) {
+      result.put("_CHANGE_SEQUENCE_NUMBER", convertToHexSequence(seqValue, record));
+    } else {
+      if (customSeqField != null && !customSeqField.isEmpty()) {
+        // If the custom sequence field is missing (e.g. on raw tombstone deletes without SMT
+        // rewrite), fall back to the Kafka record timestamp to ensure the delete event is ordered
+        // correctly relative to inserts.
+        Long fallbackTimestamp = record.timestamp();
+        if (fallbackTimestamp == null || fallbackTimestamp < 0) {
+          fallbackTimestamp = System.currentTimeMillis();
+        }
+        result.put("_CHANGE_SEQUENCE_NUMBER", convertToHexSequence(fallbackTimestamp, record));
+      } else {
+        // Default Kafka Offset Sequencing (Zero-Padded to 16 hex digits for BigQuery
+        // Lexicographical Sorting)
+        result.put("_CHANGE_SEQUENCE_NUMBER", String.format("%016X", record.kafkaOffset()));
+      }
+    }
 
     logger.info(
         "getCdcRow OUTPUT - Topic: {}, Offset: {}, Result Map: {}",
@@ -303,6 +339,82 @@ public final class SinkRecordConverter {
     // 5. Sanitize column names if the user turned on the sanitize option (replacing
     // spaces/special characters)
     return maybeSanitize(result);
+  }
+
+  /**
+   * Formats the sequence value into a 16-character hexadecimal string, and appends the 16-character
+   * hexadecimal Kafka offset as a tie-breaker segment (e.g., "[hex-seq][hex-offset]"). This ensures
+   * deterministic chronological sorting in BigQuery, even when multiple events share the same
+   * timestamp or version.
+   *
+   * @param seqValue The raw sequence number or timestamp
+   * @param record The sink record providing the offset
+   * @return The formatted composite hex sequence string
+   */
+  private String convertToHexSequence(Object seqValue, SinkRecord record) {
+    if (seqValue == null) {
+      return null;
+    }
+
+    Long seqLong = null;
+
+    if (seqValue instanceof Number) {
+      seqLong = ((Number) seqValue).longValue();
+    } else {
+      String strVal = seqValue.toString().trim();
+      // Try to parse as raw Long first (e.g. "1785367800000")
+      try {
+        seqLong = Long.parseLong(strVal);
+      } catch (NumberFormatException e) {
+        // Not a raw number. Try parsing as a timestamp string.
+        try {
+          String normalized = strVal.replace(' ', 'T');
+          Instant instant;
+          if (normalized.endsWith("Z")) {
+            instant = Instant.parse(normalized);
+          } else {
+            instant = OffsetDateTime.parse(normalized).toInstant();
+          }
+          seqLong = instant.toEpochMilli();
+        } catch (Exception ex) {
+          // If timestamp parsing fails, fallback to character hex-encoding
+          return hexEncodeString(strVal);
+        }
+      }
+    }
+
+    if (seqLong != null) {
+      // Check if the sequence value fits in 32 bits to allow 64-bit compound sequence generation
+      if (seqLong >= 0 && seqLong <= 0xFFFFFFFFL) {
+        long kafkaOffset = record.kafkaOffset();
+        long compoundSeq = (seqLong << 32) | (kafkaOffset & 0xFFFFFFFFL);
+        return String.format("%016X", compoundSeq);
+      } else {
+        // For 64-bit values (e.g. epoch timestamps > 32 bits), format as 16-hex seq + 16-hex offset
+        return String.format("%016X%016X", seqLong, record.kafkaOffset());
+      }
+    }
+    return null;
+  }
+
+  private String hexEncodeString(String strVal) {
+    StringBuilder hexBuilder = new StringBuilder();
+    for (char c : strVal.toCharArray()) {
+      hexBuilder.append(String.format("%02X", (int) c));
+    }
+    return splitIntoSegments(hexBuilder.toString(), 32);
+  }
+
+  private String splitIntoSegments(String hexStr, int segmentSize) {
+    StringBuilder result = new StringBuilder();
+    int len = hexStr.length();
+    for (int i = 0; i < len; i += segmentSize) {
+      if (i > 0) {
+        result.append("/");
+      }
+      result.append(hexStr.substring(i, Math.min(len, i + segmentSize)));
+    }
+    return result.toString();
   }
 
   public boolean isCdcEnabled() {

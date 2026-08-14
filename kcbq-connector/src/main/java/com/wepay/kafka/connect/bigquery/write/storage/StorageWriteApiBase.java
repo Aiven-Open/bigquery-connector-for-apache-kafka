@@ -128,6 +128,13 @@ public abstract class StorageWriteApiBase {
     this.isCdcEnabled =
         config.getBoolean(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG)
             && config.isUpsertDeleteEnabled();
+    logger.info(
+        "StorageWriteApiBase initialized: useStorageWriteApi={}, upsertEnabled={}, deleteEnabled={}, isCdcEnabled={}, autoCreateTables={}",
+        config.getBoolean(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG),
+        this.upsertEnabled,
+        this.deleteEnabled,
+        this.isCdcEnabled,
+        this.autoCreateTables);
     try {
       this.writeClient = getWriteClient();
     } catch (IOException e) {
@@ -493,11 +500,21 @@ public abstract class StorageWriteApiBase {
               .setMode(TableFieldSchema.Mode.NULLABLE)
               .build());
     }
+    logger.info(
+        "StorageWriteApiBase.addUpsertDeletePseudoColumns - Added pseudo columns {} and {} to schema for CDC",
+        CHANGE_TYPE_PSEUDO_COLUMN,
+        CHANGE_SEQUENCE_NUMBER_PSEUDO_COLUMN);
   }
 
   private TableSchema getTableSchemaWithPseudoColumns(String streamName) {
     try {
       TableSchema.Builder schemaBuilder = createTableSchemaBuilder(streamName);
+      logger.info(
+          "StorageWriteApiBase.getTableSchemaWithPseudoColumns - streamName: {}, upsertEnabled: {}, deleteEnabled: {}, isCdcEnabled: {}",
+          streamName,
+          upsertEnabled,
+          deleteEnabled,
+          isCdcEnabled);
       if (upsertEnabled || deleteEnabled || isCdcEnabled) {
         addUpsertDeletePseudoColumns(schemaBuilder);
       }

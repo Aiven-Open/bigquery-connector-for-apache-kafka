@@ -178,10 +178,15 @@ public class StorageWriteApiWriter implements Runnable {
      * @return converted record as JSONObject
      */
     private JSONObject convertRecord(SinkRecord record) {
+      boolean cdc = recordConverter.isCdcEnabled();
+      logger.info(
+          "StorageWriteApiWriter.convertRecord - Topic: {}, Partition: {}, Offset: {}, isCdcEnabled: {}",
+          record.topic(),
+          record.kafkaPartition(),
+          record.kafkaOffset(),
+          cdc);
       Map<String, Object> convertedRecord =
-          recordConverter.isCdcEnabled()
-              ? recordConverter.getCdcRow(record)
-              : recordConverter.getRegularRow(record);
+          cdc ? recordConverter.getCdcRow(record) : recordConverter.getRegularRow(record);
       return StorageWriteApiBase.getJsonFromMap(convertedRecord);
     }
 
