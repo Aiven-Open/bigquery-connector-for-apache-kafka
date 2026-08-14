@@ -240,10 +240,10 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
     testBaseJson("with-partition-decorator", true);
   }
 
-//  @Test
-//  void jsonWithoutPartitionDecorator() throws InterruptedException {
-//    testBaseJson("without-partition-decorator", false);
-//  }
+  //  @Test
+  //  void jsonWithoutPartitionDecorator() throws InterruptedException {
+  //    testBaseJson("without-partition-decorator", false);
+  //  }
 
   @Test
   public void testBaseAvro() throws InterruptedException {
