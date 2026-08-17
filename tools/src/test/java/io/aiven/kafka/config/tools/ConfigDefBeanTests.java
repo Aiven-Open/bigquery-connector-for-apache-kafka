@@ -23,55 +23,67 @@
 
 package io.aiven.kafka.config.tools;
 
-import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
-import io.aiven.commons.kafka.config.docs.ConfigDefBean;
-import io.aiven.commons.kafka.config.docs.ConfigKeyBean;
-import org.junit.jupiter.api.Test;
-
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.stream.Collectors;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
+import io.aiven.commons.kafka.config.docs.ConfigDefBean;
+import io.aiven.commons.kafka.config.docs.ConfigKeyBean;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.stream.Collectors;
+import org.junit.jupiter.api.Test;
+
 public class ConfigDefBeanTests {
 
-    private ConfigDefBean<ConfigKeyBean> underTest = new ConfigDefBean<ConfigKeyBean>(BigQuerySinkConfig.getConfig(), ConfigKeyBean::new) {
-        };
+  private ConfigDefBean<ConfigKeyBean> underTest =
+      new ConfigDefBean<ConfigKeyBean>(BigQuerySinkConfig.getConfig(), ConfigKeyBean::new) {};
 
+  @Test
+  public void testParents() {
+    List<String> expected =
+        Arrays.asList(
+            BigQuerySinkConfig.UPSERT_ENABLED_CONFIG,
+            BigQuerySinkConfig.DELETE_ENABLED_CONFIG,
+            BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG,
+            BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG);
+    List<ConfigKeyBean> parents = underTest.parents();
+    Collections.sort(expected);
+    assertEquals(
+        expected, parents.stream().map(ConfigKeyBean::getName).collect(Collectors.toList()));
 
-    @Test
-    public void testParents() {
-        List<String> expected = Arrays.asList(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG, BigQuerySinkConfig.DELETE_ENABLED_CONFIG, BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG);
-        List<ConfigKeyBean> parents = underTest.parents();
-        Collections.sort(expected);
-        assertEquals(expected, parents.stream().map(ConfigKeyBean::getName).collect(Collectors.toList()));
+    parents = underTest.parents(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG);
 
-        parents = underTest.parents(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG);
+    assertEquals(2, parents.size());
+    expected =
+        Arrays.asList(
+            BigQuerySinkConfig.UPSERT_ENABLED_CONFIG, BigQuerySinkConfig.DELETE_ENABLED_CONFIG);
+    Collections.sort(expected);
+    assertEquals(
+        expected, parents.stream().map(ConfigKeyBean::getName).collect(Collectors.toList()));
+  }
 
-        assertEquals(2, parents.size());
-        expected = Arrays.asList(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG, BigQuerySinkConfig.DELETE_ENABLED_CONFIG);
-        Collections.sort(expected);
-        assertEquals(expected, parents.stream().map(ConfigKeyBean::getName).collect(Collectors.toList()));
-    }
+  @Test
+  public void testDependents() {
+    List<String> expected =
+        Arrays.asList(
+            BigQuerySinkConfig.MERGE_INTERVAL_MS_CONFIG,
+            BigQuerySinkConfig.INTERMEDIATE_TABLE_SUFFIX_CONFIG,
+            BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG,
+            BigQuerySinkConfig.ENABLE_BATCH_MODE_CONFIG,
+            BigQuerySinkConfig.COMMIT_INTERVAL_SEC_CONFIG,
+            BigQuerySinkConfig.KAFKA_KEY_FIELD_NAME_CONFIG);
+    List<ConfigKeyBean> deps = underTest.dependents();
+    Collections.sort(expected);
+    assertEquals(expected, deps.stream().map(ConfigKeyBean::getName).collect(Collectors.toList()));
+  }
 
-    @Test
-    public void testDependents() {
-        List<String> expected = Arrays.asList(BigQuerySinkConfig.MERGE_INTERVAL_MS_CONFIG, BigQuerySinkConfig.INTERMEDIATE_TABLE_SUFFIX_CONFIG, BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, BigQuerySinkConfig.ENABLE_BATCH_MODE_CONFIG,
-                BigQuerySinkConfig.COMMIT_INTERVAL_SEC_CONFIG, BigQuerySinkConfig.KAFKA_KEY_FIELD_NAME_CONFIG);
-        List<ConfigKeyBean> deps = underTest.dependents();
-        Collections.sort(expected);
-        assertEquals(expected, deps.stream().map(ConfigKeyBean::getName).collect(Collectors.toList()));
-    }
-
-    @Test
-    public void testConfigKeys() {
-        List<ConfigKeyBean> opts =  underTest.configKeys();
-        assertNotNull(opts);
-        assertTrue(!opts.isEmpty());
-    }
-
+  @Test
+  public void testConfigKeys() {
+    List<ConfigKeyBean> opts = underTest.configKeys();
+    assertNotNull(opts);
+    assertTrue(!opts.isEmpty());
+  }
 }

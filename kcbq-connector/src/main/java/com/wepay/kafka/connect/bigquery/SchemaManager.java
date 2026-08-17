@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Copyright 2022 Aiven Oy and
+ * Copyright 2022-2026 Aiven Oy and
  * bigquery-connector-for-apache-kafka project contributors
  *
  * This software contains code derived from the Confluent BigQuery
@@ -11,7 +11,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -31,7 +31,11 @@ import com.google.cloud.bigquery.Clustering;
 import com.google.cloud.bigquery.Field;
 import com.google.cloud.bigquery.Field.Mode;
 import com.google.cloud.bigquery.LegacySQLTypeName;
+import com.google.cloud.bigquery.PrimaryKey;
 import com.google.cloud.bigquery.StandardTableDefinition;
+import com.google.cloud.bigquery.Table;
+import com.google.cloud.bigquery.TableConstraints;
+import com.google.cloud.bigquery.TableDefinition;
 import com.google.cloud.bigquery.TableId;
 import com.google.cloud.bigquery.TableInfo;
 import com.google.cloud.bigquery.TimePartitioning;
@@ -45,12 +49,15 @@ import com.wepay.kafka.connect.bigquery.utils.FieldNameSanitizer;
 import com.wepay.kafka.connect.bigquery.utils.TableNameUtils;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.stream.Collectors;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.slf4j.Logger;
@@ -83,7 +90,8 @@ public class SchemaManager {
   private final boolean intermediateTables;
   private final ConcurrentMap<TableId, Object> tableCreateLocks;
   private final ConcurrentMap<TableId, Object> tableUpdateLocks;
-  private final ConcurrentMap<TableId, com.google.cloud.bigquery.Schema> schemaCache;
+  private final boolean kafkaKeyAsPrimaryKey;
+  private final ConcurrentMap<TableId, SchemaAndPrimaryKeyColumns> schemaCache;
   private final boolean mediateConcurrentSchemaUpdates;
   private final long concurrentSchemaUpdateRetryWaitMs;
   private final int concurrentSchemaUpdateMaxRetries;
@@ -107,7 +115,7 @@ public class SchemaManager {
       final BigQuery bigQuery,
       final ConcurrentMap<TableId, Object> tableCreateLocks,
       final ConcurrentMap<TableId, Object> tableUpdateLocks,
-      final ConcurrentMap<TableId, com.google.cloud.bigquery.Schema> schemaCache,
+      final ConcurrentMap<TableId, SchemaAndPrimaryKeyColumns> schemaCache,
       final boolean intermediateTables) {
     this.config = config;
     this.bigQuery = bigQuery;
@@ -128,6 +136,7 @@ public class SchemaManager {
     partitionExpiration = config.getPartitionExpirationMs();
     clusteringFieldName = config.getClusteringPartitionFieldNames();
     timePartitioningType = config.getTimePartitioningType();
+    kafkaKeyAsPrimaryKey = config.isUpsertEnabled() && config.useStorageWriteApi();
 
     sanitizeFieldNames = config.getBoolean(BigQuerySinkConfig.SANITIZE_FIELD_NAME_CONFIG);
     mediateConcurrentSchemaUpdates =
@@ -201,6 +210,7 @@ public class SchemaManager {
     this.tableCreateLocks = new ConcurrentHashMap<>();
     this.tableUpdateLocks = new ConcurrentHashMap<>();
     this.schemaCache = new ConcurrentHashMap<>();
+    kafkaKeyAsPrimaryKey = config.isUpsertEnabled() && config.useStorageWriteApi();
   }
 
   /**
@@ -222,7 +232,8 @@ public class SchemaManager {
    *     been created or updated by this schema manager
    */
   public com.google.cloud.bigquery.Schema cachedSchema(TableId table) {
-    return schemaCache.get(table);
+    SchemaAndPrimaryKeyColumns schemaAndPrimaryKeyColumns = schemaCache.get(table);
+    return schemaAndPrimaryKeyColumns == null ? null : schemaAndPrimaryKeyColumns.schema();
   }
 
   /**
@@ -256,6 +267,7 @@ public class SchemaManager {
    * @throws BigQueryException on non-recoverable BigQuery error.
    */
   public boolean createTable(TableId table, List<SinkRecord> records) {
+
     synchronized (lock(tableCreateLocks, table)) {
       if (schemaCache.containsKey(table)) {
         // Table already exists; noop
@@ -271,7 +283,7 @@ public class SchemaManager {
       try {
         bigQuery.create(tableInfo);
         logger.debug("Successfully created {}", table(table));
-        schemaCache.put(table, tableInfo.getDefinition().getSchema());
+        schemaCache.put(table, SchemaAndPrimaryKeyColumns.of(tableInfo));
         return true;
       } catch (BigQueryException e) {
         if (e.getCode() == 409) {
@@ -299,8 +311,7 @@ public class SchemaManager {
         schemaCache.put(table, readTableSchema(table));
       }
 
-      if (!schemaCache.get(table).equals(tableInfo.getDefinition().getSchema())) {
-
+      if (!schemaCache.get(table).schema().equals(tableInfo.getDefinition().getSchema())) {
         logger.info(
             "Attempting to update {} with schema {}",
             table(table),
@@ -308,7 +319,7 @@ public class SchemaManager {
         try {
           bigQuery.update(tableInfo);
           logger.debug("Successfully updated {}", table(table));
-          schemaCache.put(table, tableInfo.getDefinition().getSchema());
+          schemaCache.put(table, SchemaAndPrimaryKeyColumns.of(tableInfo));
         } catch (BigQueryException e) {
           if (!mediateConcurrentSchemaUpdates) {
             throw e;
@@ -354,10 +365,10 @@ public class SchemaManager {
         }
       }
 
-      com.google.cloud.bigquery.Schema currentBqSchema = readTableSchema(table);
+      final SchemaAndPrimaryKeyColumns currentBqSchema = readTableSchema(table);
       schemaCache.put(table, currentBqSchema);
 
-      if (proposedSchema.equals(currentBqSchema)) {
+      if (currentBqSchema.schema().equals(proposedSchema)) {
         logger.info(
             "Schema for {} was already updated by another connector instance (attempt {}/{}). "
                 + "Reconciled; continuing.",
@@ -380,7 +391,7 @@ public class SchemaManager {
             table(table),
             attempt,
             concurrentSchemaUpdateMaxRetries);
-        schemaCache.put(table, retryTableInfo.getDefinition().getSchema());
+        schemaCache.put(table, SchemaAndPrimaryKeyColumns.of(retryTableInfo));
         return;
       } catch (BigQueryException retryEx) {
         lastException = retryEx;
@@ -414,7 +425,7 @@ public class SchemaManager {
    * @return The resulting BigQuery table information
    */
   private TableInfo getTableInfo(TableId table, List<SinkRecord> records, Boolean createSchema) {
-    com.google.cloud.bigquery.Schema proposedSchema;
+    SchemaAndPrimaryKeyColumns proposedSchema;
     String tableDescription;
     try {
       proposedSchema = getAndValidateProposedSchema(table, records);
@@ -427,14 +438,13 @@ public class SchemaManager {
   }
 
   @VisibleForTesting
-  com.google.cloud.bigquery.Schema getAndValidateProposedSchema(
-      TableId table, List<SinkRecord> records) {
-    com.google.cloud.bigquery.Schema result;
+  SchemaAndPrimaryKeyColumns getAndValidateProposedSchema(TableId table, List<SinkRecord> records) {
+    SchemaAndPrimaryKeyColumns result;
     if (allowSchemaUnionization) {
-      List<com.google.cloud.bigquery.Schema> bigQuerySchemas = getSchemasList(table, records);
+      List<SchemaAndPrimaryKeyColumns> bigQuerySchemas = getSchemasList(table, records);
       result = getUnionizedSchema(bigQuerySchemas);
     } else {
-      com.google.cloud.bigquery.Schema existingSchema = readTableSchema(table);
+      SchemaAndPrimaryKeyColumns existingSchema = readTableSchema(table);
       SinkRecord recordToConvert = getRecordToConvert(records);
       if (recordToConvert == null) {
         String errorMessage =
@@ -447,9 +457,12 @@ public class SchemaManager {
       }
       result = convertRecordSchema(recordToConvert);
       if (existingSchema != null) {
-        validateSchemaChange(existingSchema, result);
+        validateSchemaChange(existingSchema.schema(), result.schema());
         if (allowBqRequiredFieldRelaxation) {
-          result = relaxFieldsWhereNecessary(existingSchema, result);
+          result =
+              new SchemaAndPrimaryKeyColumns(
+                  relaxFieldsWhereNecessary(existingSchema.schema(), result.schema()),
+                  result.primaryKeyColumns());
         }
       }
     }
@@ -463,9 +476,8 @@ public class SchemaManager {
    * @param records The sink records' schemas to add to the list of schemas
    * @return List of BigQuery schemas
    */
-  private List<com.google.cloud.bigquery.Schema> getSchemasList(
-      TableId table, List<SinkRecord> records) {
-    List<com.google.cloud.bigquery.Schema> bigQuerySchemas = new ArrayList<>();
+  private List<SchemaAndPrimaryKeyColumns> getSchemasList(TableId table, List<SinkRecord> records) {
+    List<SchemaAndPrimaryKeyColumns> bigQuerySchemas = new ArrayList<>();
     Optional.ofNullable(readTableSchema(table)).ifPresent(bigQuerySchemas::add);
     for (SinkRecord record : records) {
       Schema kafkaValueSchema = schemaRetriever.retrieveValueSchema(record);
@@ -495,12 +507,17 @@ public class SchemaManager {
     return null;
   }
 
-  private com.google.cloud.bigquery.Schema convertRecordSchema(SinkRecord record) {
+  /**
+   * Converts a SinkRecord into a SchemaAndPrimaryKeyColumns instance.
+   *
+   * @param record the record to convert.
+   * @return a SchemaAndPrimaryKeyColumns instance.
+   */
+  private SchemaAndPrimaryKeyColumns convertRecordSchema(SinkRecord record) {
     Schema kafkaValueSchema = schemaRetriever.retrieveValueSchema(record);
     Schema kafkaKeySchema =
         kafkaKeyFieldName.isPresent() ? schemaRetriever.retrieveKeySchema(record) : null;
-    com.google.cloud.bigquery.Schema result = getBigQuerySchema(kafkaKeySchema, kafkaValueSchema);
-    return result;
+    return getBigQuerySchema(kafkaKeySchema, kafkaValueSchema);
   }
 
   /**
@@ -509,16 +526,16 @@ public class SchemaManager {
    * @param schemas The list of BigQuery schemas to unionize
    * @return The resulting unionized BigQuery schema
    */
-  private com.google.cloud.bigquery.Schema getUnionizedSchema(
-      List<com.google.cloud.bigquery.Schema> schemas) {
-    com.google.cloud.bigquery.Schema currentSchema = schemas.get(0);
+  private SchemaAndPrimaryKeyColumns getUnionizedSchema(List<SchemaAndPrimaryKeyColumns> schemas) {
+    com.google.cloud.bigquery.Schema currentSchema = schemas.get(0).schema();
     com.google.cloud.bigquery.Schema proposedSchema;
     for (int i = 1; i < schemas.size(); i++) {
-      proposedSchema = unionizeSchemas(currentSchema, schemas.get(i));
+      proposedSchema = unionizeSchemas(currentSchema, schemas.get(i).schema());
       validateSchemaChange(currentSchema, proposedSchema);
       currentSchema = proposedSchema;
     }
-    return currentSchema;
+    return new SchemaAndPrimaryKeyColumns(
+        currentSchema, schemas.get(schemas.size() - 1).primaryKeyColumns());
   }
 
   private Field unionizeFields(Field firstField, Field secondField) {
@@ -739,11 +756,11 @@ public class SchemaManager {
   // package private for testing.
   TableInfo constructTableInfo(
       TableId table,
-      com.google.cloud.bigquery.Schema bigQuerySchema,
+      SchemaAndPrimaryKeyColumns bigQuerySchema,
       String tableDescription,
       Boolean createSchema) {
     StandardTableDefinition.Builder builder =
-        StandardTableDefinition.newBuilder().setSchema(bigQuerySchema);
+        StandardTableDefinition.newBuilder().setSchema(bigQuerySchema.schema());
 
     if (intermediateTables) {
       // Shameful hack: make the table ingestion time-partitioned here so that the _PARTITIONTIME
@@ -765,6 +782,22 @@ public class SchemaManager {
               builder.setClustering(clustering);
             }
           });
+
+      // Primary key constraints are needed for Storage Write API upsert CDC semantics.
+      // This must be applied regardless of whether time-partitioning is configured,
+      // so it lives outside the timePartitioningType.ifPresent() block.
+      if (kafkaKeyAsPrimaryKey) {
+        if (!Optional.of("").equals(kafkaKeyFieldName)) {
+          throw new IllegalStateException(
+              "kafkaKeyFieldName must be '' when kafkaKeyAsPrimaryKey is true");
+        }
+
+        builder.setTableConstraints(
+            TableConstraints.newBuilder()
+                .setPrimaryKey(
+                    PrimaryKey.newBuilder().setColumns(bigQuerySchema.primaryKeyColumns()).build())
+                .build());
+      }
     }
 
     StandardTableDefinition tableDefinition = builder.build();
@@ -778,19 +811,16 @@ public class SchemaManager {
     return tableInfoBuilder.build();
   }
 
-  private com.google.cloud.bigquery.Schema getBigQuerySchema(
+  private SchemaAndPrimaryKeyColumns getBigQuerySchema(
       Schema kafkaKeySchema, Schema kafkaValueSchema) {
     com.google.cloud.bigquery.Schema valueSchema = schemaConverter.convertSchema(kafkaValueSchema);
 
-    List<Field> schemaFields =
-        intermediateTables
-            ? getIntermediateSchemaFields(valueSchema, kafkaKeySchema)
-            : getRegularSchemaFields(valueSchema, kafkaKeySchema);
-
-    return com.google.cloud.bigquery.Schema.of(schemaFields);
+    return intermediateTables
+        ? getIntermediateSchema(valueSchema, kafkaKeySchema)
+        : getRegularSchema(valueSchema, kafkaKeySchema);
   }
 
-  private List<Field> getIntermediateSchemaFields(
+  private SchemaAndPrimaryKeyColumns getIntermediateSchema(
       com.google.cloud.bigquery.Schema valueSchema, Schema kafkaKeySchema) {
     if (kafkaKeySchema == null) {
       throw new BigQueryConnectException(
@@ -799,7 +829,7 @@ public class SchemaManager {
               BigQuerySinkConfig.KAFKA_KEY_FIELD_NAME_CONFIG));
     }
 
-    List<Field> result = new ArrayList<>();
+    List<Field> fields = new ArrayList<>();
 
     List<Field> valueFields = new ArrayList<>(valueSchema.getFields());
     if (kafkaDataFieldName.isPresent()) {
@@ -820,7 +850,7 @@ public class SchemaManager {
                 valueFields.toArray(new Field[0]))
             .setMode(Field.Mode.NULLABLE)
             .build();
-    result.add(wrappedValueField);
+    fields.add(wrappedValueField);
 
     com.google.cloud.bigquery.Schema keySchema = schemaConverter.convertSchema(kafkaKeySchema);
     Field kafkaKeyField =
@@ -830,14 +860,14 @@ public class SchemaManager {
                 keySchema.getFields())
             .setMode(Field.Mode.REQUIRED)
             .build();
-    result.add(kafkaKeyField);
+    fields.add(kafkaKeyField);
 
     Field iterationField =
         Field.newBuilder(
                 MergeQueries.INTERMEDIATE_TABLE_ITERATION_FIELD_NAME, LegacySQLTypeName.INTEGER)
             .setMode(Field.Mode.REQUIRED)
             .build();
-    result.add(iterationField);
+    fields.add(iterationField);
 
     Field partitionTimeField =
         Field.newBuilder(
@@ -845,21 +875,23 @@ public class SchemaManager {
                 LegacySQLTypeName.TIMESTAMP)
             .setMode(Field.Mode.NULLABLE)
             .build();
-    result.add(partitionTimeField);
+    fields.add(partitionTimeField);
 
     Field batchNumberField =
         Field.newBuilder(
                 MergeQueries.INTERMEDIATE_TABLE_BATCH_NUMBER_FIELD, LegacySQLTypeName.INTEGER)
             .setMode(Field.Mode.REQUIRED)
             .build();
-    result.add(batchNumberField);
+    fields.add(batchNumberField);
 
-    return result;
+    return new SchemaAndPrimaryKeyColumns(
+        com.google.cloud.bigquery.Schema.of(fields), Collections.emptyList());
   }
 
-  private List<Field> getRegularSchemaFields(
+  private SchemaAndPrimaryKeyColumns getRegularSchema(
       com.google.cloud.bigquery.Schema valueSchema, Schema kafkaKeySchema) {
-    List<Field> result = new ArrayList<>(valueSchema.getFields());
+    List<Field> fields = new ArrayList<>(valueSchema.getFields());
+    List<String> primaryKeyColumns;
 
     if (kafkaDataFieldName.isPresent()) {
       String dataFieldName =
@@ -867,33 +899,52 @@ public class SchemaManager {
               ? FieldNameSanitizer.sanitizeName(kafkaDataFieldName.get())
               : kafkaDataFieldName.get();
       Field kafkaDataField = buildKafkaDataField(dataFieldName);
-      result.add(kafkaDataField);
+      fields.add(kafkaDataField);
     }
 
     if (kafkaKeyFieldName.isPresent()) {
       com.google.cloud.bigquery.Schema keySchema = schemaConverter.convertSchema(kafkaKeySchema);
-      String keyFieldName =
-          sanitizeFieldNames
-              ? FieldNameSanitizer.sanitizeName(kafkaKeyFieldName.get())
-              : kafkaKeyFieldName.get();
-      Field kafkaKeyField =
-          Field.newBuilder(keyFieldName, LegacySQLTypeName.RECORD, keySchema.getFields())
-              .setMode(Field.Mode.NULLABLE)
-              .build();
-      result.add(kafkaKeyField);
+      if (kafkaKeyFieldName.get().isEmpty()) {
+        // Deduplicate: skip key fields already present in the value schema.
+        // When using Debezium with ExtractNewRecordState SMT, the value payload already
+        // contains all columns (including primary keys), so a naive addAll() of the
+        // flattened key schema produces duplicate field names and BigQuery rejects
+        // the CREATE TABLE with "Field X already exists in schema".
+        Set<String> existingFieldNames =
+            fields.stream().map(Field::getName).collect(Collectors.toSet());
+        keySchema.getFields().stream()
+            .filter(kf -> !existingFieldNames.contains(kf.getName()))
+            .forEach(fields::add);
+        primaryKeyColumns =
+            keySchema.getFields().stream().map(Field::getName).collect(Collectors.toList());
+      } else {
+        String keyFieldName =
+            sanitizeFieldNames
+                ? FieldNameSanitizer.sanitizeName(kafkaKeyFieldName.get())
+                : kafkaKeyFieldName.get();
+        Field kafkaKeyField =
+            Field.newBuilder(keyFieldName, LegacySQLTypeName.RECORD, keySchema.getFields())
+                .setMode(Field.Mode.NULLABLE)
+                .build();
+        fields.add(kafkaKeyField);
+        primaryKeyColumns = Collections.emptyList();
+      }
+    } else {
+      primaryKeyColumns = Collections.emptyList();
     }
 
-    return result;
+    return new SchemaAndPrimaryKeyColumns(
+        com.google.cloud.bigquery.Schema.of(fields), primaryKeyColumns);
   }
 
   private String table(TableId table) {
     return intermediateTables ? TableNameUtils.intTable(table) : TableNameUtils.table(table);
   }
 
-  private com.google.cloud.bigquery.Schema readTableSchema(TableId table) {
+  private SchemaAndPrimaryKeyColumns readTableSchema(TableId table) {
     logger.trace("Reading schema for {}", table(table));
     return Optional.ofNullable(bigQuery.getTable(table))
-        .map(t -> t.getDefinition().getSchema())
+        .map(SchemaAndPrimaryKeyColumns::of)
         .orElse(null);
   }
 
@@ -938,5 +989,42 @@ public class SchemaManager {
             kafkaDataFieldName, LegacySQLTypeName.RECORD, subFields.toArray(new Field[0]))
         .setMode(com.google.cloud.bigquery.Field.Mode.NULLABLE)
         .build();
+  }
+
+  /** Tracks the schema and primary columns of a table. */
+  record SchemaAndPrimaryKeyColumns(
+      com.google.cloud.bigquery.Schema schema, List<String> primaryKeyColumns) {
+    /**
+     * Creates a SchemaAndPrimaryKeyColumns from a Table.
+     *
+     * @param table the table to extract data from.
+     * @return a SchemaAndPrimaryKeyColumns instance.
+     */
+    public static SchemaAndPrimaryKeyColumns of(Table table) {
+      return of(table.getDefinition(), table.getTableConstraints());
+    }
+
+    /**
+     * Creates a SchemaAndPrimaryKeyColumns from a TableInfo.
+     *
+     * @param tableInfo the table info to extract data from.
+     * @return a SchemaAndPrimaryKeyColumns instance.
+     */
+    public static SchemaAndPrimaryKeyColumns of(TableInfo tableInfo) {
+      return of(tableInfo.getDefinition(), tableInfo.getTableConstraints());
+    }
+
+    private static SchemaAndPrimaryKeyColumns of(
+        TableDefinition tableDefinition, TableConstraints tableConstraints) {
+      com.google.cloud.bigquery.Schema schema = tableDefinition.getSchema();
+
+      List<String> primaryKeyColumns =
+          Optional.ofNullable(tableConstraints)
+              .map(TableConstraints::getPrimaryKey)
+              .map(PrimaryKey::getColumns)
+              .orElseGet(Collections::emptyList);
+
+      return new SchemaAndPrimaryKeyColumns(schema, primaryKeyColumns);
+    }
   }
 }

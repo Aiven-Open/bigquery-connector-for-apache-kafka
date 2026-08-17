@@ -52,7 +52,9 @@ import com.wepay.kafka.connect.bigquery.GcpClientBuilder;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.integration.utils.TestCaseLogger;
 import com.wepay.kafka.connect.bigquery.utils.FieldNameSanitizer;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -100,8 +102,14 @@ public abstract class BaseConnectorIT {
   private static final String GCS_BUCKET_ENV_VAR = "KCBQ_TEST_BUCKET";
   private static final String GCS_FOLDER_ENV_VAR = "KCBQ_TEST_FOLDER";
   private static final String TEST_NAMESPACE_ENV_VAR = "KCBQ_TEST_TABLE_SUFFIX";
+  protected static final long ONE_MINUTE = 60_000L;
+  protected static final long ONE_SECOND = 1_000L;
 
   protected EmbeddedConnectCluster connect;
+
+  /** The status message if there are any issues with the connector status check */
+  protected String connectorStatus;
+
   private Admin kafkaAdminClient;
 
   protected static List<Byte> boxByteArray(byte[] bytes) {
@@ -206,7 +214,7 @@ public abstract class BaseConnectorIT {
             try {
               assertTrue(
                   assertConnectorAndTasksRunning(connector, numTasks).orElse(false),
-                  "Connector or one of its tasks failed during testing");
+                  () -> "Connector or one of its tasks failed during testing: " + connectorStatus);
             } catch (AssertionError e) {
               throw new NoRetryException(e);
             }
@@ -299,7 +307,12 @@ public abstract class BaseConnectorIT {
         } else if (fieldSchema.getType().equals(TIME)) {
           return field.getStringValue();
         } else if (fieldSchema.getType().equals(DATETIME)) {
-          return field.getTimestampValue();
+          // return micro seconds.
+          Instant instant =
+              LocalDateTime.parse(field.getStringValue(), DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                  .atOffset(ZoneOffset.UTC)
+                  .toInstant();
+          return instant.getEpochSecond() * 1_000_000 + instant.getNano() / 1_000;
         } else if (fieldSchema.getType().equals(FLOAT)) {
           return field.getDoubleValue();
         } else if (fieldSchema.getType().equals(INTEGER)) {
@@ -353,7 +366,7 @@ public abstract class BaseConnectorIT {
     waitForCondition(
         () -> assertConnectorAndTasksRunning(name, numTasks).orElse(false),
         CONNECTOR_STARTUP_DURATION_MS,
-        "Connector tasks did not start in time.");
+        "Connector tasks did not start in time: " + connectorStatus);
   }
 
   /**
@@ -367,15 +380,29 @@ public abstract class BaseConnectorIT {
   protected Optional<Boolean> assertConnectorAndTasksRunning(String connectorName, int numTasks) {
     try {
       ConnectorStateInfo info = connect.connectorStatus(connectorName);
-      boolean result =
-          info != null
-              && info.tasks().size() >= numTasks
-              && info.connector().state().equals(AbstractStatus.State.RUNNING.toString())
-              && info.tasks().stream()
-                  .allMatch(s -> s.state().equals(AbstractStatus.State.RUNNING.toString()));
-      return Optional.of(result);
+      List<String> msgs = new ArrayList<>();
+      if (info == null) {
+        msgs.add("Could not retrieve connector status.");
+      } else {
+        if (info.tasks().size() < numTasks) {
+          msgs.add(
+              String.format("Too few tasks expected %s got %s.", info.tasks().size(), numTasks));
+        }
+        if (!info.connector().state().equals(AbstractStatus.State.RUNNING.toString())) {
+          msgs.add("Connector state is " + info.connector().state());
+        }
+        info.tasks().stream()
+            .filter(s -> !s.state().equals(AbstractStatus.State.RUNNING.toString()))
+            .forEach(
+                ts ->
+                    msgs.add(
+                        String.format("Task %s is not running: %s.", ts.workerId(), ts.trace())));
+      }
+      connectorStatus = msgs.isEmpty() ? null : String.join(System.lineSeparator(), msgs);
+      return Optional.of(msgs.isEmpty());
     } catch (Exception e) {
       logger.warn("Could not check connector state info.", e);
+      connectorStatus = null;
       return Optional.empty();
     }
   }
@@ -404,6 +431,30 @@ public abstract class BaseConnectorIT {
 
   private String readEnvVar(String var, String defaultVal) {
     return System.getenv().getOrDefault(var, defaultVal).trim();
+  }
+
+  protected long scaledWait(long definedWaitTime) {
+    return Double.valueOf(definedWaitTime * waitFactor()).longValue();
+  }
+
+  protected double waitFactor() {
+    double load;
+    int nproc;
+    try {
+      load = Double.parseDouble(load());
+      nproc = Integer.parseInt(nproc());
+    } catch (NumberFormatException e) {
+      return 1.0;
+    }
+    return Math.max(load / nproc, 1.0);
+  }
+
+  protected String load() {
+    return readEnvVar("LOAD", "unknown");
+  }
+
+  protected String nproc() {
+    return readEnvVar("NPROC", "unknown");
   }
 
   protected String keyFile() {
