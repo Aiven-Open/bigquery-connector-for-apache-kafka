@@ -584,10 +584,9 @@ public class BigQuerySinkTask extends SinkTask {
 
   private void startGcsToBqLoadTask() {
     logger.info("Attempting to start GCS Load Executor.");
-    loadExecutor = Executors.newScheduledThreadPool(1, new MdcContextThreadFactory());
     // use a single thread to ensure that no more than one thread is attempting to send
     // data to BigQuery otherwise duplicates may occur.
-    // REPLACE WITH THIS: loadExecutor = Executors.newSingleThreadScheduledExecutor(new MdcContextThreadFactory());
+    loadExecutor = Executors.newSingleThreadScheduledExecutor(new MdcContextThreadFactory());
     String bucketName = config.getString(BigQuerySinkConfig.GCS_BUCKET_NAME_CONFIG);
     Storage gcs = getGcs();
     // get the bucket, or create it if it does not exist.
