@@ -2,7 +2,40 @@
 # Change Log
 
 All releases can be found at https://github.com/Aiven-Open/bigquery-connector-for-apache-kafka/releases
-
+ 
+## v2.15.0
+### What is changed
+ 
+ - update util dependency and fixed race condition (#233)
+ - Issue-111: add spotless google java formatter (#232) (#111)
+ - switch to kafka-config use (#231)
+ - clean up workflows (#227)
+ - Merge pull request #213 from alvm/fix/retry-job-backend-error
+ - Merge pull request #215 from alvm/fix/retry-dataset-not-found
+ - Merge pull request #218 from Aiven-Open/Issue-217-Mitigate-KafkaDataBuilder
+ - fix for code scanning alert no. 1: Workflow does not contain permissions (#222)
+ - fix for code scanning alert no. 2: Use of a cryptographic algorithm with insufficient key size (#223)
+ - Bump com.fasterxml.jackson.core:jackson-databind from 2.21.1 to 2.22.1
+ - Fix sink integration test (#220)
+ - fixed checkstyle issues
+ - Updated documentation. split isUpserDeleteEnabled into separate methods.
+ - Deprecated KafkaDataBuilder and removed static vars.
+ - Retry transient 404 "Not found: Dataset" during streaming inserts
+ - Retry transient 400 jobBackendError in MergeQueries
+ 
+### Co-authored by
+ 
+ - Claude Warren
+ - dependabot[bot]
+ - Emmanuel Evbuomwan
+ - github-actions[bot]
+ - Oleksii Molchanov
+ - Tony Bui
+ 
+ 
+### Full Changelog
+https://github.com/Aiven-Open/${repositoryName}/compare/v2.14.0...v2.15.0
+ 
 ## v2.14.0
 ### What is changed
 
