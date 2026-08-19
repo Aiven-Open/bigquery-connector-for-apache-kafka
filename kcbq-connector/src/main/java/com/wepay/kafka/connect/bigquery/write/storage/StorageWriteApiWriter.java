@@ -48,7 +48,7 @@ public class StorageWriteApiWriter implements Runnable {
   private final String streamName;
   private final SinkRecordConverter recordConverter;
   private final Supplier<String> ulidSupplier;
-  Logger logger = LoggerFactory.getLogger(StorageWriteApiWriter.class);
+  private static final Logger logger = LoggerFactory.getLogger(StorageWriteApiWriter.class);
 
   /**
    * @param tableName The table to write the records to

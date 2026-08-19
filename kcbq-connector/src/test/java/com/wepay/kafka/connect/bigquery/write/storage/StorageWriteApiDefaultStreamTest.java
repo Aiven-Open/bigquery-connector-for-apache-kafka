@@ -47,6 +47,7 @@ import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiConnect
 import com.wepay.kafka.connect.bigquery.utils.MockTime;
 import com.wepay.kafka.connect.bigquery.utils.PartitionedTableId;
 import com.wepay.kafka.connect.bigquery.utils.TableNameUtils;
+import com.wepay.kafka.connect.bigquery.utils.Time;
 import io.grpc.StatusRuntimeException;
 import java.util.Arrays;
 import java.util.Collections;
@@ -118,7 +119,7 @@ public class StorageWriteApiDefaultStreamTest {
               io.grpc.Status.fromCode(io.grpc.Status.Code.NOT_FOUND)
                   .withDescription("Not found: table. Table is deleted")));
   SchemaManager mockedSchemaManager = mock(SchemaManager.class);
-  MockTime time = new MockTime();
+  Time time = new MockTime();
 
   @BeforeEach
   public void setUp() throws Exception {

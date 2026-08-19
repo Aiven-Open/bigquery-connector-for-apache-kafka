@@ -159,7 +159,7 @@ public class BigQueryErrorResponsesIT extends BaseConnectorIT {
             return false;
           }
         },
-        ONE_MINUTE,
+        5 * ONE_MINUTE,
         ONE_SECOND,
         () -> exceptionTracker.report("Never succeeded to write to just-recreated table."));
   }

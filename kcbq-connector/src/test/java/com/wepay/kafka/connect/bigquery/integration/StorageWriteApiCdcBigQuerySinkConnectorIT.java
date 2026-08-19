@@ -120,8 +120,8 @@ public class StorageWriteApiCdcBigQuerySinkConnectorIT extends BaseConnectorIT {
                   "ALTER TABLE `%s`.`%s` SET OPTIONS (max_staleness = INTERVAL 0 MINUTE)",
                   dataset(), table)));
       logger.info("Table {} max_staleness set to 0-0-0 successfully", table);
-      Thread.sleep(30000);
-      logger.info("Waited 30 seconds for metadata propagation");
+      Thread.sleep(60000);
+      logger.info("Waited 60 seconds for metadata propagation");
     } catch (BigQueryException ex) {
       if (!ex.getError().getReason().equalsIgnoreCase("duplicate")) {
         throw new ConnectException("Failed to create table: ", ex);
