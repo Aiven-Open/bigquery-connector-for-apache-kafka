@@ -324,12 +324,11 @@ public final class SinkRecordConverter {
         }
         result.put("_CHANGE_SEQUENCE_NUMBER", convertToHexSequence(fallbackTimestamp, record));
       } else {
-        // Default Kafka Partition + Offset Sequencing (Zero-Padded 8-hex partition + 16-hex offset
-        // for BigQuery
-        // Lexicographical Sorting)
+        // Default Kafka Partition + Offset Sequencing (8-hex partition / 16-hex offset for BigQuery
+        // Multi-Segment Lexicographical Sorting)
         result.put(
             "_CHANGE_SEQUENCE_NUMBER",
-            String.format("%08X%016X", record.kafkaPartition(), record.kafkaOffset()));
+            String.format("%08X/%016X", record.kafkaPartition(), record.kafkaOffset()));
       }
     }
 
@@ -347,10 +346,10 @@ public final class SinkRecordConverter {
 
   /**
    * Formats the sequence value into a 16-character hexadecimal string, followed by an 8-character
-   * hexadecimal Kafka partition and a 16-character hexadecimal Kafka offset as tie-breaker segments
-   * (e.g., "[16-hex-seq][8-hex-partition][16-hex-offset]"). This ensures deterministic
-   * chronological sorting in BigQuery across all partitions, even when multiple events share the
-   * same timestamp or version.
+   * hexadecimal Kafka partition and a 16-character hexadecimal Kafka offset as slash-separated
+   * tie-breaker segments (e.g., "[16-hex-seq]/[8-hex-partition]/[16-hex-offset]"). BigQuery's
+   * Storage Write API parses slash-separated segments of up to 16 hex digits each and preserves
+   * strict multi-segment lexicographical ordering.
    *
    * @param seqValue The raw sequence number or timestamp
    * @param record The sink record providing partition and offset
@@ -391,7 +390,7 @@ public final class SinkRecordConverter {
 
     if (seqLong != null) {
       return String.format(
-          "%016X%08X%016X", seqLong, record.kafkaPartition(), record.kafkaOffset());
+          "%016X/%08X/%016X", seqLong, record.kafkaPartition(), record.kafkaOffset());
     }
     return null;
   }
@@ -401,8 +400,9 @@ public final class SinkRecordConverter {
     for (char c : strVal.toCharArray()) {
       hexBuilder.append(String.format("%02X", (int) c));
     }
+    String hexSegments = splitIntoSegments(hexBuilder.toString(), 16);
     return String.format(
-        "%s%08X%016X", hexBuilder.toString(), record.kafkaPartition(), record.kafkaOffset());
+        "%s/%08X/%016X", hexSegments, record.kafkaPartition(), record.kafkaOffset());
   }
 
   private String splitIntoSegments(String hexStr, int segmentSize) {
