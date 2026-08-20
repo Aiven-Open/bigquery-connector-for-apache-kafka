@@ -123,7 +123,7 @@ public class SinkRecordConverterTest {
 
     // Verify CDC metadata columns
     assertEquals("UPSERT", actual.get("_CHANGE_TYPE"));
-    assertEquals("000000000000002A", actual.get("_CHANGE_SEQUENCE_NUMBER"));
+    assertEquals("00000001000000000000002A", actual.get("_CHANGE_SEQUENCE_NUMBER"));
   }
 
   @Test
@@ -143,7 +143,7 @@ public class SinkRecordConverterTest {
 
     // Verify CDC metadata columns
     assertEquals("DELETE", actual.get("_CHANGE_TYPE"));
-    assertEquals("000000000000002A", actual.get("_CHANGE_SEQUENCE_NUMBER"));
+    assertEquals("00000001000000000000002A", actual.get("_CHANGE_SEQUENCE_NUMBER"));
   }
 
   @Test
@@ -171,7 +171,7 @@ public class SinkRecordConverterTest {
     Map<String, Object> actual = sinkRecordConverter.getCdcRow(record);
 
     assertEquals("UPSERT", actual.get("_CHANGE_TYPE"));
-    assertEquals("416C696365", actual.get("_CHANGE_SEQUENCE_NUMBER"));
+    assertEquals("416C69636500000001000000000000002A", actual.get("_CHANGE_SEQUENCE_NUMBER"));
   }
 
   @Test
@@ -186,7 +186,7 @@ public class SinkRecordConverterTest {
     Map<String, Object> actual = sinkRecordConverter.getCdcRow(record);
 
     assertEquals("DELETE", actual.get("_CHANGE_TYPE"));
-    assertEquals("0000007B0000002A", actual.get("_CHANGE_SEQUENCE_NUMBER"));
+    assertEquals("000000000000007B00000001000000000000002A", actual.get("_CHANGE_SEQUENCE_NUMBER"));
   }
 
   @Test
@@ -212,7 +212,7 @@ public class SinkRecordConverterTest {
     Map<String, Object> actual = sinkRecordConverter.getCdcRow(record);
 
     assertEquals("UPSERT", actual.get("_CHANGE_TYPE"));
-    assertEquals("075BCD150000002A", actual.get("_CHANGE_SEQUENCE_NUMBER"));
+    assertEquals("00000000075BCD1500000001000000000000002A", actual.get("_CHANGE_SEQUENCE_NUMBER"));
   }
 
   @Test
@@ -238,7 +238,7 @@ public class SinkRecordConverterTest {
     Map<String, Object> actual = sinkRecordConverter.getCdcRow(record);
 
     assertEquals("DELETE", actual.get("_CHANGE_TYPE"));
-    assertEquals("000000024CB016EA000000000000002A", actual.get("_CHANGE_SEQUENCE_NUMBER"));
+    assertEquals("000000024CB016EA00000001000000000000002A", actual.get("_CHANGE_SEQUENCE_NUMBER"));
   }
 
   @Test
@@ -266,7 +266,7 @@ public class SinkRecordConverterTest {
     assertEquals("UPSERT", actual.get("_CHANGE_TYPE"));
     long expectedEpochMs = java.time.Instant.parse("2026-08-14T10:00:00Z").toEpochMilli();
     assertEquals(
-        String.format("%016X%016X", expectedEpochMs, OFFSET),
+        String.format("%016X%08X%016X", expectedEpochMs, PARTITION, OFFSET),
         actual.get("_CHANGE_SEQUENCE_NUMBER"));
   }
 
@@ -298,7 +298,7 @@ public class SinkRecordConverterTest {
     Map<String, Object> actual = sinkRecordConverter.getCdcRow(record);
 
     assertEquals("DELETE", actual.get("_CHANGE_TYPE"));
-    assertEquals("000000000000002A", actual.get("_CHANGE_SEQUENCE_NUMBER"));
+    assertEquals("00000001000000000000002A", actual.get("_CHANGE_SEQUENCE_NUMBER"));
   }
 
   @Test
@@ -329,7 +329,7 @@ public class SinkRecordConverterTest {
     Map<String, Object> actual = sinkRecordConverter.getCdcRow(record);
 
     assertEquals("DELETE", actual.get("_CHANGE_TYPE"));
-    assertEquals("000000000000002A", actual.get("_CHANGE_SEQUENCE_NUMBER"));
+    assertEquals("00000001000000000000002A", actual.get("_CHANGE_SEQUENCE_NUMBER"));
   }
 
   @Test

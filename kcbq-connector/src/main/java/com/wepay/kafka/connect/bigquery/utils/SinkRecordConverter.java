@@ -324,15 +324,19 @@ public final class SinkRecordConverter {
         }
         result.put("_CHANGE_SEQUENCE_NUMBER", convertToHexSequence(fallbackTimestamp, record));
       } else {
-        // Default Kafka Offset Sequencing (Zero-Padded to 16 hex digits for BigQuery
+        // Default Kafka Partition + Offset Sequencing (Zero-Padded 8-hex partition + 16-hex offset
+        // for BigQuery
         // Lexicographical Sorting)
-        result.put("_CHANGE_SEQUENCE_NUMBER", String.format("%016X", record.kafkaOffset()));
+        result.put(
+            "_CHANGE_SEQUENCE_NUMBER",
+            String.format("%08X%016X", record.kafkaPartition(), record.kafkaOffset()));
       }
     }
 
     logger.info(
-        "getCdcRow OUTPUT - Topic: {}, Offset: {}, Result Map: {}",
+        "getCdcRow OUTPUT - Topic: {}, Partition: {}, Offset: {}, Result Map: {}",
         record.topic(),
+        record.kafkaPartition(),
         record.kafkaOffset(),
         result);
 
@@ -342,13 +346,14 @@ public final class SinkRecordConverter {
   }
 
   /**
-   * Formats the sequence value into a 16-character hexadecimal string, and appends the 16-character
-   * hexadecimal Kafka offset as a tie-breaker segment (e.g., "[hex-seq][hex-offset]"). This ensures
-   * deterministic chronological sorting in BigQuery, even when multiple events share the same
-   * timestamp or version.
+   * Formats the sequence value into a 16-character hexadecimal string, followed by an 8-character
+   * hexadecimal Kafka partition and a 16-character hexadecimal Kafka offset as tie-breaker segments
+   * (e.g., "[16-hex-seq][8-hex-partition][16-hex-offset]"). This ensures deterministic
+   * chronological sorting in BigQuery across all partitions, even when multiple events share the
+   * same timestamp or version.
    *
    * @param seqValue The raw sequence number or timestamp
-   * @param record The sink record providing the offset
+   * @param record The sink record providing partition and offset
    * @return The formatted composite hex sequence string
    */
   private String convertToHexSequence(Object seqValue, SinkRecord record) {
@@ -377,32 +382,27 @@ public final class SinkRecordConverter {
           }
           seqLong = instant.toEpochMilli();
         } catch (Exception ex) {
-          // If timestamp parsing fails, fallback to character hex-encoding
-          return hexEncodeString(strVal);
+          // If timestamp parsing fails, fallback to character hex-encoding with partition + offset
+          // tie-breaker
+          return hexEncodeString(strVal, record);
         }
       }
     }
 
     if (seqLong != null) {
-      // Check if the sequence value fits in 32 bits to allow 64-bit compound sequence generation
-      if (seqLong >= 0 && seqLong <= 0xFFFFFFFFL) {
-        long kafkaOffset = record.kafkaOffset();
-        long compoundSeq = (seqLong << 32) | (kafkaOffset & 0xFFFFFFFFL);
-        return String.format("%016X", compoundSeq);
-      } else {
-        // For 64-bit values (e.g. epoch timestamps > 32 bits), format as 16-hex seq + 16-hex offset
-        return String.format("%016X%016X", seqLong, record.kafkaOffset());
-      }
+      return String.format(
+          "%016X%08X%016X", seqLong, record.kafkaPartition(), record.kafkaOffset());
     }
     return null;
   }
 
-  private String hexEncodeString(String strVal) {
+  private String hexEncodeString(String strVal, SinkRecord record) {
     StringBuilder hexBuilder = new StringBuilder();
     for (char c : strVal.toCharArray()) {
       hexBuilder.append(String.format("%02X", (int) c));
     }
-    return splitIntoSegments(hexBuilder.toString(), 32);
+    return String.format(
+        "%s%08X%016X", hexBuilder.toString(), record.kafkaPartition(), record.kafkaOffset());
   }
 
   private String splitIntoSegments(String hexStr, int segmentSize) {
