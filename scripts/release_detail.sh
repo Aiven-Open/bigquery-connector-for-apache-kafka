@@ -66,6 +66,6 @@ git checkout -b change_log-${endVersion}
 
 git add CHANGE_LOG.md
 git commit -m "Update CHANGE_LOG.md for ${startTag} to v${endVersion}"
-#git push --set-upstream origin change_log-${endVersion}
+
 
 
