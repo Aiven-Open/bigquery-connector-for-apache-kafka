@@ -123,8 +123,11 @@
     <compiler.plugin.version>3.8.1</compiler.plugin.version>
     <exec.plugin.version>3.2.0</exec.plugin.version>
     <google.cloud.bom.version>26.33.0</google.cloud.bom.version>
+    <spotless.plugin.version>3.5.1</spotless.plugin.version>
     <surefire.plugin.version>3.5.3</surefire.plugin.version>
-    <plugin.spotless>3.5.1</plugin.spotless>
+    <resources.plugin.version>3.3.1</resources.plugin.version>
+    <jar.plugin.version>3.4.2</jar.plugin.version>
+    <project.info.reports.plugin.version>3.9.0</project.info.reports.plugin.version>
 
     <site.plugin.version>3.21.0</site.plugin.version>
     <velocity.core.version>2.4.1</velocity.core.version>
@@ -342,7 +345,7 @@
       <dependency>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-resources-plugin</artifactId>
-        <version>3.3.1</version>
+        <version>${resources.plugin.version}</version>
         <type>maven-plugin</type>
       </dependency>
       <dependency>
@@ -402,7 +405,7 @@
         <plugin>
           <groupId>com.diffplug.spotless</groupId>
           <artifactId>spotless-maven-plugin</artifactId>
-          <version>${plugin.spotless}</version>
+          <version>${spotless.plugin.version}</version>
           <configuration>
             <java>
               <googleJavaFormat/>
@@ -425,8 +428,13 @@
         </plugin>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-resources-plugin</artifactId>
+          <version>${resources.plugin.version}</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-jar-plugin</artifactId>
-          <version>3.4.2</version>
+          <version>${jar.plugin.version}</version>
           <configuration>
             <archive>
               <manifest>
@@ -548,7 +556,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-project-info-reports-plugin</artifactId>
-        <version>3.9.0</version>
+        <version>${project.info.reports.plugin.version}</version>
         <configuration>
           <siteDirectory>docs/src/site</siteDirectory>
           <outputFormat>xhtml</outputFormat>
