@@ -48,12 +48,15 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Random;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 import org.apache.kafka.test.TestUtils;
@@ -273,6 +276,60 @@ public class BigQueryErrorResponsesIT extends BaseConnectorIT {
 
     logger.debug("Large request payload write error", e);
     assertTrue(BigQueryErrorResponses.isRequestTooLargeError(e));
+  }
+
+  @Test
+  public void testContentTooLarge() throws Exception {
+    TableId table = TableId.of(dataset(), suffixedAndSanitizedTable("content too large"));
+    Schema schema =
+        Schema.of(
+            Field.newBuilder("f1", StandardSQLTypeName.STRING)
+                .setMode(Field.Mode.REQUIRED)
+                .build());
+    createOrAssertSchemaMatches(table, schema);
+
+    // The payload must be incompressible: the client gzips request bodies and the frontend judges
+    // the compressed size, so repetitive filler would shrink enough to draw the 400 instead.
+    byte[] randomBytes = new byte[50 * 1024 * 1024];
+    new Random().nextBytes(randomBytes);
+    String columnValue = Base64.getEncoder().encodeToString(randomBytes);
+    InsertAllRequest request =
+        InsertAllRequest.of(table, RowToInsert.of(Collections.singletonMap("f1", columnValue)));
+
+    final ExceptionTracker exceptionTracker = new ExceptionTracker();
+    final AtomicInteger attempts = new AtomicInteger();
+
+    // An oversized request is answered either with the documented 400 JSON error or, once the
+    // frontend rejects it before reading the body, with a 413. Which one comes back is not
+    // deterministic, so re-issue the same request until the 413 appears. Every rejected attempt
+    // uploads the whole payload first, so allow for several slow round trips.
+    TestUtils.waitForCondition(
+        () -> {
+          try {
+            bigQuery.insertAll(request);
+            return false;
+          } catch (BigQueryException e) {
+            exceptionTracker.recordException(e);
+            int attempt = attempts.incrementAndGet();
+            if (BigQueryErrorResponses.isContentTooLargeError(e)) {
+              logger.info("Attempt {} was rejected with an HTTP 413, as expected", attempt);
+              return true;
+            }
+            // the 400 form is the other acceptable answer; anything else is a real failure
+            assertTrue(
+                BigQueryErrorResponses.isRequestTooLargeError(e),
+                "Oversized request failed with an unexpected error: " + e.getMessage());
+            logger.info("Attempt {} was rejected with the 400 form; retrying", attempt);
+            return false;
+          }
+        },
+        5 * ONE_MINUTE,
+        ONE_SECOND,
+        () ->
+            exceptionTracker.report(
+                "BigQuery never answered an oversized request with an HTTP 413 after "
+                    + attempts.get()
+                    + " attempts."));
   }
 
   @Test
