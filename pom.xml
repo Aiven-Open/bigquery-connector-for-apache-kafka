@@ -123,7 +123,7 @@
     <compiler.plugin.version>3.8.1</compiler.plugin.version>
     <exec.plugin.version>3.2.0</exec.plugin.version>
     <google.cloud.bom.version>26.33.0</google.cloud.bom.version>
-    <surefire.plugin.version>3.5.3</surefire.plugin.version>
+    <surefire.plugin.vgersion>3.5.3</surefire.plugin.vgersion>
     <plugin.spotless>3.5.1</plugin.spotless>
 
     <site.plugin.version>3.21.0</site.plugin.version>
@@ -342,7 +342,7 @@
       <dependency>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-resources-plugin</artifactId>
-        <version>3.3.1</version>
+        <version>${resources.plugin.version}</version>
         <type>maven-plugin</type>
       </dependency>
       <dependency>
@@ -422,6 +422,11 @@
               <phase>compile</phase>
             </execution>
           </executions>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-resources-plugin</artifactId>
+          <version>3.3.1</version>
         </plugin>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
