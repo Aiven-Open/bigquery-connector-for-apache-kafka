@@ -102,7 +102,7 @@ jobs:
           git commit -m "Release version ${{ github.event.inputs.release_version }}"
           git tag -a "v${{ steps.project.outputs.version }}" -m "Release version ${{ steps.project.outputs.version }}"
 
-          mvn -e -B -V -ntp versions:set versions:update-child-modules -DgenerateBackupPoms=false -DnewVersion=${{ github.event.inputs.snapshot_version }} install
+          mvn -e -B -V -ntp versions:set versions:update-child-modules -DgenerateBackupPoms=false -DnewVersion=${{ github.event.inputs.snapshot_version }} -DskipITs=true install
           # there does not seem to be a cleaner way to set the parent version in the pom.
           sed -i s/${{ github.event.inputs.release_version }}/${{ github.event.inputs.snapshot_version }}/ docs/pom.xml
           # there does not seem to be a cleaner way to set the parent version in the pom.
