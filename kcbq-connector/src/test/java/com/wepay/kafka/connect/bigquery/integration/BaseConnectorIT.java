@@ -433,30 +433,6 @@ public abstract class BaseConnectorIT {
     return System.getenv().getOrDefault(var, defaultVal).trim();
   }
 
-  protected long scaledWait(long definedWaitTime) {
-    return Double.valueOf(definedWaitTime * waitFactor()).longValue();
-  }
-
-  protected double waitFactor() {
-    double load;
-    int nproc;
-    try {
-      load = Double.parseDouble(load());
-      nproc = Integer.parseInt(nproc());
-    } catch (NumberFormatException e) {
-      return 1.0;
-    }
-    return Math.max(load / nproc, 1.0);
-  }
-
-  protected String load() {
-    return readEnvVar("LOAD", "unknown");
-  }
-
-  protected String nproc() {
-    return readEnvVar("NPROC", "unknown");
-  }
-
   protected String keyFile() {
     if (GcpClientBuilder.KeySource.APPLICATION_DEFAULT.name().equalsIgnoreCase(keySource())) {
       // Key file is optional for most tests when using application default credentials
