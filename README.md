@@ -67,6 +67,38 @@ JSON-encoded values and writes their values to BigQuery:
   "keyfile": "/tmp/bigquery-credentials.json"
 }
 ```
+### Schema evolution
+
+If your Kafka records evolve over time (for example, new optional fields are added), consider enabling the following options:
+
+```json
+{
+  "allowNewBigQueryFields": "true",
+  "allowSchemaUnionization": "true",
+  "allowBigQueryRequiredFieldRelaxation": "true"
+}
+```
+
+These options allow the connector to:
+
+- add newly introduced fields to existing BigQuery tables;
+- reconcile incoming schemas with existing table schemas;
+- relax REQUIRED fields to NULLABLE where supported.
+
+Note that these settings do not resolve invalid Avro schemas. For example, fields defined as:
+
+```json
+{ "type": "null" }
+```
+
+are not supported by Kafka Connect's `AvroConverter`. Optional fields should instead use nullable union types, for example:
+
+```json
+{
+  "type": ["null", "string"],
+  "default": null
+}
+```
 
 ### Complete docs
 See the [configuration documentation](https://aiven-open.github.io/bigquery-connector-for-apache-kafka/configuration.html) for a list of the connector's
