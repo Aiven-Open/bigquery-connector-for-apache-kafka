@@ -30,6 +30,7 @@ import com.wepay.kafka.connect.bigquery.MergeQueries;
 import com.wepay.kafka.connect.bigquery.SchemaManager;
 import com.wepay.kafka.connect.bigquery.api.KafkaSchemaRecordType;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
+import com.wepay.kafka.connect.bigquery.convert.BigQuerySchemaConverter;
 import com.wepay.kafka.connect.bigquery.convert.RecordConverter;
 import com.wepay.kafka.connect.bigquery.write.batch.MergeBatches;
 import java.util.HashMap;
@@ -46,6 +47,12 @@ import org.slf4j.LoggerFactory;
  */
 public final class SinkRecordConverter {
   private static final Logger logger = LoggerFactory.getLogger(SinkRecordConverter.class);
+
+  public static final String CDC_CHANGE_TYPE_FIELD = "_CHANGE_TYPE";
+  public static final String CDC_CHANGE_SEQUENCE_NUMBER_FIELD = "_CHANGE_SEQUENCE_NUMBER";
+  public static final String CDC_CHANGE_TYPE_UPSERT = "UPSERT";
+  public static final String CDC_CHANGE_TYPE_DELETE = "DELETE";
+  public static final String DELETED_PSEUDO_COLUMN = BigQuerySchemaConverter.DELETED_PSEUDO_COLUMN;
 
   private final BigQuerySinkConfig config;
   private final MergeBatches mergeBatches;
@@ -189,7 +196,7 @@ public final class SinkRecordConverter {
    * @return the map of fields to values.
    */
   public Map<String, Object> getRegularRow(SinkRecord record, String writeAttemptId) {
-    logger.info(
+    logger.trace(
         "getRegularRow INPUT - Topic: {}, Offset: {}, Value: {}",
         record.topic(),
         record.kafkaOffset(),
@@ -220,7 +227,7 @@ public final class SinkRecordConverter {
               }
             });
 
-    logger.info(
+    logger.trace(
         "getRegularRow OUTPUT - Topic: {}, Offset: {}, Result Map: {}",
         record.topic(),
         record.kafkaOffset(),
@@ -233,7 +240,7 @@ public final class SinkRecordConverter {
   }
 
   public Map<String, Object> getCdcRow(SinkRecord record, String writeAttemptId) {
-    logger.info(
+    logger.trace(
         "getCdcRow INPUT - Topic: {}, Offset: {}, Key: {}, Value: {}",
         record.topic(),
         record.kafkaOffset(),
@@ -271,30 +278,32 @@ public final class SinkRecordConverter {
             });
 
     // 4. Set the CDC metadata columns
-    String changeType = "UPSERT";
+    String changeType = CDC_CHANGE_TYPE_UPSERT;
     if (record.value() == null) {
-      logger.info(
+      logger.debug(
           "Tombstone record (null value) detected for key {} at offset {}",
           record.key(),
           record.kafkaOffset());
-      changeType = "DELETE";
+      changeType = CDC_CHANGE_TYPE_DELETE;
     } else if (convertedValue != null) {
-      Object deletedVal = convertedValue.get("__deleted");
+      Object deletedVal = convertedValue.get(DELETED_PSEUDO_COLUMN);
       if (deletedVal instanceof Boolean && (Boolean) deletedVal) {
-        changeType = "DELETE";
+        changeType = CDC_CHANGE_TYPE_DELETE;
       } else if (deletedVal instanceof String && Boolean.parseBoolean((String) deletedVal)) {
-        changeType = "DELETE";
+        changeType = CDC_CHANGE_TYPE_DELETE;
       }
     }
-    result.put("_CHANGE_TYPE", changeType);
+    result.put(CDC_CHANGE_TYPE_FIELD, changeType);
     // Strip the transient __deleted metadata field to prevent BigQuery ingestion crashes due to
     // unknown fields.
-    result.remove("__deleted");
-    // For PR 1: Default Kafka Offset Sequencing (Zero-Padded to 20 digits for BigQuery
+    result.remove(DELETED_PSEUDO_COLUMN);
+    // For PR 1: Default Kafka Partition/Offset Composite Sequencing (%08X/%016X for BigQuery
     // Lexicographical Sorting)
-    result.put("_CHANGE_SEQUENCE_NUMBER", String.format("%016X", record.kafkaOffset()));
+    result.put(
+        CDC_CHANGE_SEQUENCE_NUMBER_FIELD,
+        String.format("%08X/%016X", record.kafkaPartition(), record.kafkaOffset()));
 
-    logger.info(
+    logger.trace(
         "getCdcRow OUTPUT - Topic: {}, Offset: {}, Result Map: {}",
         record.topic(),
         record.kafkaOffset(),
@@ -308,7 +317,7 @@ public final class SinkRecordConverter {
   public boolean isCdcEnabled() {
     boolean enabled =
         config.getBoolean(config.USE_STORAGE_WRITE_API_CONFIG) && config.isUpsertDeleteEnabled();
-    logger.info(
+    logger.trace(
         "isCdcEnabled check - USE_STORAGE_WRITE_API: {}, isUpsertDeleteEnabled: {}, Result: {}",
         config.getBoolean(config.USE_STORAGE_WRITE_API_CONFIG),
         config.isUpsertDeleteEnabled(),

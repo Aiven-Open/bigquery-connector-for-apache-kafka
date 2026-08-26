@@ -417,4 +417,25 @@ public class BigQuerySinkConfigTest {
             BigQuerySinkConfig.GCS_BUCKET_NAME_CONFIG,
             "keyfile");
   }
+
+  @Test
+  void testValidTableMaxStaleness() {
+    Map<String, String> configProperties = propertiesFactory.getProperties();
+    configProperties.put(BigQuerySinkConfig.TABLE_MAX_STALENESS_CONFIG, "30");
+
+    BigQuerySinkConfig config = new BigQuerySinkConfig(configProperties);
+    assertEquals(Optional.of(30), config.getTableMaxStaleness());
+
+    configProperties.put(BigQuerySinkConfig.TABLE_MAX_STALENESS_CONFIG, "0");
+    config = new BigQuerySinkConfig(configProperties);
+    assertEquals(Optional.of(0), config.getTableMaxStaleness());
+  }
+
+  @Test
+  void testInvalidNegativeTableMaxStaleness() {
+    Map<String, String> configProperties = propertiesFactory.getProperties();
+    configProperties.put(BigQuerySinkConfig.TABLE_MAX_STALENESS_CONFIG, "-1");
+
+    assertThrows(ConfigException.class, () -> new BigQuerySinkConfig(configProperties));
+  }
 }

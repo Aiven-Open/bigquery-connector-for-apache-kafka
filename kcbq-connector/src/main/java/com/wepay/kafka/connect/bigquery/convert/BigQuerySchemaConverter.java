@@ -51,6 +51,9 @@ public class BigQuerySchemaConverter implements SchemaConverter<com.google.cloud
   /** The name of the field that contains values keys from a converted Kafka Connect map. */
   public static final String MAP_VALUE_FIELD_NAME = "value";
 
+  /** The name of the Debezium pseudo column representing whether a row is deleted. */
+  public static final String DELETED_PSEUDO_COLUMN = "__deleted";
+
   private static final Map<Schema.Type, LegacySQLTypeName> PRIMITIVE_TYPE_MAP;
 
   static {
@@ -113,7 +116,7 @@ public class BigQuerySchemaConverter implements SchemaConverter<com.google.cloud
 
     List<com.google.cloud.bigquery.Field> fields =
         kafkaConnectSchema.fields().stream()
-            .filter(kafkaConnectField -> !kafkaConnectField.name().equals("__deleted"))
+            .filter(kafkaConnectField -> !DELETED_PSEUDO_COLUMN.equals(kafkaConnectField.name()))
             .flatMap(
                 kafkaConnectField ->
                     convertField(kafkaConnectField.schema(), kafkaConnectField.name())
@@ -214,7 +217,7 @@ public class BigQuerySchemaConverter implements SchemaConverter<com.google.cloud
       Schema kafkaConnectSchema, String fieldName) {
     List<com.google.cloud.bigquery.Field> bigQueryRecordFields =
         kafkaConnectSchema.fields().stream()
-            .filter(kafkaConnectField -> !kafkaConnectField.name().equals("__deleted"))
+            .filter(kafkaConnectField -> !DELETED_PSEUDO_COLUMN.equals(kafkaConnectField.name()))
             .flatMap(
                 kafkaConnectField ->
                     convertField(kafkaConnectField.schema(), kafkaConnectField.name())

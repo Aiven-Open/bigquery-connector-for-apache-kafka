@@ -431,39 +431,4 @@ public class StorageWriteApiCdcBigQuerySinkConnectorIT extends BaseConnectorIT {
 
     return new String(converter.fromConnectData(topic, schema, struct));
   }
-
-  @Test
-  public void testPrintStreamSchema() throws Exception {
-    String tableName = sanitizedTable(suffixedTableOrTopic("test-storage-write-api-cdc"));
-    com.google.cloud.bigquery.Table table = bigQuery.getTable(TableId.of(dataset(), tableName));
-    if (table != null) {
-      System.out.println("TABLE SCHEMA: " + table.getDefinition().getSchema());
-      System.out.println("TABLE DEFINITION: " + table.getDefinition());
-    } else {
-      System.out.println("TABLE DOES NOT EXIST");
-      return;
-    }
-
-    String streamName = "projects/" + project() + "/datasets/" + dataset() + "/tables/" + tableName;
-    com.google.cloud.bigquery.storage.v1.BigQueryWriteSettings settings =
-        new com.wepay.kafka.connect.bigquery.GcpClientBuilder.BigQueryWriteSettingsBuilder()
-            .withKey(keyFile())
-            .withKeySource(
-                com.wepay.kafka.connect.bigquery.GcpClientBuilder.KeySource.valueOf(keySource()))
-            .withProject(project())
-            .withWriterApi(true)
-            .build();
-    try (com.google.cloud.bigquery.storage.v1.BigQueryWriteClient client =
-        com.google.cloud.bigquery.storage.v1.BigQueryWriteClient.create(settings)) {
-      com.google.cloud.bigquery.storage.v1.WriteStream writeStream =
-          client.getWriteStream(
-              com.google.cloud.bigquery.storage.v1.GetWriteStreamRequest.newBuilder()
-                  .setName(streamName + "/streams/_default")
-                  .build());
-      System.out.println("STREAM: " + writeStream);
-      System.out.println("STREAM FIELDS COUNT: " + writeStream.getTableSchema().getFieldsCount());
-      logger.info("STREAM: " + writeStream);
-      logger.info("STREAM FIELDS COUNT: " + writeStream.getTableSchema().getFieldsCount());
-    }
-  }
 }
