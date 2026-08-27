@@ -71,7 +71,7 @@ public class ApplicationStream {
   private StreamState currentState = null;
   private WriteStream stream = null;
   private JsonStreamWriter jsonWriter = null;
-  private List<String> committableStreams;
+  private final List<String> committableStreams;
 
   public ApplicationStream(
       String tableName, BigQueryWriteClient client, JsonStreamWriterFactory jsonWriterFactory)
