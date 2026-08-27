@@ -30,13 +30,22 @@ import com.google.cloud.bigquery.StandardTableDefinition;
 import com.google.cloud.bigquery.TableId;
 import com.google.cloud.bigquery.TableInfo;
 import com.google.cloud.bigquery.TimePartitioning;
+import com.google.cloud.bigquery.storage.v1.TableName;
+import com.wepay.kafka.connect.bigquery.utils.TableNameUtils;
+import org.awaitility.Awaitility;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.time.Duration;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.fail;
 
 public class BigQueryTestUtils {
 
   private static final Logger logger = LoggerFactory.getLogger(BigQueryTestUtils.class);
 
+  @Deprecated
   public static void createPartitionedTable(
       BigQuery bigQuery, String datasetName, String tableName, Schema schema) {
     try {
@@ -54,9 +63,44 @@ public class BigQueryTestUtils {
 
       bigQuery.create(tableInfo);
       logger.info("Partitioned table {} created successfully", tableName);
+      Awaitility.await().atMost(Duration.ofSeconds(30)).untilAsserted(() -> assertThat(bigQuery.getTable(tableId)).isNotNull());
     } catch (BigQueryException e) {
       logger.error("Failed to create partitioned table {} in dataset {}", tableName, datasetName);
       throw e;
     }
   }
+
+  public static void createPartitionedTable(
+          BigQuery bigQuery, TableName tableName, Schema schema) {
+    try {
+      TableId tableId = TableNameUtils.tableId(tableName);
+
+      TimePartitioning partitioning =
+              TimePartitioning.newBuilder(TimePartitioning.Type.DAY).build();
+
+      StandardTableDefinition tableDefinition =
+              StandardTableDefinition.newBuilder()
+                      .setSchema(schema)
+                      .setTimePartitioning(partitioning)
+                      .build();
+      TableInfo tableInfo = TableInfo.newBuilder(tableId, tableDefinition).build();
+
+      bigQuery.create(tableInfo);
+      logger.info("Partitioned table {} created successfully", tableName);
+      Awaitility.await().atMost(Duration.ofSeconds(30)).untilAsserted(() -> assertThat(bigQuery.getTable(tableId)).isNotNull());
+    } catch (BigQueryException e) {
+      fail("Failed to create partitioned table {}", tableName, e);
+    }
+  }
+  /*
+   TableName tableName = tableName();
+    try {
+      BigQueryTestUtils.createPartitionedTable(bigQuery, tableName.getDataset(), tableName.getTable(), null);
+      Awaitility.await().atMost(Duration.ofSeconds(30)).untilAsserted(() -> assertThat(bigQuery.getTable(TableNameUtils.tableId(tableName))).isNotNull());
+    } catch (BigQueryException ex) {
+      if (ex.getError() != null && !ex.getError().getReason().equalsIgnoreCase("duplicate")) {
+        fail("Failed to create table " + tableName.getTable(), ex);
+      } else { logger.info("Table {} already exist", tableName.getTable()); }
+    }
+   */
 }
