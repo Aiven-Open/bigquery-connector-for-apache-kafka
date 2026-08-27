@@ -47,7 +47,9 @@ import com.google.cloud.bigquery.FieldValueList;
 import com.google.cloud.bigquery.QueryJobConfiguration;
 import com.google.cloud.bigquery.Schema;
 import com.google.cloud.bigquery.Table;
+import com.google.cloud.bigquery.TableId;
 import com.google.cloud.bigquery.TableResult;
+import com.google.cloud.bigquery.storage.v1.TableName;
 import com.wepay.kafka.connect.bigquery.GcpClientBuilder;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.integration.utils.TestCaseLogger;
@@ -71,6 +73,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
+
+import de.huxhorn.sulky.ulid.ULID;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
@@ -82,7 +86,9 @@ import org.apache.kafka.connect.runtime.rest.entities.ConnectorStateInfo;
 import org.apache.kafka.connect.util.clusters.EmbeddedConnectCluster;
 import org.apache.kafka.server.config.ServerConfigs;
 import org.apache.kafka.test.NoRetryException;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -105,6 +111,14 @@ public abstract class BaseConnectorIT {
   protected static final long ONE_MINUTE = 60_000L;
   protected static final long ONE_SECOND = 1_000L;
 
+  /** ULID for naming resolution */
+  private final ULID ulid = new ULID();
+  /** The default suffixes for this instance */
+  private final String defaultSuffix = ulid.nextULID();
+  /** THe test info for thcurrently executed tests. */
+  private TestInfo testInfo;
+
+  /** The mbedded clsuster for running Kafka connect */
   protected EmbeddedConnectCluster connect;
 
   /** The status message if there are any issues with the connector status check */
@@ -112,6 +126,11 @@ public abstract class BaseConnectorIT {
 
   private Admin kafkaAdminClient;
 
+  /**
+   * Converts byte[] to Byte[]
+   * @param bytes the bytes for the array.
+   * @return a Byte[] that contains the bytes from {@code bytes}
+   */
   protected static List<Byte> boxByteArray(byte[] bytes) {
     Byte[] result = new Byte[bytes.length];
     for (int i = 0; i < bytes.length; i++) {
@@ -120,6 +139,43 @@ public abstract class BaseConnectorIT {
     return Arrays.asList(result);
   }
 
+  @BeforeEach
+  void BaseConnectorSetup(TestInfo testInfo) {
+    this.testInfo = testInfo;
+  }
+
+  /**
+   * Gets the topic name for the test.
+   * @return the topic name for the test.
+   */
+  protected final String topicName() {
+    final String[] names = new String[3] ;
+    testInfo.getTestClass().ifPresent( c -> names[0] = c.getSimpleName());
+    testInfo.getTestMethod().ifPresent( m -> names[1] = m.getName());
+    names[2] = tableSuffix();
+    return String.join("_",names);
+  }
+
+  /**
+   * Gets the table name for the test.
+   * @return the table name for the test.
+   */
+  protected final TableName tableName() {
+    return TableName.of(project(), dataset(), FieldNameSanitizer.sanitizeName(topicName()));
+  }
+
+  /**
+   * Convenience method to delete the table from bigquery.
+   * @param bigQuery The big query instance to delete from.
+   * @param tableName the table name  to delete.
+   */
+  protected final void delete(BigQuery bigQuery, TableName tableName) {
+    bigQuery.delete(TableId.of(tableName.getDataset(), tableName.getProject(), tableName.getTable()));
+  }
+
+  /**
+   * Starts the embedded connect cluster.
+   */
   protected void startConnect() {
     Map<String, String> workerProps = new HashMap<>();
     workerProps.put(
@@ -144,12 +200,12 @@ public abstract class BaseConnectorIT {
     connect.start();
 
     kafkaAdminClient = connect.kafka().createAdminClient();
-
-    // the exception handler installed by the embedded zookeeper instance is noisy and unnecessary
-    Thread.setDefaultUncaughtExceptionHandler((t, e) -> {});
   }
 
-  protected void stopConnect() {
+  /**
+   * Stops the embedded connect cluster.
+   */
+  protected final void stopConnect() {
     if (kafkaAdminClient != null) {
       Utils.closeQuietly(kafkaAdminClient, "admin client for embedded Kafka cluster");
       kafkaAdminClient = null;
@@ -178,6 +234,11 @@ public abstract class BaseConnectorIT {
     return result;
   }
 
+  /**
+   * Creates a new BigQuery instance.
+   * Uses the credentials and options from the environment variables.
+   * @return a new BigQuery instance.
+   */
   protected BigQuery newBigQuery() {
     try {
       return new GcpClientBuilder.BigQueryBuilder()
@@ -464,6 +525,6 @@ public abstract class BaseConnectorIT {
   }
 
   protected String tableSuffix() {
-    return readEnvVar(TEST_NAMESPACE_ENV_VAR, "");
+    return readEnvVar(TEST_NAMESPACE_ENV_VAR, defaultSuffix);
   }
 }
