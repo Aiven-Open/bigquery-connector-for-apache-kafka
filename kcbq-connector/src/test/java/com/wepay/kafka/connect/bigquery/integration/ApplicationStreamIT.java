@@ -24,6 +24,7 @@
 package com.wepay.kafka.connect.bigquery.integration;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Fail.fail;
 
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.BigQueryException;
@@ -38,8 +39,9 @@ import com.wepay.kafka.connect.bigquery.utils.TableNameUtils;
 import com.wepay.kafka.connect.bigquery.write.storage.ApplicationStream;
 import com.wepay.kafka.connect.bigquery.write.storage.JsonStreamWriterFactory;
 import com.wepay.kafka.connect.bigquery.write.storage.StreamState;
-import java.util.concurrent.TimeUnit;
-import org.apache.kafka.connect.errors.ConnectException;
+
+import java.time.Duration;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -49,24 +51,21 @@ import org.slf4j.LoggerFactory;
 class ApplicationStreamIT extends BaseConnectorIT {
   private static final Logger logger = LoggerFactory.getLogger(ApplicationStreamIT.class);
   private BigQueryWriteClient client;
-  private BigQueryWriteSettings writeSettings;
-  private JsonStreamWriterFactory jsonWriterFactory;
-  private BigQuery bigQuery;
+    private BigQuery bigQuery;
   private ApplicationStream underTest;
 
   @BeforeEach
   void setup() throws Exception {
     bigQuery = newBigQuery();
     createTable();
-    writeSettings =
-        new GcpClientBuilder.BigQueryWriteSettingsBuilder()
-            .withProject(project())
-            .withKeySource(GcpClientBuilder.KeySource.valueOf(keySource()))
-            .withKey(keyFile())
-            .withWriterApi(true)
-            .build();
+      BigQueryWriteSettings writeSettings = new GcpClientBuilder.BigQueryWriteSettingsBuilder()
+              .withProject(project())
+              .withKeySource(GcpClientBuilder.KeySource.valueOf(keySource()))
+              .withKey(keyFile())
+              .withWriterApi(true)
+              .build();
     client = BigQueryWriteClient.create(writeSettings);
-    jsonWriterFactory = getJsonWriterFactory();
+      JsonStreamWriterFactory jsonWriterFactory = getJsonWriterFactory();
     underTest =  new ApplicationStream(tableName().toString(), client, jsonWriterFactory);
   }
 
@@ -79,27 +78,27 @@ class ApplicationStreamIT extends BaseConnectorIT {
 
 
   @Test
-  void testStreamCreation() throws Exception {
+  void testStreamCreation() {
     assertThat(underTest.getCurrentState()).isEqualTo(StreamState.CREATED);
     assertThat(underTest.writer()).isNotNull();
     underTest.closeStream();
   }
 
   @Test
-  void testStreamClose() throws Exception {
+  void testStreamClose() {
     String streamName = underTest.writer().getStreamName();
     underTest.closeStream();
     assertThat(underTest.writer().getStreamName()).isNotEqualTo(streamName);
   }
 
   @Test
-  void testApplicationStreamName() throws Exception {
+  void testApplicationStreamName() {
     assertThat(underTest.getStreamName()).contains("streams");
     underTest.closeStream();
   }
 
   @Test
-  void testMaxCallCount() throws Exception {
+  void testMaxCallCount() {
     assertThat(underTest.getCurrentState()).isEqualTo(StreamState.CREATED);
     int maxCount = underTest.increaseMaxCalls();
     assertThat(underTest.getCurrentState()).isEqualTo(StreamState.APPEND);
@@ -108,7 +107,7 @@ class ApplicationStreamIT extends BaseConnectorIT {
   }
 
   @Test
-  void testCanBeMovedToNonActive() throws Exception {
+  void testCanBeMovedToNonActive() {
     assertThat(underTest.canTransitionToNonActive()).isFalse();
     underTest.increaseMaxCalls();
     assertThat(underTest.canTransitionToNonActive()).isTrue();
@@ -116,7 +115,7 @@ class ApplicationStreamIT extends BaseConnectorIT {
   }
 
   @Test
-  void testResetWriter() throws Exception {
+  void testResetWriter() {
     JsonStreamWriter writer = underTest.writer();
     underTest.closeStream();
     JsonStreamWriter updatedWriter = underTest.writer();
@@ -125,7 +124,7 @@ class ApplicationStreamIT extends BaseConnectorIT {
   }
 
   @Test
-  void testStreamFinalised() throws Exception {
+  void testStreamFinalised() {
     underTest.increaseMaxCalls();
     underTest.closeStream();
     underTest.writer();
@@ -136,7 +135,7 @@ class ApplicationStreamIT extends BaseConnectorIT {
   }
 
   @Test
-  void testStreamCommitted() throws Exception {
+  void testStreamCommitted() {
     underTest.increaseMaxCalls();
     underTest.closeStream();
     underTest.writer();
@@ -147,20 +146,15 @@ class ApplicationStreamIT extends BaseConnectorIT {
     underTest.closeStream();
   }
 
-  private void createTable() throws InterruptedException {
+  private void createTable() {
     TableName tableName = tableName();
     try {
       BigQueryTestUtils.createPartitionedTable(bigQuery, tableName.getDataset(), tableName.getTable(), null);
-      int attempts = 10;
-      while (bigQuery.getTable(TableNameUtils.tableId(tableName)) == null && attempts > 0) {
-        logger.debug("Busy waiting for table {} to appear! Attempt {}", tableName.getTable(), (10 - attempts));
-        Thread.sleep(TimeUnit.SECONDS.toMillis(30));
-        attempts--;
-      }
+      Awaitility.await().atMost(Duration.ofSeconds(30)).untilAsserted(() -> assertThat(bigQuery.getTable(TableNameUtils.tableId(tableName))).isNotNull());
     } catch (BigQueryException ex) {
       if (ex.getError() != null && !ex.getError().getReason().equalsIgnoreCase("duplicate")) {
-        throw new ConnectException("Failed to create table " + tableName.getTable(), ex);
-      } else logger.info("Table {} already exist", tableName.getTable());
+        fail("Failed to create table " + tableName.getTable(), ex);
+      } else { logger.info("Table {} already exist", tableName.getTable()); }
     }
   }
 

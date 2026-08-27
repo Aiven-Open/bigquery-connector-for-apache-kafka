@@ -115,10 +115,10 @@ public abstract class BaseConnectorIT {
   private final ULID ulid = new ULID();
   /** The default suffixes for this instance */
   private final String defaultSuffix = ulid.nextULID();
-  /** THe test info for thcurrently executed tests. */
+  /** THe test info for currently executed tests. */
   private TestInfo testInfo;
 
-  /** The mbedded clsuster for running Kafka connect */
+  /** The mbedded cluster for running Kafka connect */
   protected EmbeddedConnectCluster connect;
 
   /** The status message if there are any issues with the connector status check */
@@ -151,6 +151,7 @@ public abstract class BaseConnectorIT {
   protected final String topicName() {
     final String[] names = new String[3] ;
     testInfo.getTestClass().ifPresent( c -> names[0] = c.getSimpleName());
+    names[1] = testInfo.getDisplayName().replaceAll("\\(\\)", "");
     testInfo.getTestMethod().ifPresent( m -> names[1] = m.getName());
     names[2] = tableSuffix();
     return String.join("_",names);
@@ -320,17 +321,43 @@ public abstract class BaseConnectorIT {
    * @param sortColumn a column to sort rows by (can use dot notation to refer to nested fields)
    * @return a list of all rows from the table, in random order.
    */
+  @Deprecated
   protected List<List<Object>> readAllRows(BigQuery bigQuery, String tableName, String sortColumn)
+          throws InterruptedException {
+
+    final Table table = bigQuery.getTable(dataset(), tableName);
+    final Schema schema = table.getDefinition().getSchema();
+
+    TableResult tableResult =
+            bigQuery.query(
+                    QueryJobConfiguration.of(
+                            String.format(
+                                    "SELECT * FROM `%s`.`%s` ORDER BY %s ASC", dataset(), tableName, sortColumn)));
+
+    return StreamSupport.stream(tableResult.iterateAll().spliterator(), false)
+            .map(fieldValues -> convertRow(schema.getFields(), fieldValues))
+            .collect(Collectors.toList());
+  }
+
+  /**
+   * Read all rows from the given table.
+   *
+   * @param bigQuery used to connect to BigQuery
+   * @param tableName the table to read
+   * @param sortColumn a column to sort rows by (can use dot notation to refer to nested fields)
+   * @return a list of all rows from the table, in random order.
+   */
+  protected final List<List<Object>> readAllRows(final BigQuery bigQuery, final TableName tableName, final String sortColumn)
       throws InterruptedException {
 
-    Table table = bigQuery.getTable(dataset(), tableName);
-    Schema schema = table.getDefinition().getSchema();
+    final Table table = bigQuery.getTable(tableName.getDataset(), tableName.getTable());
+    final Schema schema = table.getDefinition().getSchema();
 
     TableResult tableResult =
         bigQuery.query(
             QueryJobConfiguration.of(
                 String.format(
-                    "SELECT * FROM `%s`.`%s` ORDER BY %s ASC", dataset(), tableName, sortColumn)));
+                    "SELECT * FROM `%s`.`%s` ORDER BY %s ASC", tableName.getDataset(), tableName.getTable(), sortColumn)));
 
     return StreamSupport.stream(tableResult.iterateAll().spliterator(), false)
         .map(fieldValues -> convertRow(schema.getFields(), fieldValues))
@@ -404,7 +431,7 @@ public abstract class BaseConnectorIT {
     }
   }
 
-  private List<Object> convertRow(List<Field> rowSchema, List<FieldValue> row) {
+  private List<Object> convertRow(final List<Field> rowSchema, final List<FieldValue> row) {
     List<Object> result = new ArrayList<>();
     assert (rowSchema.size() == row.size());
 
@@ -468,14 +495,17 @@ public abstract class BaseConnectorIT {
     }
   }
 
+  @Deprecated
   protected String suffixedTableOrTopic(String tableOrTopic) {
     return tableOrTopic + tableSuffix();
   }
 
+  @Deprecated
   protected String sanitizedTable(String table) {
     return FieldNameSanitizer.sanitizeName(table);
   }
 
+  @Deprecated
   protected String suffixedAndSanitizedTable(String table) {
     return sanitizedTable(suffixedTableOrTopic(table));
   }
