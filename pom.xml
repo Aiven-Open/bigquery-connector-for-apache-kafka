@@ -101,6 +101,7 @@
     <java.version>17</java.version>
     <aiven.commons.util.version>0.2.0</aiven.commons.util.version>
     <aiven.kafka.config.version>0.2.0</aiven.kafka.config.version>
+    <awaitility.version>4.2.1</awaitility.version>
     <com.google.guava.version>32.0.1-jre</com.google.guava.version>
     <com.google.re2j.version>1.7</com.google.re2j.version>
     <com.google.auto.value.version>1.10.2</com.google.auto.value.version>
@@ -357,6 +358,12 @@
         <groupId>org.assertj</groupId>
         <artifactId>assertj-core</artifactId>
         <version>${assertj.version}</version>
+        <scope>test</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.awaitility</groupId>
+        <artifactId>awaitility</artifactId>
+        <version>${awaitility.version}</version>
         <scope>test</scope>
       </dependency>
     </dependencies>

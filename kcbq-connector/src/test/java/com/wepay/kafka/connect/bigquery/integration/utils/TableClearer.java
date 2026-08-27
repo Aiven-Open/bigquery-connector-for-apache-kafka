@@ -44,6 +44,7 @@ public class TableClearer {
    * @param dataset The dataset that the to-be-cleared tables belong to.
    * @param tables The tables to clear.
    */
+  @Deprecated
   public static void clearTables(BigQuery bigQuery, String dataset, Collection<String> tables) {
     for (String tableName : tables) {
       TableId table = TableId.of(dataset, FieldNameSanitizer.sanitizeName(tableName));
@@ -63,6 +64,7 @@ public class TableClearer {
    * @param dataset The dataset that the to-be-cleared tables belong to.
    * @param tables The tables to clear.
    */
+  @Deprecated
   public static void clearTables(BigQuery bigQuery, String dataset, String... tables) {
     clearTables(bigQuery, dataset, Arrays.asList(tables));
   }
