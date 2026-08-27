@@ -57,7 +57,7 @@ class ApplicationStreamIT extends BaseConnectorIT {
   @BeforeEach
   void setup() throws Exception {
     bigQuery = newBigQuery();
-    createTable();
+    BigQueryTestUtils.createPartitionedTable(bigQuery, tableName(), null);
       BigQueryWriteSettings writeSettings = new GcpClientBuilder.BigQueryWriteSettingsBuilder()
               .withProject(project())
               .withKeySource(GcpClientBuilder.KeySource.valueOf(keySource()))
@@ -146,17 +146,17 @@ class ApplicationStreamIT extends BaseConnectorIT {
     underTest.closeStream();
   }
 
-  private void createTable() {
-    TableName tableName = tableName();
-    try {
-      BigQueryTestUtils.createPartitionedTable(bigQuery, tableName.getDataset(), tableName.getTable(), null);
-      Awaitility.await().atMost(Duration.ofSeconds(30)).untilAsserted(() -> assertThat(bigQuery.getTable(TableNameUtils.tableId(tableName))).isNotNull());
-    } catch (BigQueryException ex) {
-      if (ex.getError() != null && !ex.getError().getReason().equalsIgnoreCase("duplicate")) {
-        fail("Failed to create table " + tableName.getTable(), ex);
-      } else { logger.info("Table {} already exist", tableName.getTable()); }
-    }
-  }
+//  private void createTable() {
+//    TableName tableName = tableName();
+//    try {
+//      BigQueryTestUtils.createPartitionedTable(bigQuery, tableName.getDataset(), tableName.getTable(), null);
+//      Awaitility.await().atMost(Duration.ofSeconds(30)).untilAsserted(() -> assertThat(bigQuery.getTable(TableNameUtils.tableId(tableName))).isNotNull());
+//    } catch (BigQueryException ex) {
+//      if (ex.getError() != null && !ex.getError().getReason().equalsIgnoreCase("duplicate")) {
+//        fail("Failed to create table " + tableName.getTable(), ex);
+//      } else { logger.info("Table {} already exist", tableName.getTable()); }
+//    }
+//  }
 
   private JsonStreamWriterFactory getJsonWriterFactory() {
     return streamOrTableName -> JsonStreamWriter.newBuilder(streamOrTableName, client).build();

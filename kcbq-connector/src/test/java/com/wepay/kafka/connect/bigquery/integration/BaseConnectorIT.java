@@ -121,10 +121,12 @@ public abstract class BaseConnectorIT {
   /** The mbedded cluster for running Kafka connect */
   protected EmbeddedConnectCluster connect;
 
+  private Admin kafkaAdminClient;
+
+
   /** The status message if there are any issues with the connector status check */
   protected String connectorStatus;
 
-  private Admin kafkaAdminClient;
 
   /**
    * Converts byte[] to Byte[]
