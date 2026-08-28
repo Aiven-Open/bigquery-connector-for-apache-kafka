@@ -92,15 +92,17 @@ public class BigQueryTestUtils {
       fail("Failed to create partitioned table {}", tableName, e);
     }
   }
-  /*
-   TableName tableName = tableName();
+
+  public static void createStandardTable(
+          BigQuery bigQuery, TableName tableName, Schema schema) {
     try {
-      BigQueryTestUtils.createPartitionedTable(bigQuery, tableName.getDataset(), tableName.getTable(), null);
-      Awaitility.await().atMost(Duration.ofSeconds(30)).untilAsserted(() -> assertThat(bigQuery.getTable(TableNameUtils.tableId(tableName))).isNotNull());
-    } catch (BigQueryException ex) {
-      if (ex.getError() != null && !ex.getError().getReason().equalsIgnoreCase("duplicate")) {
-        fail("Failed to create table " + tableName.getTable(), ex);
-      } else { logger.info("Table {} already exist", tableName.getTable()); }
+      // Create the table...
+      TableId tableId = TableNameUtils.tableId(tableName);
+      bigQuery.create(TableInfo.newBuilder(tableId, StandardTableDefinition.of(schema)).build());
+      logger.info("Standard table {} created successfully", tableName);
+      Awaitility.await().atMost(Duration.ofSeconds(30)).untilAsserted(() -> assertThat(bigQuery.getTable(tableId)).isNotNull());
+    } catch (BigQueryException e) {
+      fail("Failed to create standard table {}", tableName, e);
     }
-   */
+  }
 }

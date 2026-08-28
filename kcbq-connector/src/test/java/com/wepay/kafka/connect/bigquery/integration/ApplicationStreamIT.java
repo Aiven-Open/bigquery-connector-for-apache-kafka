@@ -24,24 +24,17 @@
 package com.wepay.kafka.connect.bigquery.integration;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Fail.fail;
 
 import com.google.cloud.bigquery.BigQuery;
-import com.google.cloud.bigquery.BigQueryException;
-import com.google.cloud.bigquery.TableId;
 import com.google.cloud.bigquery.storage.v1.BigQueryWriteClient;
 import com.google.cloud.bigquery.storage.v1.BigQueryWriteSettings;
 import com.google.cloud.bigquery.storage.v1.JsonStreamWriter;
-import com.google.cloud.bigquery.storage.v1.TableName;
 import com.wepay.kafka.connect.bigquery.GcpClientBuilder;
 import com.wepay.kafka.connect.bigquery.integration.utils.BigQueryTestUtils;
-import com.wepay.kafka.connect.bigquery.utils.TableNameUtils;
 import com.wepay.kafka.connect.bigquery.write.storage.ApplicationStream;
 import com.wepay.kafka.connect.bigquery.write.storage.JsonStreamWriterFactory;
 import com.wepay.kafka.connect.bigquery.write.storage.StreamState;
 
-import java.time.Duration;
-import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -49,7 +42,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 class ApplicationStreamIT extends BaseConnectorIT {
-  private static final Logger logger = LoggerFactory.getLogger(ApplicationStreamIT.class);
   private BigQueryWriteClient client;
     private BigQuery bigQuery;
   private ApplicationStream underTest;
@@ -72,8 +64,7 @@ class ApplicationStreamIT extends BaseConnectorIT {
   @AfterEach
   void teardown() {
     underTest.closeStream();
-    TableName tableName = tableName();
-    bigQuery.delete(TableId.of(tableName.getDataset(), tableName.getProject(), tableName.getTable()));
+    delete(bigQuery, tableName());
   }
 
 
@@ -145,18 +136,6 @@ class ApplicationStreamIT extends BaseConnectorIT {
     assertThat(underTest.getCurrentState()).isEqualTo(StreamState.COMMITTED);
     underTest.closeStream();
   }
-
-//  private void createTable() {
-//    TableName tableName = tableName();
-//    try {
-//      BigQueryTestUtils.createPartitionedTable(bigQuery, tableName.getDataset(), tableName.getTable(), null);
-//      Awaitility.await().atMost(Duration.ofSeconds(30)).untilAsserted(() -> assertThat(bigQuery.getTable(TableNameUtils.tableId(tableName))).isNotNull());
-//    } catch (BigQueryException ex) {
-//      if (ex.getError() != null && !ex.getError().getReason().equalsIgnoreCase("duplicate")) {
-//        fail("Failed to create table " + tableName.getTable(), ex);
-//      } else { logger.info("Table {} already exist", tableName.getTable()); }
-//    }
-//  }
 
   private JsonStreamWriterFactory getJsonWriterFactory() {
     return streamOrTableName -> JsonStreamWriter.newBuilder(streamOrTableName, client).build();

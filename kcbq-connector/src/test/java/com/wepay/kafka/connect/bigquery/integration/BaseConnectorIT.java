@@ -74,6 +74,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import com.wepay.kafka.connect.bigquery.utils.TableNameUtils;
 import de.huxhorn.sulky.ulid.ULID;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.admin.Admin;
@@ -173,7 +174,13 @@ public abstract class BaseConnectorIT {
    * @param tableName the table name  to delete.
    */
   protected final void delete(BigQuery bigQuery, TableName tableName) {
-    bigQuery.delete(TableId.of(tableName.getDataset(), tableName.getProject(), tableName.getTable()));
+    bigQuery.delete(tableId(tableName));
+  }
+
+  /** @deprecated use {@link com.wepay.kafka.connect.bigquery.utils.TableNameUtils#tableId(TableName)} */
+  @Deprecated
+  protected final TableId  tableId(TableName tableName) {
+    return TableNameUtils.tableId(tableName);
   }
 
   /**
