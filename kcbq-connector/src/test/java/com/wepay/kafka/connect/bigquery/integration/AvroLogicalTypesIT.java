@@ -137,14 +137,10 @@ class AvroLogicalTypesIT extends BaseConnectorIT {
 
   @Test
   void testAvroLogicalTypesLandWithCorrectBigQueryTypes() throws Exception {
-//    final String topic = topicName();//suffixedTableOrTopic("avro-logical-types");
-//    final String table = tableName().getTable();//sanitizedTable(topic);
 
     final String topic = topicName();
-    //final String table = tableName().getTable();
 
     connect.kafka().createTopic(topic, TASKS_MAX);
-    //TableClearer.clearTables(bigQuery, dataset(), table);
 
     connect.configureConnector(CONNECTOR_NAME, connectorProps(topic));
     waitForConnectorToStart(CONNECTOR_NAME, TASKS_MAX);
@@ -154,9 +150,6 @@ class AvroLogicalTypesIT extends BaseConnectorIT {
     waitForCommittedRecords(
         CONNECTOR_NAME, Collections.singleton(topic), 1, TASKS_MAX, COMMIT_MAX_DURATION_MS);
 
-    // Verify BigQuery column types — the core assertion:
-    // before this change these would all be INTEGER (plain INT64 fallback)
-    //Schema bqSchema = getBigQuerySchema(table);
     Schema bqSchema = getBigQuerySchema(tableName());
     assertFieldType(bqSchema, "ts_micros", LegacySQLTypeName.TIMESTAMP);
     assertFieldType(bqSchema, "ts_nanos", LegacySQLTypeName.TIMESTAMP);
