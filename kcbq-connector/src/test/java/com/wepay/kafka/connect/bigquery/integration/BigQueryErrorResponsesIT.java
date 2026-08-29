@@ -104,7 +104,7 @@ public class BigQueryErrorResponsesIT extends BaseConnectorIT {
     // Make sure that it exists...
     TestUtils.waitForCondition(
         () -> bigQuery.getTable(table) != null,
-        ONE_MINUTE,
+        scaleTime(ONE_MINUTE),
         "Table does not appear to exist one minute after issuing create request");
     logger.info("Created {} successfully", table(table));
 
@@ -114,7 +114,7 @@ public class BigQueryErrorResponsesIT extends BaseConnectorIT {
     // Make sure that it's deleted
     TestUtils.waitForCondition(
         () -> bigQuery.getTable(table) == null,
-        ONE_MINUTE,
+        scaleTime(ONE_MINUTE),
         "Table still appears to exist  one minute after issuing delete request");
     logger.info("Deleted {} successfully", table(table));
 
@@ -136,7 +136,7 @@ public class BigQueryErrorResponsesIT extends BaseConnectorIT {
             return false;
           }
         },
-        ONE_MINUTE,
+        scaleTime(ONE_MINUTE),
         exceptionTracker.report("Never failed to write to just-deleted table."));
 
     // Recreate it...
@@ -159,7 +159,7 @@ public class BigQueryErrorResponsesIT extends BaseConnectorIT {
             return false;
           }
         },
-        ONE_MINUTE,
+        scaleTime(ONE_MINUTE),
         ONE_SECOND,
         () -> exceptionTracker.report("Never succeeded to write to just-recreated table."));
   }
