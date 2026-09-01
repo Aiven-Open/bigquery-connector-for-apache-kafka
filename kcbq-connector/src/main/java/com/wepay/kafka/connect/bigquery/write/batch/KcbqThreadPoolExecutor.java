@@ -48,6 +48,8 @@ public class KcbqThreadPoolExecutor extends ThreadPoolExecutor {
 
   private final AtomicReference<Throwable> encounteredError = new AtomicReference<>();
 
+  private final long flushTimeoutMs;
+
   /**
    * @param config the {@link BigQuerySinkTaskConfig}
    * @param workQueue the queue for storing tasks.
@@ -64,6 +66,7 @@ public class KcbqThreadPoolExecutor extends ThreadPoolExecutor {
         TimeUnit.SECONDS,
         workQueue,
         threadFactory);
+    this.flushTimeoutMs = config.getLong(BigQuerySinkTaskConfig.FLUSH_TIMEOUT_MS_CONFIG);
   }
 
   @Override
@@ -82,7 +85,8 @@ public class KcbqThreadPoolExecutor extends ThreadPoolExecutor {
   /**
    * Wait for all the currently queued tasks to complete, and then return.
    *
-   * @throws BigQueryConnectException if any of the tasks failed.
+   * @throws BigQueryConnectException if any of the tasks failed, or if {@code flushTimeoutMs} is
+   *     set and the tasks did not complete within it.
    * @throws InterruptedException if interrupted while waiting.
    */
   public void awaitCurrentTasks() throws InterruptedException, BigQueryConnectException {
@@ -96,8 +100,51 @@ public class KcbqThreadPoolExecutor extends ThreadPoolExecutor {
     for (int i = 0; i < maximumPoolSize; i++) {
       execute(new CountDownRunnable(countDownLatch));
     }
-    countDownLatch.await();
+    if (flushTimeoutMs > 0) {
+      boolean completed;
+      try {
+        completed = countDownLatch.await(flushTimeoutMs, TimeUnit.MILLISECONDS);
+      } catch (InterruptedException e) {
+        releaseBarrier(countDownLatch);
+        throw e;
+      }
+      if (!completed) {
+        final long stillBusy = countDownLatch.getCount();
+        if (stillBusy == 0) {
+          // The last write finished between the timed wait and here; not a timeout.
+          maybeThrowEncounteredError();
+          return;
+        }
+        releaseBarrier(countDownLatch);
+        // A write error recorded before the timeout is the more useful failure to surface.
+        maybeThrowEncounteredError();
+        throw new BigQueryConnectException(
+            "Timed out after "
+                + flushTimeoutMs
+                + "ms waiting for in-flight write tasks to complete; "
+                + stillBusy
+                + " of "
+                + maximumPoolSize
+                + " write threads still busy. Increase flushTimeoutMs if writes legitimately "
+                + "take longer.");
+      }
+    } else {
+      countDownLatch.await();
+    }
     maybeThrowEncounteredError();
+  }
+
+  /**
+   * Release the flush barrier of an abandoned {@link #awaitCurrentTasks()}. {@link
+   * CountDownRunnable} parks each pool thread on the latch until every thread has arrived, so
+   * without this one hung write would keep all pool threads parked and every later flush would
+   * queue more runnables. Only the hung write keeps its thread afterwards.
+   */
+  private void releaseBarrier(CountDownLatch countDownLatch) {
+    getQueue().removeIf(r -> r instanceof CountDownRunnable);
+    while (countDownLatch.getCount() > 0) {
+      countDownLatch.countDown();
+    }
   }
 
   /**
