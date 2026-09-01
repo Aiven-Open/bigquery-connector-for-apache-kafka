@@ -23,6 +23,7 @@
 
 package com.wepay.kafka.connect.bigquery;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -1659,6 +1660,30 @@ public class SchemaManagerTest {
     schemaManager.checkAndApplyTableOptions(tableId);
     verify(mockBigQuery, org.mockito.Mockito.never())
         .query(any(com.google.cloud.bigquery.QueryJobConfiguration.class));
+  }
+
+  @Test
+  public void testCreateTableWithPrimitiveKeySchema() {
+    SchemaManagerTestConfig config = createConfig(Collections.emptyMap());
+    config.schemaConverter = mockSchemaConverter;
+    SchemaManager schemaManager = new SchemaManager(config, mockBigQuery);
+
+    SinkRecord record =
+        new SinkRecord(
+            "test_topic",
+            0,
+            org.apache.kafka.connect.data.Schema.INT64_SCHEMA,
+            123L,
+            mockKafkaSchema,
+            null,
+            0);
+
+    when(mockSchemaRetriever.retrieveKeySchema(record))
+        .thenReturn(org.apache.kafka.connect.data.Schema.INT64_SCHEMA);
+    when(mockSchemaConverter.convertSchema(mockKafkaSchema)).thenReturn(fakeBigQuerySchema);
+    when(mockBigQuery.create(any(TableInfo.class))).thenReturn(mock(Table.class));
+
+    assertDoesNotThrow(() -> schemaManager.createTable(tableId, Collections.singletonList(record)));
   }
 
   static class SchemaManagerTestConfig extends BigQuerySinkConfig {

@@ -95,7 +95,7 @@ public class SchemaManager {
   private final boolean mediateConcurrentSchemaUpdates;
   private final long concurrentSchemaUpdateRetryWaitMs;
   private final int concurrentSchemaUpdateMaxRetries;
-  private final Optional<Integer> tableMaxStaleness;
+  private final Integer tableMaxStaleness;
 
   /**
    * @param config a big query sink configuration.
@@ -147,8 +147,7 @@ public class SchemaManager {
     concurrentSchemaUpdateMaxRetries =
         config.getInt(BigQuerySinkConfig.CONCURRENT_SCHEMA_UPDATE_MAX_RETRIES_CONFIG);
 
-    tableMaxStaleness =
-        Optional.ofNullable(config.getInt(BigQuerySinkConfig.TABLE_MAX_STALENESS_CONFIG));
+    tableMaxStaleness = config.getInt(BigQuerySinkConfig.TABLE_MAX_STALENESS_CONFIG);
   }
 
   /**
@@ -215,9 +214,9 @@ public class SchemaManager {
     this.tableUpdateLocks = new ConcurrentHashMap<>();
     this.schemaCache = new ConcurrentHashMap<>();
 
-    kafkaKeyAsPrimaryKey = config.isUpsertEnabled() && config.useStorageWriteApi();
+    kafkaKeyAsPrimaryKey = config != null && config.isUpsertEnabled() && config.useStorageWriteApi();
     this.tableMaxStaleness =
-        Optional.ofNullable(config.getInt(BigQuerySinkConfig.TABLE_MAX_STALENESS_CONFIG));
+        config != null ? config.getInt(BigQuerySinkConfig.TABLE_MAX_STALENESS_CONFIG) : null;
   }
 
   /**
@@ -291,7 +290,7 @@ public class SchemaManager {
         bigQuery.create(tableInfo);
         logger.debug("Successfully created {}", table(table));
         schemaCache.put(table, SchemaAndPrimaryKeyColumns.of(tableInfo));
-        if (tableMaxStaleness != null && tableMaxStaleness.isPresent()) {
+        if (tableMaxStaleness != null) {
           applyMaxStaleness(table);
           checkedTableOptions.add(table);
         }
@@ -331,7 +330,7 @@ public class SchemaManager {
           bigQuery.update(tableInfo);
           logger.debug("Successfully updated {}", table(table));
           schemaCache.put(table, SchemaAndPrimaryKeyColumns.of(tableInfo));
-          if (tableMaxStaleness != null && tableMaxStaleness.isPresent()) {
+          if (tableMaxStaleness != null) {
             applyMaxStaleness(table);
             checkedTableOptions.add(table);
           }
@@ -977,12 +976,12 @@ public class SchemaManager {
    */
   private List<String> getPrimaryKeys(List<SinkRecord> records) {
     if (records == null || records.isEmpty()) {
-      return null;
+      return Collections.emptyList();
     }
     SinkRecord record = records.get(0);
     Schema keySchema = schemaRetriever.retrieveKeySchema(record);
-    if (keySchema == null) {
-      return null;
+    if (keySchema == null || keySchema.type() != Schema.Type.STRUCT || keySchema.fields() == null) {
+      return Collections.emptyList();
     }
     List<String> pkColumns = new ArrayList<>();
     for (org.apache.kafka.connect.data.Field field : keySchema.fields()) {
@@ -1043,7 +1042,7 @@ public class SchemaManager {
     if (intermediateTables) {
       return;
     }
-    if (!tableMaxStaleness.isPresent()) {
+    if (tableMaxStaleness == null) {
       return;
     }
     if (checkedTableOptions.contains(table)) {
@@ -1061,8 +1060,15 @@ public class SchemaManager {
     }
   }
 
+  /**
+   * Checks and applies the {@code max_staleness} table option on the specified BigQuery table.
+   * Queries {@code INFORMATION_SCHEMA.TABLE_OPTIONS} to avoid redundant {@code ALTER TABLE}
+   * statements if the table already has the expected {@code max_staleness} configured.
+   *
+   * @param table the BigQuery table to inspect and update
+   */
   private void applyMaxStaleness(TableId table) {
-    Integer maxStalenessVal = tableMaxStaleness.get();
+    Integer maxStalenessVal = tableMaxStaleness;
     String expectedStalenessString = String.format("INTERVAL %d SECOND", maxStalenessVal);
 
     String projectId =
@@ -1080,7 +1086,7 @@ public class SchemaManager {
           bigQuery.query(com.google.cloud.bigquery.QueryJobConfiguration.of(checkQuery));
       for (com.google.cloud.bigquery.FieldValueList row : result.iterateAll()) {
         if (expectedStalenessString.equalsIgnoreCase(row.get("option_value").getStringValue())) {
-          logger.info(
+          logger.debug(
               "max_staleness is already set to {} on table {}; skipping ALTER TABLE",
               maxStalenessVal,
               table(table));
@@ -1092,9 +1098,10 @@ public class SchemaManager {
       throw new BigQueryConnectException(
           "Interrupted while checking existing max_staleness option on table " + table(table), e);
     } catch (Exception e) {
-      logger.debug(
+      logger.warn(
           "Could not verify existing max_staleness option, proceeding with ALTER TABLE. Reason: {}",
-          e.getMessage());
+          e.getMessage(),
+          e);
     }
 
     String fullyQualifiedTable =

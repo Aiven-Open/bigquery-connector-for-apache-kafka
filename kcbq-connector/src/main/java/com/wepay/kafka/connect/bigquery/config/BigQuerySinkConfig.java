@@ -171,6 +171,14 @@ public class BigQuerySinkConfig extends AbstractConfig {
   public static final String TABLE_MAX_STALENESS_CONFIG = "tableMaxStaleness";
   public static final Integer TABLE_MAX_STALENESS_DEFAULT = null;
   private static final ConfigDef.Type TABLE_MAX_STALENESS_TYPE = ConfigDef.Type.INT;
+  private static final ConfigDef.Validator TABLE_MAX_STALENESS_VALIDATOR =
+      ConfigDef.LambdaValidator.with(
+          (name, value) -> {
+            if (value != null) {
+              ConfigDef.Range.atLeast(0).ensureValid(name, value);
+            }
+          },
+          () -> "if set the value must be at least 0");
   private static final ConfigDef.Importance TABLE_MAX_STALENESS_IMPORTANCE =
       ConfigDef.Importance.MEDIUM;
   private static final String TABLE_MAX_STALENESS_DOC =
@@ -1064,6 +1072,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
             TABLE_MAX_STALENESS_CONFIG,
             TABLE_MAX_STALENESS_TYPE,
             TABLE_MAX_STALENESS_DEFAULT,
+            TABLE_MAX_STALENESS_VALIDATOR,
             TABLE_MAX_STALENESS_IMPORTANCE,
             TABLE_MAX_STALENESS_DOC)
         .define(

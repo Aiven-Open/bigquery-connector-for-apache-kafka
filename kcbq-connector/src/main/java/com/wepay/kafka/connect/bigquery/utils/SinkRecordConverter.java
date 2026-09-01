@@ -30,6 +30,7 @@ import com.wepay.kafka.connect.bigquery.MergeQueries;
 import com.wepay.kafka.connect.bigquery.SchemaManager;
 import com.wepay.kafka.connect.bigquery.api.KafkaSchemaRecordType;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
+import com.wepay.kafka.connect.bigquery.convert.BigQuerySchemaConverter;
 import com.wepay.kafka.connect.bigquery.convert.RecordConverter;
 import com.wepay.kafka.connect.bigquery.write.batch.MergeBatches;
 import java.time.Instant;
@@ -48,6 +49,12 @@ import org.slf4j.LoggerFactory;
  */
 public final class SinkRecordConverter {
   private static final Logger logger = LoggerFactory.getLogger(SinkRecordConverter.class);
+
+  public static final String CDC_CHANGE_TYPE_FIELD = "_CHANGE_TYPE";
+  public static final String CDC_CHANGE_SEQUENCE_NUMBER_FIELD = "_CHANGE_SEQUENCE_NUMBER";
+  public static final String CDC_CHANGE_TYPE_UPSERT = "UPSERT";
+  public static final String CDC_CHANGE_TYPE_DELETE = "DELETE";
+  public static final String DELETED_PSEUDO_COLUMN = BigQuerySchemaConverter.DELETED_PSEUDO_COLUMN;
 
   private final BigQuerySinkConfig config;
   private final MergeBatches mergeBatches;
@@ -191,7 +198,7 @@ public final class SinkRecordConverter {
    * @return the map of fields to values.
    */
   public Map<String, Object> getRegularRow(SinkRecord record, String writeAttemptId) {
-    logger.info(
+    logger.trace(
         "getRegularRow INPUT - Topic: {}, Offset: {}, Value: {}",
         record.topic(),
         record.kafkaOffset(),
@@ -222,7 +229,7 @@ public final class SinkRecordConverter {
               }
             });
 
-    logger.info(
+    logger.trace(
         "getRegularRow OUTPUT - Topic: {}, Offset: {}, Result Map: {}",
         record.topic(),
         record.kafkaOffset(),
@@ -230,12 +237,27 @@ public final class SinkRecordConverter {
     return maybeSanitize(result);
   }
 
+  /**
+   * Converts a SinkRecord to a CDC row using the shared {@code currentPutAttemptId}.
+   *
+   * @param record the record to convert.
+   * @return the map of fields to values representing the CDC row.
+   */
   public Map<String, Object> getCdcRow(SinkRecord record) {
     return getCdcRow(record, currentPutAttemptId);
   }
 
+  /**
+   * Converts a SinkRecord to a CDC row using the specified writeAttemptId.
+   * Extracts both Key fields (as primary key columns) and Value fields, handles
+   * tombstone records for deletes, and adds Kafka metadata fields if configured.
+   *
+   * @param record the record to convert.
+   * @param writeAttemptId the write attempt id to use.
+   * @return the map of fields to values representing the CDC row.
+   */
   public Map<String, Object> getCdcRow(SinkRecord record, String writeAttemptId) {
-    logger.info(
+    logger.trace(
         "getCdcRow INPUT - Topic: {}, Offset: {}, Key: {}, Value: {}",
         record.topic(),
         record.kafkaOffset(),
@@ -273,25 +295,25 @@ public final class SinkRecordConverter {
             });
 
     // 4. Set the CDC metadata columns
-    String changeType = "UPSERT";
+    String changeType = CDC_CHANGE_TYPE_UPSERT;
     if (record.value() == null) {
-      logger.info(
+      logger.debug(
           "Tombstone record (null value) detected for key {} at offset {}",
           record.key(),
           record.kafkaOffset());
-      changeType = "DELETE";
+      changeType = CDC_CHANGE_TYPE_DELETE;
     } else if (convertedValue != null) {
-      Object deletedVal = convertedValue.get("__deleted");
+      Object deletedVal = convertedValue.get(DELETED_PSEUDO_COLUMN);
       if (deletedVal instanceof Boolean && (Boolean) deletedVal) {
-        changeType = "DELETE";
+        changeType = CDC_CHANGE_TYPE_DELETE;
       } else if (deletedVal instanceof String && Boolean.parseBoolean((String) deletedVal)) {
-        changeType = "DELETE";
+        changeType = CDC_CHANGE_TYPE_DELETE;
       }
     }
-    result.put("_CHANGE_TYPE", changeType);
+    result.put(CDC_CHANGE_TYPE_FIELD, changeType);
     // Strip the transient __deleted metadata field to prevent BigQuery ingestion crashes due to
     // unknown fields.
-    result.remove("__deleted");
+    result.remove(DELETED_PSEUDO_COLUMN);
 
     String customSeqField = config.getCdcChangeSequenceNumberField().orElse(null);
     Object seqValue = null;
@@ -312,7 +334,7 @@ public final class SinkRecordConverter {
     }
 
     if (seqValue != null) {
-      result.put("_CHANGE_SEQUENCE_NUMBER", convertToHexSequence(seqValue, record));
+      result.put(CDC_CHANGE_SEQUENCE_NUMBER_FIELD, convertToHexSequence(seqValue, record));
     } else {
       if (customSeqField != null && !customSeqField.isEmpty()) {
         // If the custom sequence field is missing (e.g. on raw tombstone deletes without SMT
@@ -322,17 +344,17 @@ public final class SinkRecordConverter {
         if (fallbackTimestamp == null || fallbackTimestamp < 0) {
           fallbackTimestamp = System.currentTimeMillis();
         }
-        result.put("_CHANGE_SEQUENCE_NUMBER", convertToHexSequence(fallbackTimestamp, record));
+        result.put(CDC_CHANGE_SEQUENCE_NUMBER_FIELD, convertToHexSequence(fallbackTimestamp, record));
       } else {
         // Default Kafka Partition + Offset Sequencing (8-hex partition / 16-hex offset for BigQuery
         // Multi-Segment Lexicographical Sorting)
         result.put(
-            "_CHANGE_SEQUENCE_NUMBER",
+            CDC_CHANGE_SEQUENCE_NUMBER_FIELD,
             String.format("%08X/%016X", record.kafkaPartition(), record.kafkaOffset()));
       }
     }
 
-    logger.info(
+    logger.trace(
         "getCdcRow OUTPUT - Topic: {}, Partition: {}, Offset: {}, Result Map: {}",
         record.topic(),
         record.kafkaPartition(),
@@ -420,7 +442,7 @@ public final class SinkRecordConverter {
   public boolean isCdcEnabled() {
     boolean enabled =
         config.getBoolean(config.USE_STORAGE_WRITE_API_CONFIG) && config.isUpsertDeleteEnabled();
-    logger.info(
+    logger.trace(
         "isCdcEnabled check - USE_STORAGE_WRITE_API: {}, isUpsertDeleteEnabled: {}, Result: {}",
         config.getBoolean(config.USE_STORAGE_WRITE_API_CONFIG),
         config.isUpsertDeleteEnabled(),

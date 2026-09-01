@@ -23,6 +23,11 @@
 
 package com.wepay.kafka.connect.bigquery.utils;
 
+import static com.wepay.kafka.connect.bigquery.utils.SinkRecordConverter.CDC_CHANGE_SEQUENCE_NUMBER_FIELD;
+import static com.wepay.kafka.connect.bigquery.utils.SinkRecordConverter.CDC_CHANGE_TYPE_DELETE;
+import static com.wepay.kafka.connect.bigquery.utils.SinkRecordConverter.CDC_CHANGE_TYPE_FIELD;
+import static com.wepay.kafka.connect.bigquery.utils.SinkRecordConverter.CDC_CHANGE_TYPE_UPSERT;
+import static com.wepay.kafka.connect.bigquery.utils.SinkRecordConverter.DELETED_PSEUDO_COLUMN;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -122,8 +127,8 @@ public class SinkRecordConverterTest {
     assertEquals("Alice", actual.get("name"));
 
     // Verify CDC metadata columns
-    assertEquals("UPSERT", actual.get("_CHANGE_TYPE"));
-    assertEquals("00000001/000000000000002A", actual.get("_CHANGE_SEQUENCE_NUMBER"));
+    assertEquals(CDC_CHANGE_TYPE_UPSERT, actual.get(CDC_CHANGE_TYPE_FIELD));
+    assertEquals("00000001/000000000000002A", actual.get(CDC_CHANGE_SEQUENCE_NUMBER_FIELD));
   }
 
   @Test
@@ -142,8 +147,8 @@ public class SinkRecordConverterTest {
     assertTrue(!actual.containsKey("name") || actual.get("name") == null);
 
     // Verify CDC metadata columns
-    assertEquals("DELETE", actual.get("_CHANGE_TYPE"));
-    assertEquals("00000001/000000000000002A", actual.get("_CHANGE_SEQUENCE_NUMBER"));
+    assertEquals(CDC_CHANGE_TYPE_DELETE, actual.get(CDC_CHANGE_TYPE_FIELD));
+    assertEquals("00000001/000000000000002A", actual.get(CDC_CHANGE_SEQUENCE_NUMBER_FIELD));
   }
 
   @Test
@@ -283,7 +288,7 @@ public class SinkRecordConverterTest {
             .field("id", Schema.INT64_SCHEMA)
             .field("name", Schema.STRING_SCHEMA)
             .field("version_id", Schema.INT64_SCHEMA)
-            .field("__deleted", Schema.BOOLEAN_SCHEMA)
+            .field(DELETED_PSEUDO_COLUMN, Schema.BOOLEAN_SCHEMA)
             .build();
 
     Struct rewriteValueStruct =
@@ -291,7 +296,7 @@ public class SinkRecordConverterTest {
             .put("id", 123L)
             .put("name", "Alice")
             .put("version_id", 3L)
-            .put("__deleted", true);
+            .put(DELETED_PSEUDO_COLUMN, true);
 
     SinkRecord record =
         new SinkRecord(
@@ -300,8 +305,8 @@ public class SinkRecordConverterTest {
     SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(config, null, null);
     Map<String, Object> actual = sinkRecordConverter.getCdcRow(record);
 
-    assertEquals("DELETE", actual.get("_CHANGE_TYPE"));
-    assertEquals("00000001/000000000000002A", actual.get("_CHANGE_SEQUENCE_NUMBER"));
+    assertEquals(CDC_CHANGE_TYPE_DELETE, actual.get(CDC_CHANGE_TYPE_FIELD));
+    assertEquals("00000001/000000000000002A", actual.get(CDC_CHANGE_SEQUENCE_NUMBER_FIELD));
   }
 
   @Test
@@ -314,7 +319,7 @@ public class SinkRecordConverterTest {
             .field("id", Schema.INT64_SCHEMA)
             .field("name", Schema.STRING_SCHEMA)
             .field("version_id", Schema.INT64_SCHEMA)
-            .field("__deleted", Schema.STRING_SCHEMA)
+            .field(DELETED_PSEUDO_COLUMN, Schema.STRING_SCHEMA)
             .build();
 
     Struct rewriteValueStruct =
@@ -322,7 +327,7 @@ public class SinkRecordConverterTest {
             .put("id", 123L)
             .put("name", "Alice")
             .put("version_id", 3L)
-            .put("__deleted", "true");
+            .put(DELETED_PSEUDO_COLUMN, "true");
 
     SinkRecord record =
         new SinkRecord(
@@ -331,8 +336,8 @@ public class SinkRecordConverterTest {
     SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(config, null, null);
     Map<String, Object> actual = sinkRecordConverter.getCdcRow(record);
 
-    assertEquals("DELETE", actual.get("_CHANGE_TYPE"));
-    assertEquals("00000001/000000000000002A", actual.get("_CHANGE_SEQUENCE_NUMBER"));
+    assertEquals(CDC_CHANGE_TYPE_DELETE, actual.get(CDC_CHANGE_TYPE_FIELD));
+    assertEquals("00000001/000000000000002A", actual.get(CDC_CHANGE_SEQUENCE_NUMBER_FIELD));
   }
 
   @Test
@@ -345,7 +350,7 @@ public class SinkRecordConverterTest {
             .field("id", Schema.INT64_SCHEMA)
             .field("name", Schema.STRING_SCHEMA)
             .field("version_id", Schema.INT64_SCHEMA)
-            .field("__deleted", Schema.BOOLEAN_SCHEMA)
+            .field(DELETED_PSEUDO_COLUMN, Schema.BOOLEAN_SCHEMA)
             .build();
 
     Struct rewriteValueStruct =
@@ -353,7 +358,7 @@ public class SinkRecordConverterTest {
             .put("id", 123L)
             .put("name", "Alice")
             .put("version_id", 3L)
-            .put("__deleted", true);
+            .put(DELETED_PSEUDO_COLUMN, true);
 
     SinkRecord record =
         new SinkRecord(
@@ -362,7 +367,7 @@ public class SinkRecordConverterTest {
     SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(config, null, null);
     Map<String, Object> actual = sinkRecordConverter.getCdcRow(record);
 
-    assertTrue(!actual.containsKey("__deleted"));
+    assertTrue(!actual.containsKey(DELETED_PSEUDO_COLUMN));
   }
 
   private static Map<String, Object> defaultExpectedFields() {

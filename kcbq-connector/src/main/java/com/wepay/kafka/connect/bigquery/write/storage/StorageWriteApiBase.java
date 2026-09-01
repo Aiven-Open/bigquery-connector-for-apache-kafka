@@ -75,8 +75,10 @@ public abstract class StorageWriteApiBase {
   /** The requried suffix for default streams. */
   private static final String DEFAULT_STREAM_NAME_SUFFIX = "/_default";
 
-  protected static final String CHANGE_TYPE_PSEUDO_COLUMN = "_CHANGE_TYPE";
-  protected static final String CHANGE_SEQUENCE_NUMBER_PSEUDO_COLUMN = "_CHANGE_SEQUENCE_NUMBER";
+  protected static final String CHANGE_TYPE_PSEUDO_COLUMN =
+      SinkRecordConverter.CDC_CHANGE_TYPE_FIELD;
+  protected static final String CHANGE_SEQUENCE_NUMBER_PSEUDO_COLUMN =
+      SinkRecordConverter.CDC_CHANGE_SEQUENCE_NUMBER_FIELD;
   private static final double RETRY_DELAY_MULTIPLIER = 1.1;
   private static final int MAX_RETRY_DELAY_MINUTES = 1;
   public static final String TRACE_ID_FORMAT = "AivenKafkaConnector:%s";
