@@ -279,6 +279,102 @@ public class SinkRecordConverterTest {
   }
 
   @Test
+  public void testCdcRowWithTimestampStringNoOffset() {
+    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getCdcChangeSequenceNumberField()).thenReturn(Optional.of("timestamp_str"));
+
+    Schema timeValueSchema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT64_SCHEMA)
+            .field("timestamp_str", Schema.STRING_SCHEMA)
+            .build();
+
+    Struct timeValueStruct =
+        new Struct(timeValueSchema).put("id", 123L).put("timestamp_str", "2026-08-14 10:00:00");
+
+    SinkRecord record =
+        new SinkRecord(
+            TOPIC, PARTITION, keySchema, keyStruct, timeValueSchema, timeValueStruct, OFFSET);
+
+    SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(config, null, null);
+    Map<String, Object> actual = sinkRecordConverter.getCdcRow(record);
+
+    assertEquals("UPSERT", actual.get("_CHANGE_TYPE"));
+    long expectedEpochMs =
+        java.time.LocalDateTime.parse("2026-08-14T10:00:00")
+            .toInstant(java.time.ZoneOffset.UTC)
+            .toEpochMilli();
+    assertEquals(
+        String.format("%016X/%08X/%016X", expectedEpochMs, PARTITION, OFFSET),
+        actual.get("_CHANGE_SEQUENCE_NUMBER"));
+  }
+
+  @Test
+  public void testCdcRowWithCustomSeqFromHeader() {
+    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getCdcChangeSequenceNumberField()).thenReturn(Optional.of("tx_seq"));
+
+    org.apache.kafka.connect.header.ConnectHeaders headers =
+        new org.apache.kafka.connect.header.ConnectHeaders();
+    headers.addString("tx_seq", "5000");
+
+    SinkRecord record =
+        new SinkRecord(
+            TOPIC,
+            PARTITION,
+            keySchema,
+            keyStruct,
+            valueSchema,
+            valueStruct,
+            OFFSET,
+            123456789L,
+            org.apache.kafka.common.record.TimestampType.CREATE_TIME,
+            headers);
+
+    SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(config, null, null);
+    Map<String, Object> actual = sinkRecordConverter.getCdcRow(record);
+
+    assertEquals("UPSERT", actual.get("_CHANGE_TYPE"));
+    assertEquals(
+        String.format("%016X/%08X/%016X", 5000L, PARTITION, OFFSET),
+        actual.get("_CHANGE_SEQUENCE_NUMBER"));
+  }
+
+  @Test
+  public void testCdcRowWithKafkaTimestampMissingFallback() {
+    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getCdcChangeSequenceNumberField()).thenReturn(Optional.of("_KAFKA_TIMESTAMP"));
+
+    SinkRecord record =
+        new SinkRecord(
+            TOPIC,
+            PARTITION,
+            keySchema,
+            keyStruct,
+            valueSchema,
+            valueStruct,
+            OFFSET,
+            -1L,
+            org.apache.kafka.common.record.TimestampType.NO_TIMESTAMP_TYPE);
+
+    SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(config, null, null);
+    long beforeMs = System.currentTimeMillis();
+    Map<String, Object> actual = sinkRecordConverter.getCdcRow(record);
+    long afterMs = System.currentTimeMillis();
+
+    String seqStr = (String) actual.get("_CHANGE_SEQUENCE_NUMBER");
+    assertNotNull(seqStr);
+    assertFalse(seqStr.startsWith("FFFFFFFFFFFFFFFF"));
+    String[] parts = seqStr.split("/");
+    assertEquals(3, parts.length);
+    long parsedTs = Long.parseLong(parts[0], 16);
+    assertTrue(parsedTs >= beforeMs && parsedTs <= afterMs);
+  }
+
+  @Test
   public void testCdcRowDeleteRewrite() {
     when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
     when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);

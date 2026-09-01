@@ -294,7 +294,7 @@ public class BigQuerySinkTask extends SinkTask {
   @Override
   public void put(Collection<SinkRecord> records) {
     if (records != null && !records.isEmpty()) {
-      logger.info(
+      logger.trace(
           "BigQuerySinkTask.put - Task ID {} received {} records",
           config != null ? config.getInt(BigQuerySinkTaskConfig.TASK_ID_CONFIG) : -1,
           records.size());

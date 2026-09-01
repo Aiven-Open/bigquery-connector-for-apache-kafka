@@ -33,12 +33,17 @@ import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.convert.BigQuerySchemaConverter;
 import com.wepay.kafka.connect.bigquery.convert.RecordConverter;
 import com.wepay.kafka.connect.bigquery.write.batch.MergeBatches;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeParseException;
 import java.util.HashMap;
 import java.util.Map;
 import org.apache.kafka.common.record.TimestampType;
 import org.apache.kafka.connect.errors.ConnectException;
+import org.apache.kafka.connect.header.Header;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,6 +54,7 @@ import org.slf4j.LoggerFactory;
  */
 public final class SinkRecordConverter {
   private static final Logger logger = LoggerFactory.getLogger(SinkRecordConverter.class);
+  private static final char[] HEX_CHARS = "0123456789ABCDEF".toCharArray();
 
   public static final String CDC_CHANGE_TYPE_FIELD = "_CHANGE_TYPE";
   public static final String CDC_CHANGE_SEQUENCE_NUMBER_FIELD = "_CHANGE_SEQUENCE_NUMBER";
@@ -316,44 +322,44 @@ public final class SinkRecordConverter {
     result.remove(DELETED_PSEUDO_COLUMN);
 
     String customSeqField = config.getCdcChangeSequenceNumberField().orElse(null);
-    Object seqValue = null;
-
-    if (customSeqField != null && !customSeqField.isEmpty()) {
+    String seqNumber;
+    if (customSeqField != null && !customSeqField.trim().isEmpty()) {
+      Object seqValue = null;
       if ("_KAFKA_TIMESTAMP".equalsIgnoreCase(customSeqField)) {
-        seqValue = record.timestamp();
-      } else {
-        // 1. Try reading from Value Payload (if not null)
-        if (convertedValue != null) {
-          seqValue = convertedValue.get(customSeqField);
-        }
-        // 2. Try reading from Key Payload
-        if (seqValue == null && convertedKey != null) {
-          seqValue = convertedKey.get(customSeqField);
+        Long ts = record.timestamp();
+        seqValue = (ts != null && ts >= 0) ? ts : System.currentTimeMillis();
+      } else if (convertedValue != null && convertedValue.get(customSeqField) != null) {
+        seqValue = convertedValue.get(customSeqField);
+      } else if (convertedKey != null && convertedKey.get(customSeqField) != null) {
+        seqValue = convertedKey.get(customSeqField);
+      } else if (record.headers() != null) {
+        Header header = record.headers().lastWithName(customSeqField);
+        if (header != null && header.value() != null) {
+          Object headerVal = header.value();
+          if (headerVal instanceof byte[]) {
+            seqValue = new String((byte[]) headerVal, StandardCharsets.UTF_8);
+          } else {
+            seqValue = headerVal;
+          }
         }
       }
-    }
 
-    if (seqValue != null) {
-      result.put(CDC_CHANGE_SEQUENCE_NUMBER_FIELD, convertToHexSequence(seqValue, record));
-    } else {
-      if (customSeqField != null && !customSeqField.isEmpty()) {
-        // If the custom sequence field is missing (e.g. on raw tombstone deletes without SMT
-        // rewrite), fall back to the Kafka record timestamp to ensure the delete event is ordered
-        // correctly relative to inserts.
-        Long fallbackTimestamp = record.timestamp();
-        if (fallbackTimestamp == null || fallbackTimestamp < 0) {
-          fallbackTimestamp = System.currentTimeMillis();
-        }
-        result.put(
-            CDC_CHANGE_SEQUENCE_NUMBER_FIELD, convertToHexSequence(fallbackTimestamp, record));
+      if (seqValue != null) {
+        seqNumber = convertToHexSequence(seqValue, record);
       } else {
-        // Default Kafka Partition + Offset Sequencing (8-hex partition / 16-hex offset for BigQuery
-        // Multi-Segment Lexicographical Sorting)
-        result.put(
-            CDC_CHANGE_SEQUENCE_NUMBER_FIELD,
-            String.format("%08X/%016X", record.kafkaPartition(), record.kafkaOffset()));
+        // Fallback to record timestamp if custom field is missing (e.g. raw tombstones)
+        Long fallbackTimestamp = record.timestamp();
+        long ts =
+            (fallbackTimestamp != null && fallbackTimestamp >= 0)
+                ? fallbackTimestamp
+                : System.currentTimeMillis();
+        seqNumber = convertToHexSequence(ts, record);
       }
+    } else {
+      // Default Kafka Partition + Offset
+      seqNumber = String.format("%08X/%016X", record.kafkaPartition(), record.kafkaOffset());
     }
+    result.put(CDC_CHANGE_SEQUENCE_NUMBER_FIELD, seqNumber);
 
     logger.trace(
         "getCdcRow OUTPUT - Topic: {}, Partition: {}, Offset: {}, Result Map: {}",
@@ -400,7 +406,11 @@ public final class SinkRecordConverter {
           if (normalized.endsWith("Z")) {
             instant = Instant.parse(normalized);
           } else {
-            instant = OffsetDateTime.parse(normalized).toInstant();
+            try {
+              instant = OffsetDateTime.parse(normalized).toInstant();
+            } catch (DateTimeParseException ex) {
+              instant = LocalDateTime.parse(normalized).toInstant(ZoneOffset.UTC);
+            }
           }
           seqLong = instant.toEpochMilli();
         } catch (Exception ex) {
@@ -419,9 +429,11 @@ public final class SinkRecordConverter {
   }
 
   private String hexEncodeString(String strVal, SinkRecord record) {
-    StringBuilder hexBuilder = new StringBuilder();
-    for (char c : strVal.toCharArray()) {
-      hexBuilder.append(String.format("%02X", (int) c));
+    byte[] bytes = strVal.getBytes(StandardCharsets.UTF_8);
+    StringBuilder hexBuilder = new StringBuilder(bytes.length * 2);
+    for (byte b : bytes) {
+      hexBuilder.append(HEX_CHARS[(b >> 4) & 0x0F]);
+      hexBuilder.append(HEX_CHARS[b & 0x0F]);
     }
     String hexSegments = splitIntoSegments(hexBuilder.toString(), 16);
     return String.format(
