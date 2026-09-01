@@ -207,7 +207,7 @@ public class StorageWriteApiWriterTest {
     StorageWriteApiDefaultStream stream =
         mock(StorageWriteApiDefaultStream.class, CALLS_REAL_METHODS);
     JsonStreamWriter jsonWriter = mock(JsonStreamWriter.class);
-    stream.tableToStream = new ConcurrentHashMap<>();
+    stream.tableToStreams = new ConcurrentHashMap<>();
     stream.schemaManager = mock(SchemaManager.class);
     stream.errantRecordHandler = mock(ErrantRecordHandler.class);
     stream.time = new MockTime();
@@ -262,7 +262,7 @@ public class StorageWriteApiWriterTest {
     StorageWriteApiDefaultStream stream =
         mock(StorageWriteApiDefaultStream.class, CALLS_REAL_METHODS);
     JsonStreamWriter jsonWriter = mock(JsonStreamWriter.class);
-    stream.tableToStream = new ConcurrentHashMap<>();
+    stream.tableToStreams = new ConcurrentHashMap<>();
     stream.schemaManager = mock(SchemaManager.class);
     stream.errantRecordHandler = mock(ErrantRecordHandler.class);
     stream.time = new MockTime();
@@ -310,7 +310,7 @@ public class StorageWriteApiWriterTest {
     StorageWriteApiDefaultStream stream =
         mock(StorageWriteApiDefaultStream.class, CALLS_REAL_METHODS);
     JsonStreamWriter jsonWriter = mock(JsonStreamWriter.class);
-    stream.tableToStream = new ConcurrentHashMap<>();
+    stream.tableToStreams = new ConcurrentHashMap<>();
     stream.schemaManager = mock(SchemaManager.class);
     stream.errantRecordHandler = mock(ErrantRecordHandler.class);
     stream.time = new MockTime();
