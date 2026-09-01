@@ -214,7 +214,8 @@ public class SchemaManager {
     this.tableUpdateLocks = new ConcurrentHashMap<>();
     this.schemaCache = new ConcurrentHashMap<>();
 
-    kafkaKeyAsPrimaryKey = config != null && config.isUpsertEnabled() && config.useStorageWriteApi();
+    kafkaKeyAsPrimaryKey =
+        config != null && config.isUpsertEnabled() && config.useStorageWriteApi();
     this.tableMaxStaleness =
         config != null ? config.getInt(BigQuerySinkConfig.TABLE_MAX_STALENESS_CONFIG) : null;
   }

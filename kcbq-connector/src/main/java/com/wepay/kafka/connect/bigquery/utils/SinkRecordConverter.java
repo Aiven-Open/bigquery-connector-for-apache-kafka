@@ -248,9 +248,9 @@ public final class SinkRecordConverter {
   }
 
   /**
-   * Converts a SinkRecord to a CDC row using the specified writeAttemptId.
-   * Extracts both Key fields (as primary key columns) and Value fields, handles
-   * tombstone records for deletes, and adds Kafka metadata fields if configured.
+   * Converts a SinkRecord to a CDC row using the specified writeAttemptId. Extracts both Key fields
+   * (as primary key columns) and Value fields, handles tombstone records for deletes, and adds
+   * Kafka metadata fields if configured.
    *
    * @param record the record to convert.
    * @param writeAttemptId the write attempt id to use.
@@ -344,7 +344,8 @@ public final class SinkRecordConverter {
         if (fallbackTimestamp == null || fallbackTimestamp < 0) {
           fallbackTimestamp = System.currentTimeMillis();
         }
-        result.put(CDC_CHANGE_SEQUENCE_NUMBER_FIELD, convertToHexSequence(fallbackTimestamp, record));
+        result.put(
+            CDC_CHANGE_SEQUENCE_NUMBER_FIELD, convertToHexSequence(fallbackTimestamp, record));
       } else {
         // Default Kafka Partition + Offset Sequencing (8-hex partition / 16-hex offset for BigQuery
         // Multi-Segment Lexicographical Sorting)
