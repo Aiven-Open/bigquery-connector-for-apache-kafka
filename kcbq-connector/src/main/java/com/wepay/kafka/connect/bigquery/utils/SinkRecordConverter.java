@@ -235,10 +235,25 @@ public final class SinkRecordConverter {
     return maybeSanitize(result);
   }
 
+  /**
+   * Converts a SinkRecord to a CDC row using the shared {@code currentPutAttemptId}.
+   *
+   * @param record the record to convert.
+   * @return the map of fields to values representing the CDC row.
+   */
   public Map<String, Object> getCdcRow(SinkRecord record) {
     return getCdcRow(record, currentPutAttemptId);
   }
 
+  /**
+   * Converts a SinkRecord to a CDC row using the specified writeAttemptId.
+   * Extracts both Key fields (as primary key columns) and Value fields, handles
+   * tombstone records for deletes, and adds Kafka metadata fields if configured.
+   *
+   * @param record the record to convert.
+   * @param writeAttemptId the write attempt id to use.
+   * @return the map of fields to values representing the CDC row.
+   */
   public Map<String, Object> getCdcRow(SinkRecord record, String writeAttemptId) {
     logger.trace(
         "getCdcRow INPUT - Topic: {}, Offset: {}, Key: {}, Value: {}",

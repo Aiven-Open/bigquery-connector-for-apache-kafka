@@ -214,8 +214,9 @@ public class SchemaManager {
     this.tableUpdateLocks = new ConcurrentHashMap<>();
     this.schemaCache = new ConcurrentHashMap<>();
 
-    kafkaKeyAsPrimaryKey = config.isUpsertEnabled() && config.useStorageWriteApi();
-    this.tableMaxStaleness = config.getInt(BigQuerySinkConfig.TABLE_MAX_STALENESS_CONFIG);
+    kafkaKeyAsPrimaryKey = config != null && config.isUpsertEnabled() && config.useStorageWriteApi();
+    this.tableMaxStaleness =
+        config != null ? config.getInt(BigQuerySinkConfig.TABLE_MAX_STALENESS_CONFIG) : null;
   }
 
   /**
@@ -1059,6 +1060,13 @@ public class SchemaManager {
     }
   }
 
+  /**
+   * Checks and applies the {@code max_staleness} table option on the specified BigQuery table.
+   * Queries {@code INFORMATION_SCHEMA.TABLE_OPTIONS} to avoid redundant {@code ALTER TABLE}
+   * statements if the table already has the expected {@code max_staleness} configured.
+   *
+   * @param table the BigQuery table to inspect and update
+   */
   private void applyMaxStaleness(TableId table) {
     Integer maxStalenessVal = tableMaxStaleness;
     String expectedStalenessString = String.format("INTERVAL %d SECOND", maxStalenessVal);
@@ -1090,9 +1098,10 @@ public class SchemaManager {
       throw new BigQueryConnectException(
           "Interrupted while checking existing max_staleness option on table " + table(table), e);
     } catch (Exception e) {
-      logger.debug(
+      logger.warn(
           "Could not verify existing max_staleness option, proceeding with ALTER TABLE. Reason: {}",
-          e.getMessage());
+          e.getMessage(),
+          e);
     }
 
     String fullyQualifiedTable =
