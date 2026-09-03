@@ -447,4 +447,32 @@ public class BigQuerySinkConfigTest {
 
     assertThrows(ConfigException.class, () -> new BigQuerySinkConfig(configProperties));
   }
+
+  @Test
+  void testIsCdcEnabledConfig() {
+    Map<String, String> configProperties = propertiesFactory.getProperties();
+    BigQuerySinkConfig config = new BigQuerySinkConfig(configProperties);
+    assertFalse(config.isCdcEnabled());
+    assertFalse(config.isUpsertDeleteEnabled());
+    assertFalse(config.isUpsertEnabled());
+    assertFalse(config.isDeleteEnabled());
+
+    configProperties.put(BigQuerySinkConfig.IS_CDC_ENABLED_CONFIG, "true");
+    config = new BigQuerySinkConfig(configProperties);
+    assertTrue(config.isCdcEnabled());
+    assertTrue(config.isUpsertDeleteEnabled());
+    assertTrue(config.isUpsertEnabled());
+    assertTrue(config.isDeleteEnabled());
+  }
+
+  @Test
+  void testConfigPresetDebeziumCdc() {
+    Map<String, String> configProperties = propertiesFactory.getProperties();
+    configProperties.put(BigQuerySinkConfig.CONFIG_PRESET_CONFIG, "debezium_cdc");
+    BigQuerySinkConfig config = new BigQuerySinkConfig(configProperties);
+    assertTrue(config.isCdcEnabled());
+    assertTrue(config.isUpsertDeleteEnabled());
+    assertTrue(config.isUpsertEnabled());
+    assertTrue(config.isDeleteEnabled());
+  }
 }

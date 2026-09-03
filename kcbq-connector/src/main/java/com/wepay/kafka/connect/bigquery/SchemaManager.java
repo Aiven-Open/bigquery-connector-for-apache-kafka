@@ -453,8 +453,12 @@ public class SchemaManager {
     if (primaryKeys != null && !primaryKeys.isEmpty()) {
       com.google.cloud.bigquery.Schema relaxedSchema =
           relaxNonKeyFields(proposedSchema.schema(), primaryKeys);
-      proposedSchema =
-          new SchemaAndPrimaryKeyColumns(relaxedSchema, proposedSchema.primaryKeyColumns());
+      List<String> pkColumns =
+          (proposedSchema.primaryKeyColumns() != null
+                  && !proposedSchema.primaryKeyColumns().isEmpty())
+              ? proposedSchema.primaryKeyColumns()
+              : primaryKeys;
+      proposedSchema = new SchemaAndPrimaryKeyColumns(relaxedSchema, pkColumns);
     }
     return constructTableInfo(table, proposedSchema, tableDescription, createSchema);
   }
@@ -818,16 +822,16 @@ public class SchemaManager {
       // This must be applied regardless of whether time-partitioning is configured,
       // so it lives outside the timePartitioningType.ifPresent() block.
       if (kafkaKeyAsPrimaryKey) {
-        if (!Optional.of("").equals(kafkaKeyFieldName)) {
-          throw new IllegalStateException(
-              "kafkaKeyFieldName must be '' when kafkaKeyAsPrimaryKey is true");
+        if (bigQuerySchema.primaryKeyColumns() != null
+            && !bigQuerySchema.primaryKeyColumns().isEmpty()) {
+          builder.setTableConstraints(
+              TableConstraints.newBuilder()
+                  .setPrimaryKey(
+                      PrimaryKey.newBuilder()
+                          .setColumns(bigQuerySchema.primaryKeyColumns())
+                          .build())
+                  .build());
         }
-
-        builder.setTableConstraints(
-            TableConstraints.newBuilder()
-                .setPrimaryKey(
-                    PrimaryKey.newBuilder().setColumns(bigQuerySchema.primaryKeyColumns()).build())
-                .build());
       }
     }
 

@@ -184,6 +184,18 @@ public class BigQuerySinkConfig extends AbstractConfig {
   private static final String TABLE_MAX_STALENESS_DOC =
       "The maximum staleness allowed for the destination BigQuery table in seconds. "
           + "Only applicable if upsert/delete (CDC) is enabled with the Storage Write API.";
+  public static final String IS_CDC_ENABLED_CONFIG = "isCdcEnabled";
+  public static final Boolean IS_CDC_ENABLED_DEFAULT = false;
+  private static final ConfigDef.Type IS_CDC_ENABLED_TYPE = ConfigDef.Type.BOOLEAN;
+  private static final ConfigDef.Importance IS_CDC_ENABLED_IMPORTANCE = ConfigDef.Importance.MEDIUM;
+  private static final String IS_CDC_ENABLED_DOC =
+      "Enable BigQuery Change Data Capture (CDC) with the Storage Write API. "
+          + "When true, records are ingested as upserts or deletes using BigQuery CDC.";
+  public static final String CONFIG_PRESET_CONFIG = "configPreset";
+  public static final String CONFIG_PRESET_DEFAULT = null;
+  private static final ConfigDef.Type CONFIG_PRESET_TYPE = ConfigDef.Type.STRING;
+  private static final ConfigDef.Importance CONFIG_PRESET_IMPORTANCE = ConfigDef.Importance.LOW;
+  private static final String CONFIG_PRESET_DOC = "Configuration preset (e.g. debezium_cdc).";
   public static final String MERGE_INTERVAL_MS_CONFIG = "mergeIntervalMs";
   public static final String MERGE_RECORDS_THRESHOLD_CONFIG = "mergeRecordsThreshold";
   public static final long MERGE_INTERVAL_MS_DEFAULT = 60_000L;
@@ -1076,6 +1088,18 @@ public class BigQuerySinkConfig extends AbstractConfig {
             TABLE_MAX_STALENESS_IMPORTANCE,
             TABLE_MAX_STALENESS_DOC)
         .define(
+            IS_CDC_ENABLED_CONFIG,
+            IS_CDC_ENABLED_TYPE,
+            IS_CDC_ENABLED_DEFAULT,
+            IS_CDC_ENABLED_IMPORTANCE,
+            IS_CDC_ENABLED_DOC)
+        .define(
+            CONFIG_PRESET_CONFIG,
+            CONFIG_PRESET_TYPE,
+            CONFIG_PRESET_DEFAULT,
+            CONFIG_PRESET_IMPORTANCE,
+            CONFIG_PRESET_DOC)
+        .define(
             INTERMEDIATE_TABLE_SUFFIX_CONFIG,
             INTERMEDIATE_TABLE_SUFFIX_TYPE,
             INTERMEDIATE_TABLE_SUFFIX_DEFAULT,
@@ -1534,8 +1558,19 @@ public class BigQuerySinkConfig extends AbstractConfig {
     return Optional.ofNullable(getInt(TABLE_MAX_STALENESS_CONFIG));
   }
 
+  /**
+   * Determines if CDC is enabled either explicitly via isCdcEnabled or via
+   * configPreset=debezium_cdc.
+   *
+   * @return {@code true} if CDC is enabled.
+   */
+  public boolean isCdcEnabled() {
+    return getBoolean(IS_CDC_ENABLED_CONFIG)
+        || "debezium_cdc".equalsIgnoreCase(getString(CONFIG_PRESET_CONFIG));
+  }
+
   public boolean isUpsertDeleteEnabled() {
-    return getBoolean(UPSERT_ENABLED_CONFIG) || getBoolean(DELETE_ENABLED_CONFIG);
+    return getBoolean(UPSERT_ENABLED_CONFIG) || getBoolean(DELETE_ENABLED_CONFIG) || isCdcEnabled();
   }
 
   /**
@@ -1544,7 +1579,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
    * @return {@code true} if upsert is enabled.
    */
   public boolean isUpsertEnabled() {
-    return getBoolean(UPSERT_ENABLED_CONFIG);
+    return getBoolean(UPSERT_ENABLED_CONFIG) || isCdcEnabled();
   }
 
   /**
@@ -1553,7 +1588,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
    * @return {@code true} if delete is enabled.
    */
   public boolean isDeleteEnabled() {
-    return getBoolean(DELETE_ENABLED_CONFIG);
+    return getBoolean(DELETE_ENABLED_CONFIG) || isCdcEnabled();
   }
 
   /**

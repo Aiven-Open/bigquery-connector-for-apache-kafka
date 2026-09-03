@@ -323,41 +323,45 @@ public final class SinkRecordConverter {
 
     String customSeqField = config.getCdcChangeSequenceNumberField().orElse(null);
     String seqNumber;
+    Long recordTimestamp = record.timestamp();
+    long ts =
+        (recordTimestamp != null && recordTimestamp >= 0)
+            ? recordTimestamp
+            : System.currentTimeMillis();
+
     if (customSeqField != null && !customSeqField.trim().isEmpty()) {
-      Object seqValue = null;
       if ("_KAFKA_TIMESTAMP".equalsIgnoreCase(customSeqField)) {
-        Long ts = record.timestamp();
-        seqValue = (ts != null && ts >= 0) ? ts : System.currentTimeMillis();
-      } else if (convertedValue != null && convertedValue.get(customSeqField) != null) {
-        seqValue = convertedValue.get(customSeqField);
-      } else if (convertedKey != null && convertedKey.get(customSeqField) != null) {
-        seqValue = convertedKey.get(customSeqField);
-      } else if (record.headers() != null) {
-        Header header = record.headers().lastWithName(customSeqField);
-        if (header != null && header.value() != null) {
-          Object headerVal = header.value();
-          if (headerVal instanceof byte[]) {
-            seqValue = new String((byte[]) headerVal, StandardCharsets.UTF_8);
-          } else {
-            seqValue = headerVal;
+        // Option 1 (Default): timestamp / offset / partition
+        seqNumber = formatDefaultSequence(ts, record);
+      } else {
+        Object seqValue = null;
+        if (convertedValue != null && convertedValue.get(customSeqField) != null) {
+          seqValue = convertedValue.get(customSeqField);
+        } else if (convertedKey != null && convertedKey.get(customSeqField) != null) {
+          seqValue = convertedKey.get(customSeqField);
+        } else if (record.headers() != null) {
+          Header header = record.headers().lastWithName(customSeqField);
+          if (header != null && header.value() != null) {
+            Object headerVal = header.value();
+            if (headerVal instanceof byte[]) {
+              seqValue = new String((byte[]) headerVal, StandardCharsets.UTF_8);
+            } else {
+              seqValue = headerVal;
+            }
           }
         }
-      }
 
-      if (seqValue != null) {
-        seqNumber = convertToHexSequence(seqValue, record);
-      } else {
-        // Fallback to record timestamp if custom field is missing (e.g. raw tombstones)
-        Long fallbackTimestamp = record.timestamp();
-        long ts =
-            (fallbackTimestamp != null && fallbackTimestamp >= 0)
-                ? fallbackTimestamp
-                : System.currentTimeMillis();
-        seqNumber = convertToHexSequence(ts, record);
+        if (seqValue != null) {
+          // Option 2 (Custom sequence number): customsequence / timestamp / offset / partition
+          seqNumber = convertToCustomHexSequence(seqValue, ts, record);
+        } else {
+          // Fallback to Option 1 (Default) if custom field is missing (e.g. raw tombstones)
+          seqNumber = formatDefaultSequence(ts, record);
+        }
       }
     } else {
-      // Default Kafka Partition + Offset
-      seqNumber = String.format("%08X/%016X", record.kafkaPartition(), record.kafkaOffset());
+      // Option 1 (Default): timestamp / offset / partition
+      seqNumber = formatDefaultSequence(ts, record);
     }
     result.put(CDC_CHANGE_SEQUENCE_NUMBER_FIELD, seqNumber);
 
@@ -374,19 +378,30 @@ public final class SinkRecordConverter {
   }
 
   /**
-   * Formats the sequence value into a 16-character hexadecimal string, followed by an 8-character
-   * hexadecimal Kafka partition and a 16-character hexadecimal Kafka offset as slash-separated
-   * tie-breaker segments (e.g., "[16-hex-seq]/[8-hex-partition]/[16-hex-offset]"). BigQuery's
+   * Formats the default sequence as "[16-hex-timestamp]/[16-hex-offset]/[8-hex-partition]".
+   *
+   * @param ts The record timestamp (or current time millis)
+   * @param record The sink record providing offset and partition
+   * @return The formatted default hex sequence string
+   */
+  private String formatDefaultSequence(long ts, SinkRecord record) {
+    return String.format("%016X/%016X/%08X", ts, record.kafkaOffset(), record.kafkaPartition());
+  }
+
+  /**
+   * Formats the custom sequence as
+   * "[16-hex-customsequence]/[16-hex-timestamp]/[16-hex-offset]/[8-hex-partition]". BigQuery's
    * Storage Write API parses slash-separated segments of up to 16 hex digits each and preserves
    * strict multi-segment lexicographical ordering.
    *
-   * @param seqValue The raw sequence number or timestamp
-   * @param record The sink record providing partition and offset
+   * @param seqValue The raw sequence number or timestamp string
+   * @param ts The record timestamp (or current time millis)
+   * @param record The sink record providing offset and partition
    * @return The formatted composite hex sequence string
    */
-  private String convertToHexSequence(Object seqValue, SinkRecord record) {
+  private String convertToCustomHexSequence(Object seqValue, long ts, SinkRecord record) {
     if (seqValue == null) {
-      return null;
+      return formatDefaultSequence(ts, record);
     }
 
     Long seqLong = null;
@@ -414,42 +429,31 @@ public final class SinkRecordConverter {
           }
           seqLong = instant.toEpochMilli();
         } catch (Exception ex) {
-          // If timestamp parsing fails, fallback to character hex-encoding with partition + offset
-          // tie-breaker
-          return hexEncodeString(strVal, record);
+          // If timestamp parsing fails, fallback to character hex-encoding with ts + offset +
+          // partition
+          return hexEncodeCustomSequence(strVal, ts, record);
         }
       }
     }
 
     if (seqLong != null) {
       return String.format(
-          "%016X/%08X/%016X", seqLong, record.kafkaPartition(), record.kafkaOffset());
+          "%016X/%016X/%016X/%08X", seqLong, ts, record.kafkaOffset(), record.kafkaPartition());
     }
-    return null;
+    return formatDefaultSequence(ts, record);
   }
 
-  private String hexEncodeString(String strVal, SinkRecord record) {
+  private String hexEncodeCustomSequence(String strVal, long ts, SinkRecord record) {
     byte[] bytes = strVal.getBytes(StandardCharsets.UTF_8);
     StringBuilder hexBuilder = new StringBuilder(bytes.length * 2);
     for (byte b : bytes) {
       hexBuilder.append(HEX_CHARS[(b >> 4) & 0x0F]);
       hexBuilder.append(HEX_CHARS[b & 0x0F]);
     }
-    String hexSegments = splitIntoSegments(hexBuilder.toString(), 16);
+    String hexStr = hexBuilder.toString();
+    String customSegment = hexStr.length() > 16 ? hexStr.substring(0, 16) : hexStr;
     return String.format(
-        "%s/%08X/%016X", hexSegments, record.kafkaPartition(), record.kafkaOffset());
-  }
-
-  private String splitIntoSegments(String hexStr, int segmentSize) {
-    StringBuilder result = new StringBuilder();
-    int len = hexStr.length();
-    for (int i = 0; i < len; i += segmentSize) {
-      if (i > 0) {
-        result.append("/");
-      }
-      result.append(hexStr.substring(i, Math.min(len, i + segmentSize)));
-    }
-    return result.toString();
+        "%s/%016X/%016X/%08X", customSegment, ts, record.kafkaOffset(), record.kafkaPartition());
   }
 
   public boolean isCdcEnabled() {
