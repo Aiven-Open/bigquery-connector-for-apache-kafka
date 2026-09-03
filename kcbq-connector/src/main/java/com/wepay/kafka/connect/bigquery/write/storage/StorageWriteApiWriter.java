@@ -48,7 +48,7 @@ public class StorageWriteApiWriter implements Runnable {
   private final String streamName;
   private final SinkRecordConverter recordConverter;
   private final Supplier<String> ulidSupplier;
-  Logger logger = LoggerFactory.getLogger(StorageWriteApiWriter.class);
+  private static final Logger logger = LoggerFactory.getLogger(StorageWriteApiWriter.class);
 
   /**
    * @param tableName The table to write the records to
@@ -178,7 +178,15 @@ public class StorageWriteApiWriter implements Runnable {
      * @return converted record as JSONObject
      */
     private JSONObject convertRecord(SinkRecord record) {
-      Map<String, Object> convertedRecord = recordConverter.getRegularRow(record);
+      boolean cdc = recordConverter.isCdcEnabled();
+      logger.trace(
+          "StorageWriteApiWriter.convertRecord - Topic: {}, Partition: {}, Offset: {}, isCdcEnabled: {}",
+          record.topic(),
+          record.kafkaPartition(),
+          record.kafkaOffset(),
+          cdc);
+      Map<String, Object> convertedRecord =
+          cdc ? recordConverter.getCdcRow(record) : recordConverter.getRegularRow(record);
       return StorageWriteApiBase.getJsonFromMap(convertedRecord);
     }
 
