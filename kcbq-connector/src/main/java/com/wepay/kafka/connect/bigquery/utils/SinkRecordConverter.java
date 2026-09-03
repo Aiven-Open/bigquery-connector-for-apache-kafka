@@ -246,9 +246,9 @@ public final class SinkRecordConverter {
   }
 
   /**
-   * Converts a SinkRecord to a CDC row using the specified writeAttemptId.
-   * Extracts both Key fields (as primary key columns) and Value fields, handles
-   * tombstone records for deletes, and adds Kafka metadata fields if configured.
+   * Converts a SinkRecord to a CDC row using the specified writeAttemptId. Extracts both Key fields
+   * (as primary key columns) and Value fields, handles tombstone records for deletes, and adds
+   * Kafka metadata fields if configured.
    *
    * @param record the record to convert.
    * @param writeAttemptId the write attempt id to use.
@@ -312,11 +312,15 @@ public final class SinkRecordConverter {
     // Strip the transient __deleted metadata field to prevent BigQuery ingestion crashes due to
     // unknown fields.
     result.remove(DELETED_PSEUDO_COLUMN);
-    // For PR 1: Default Kafka Partition/Offset Composite Sequencing (%08X/%016X for BigQuery
-    // Lexicographical Sorting)
+    // Default: Kafka Record Timestamp, followed by Offset, followed by Partition
+    Long recordTimestamp = record.timestamp();
+    long ts =
+        (recordTimestamp != null && recordTimestamp >= 0)
+            ? recordTimestamp
+            : System.currentTimeMillis();
     result.put(
         CDC_CHANGE_SEQUENCE_NUMBER_FIELD,
-        String.format("%08X/%016X", record.kafkaPartition(), record.kafkaOffset()));
+        String.format("%016X/%016X/%08X", ts, record.kafkaOffset(), record.kafkaPartition()));
 
     logger.trace(
         "getCdcRow OUTPUT - Topic: {}, Offset: {}, Result Map: {}",

@@ -67,6 +67,7 @@ public class SinkRecordConverterTest {
   private static final String TOPIC = "test-topic";
   private static final int PARTITION = 1;
   private static final long OFFSET = 42L;
+  private static final long RECORD_TIMESTAMP = 123456789L;
 
   private Schema keySchema;
   private Schema valueSchema;
@@ -117,7 +118,16 @@ public class SinkRecordConverterTest {
     when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
 
     SinkRecord record =
-        new SinkRecord(TOPIC, PARTITION, keySchema, keyStruct, valueSchema, valueStruct, OFFSET);
+        new SinkRecord(
+            TOPIC,
+            PARTITION,
+            keySchema,
+            keyStruct,
+            valueSchema,
+            valueStruct,
+            OFFSET,
+            RECORD_TIMESTAMP,
+            org.apache.kafka.common.record.TimestampType.CREATE_TIME);
 
     SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(config, null, null);
     Map<String, Object> actual = sinkRecordConverter.getCdcRow(record);
@@ -128,7 +138,9 @@ public class SinkRecordConverterTest {
 
     // Verify CDC metadata columns
     assertEquals(CDC_CHANGE_TYPE_UPSERT, actual.get(CDC_CHANGE_TYPE_FIELD));
-    assertEquals("00000001/000000000000002A", actual.get(CDC_CHANGE_SEQUENCE_NUMBER_FIELD));
+    assertEquals(
+        String.format("%016X/%016X/%08X", RECORD_TIMESTAMP, OFFSET, PARTITION),
+        actual.get(CDC_CHANGE_SEQUENCE_NUMBER_FIELD));
   }
 
   @Test
@@ -136,7 +148,17 @@ public class SinkRecordConverterTest {
     when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
     when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
 
-    SinkRecord record = new SinkRecord(TOPIC, PARTITION, keySchema, keyStruct, null, null, OFFSET);
+    SinkRecord record =
+        new SinkRecord(
+            TOPIC,
+            PARTITION,
+            keySchema,
+            keyStruct,
+            null,
+            null,
+            OFFSET,
+            RECORD_TIMESTAMP,
+            org.apache.kafka.common.record.TimestampType.CREATE_TIME);
 
     SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(config, null, null);
     Map<String, Object> actual = sinkRecordConverter.getCdcRow(record);
@@ -148,7 +170,9 @@ public class SinkRecordConverterTest {
 
     // Verify CDC metadata columns
     assertEquals(CDC_CHANGE_TYPE_DELETE, actual.get(CDC_CHANGE_TYPE_FIELD));
-    assertEquals("00000001/000000000000002A", actual.get(CDC_CHANGE_SEQUENCE_NUMBER_FIELD));
+    assertEquals(
+        String.format("%016X/%016X/%08X", RECORD_TIMESTAMP, OFFSET, PARTITION),
+        actual.get(CDC_CHANGE_SEQUENCE_NUMBER_FIELD));
   }
 
   @Test
@@ -161,6 +185,15 @@ public class SinkRecordConverterTest {
 
     SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(config, null, null);
     assertThrows(ConnectException.class, () -> sinkRecordConverter.getCdcRow(record));
+  }
+
+  @Test
+  public void testIsCdcEnabledWithoutUpsertOrDeleteFlags() {
+    when(config.getBoolean(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG)).thenReturn(true);
+    when(config.isUpsertDeleteEnabled()).thenReturn(true);
+
+    SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(config, null, null);
+    assertTrue(sinkRecordConverter.isCdcEnabled());
   }
 
   @Test
@@ -185,13 +218,23 @@ public class SinkRecordConverterTest {
 
     SinkRecord record =
         new SinkRecord(
-            TOPIC, PARTITION, keySchema, keyStruct, rewriteValueSchema, rewriteValueStruct, OFFSET);
+            TOPIC,
+            PARTITION,
+            keySchema,
+            keyStruct,
+            rewriteValueSchema,
+            rewriteValueStruct,
+            OFFSET,
+            RECORD_TIMESTAMP,
+            org.apache.kafka.common.record.TimestampType.CREATE_TIME);
 
     SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(config, null, null);
     Map<String, Object> actual = sinkRecordConverter.getCdcRow(record);
 
     assertEquals(CDC_CHANGE_TYPE_DELETE, actual.get(CDC_CHANGE_TYPE_FIELD));
-    assertEquals("00000001/000000000000002A", actual.get(CDC_CHANGE_SEQUENCE_NUMBER_FIELD));
+    assertEquals(
+        String.format("%016X/%016X/%08X", RECORD_TIMESTAMP, OFFSET, PARTITION),
+        actual.get(CDC_CHANGE_SEQUENCE_NUMBER_FIELD));
   }
 
   @Test
@@ -216,13 +259,23 @@ public class SinkRecordConverterTest {
 
     SinkRecord record =
         new SinkRecord(
-            TOPIC, PARTITION, keySchema, keyStruct, rewriteValueSchema, rewriteValueStruct, OFFSET);
+            TOPIC,
+            PARTITION,
+            keySchema,
+            keyStruct,
+            rewriteValueSchema,
+            rewriteValueStruct,
+            OFFSET,
+            RECORD_TIMESTAMP,
+            org.apache.kafka.common.record.TimestampType.CREATE_TIME);
 
     SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(config, null, null);
     Map<String, Object> actual = sinkRecordConverter.getCdcRow(record);
 
     assertEquals(CDC_CHANGE_TYPE_DELETE, actual.get(CDC_CHANGE_TYPE_FIELD));
-    assertEquals("00000001/000000000000002A", actual.get(CDC_CHANGE_SEQUENCE_NUMBER_FIELD));
+    assertEquals(
+        String.format("%016X/%016X/%08X", RECORD_TIMESTAMP, OFFSET, PARTITION),
+        actual.get(CDC_CHANGE_SEQUENCE_NUMBER_FIELD));
   }
 
   @Test
