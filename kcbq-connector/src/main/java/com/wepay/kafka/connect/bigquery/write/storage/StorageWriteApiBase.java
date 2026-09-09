@@ -694,7 +694,8 @@ public abstract class StorageWriteApiBase {
     return jsonObject;
   }
 
-  private JSONArray getJsonRecords(List<ConvertedRecord> rows) {
+  @VisibleForTesting
+  JSONArray getJsonRecords(List<ConvertedRecord> rows) {
     JSONArray jsonRecords = new JSONArray();
     for (ConvertedRecord item : rows) {
       JSONObject converted = item.converted();
@@ -711,8 +712,8 @@ public abstract class StorageWriteApiBase {
           long ts = (timestamp != null && timestamp >= 0) ? timestamp : 0L;
           String sequenceNumber =
               String.format(
-                  "%016X/%08X/%016X",
-                  ts, item.original().kafkaPartition(), item.original().kafkaOffset());
+                  "%016X/%016X/%08X",
+                  ts, item.original().kafkaOffset(), item.original().kafkaPartition());
           converted.put(CHANGE_SEQUENCE_NUMBER_PSEUDO_COLUMN, sequenceNumber);
         }
       }

@@ -449,16 +449,11 @@ public class SchemaManager {
       throw new BigQueryConnectException(
           "Failed to unionize schemas of records for the table " + table, exception);
     }
-    List<String> primaryKeys = getPrimaryKeys(records);
+    List<String> primaryKeys = proposedSchema.primaryKeyColumns();
     if (primaryKeys != null && !primaryKeys.isEmpty()) {
       com.google.cloud.bigquery.Schema relaxedSchema =
           relaxNonKeyFields(proposedSchema.schema(), primaryKeys);
-      List<String> pkColumns =
-          (proposedSchema.primaryKeyColumns() != null
-                  && !proposedSchema.primaryKeyColumns().isEmpty())
-              ? proposedSchema.primaryKeyColumns()
-              : primaryKeys;
-      proposedSchema = new SchemaAndPrimaryKeyColumns(relaxedSchema, pkColumns);
+      proposedSchema = new SchemaAndPrimaryKeyColumns(relaxedSchema, primaryKeys);
     }
     return constructTableInfo(table, proposedSchema, tableDescription, createSchema);
   }
@@ -788,15 +783,6 @@ public class SchemaManager {
     StandardTableDefinition.Builder builder =
         StandardTableDefinition.newBuilder().setSchema(bigQuerySchema.schema());
 
-    if (createSchema
-        && bigQuerySchema.primaryKeyColumns() != null
-        && !bigQuerySchema.primaryKeyColumns().isEmpty()) {
-      PrimaryKey pk =
-          PrimaryKey.newBuilder().setColumns(bigQuerySchema.primaryKeyColumns()).build();
-      TableConstraints constraints = TableConstraints.newBuilder().setPrimaryKey(pk).build();
-      builder.setTableConstraints(constraints);
-    }
-
     if (intermediateTables) {
       // Shameful hack: make the table ingestion time-partitioned here so that the _PARTITIONTIME
       // pseudocolumn can be queried to filter out rows that are still in the streaming buffer
@@ -821,17 +807,13 @@ public class SchemaManager {
       // Primary key constraints are needed for Storage Write API upsert CDC semantics.
       // This must be applied regardless of whether time-partitioning is configured,
       // so it lives outside the timePartitioningType.ifPresent() block.
-      if (kafkaKeyAsPrimaryKey) {
-        if (bigQuerySchema.primaryKeyColumns() != null
-            && !bigQuerySchema.primaryKeyColumns().isEmpty()) {
-          builder.setTableConstraints(
-              TableConstraints.newBuilder()
-                  .setPrimaryKey(
-                      PrimaryKey.newBuilder()
-                          .setColumns(bigQuerySchema.primaryKeyColumns())
-                          .build())
-                  .build());
-        }
+      if (kafkaKeyAsPrimaryKey
+          && bigQuerySchema.primaryKeyColumns() != null
+          && !bigQuerySchema.primaryKeyColumns().isEmpty()) {
+        PrimaryKey pk =
+            PrimaryKey.newBuilder().setColumns(bigQuerySchema.primaryKeyColumns()).build();
+        TableConstraints constraints = TableConstraints.newBuilder().setPrimaryKey(pk).build();
+        builder.setTableConstraints(constraints);
       }
     }
 
@@ -973,33 +955,6 @@ public class SchemaManager {
   }
 
   /**
-   * Extracts primary key column names from the key schema of the first record in the batch. If
-   * field name sanitization is enabled, the column names are sanitized.
-   *
-   * @param records The batch of records to inspect
-   * @return A list of primary key column names, or null if no key schema is found
-   */
-  private List<String> getPrimaryKeys(List<SinkRecord> records) {
-    if (records == null || records.isEmpty()) {
-      return Collections.emptyList();
-    }
-    SinkRecord record = records.get(0);
-    Schema keySchema = schemaRetriever.retrieveKeySchema(record);
-    if (keySchema == null || keySchema.type() != Schema.Type.STRUCT || keySchema.fields() == null) {
-      return Collections.emptyList();
-    }
-    List<String> pkColumns = new ArrayList<>();
-    for (org.apache.kafka.connect.data.Field field : keySchema.fields()) {
-      String name = field.name();
-      if (sanitizeFieldNames) {
-        name = FieldNameSanitizer.sanitizeName(name);
-      }
-      pkColumns.add(name);
-    }
-    return pkColumns;
-  }
-
-  /**
    * Relaxes the schema by converting non-primary-key required fields to nullable. This is necessary
    * for CDC deletes (tombstones or rewritten deletes), which only populate primary key columns and
    * omit required non-key columns. Without this relaxation, write operations for deletes would
@@ -1129,6 +1084,23 @@ public class SchemaManager {
       bigQuery.query(com.google.cloud.bigquery.QueryJobConfiguration.of(query));
       logger.info(
           "Successfully set max_staleness to '{}' on table {}", maxStalenessVal, table(table));
+    } catch (BigQueryException e) {
+      if (e.getCode() == 409
+          || (e.getMessage() != null
+              && (e.getMessage().contains("Already Exists")
+                  || e.getMessage().toLowerCase().contains("concurrent")))) {
+        logger.debug(
+            "Concurrent DDL conflict when applying max_staleness to table {} (possibly applied by another task): {}",
+            table(table),
+            e.getMessage());
+      } else {
+        throw new BigQueryConnectException(
+            "Failed to apply max_staleness option to table " + table(table), e);
+      }
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new BigQueryConnectException(
+          "Interrupted while applying max_staleness option to table " + table(table), e);
     } catch (Exception e) {
       throw new BigQueryConnectException(
           "Failed to apply max_staleness option to table " + table(table), e);

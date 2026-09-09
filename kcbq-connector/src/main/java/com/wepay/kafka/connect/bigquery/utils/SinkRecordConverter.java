@@ -324,10 +324,7 @@ public final class SinkRecordConverter {
     String customSeqField = config.getCdcChangeSequenceNumberField().orElse(null);
     String seqNumber;
     Long recordTimestamp = record.timestamp();
-    long ts =
-        (recordTimestamp != null && recordTimestamp >= 0)
-            ? recordTimestamp
-            : System.currentTimeMillis();
+    long ts = (recordTimestamp != null && recordTimestamp >= 0) ? recordTimestamp : 0L;
 
     if (customSeqField != null && !customSeqField.trim().isEmpty()) {
       if ("_KAFKA_TIMESTAMP".equalsIgnoreCase(customSeqField)) {
