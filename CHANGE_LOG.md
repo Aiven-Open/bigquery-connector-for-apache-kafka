@@ -22,7 +22,11 @@ All releases can be found at https://github.com/Aiven-Open/bigquery-connector-fo
  - Deprecated KafkaDataBuilder and removed static vars.
  - Retry transient 404 "Not found: Dataset" during streaming inserts
  - Retry transient 400 jobBackendError in MergeQueries
+ - Support upsert/delete with Storage Write API (#185 and #237)
  
+### New Contributors
+  - Abhishek Singh
+
 ### Co-authored by
  
  - Claude Warren
@@ -34,7 +38,7 @@ All releases can be found at https://github.com/Aiven-Open/bigquery-connector-fo
  
  
 ### Full Changelog
-https://github.com/Aiven-Open/${repositoryName}/compare/v2.14.0...v2.15.0
+https://github.com/Aiven-Open/bigquery-connector-for-apache-kafka/compare/v2.14.0...v2.15.0
  
 ## v2.14.0
 ### What is changed
