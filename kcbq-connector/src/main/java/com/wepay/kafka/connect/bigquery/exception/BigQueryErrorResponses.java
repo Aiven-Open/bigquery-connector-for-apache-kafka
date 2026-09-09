@@ -41,6 +41,7 @@ public class BigQueryErrorResponses {
   private static final int AUTHENTICATION_ERROR_CODE = 401;
   private static final int FORBIDDEN_CODE = 403;
   private static final int NOT_FOUND_CODE = 404;
+  private static final int CONTENT_TOO_LARGE_CODE = 413;
   private static final int INTERNAL_SERVICE_ERROR_CODE = 500;
   private static final int BAD_GATEWAY_CODE = 502;
   private static final int SERVICE_UNAVAILABLE_CODE = 503;
@@ -144,6 +145,23 @@ public class BigQueryErrorResponses {
     return BAD_REQUEST_CODE == exception.getCode()
         && BAD_REQUEST_REASON.equals(exception.getReason())
         && message(exception.getError()).startsWith("Request payload size exceeds the limit: ");
+  }
+
+  /**
+   * Google's HTTP frontend can reject a very large request before it reaches the BigQuery API,
+   * answering with an HTTP 413 and an HTML body instead of the documented JSON error that {@link
+   * #isRequestTooLargeError(BigQueryException)} matches. Which of the two responses comes back is
+   * not deterministic: an identical oversized request can be answered with the 400 JSON error on
+   * one attempt and the 413 on the next, so both have to be treated as meaning the payload was too
+   * large.
+   *
+   * <p>A 413 does not always mean the request was too large: per <a
+   * href="https://docs.cloud.google.com/docs/quotas/troubleshoot">Google's quota troubleshooting
+   * guide</a>, the legacy streaming API also returns one when throughput exceeds 300MB/s. This is a
+   * separate edge case that this project does not yet handle.
+   */
+  public static boolean isContentTooLargeError(BigQueryException exception) {
+    return CONTENT_TOO_LARGE_CODE == exception.getCode();
   }
 
   public static boolean isTooManyRowsError(BigQueryException exception) {
