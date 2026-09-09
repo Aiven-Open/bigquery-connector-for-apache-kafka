@@ -144,6 +144,58 @@ public class SinkRecordConverterTest {
   }
 
   @Test
+  public void testCdcRowUpsertDeterministicTimestampFallbackWhenNull() {
+    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+
+    SinkRecord record =
+        new SinkRecord(
+            TOPIC,
+            PARTITION,
+            keySchema,
+            keyStruct,
+            valueSchema,
+            valueStruct,
+            OFFSET,
+            null,
+            org.apache.kafka.common.record.TimestampType.NO_TIMESTAMP_TYPE);
+
+    SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(config, null, null);
+    Map<String, Object> actual = sinkRecordConverter.getCdcRow(record);
+
+    assertEquals(CDC_CHANGE_TYPE_UPSERT, actual.get(CDC_CHANGE_TYPE_FIELD));
+    assertEquals(
+        String.format("%016X/%016X/%08X", 0L, OFFSET, PARTITION),
+        actual.get(CDC_CHANGE_SEQUENCE_NUMBER_FIELD));
+  }
+
+  @Test
+  public void testCdcRowUpsertDeterministicTimestampFallbackWhenNegative() {
+    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+
+    SinkRecord record =
+        new SinkRecord(
+            TOPIC,
+            PARTITION,
+            keySchema,
+            keyStruct,
+            valueSchema,
+            valueStruct,
+            OFFSET,
+            -1L,
+            org.apache.kafka.common.record.TimestampType.NO_TIMESTAMP_TYPE);
+
+    SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(config, null, null);
+    Map<String, Object> actual = sinkRecordConverter.getCdcRow(record);
+
+    assertEquals(CDC_CHANGE_TYPE_UPSERT, actual.get(CDC_CHANGE_TYPE_FIELD));
+    assertEquals(
+        String.format("%016X/%016X/%08X", 0L, OFFSET, PARTITION),
+        actual.get(CDC_CHANGE_SEQUENCE_NUMBER_FIELD));
+  }
+
+  @Test
   public void testCdcRowDelete() {
     when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
     when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);

@@ -314,10 +314,7 @@ public final class SinkRecordConverter {
     result.remove(DELETED_PSEUDO_COLUMN);
     // Default: Kafka Record Timestamp, followed by Offset, followed by Partition
     Long recordTimestamp = record.timestamp();
-    long ts =
-        (recordTimestamp != null && recordTimestamp >= 0)
-            ? recordTimestamp
-            : System.currentTimeMillis();
+    long ts = (recordTimestamp != null && recordTimestamp >= 0) ? recordTimestamp : 0L;
     result.put(
         CDC_CHANGE_SEQUENCE_NUMBER_FIELD,
         String.format("%016X/%016X/%08X", ts, record.kafkaOffset(), record.kafkaPartition()));
