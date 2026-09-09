@@ -479,9 +479,7 @@ public class SinkRecordConverterTest {
             org.apache.kafka.common.record.TimestampType.NO_TIMESTAMP_TYPE);
 
     SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(config, null, null);
-    long beforeMs = System.currentTimeMillis();
     Map<String, Object> actual = sinkRecordConverter.getCdcRow(record);
-    long afterMs = System.currentTimeMillis();
 
     String seqStr = (String) actual.get("_CHANGE_SEQUENCE_NUMBER");
     assertNotNull(seqStr);
@@ -489,7 +487,7 @@ public class SinkRecordConverterTest {
     String[] parts = seqStr.split("/");
     assertEquals(3, parts.length);
     long parsedTs = Long.parseLong(parts[0], 16);
-    assertTrue(parsedTs >= beforeMs && parsedTs <= afterMs);
+    assertEquals(0L, parsedTs);
     assertEquals(String.format("%016X", OFFSET), parts[1]);
     assertEquals(String.format("%08X", PARTITION), parts[2]);
   }
