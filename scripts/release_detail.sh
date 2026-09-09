@@ -49,7 +49,7 @@ git log --format=' - %an'  ${commits} | sort -u  >> /tmp/proposed_changelog.txt;
 echo ' ' >> /tmp/proposed_changelog.txt;
 echo ' ' >> /tmp/proposed_changelog.txt;
 echo '### Full Changelog' >> /tmp/proposed_changelog.txt;
-echo 'https://github.com/Aiven-Open/${repositoryName}/compare/'${startTag}'...v'${endVersion}  >> /tmp/proposed_changelog.txt;
+echo 'https://github.com/Aiven-Open/bigquery-connector-for-apache-kafka/compare/'${startTag}'...v'${endVersion}  >> /tmp/proposed_changelog.txt;
 echo ' ' >> /tmp/proposed_changelog.txt
 touch CHANGE_LOG.md
 grep -A 999 "^## " CHANGE_LOG.md  > /tmp/release_notes.txt
