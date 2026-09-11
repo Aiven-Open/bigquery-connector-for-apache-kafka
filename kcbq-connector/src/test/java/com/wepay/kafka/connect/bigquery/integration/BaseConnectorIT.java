@@ -105,6 +105,12 @@ public abstract class BaseConnectorIT {
   protected static final long ONE_MINUTE = 60_000L;
   protected static final long ONE_SECOND = 1_000L;
 
+  /**
+   * This is the number of processors for which the timings are based. needs to be a double for
+   * calculation to work correctly.
+   */
+  protected static final double EXPECTED_PROC_COUNT = 16;
+
   protected EmbeddedConnectCluster connect;
 
   /** The status message if there are any issues with the connector status check */
@@ -118,6 +124,11 @@ public abstract class BaseConnectorIT {
       result[i] = bytes[i];
     }
     return Arrays.asList(result);
+  }
+
+  public static long scaleTime(long milliseconds) {
+    double scale = EXPECTED_PROC_COUNT / Runtime.getRuntime().availableProcessors();
+    return scale > 1.0 ? (long) (scale * milliseconds) : milliseconds;
   }
 
   protected void startConnect() {
@@ -198,8 +209,13 @@ public abstract class BaseConnectorIT {
   }
 
   protected void waitForCommittedRecords(
-      String connector, Collection<String> topics, long numRecords, int numTasks, long timeoutMs)
+      String connector,
+      Collection<String> topics,
+      long numRecords,
+      int numTasks,
+      long requestedTimeoutMs)
       throws InterruptedException {
+    long timeoutMs = scaleTime(requestedTimeoutMs);
     waitForCondition(
         () -> {
           long totalCommittedRecords = totalCommittedRecords(connector, topics);
