@@ -331,13 +331,8 @@ public final class SinkRecordConverter {
   }
 
   public boolean isCdcEnabled() {
-    boolean enabled =
-        config.getBoolean(config.USE_STORAGE_WRITE_API_CONFIG) && config.isUpsertDeleteEnabled();
-    logger.trace(
-        "isCdcEnabled check - USE_STORAGE_WRITE_API: {}, isUpsertDeleteEnabled: {}, Result: {}",
-        config.getBoolean(config.USE_STORAGE_WRITE_API_CONFIG),
-        config.isUpsertDeleteEnabled(),
-        enabled);
+    boolean enabled = config.isCdcEnabled();
+    logger.trace("isCdcEnabled check - Result: {}", enabled);
     return enabled;
   }
 

@@ -241,8 +241,7 @@ public class SinkRecordConverterTest {
 
   @Test
   public void testIsCdcEnabledWithoutUpsertOrDeleteFlags() {
-    when(config.getBoolean(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG)).thenReturn(true);
-    when(config.isUpsertDeleteEnabled()).thenReturn(true);
+    when(config.isCdcEnabled()).thenReturn(true);
 
     SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(config, null, null);
     assertTrue(sinkRecordConverter.isCdcEnabled());

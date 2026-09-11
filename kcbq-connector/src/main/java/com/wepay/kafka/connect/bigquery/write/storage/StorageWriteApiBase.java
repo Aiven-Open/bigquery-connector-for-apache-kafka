@@ -55,6 +55,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.kafka.connect.sink.SinkRecord;
@@ -122,14 +123,12 @@ public abstract class StorageWriteApiBase {
     this.autoCreateTables = autoCreateTables;
     this.writeSettings = writeSettings;
     this.errantRecordHandler = errantRecordHandler;
-    this.schemaManager = schemaManager;
+    this.schemaManager = Objects.requireNonNull(schemaManager, "schemaManager cannot be null");
     this.attemptSchemaUpdate = attemptSchemaUpdate;
     this.upsertEnabled = config.isUpsertEnabled();
     this.deleteEnabled = config.isDeleteEnabled();
     this.ignoreUnknownFields = config.isIgnoreUnknownFields();
-    this.isCdcEnabled =
-        config.getBoolean(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG)
-            && config.isUpsertDeleteEnabled();
+    this.isCdcEnabled = config.isCdcEnabled();
     try {
       this.writeClient = getWriteClient();
     } catch (IOException e) {

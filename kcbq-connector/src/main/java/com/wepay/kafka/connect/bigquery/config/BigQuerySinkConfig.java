@@ -55,7 +55,6 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.config.Config;
 import org.apache.kafka.common.config.ConfigDef;
@@ -1511,13 +1510,19 @@ public class BigQuerySinkConfig extends AbstractConfig {
    * @return Field name of Kafka Key to be used in BigQuery
    */
   public Optional<String> getKafkaKeyFieldName() {
-    String value = getString(KAFKA_KEY_FIELD_NAME_CONFIG);
-    if (StringUtils.isBlank(value)
-        && (isUpsertEnabled() || isDeleteEnabled())
-        && useStorageWriteApi()) {
+    if (isCdcEnabled()) {
+      String value = getString(KAFKA_KEY_FIELD_NAME_CONFIG);
+      if (value != null && !value.trim().isEmpty()) {
+        logger.warn(
+            "{} is configured as '{}', but it will be ignored because CDC upsert/delete with "
+                + "Storage Write API requires Kafka keys to be flattened into root schema columns "
+                + "for BigQuery primary keys.",
+            KAFKA_KEY_FIELD_NAME_CONFIG,
+            value);
+      }
       return Optional.of("");
     }
-    return Optional.ofNullable(value);
+    return Optional.ofNullable(getString(KAFKA_KEY_FIELD_NAME_CONFIG));
   }
 
   /**
@@ -1536,18 +1541,30 @@ public class BigQuerySinkConfig extends AbstractConfig {
   }
 
   /**
-   * Determines if CDC is enabled either explicitly via isCdcEnabled or via
+   * Determines if CDC is configured either explicitly via isCdcEnabled or via
    * configPreset=debezium_cdc.
    *
-   * @return {@code true} if CDC is enabled.
+   * @return {@code true} if CDC is configured.
    */
-  public boolean isCdcEnabled() {
+  public boolean isCdcConfigured() {
     return getBoolean(IS_CDC_ENABLED_CONFIG)
         || "debezium_cdc".equalsIgnoreCase(getString(CONFIG_PRESET_CONFIG));
   }
 
+  /**
+   * Determines if BigQuery CDC ingestion is enabled (i.e. Storage Write API is used and upsert or
+   * delete is enabled).
+   *
+   * @return {@code true} if CDC is enabled with Storage Write API.
+   */
+  public boolean isCdcEnabled() {
+    return useStorageWriteApi() && isUpsertDeleteEnabled();
+  }
+
   public boolean isUpsertDeleteEnabled() {
-    return getBoolean(UPSERT_ENABLED_CONFIG) || getBoolean(DELETE_ENABLED_CONFIG) || isCdcEnabled();
+    return getBoolean(UPSERT_ENABLED_CONFIG)
+        || getBoolean(DELETE_ENABLED_CONFIG)
+        || isCdcConfigured();
   }
 
   /**
@@ -1556,7 +1573,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
    * @return {@code true} if upsert is enabled.
    */
   public boolean isUpsertEnabled() {
-    return getBoolean(UPSERT_ENABLED_CONFIG) || isCdcEnabled();
+    return getBoolean(UPSERT_ENABLED_CONFIG) || isCdcConfigured();
   }
 
   /**
@@ -1565,7 +1582,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
    * @return {@code true} if delete is enabled.
    */
   public boolean isDeleteEnabled() {
-    return getBoolean(DELETE_ENABLED_CONFIG) || isCdcEnabled();
+    return getBoolean(DELETE_ENABLED_CONFIG) || isCdcConfigured();
   }
 
   /**
