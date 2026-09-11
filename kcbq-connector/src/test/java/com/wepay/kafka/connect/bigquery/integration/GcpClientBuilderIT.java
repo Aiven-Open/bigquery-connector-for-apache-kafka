@@ -137,11 +137,15 @@ public class GcpClientBuilderIT extends BaseConnectorIT {
 
   @Test
   public void testFile() throws Exception {
+    org.junit.jupiter.api.Assumptions.assumeFalse(
+        keyFile().isEmpty(), "Skip if no keyfile provided");
     testClients(GcpClientBuilder.KeySource.FILE);
   }
 
   @Test
   public void testJson() throws Exception {
+    org.junit.jupiter.api.Assumptions.assumeFalse(
+        keyFile().isEmpty(), "Skip if no keyfile provided");
     testClients(GcpClientBuilder.KeySource.JSON);
   }
 }
