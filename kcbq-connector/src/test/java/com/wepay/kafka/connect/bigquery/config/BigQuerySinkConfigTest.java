@@ -399,8 +399,8 @@ public class BigQuerySinkConfigTest {
         .containsExactlyInAnyOrder(
             BigQuerySinkConfig.KAFKA_KEY_FIELD_NAME_CONFIG,
             BigQuerySinkConfig.GCS_BUCKET_NAME_CONFIG,
-            "keyfile",
-            BigQuerySinkConfig.DELETE_ENABLED_CONFIG);
+            BigQuerySinkConfig.DELETE_ENABLED_CONFIG,
+            "keyfile");
   }
 
   @Test
@@ -416,5 +416,63 @@ public class BigQuerySinkConfigTest {
             BigQuerySinkConfig.KAFKA_KEY_FIELD_NAME_CONFIG,
             BigQuerySinkConfig.GCS_BUCKET_NAME_CONFIG,
             "keyfile");
+  }
+
+  @Test
+  void testCdcChangeSequenceNumberFieldConfig() {
+    Map<String, String> configProperties = propertiesFactory.getProperties();
+    configProperties.put(BigQuerySinkConfig.CDC_CHANGE_SEQUENCE_NUMBER_FIELD_CONFIG, "version_id");
+
+    BigQuerySinkConfig config = new BigQuerySinkConfig(configProperties);
+    assertEquals(Optional.of("version_id"), config.getCdcChangeSequenceNumberField());
+  }
+
+  @Test
+  void testValidTableMaxStaleness() {
+    Map<String, String> configProperties = propertiesFactory.getProperties();
+    configProperties.put(BigQuerySinkConfig.TABLE_MAX_STALENESS_CONFIG, "30");
+
+    BigQuerySinkConfig config = new BigQuerySinkConfig(configProperties);
+    assertEquals(Optional.of(30), config.getTableMaxStaleness());
+
+    configProperties.put(BigQuerySinkConfig.TABLE_MAX_STALENESS_CONFIG, "0");
+    config = new BigQuerySinkConfig(configProperties);
+    assertEquals(Optional.of(0), config.getTableMaxStaleness());
+  }
+
+  @Test
+  void testInvalidNegativeTableMaxStaleness() {
+    Map<String, String> configProperties = propertiesFactory.getProperties();
+    configProperties.put(BigQuerySinkConfig.TABLE_MAX_STALENESS_CONFIG, "-1");
+
+    assertThrows(ConfigException.class, () -> new BigQuerySinkConfig(configProperties));
+  }
+
+  @Test
+  void testIsCdcEnabledConfig() {
+    Map<String, String> configProperties = propertiesFactory.getProperties();
+    BigQuerySinkConfig config = new BigQuerySinkConfig(configProperties);
+    assertFalse(config.isCdcEnabled());
+    assertFalse(config.isUpsertDeleteEnabled());
+    assertFalse(config.isUpsertEnabled());
+    assertFalse(config.isDeleteEnabled());
+
+    configProperties.put(BigQuerySinkConfig.IS_CDC_ENABLED_CONFIG, "true");
+    config = new BigQuerySinkConfig(configProperties);
+    assertTrue(config.isCdcEnabled());
+    assertTrue(config.isUpsertDeleteEnabled());
+    assertTrue(config.isUpsertEnabled());
+    assertTrue(config.isDeleteEnabled());
+  }
+
+  @Test
+  void testConfigPresetDebeziumCdc() {
+    Map<String, String> configProperties = propertiesFactory.getProperties();
+    configProperties.put(BigQuerySinkConfig.CONFIG_PRESET_CONFIG, "debezium_cdc");
+    BigQuerySinkConfig config = new BigQuerySinkConfig(configProperties);
+    assertTrue(config.isCdcEnabled());
+    assertTrue(config.isUpsertDeleteEnabled());
+    assertTrue(config.isUpsertEnabled());
+    assertTrue(config.isDeleteEnabled());
   }
 }

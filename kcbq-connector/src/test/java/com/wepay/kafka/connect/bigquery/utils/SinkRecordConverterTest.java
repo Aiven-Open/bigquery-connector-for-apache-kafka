@@ -23,30 +23,59 @@
 
 package com.wepay.kafka.connect.bigquery.utils;
 
+import static com.wepay.kafka.connect.bigquery.utils.SinkRecordConverter.CDC_CHANGE_SEQUENCE_NUMBER_FIELD;
+import static com.wepay.kafka.connect.bigquery.utils.SinkRecordConverter.CDC_CHANGE_TYPE_DELETE;
+import static com.wepay.kafka.connect.bigquery.utils.SinkRecordConverter.CDC_CHANGE_TYPE_FIELD;
+import static com.wepay.kafka.connect.bigquery.utils.SinkRecordConverter.CDC_CHANGE_TYPE_UPSERT;
+import static com.wepay.kafka.connect.bigquery.utils.SinkRecordConverter.DELETED_PSEUDO_COLUMN;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.wepay.kafka.connect.bigquery.SchemaManager;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
+import com.wepay.kafka.connect.bigquery.config.BigQuerySinkTaskConfig;
+import com.wepay.kafka.connect.bigquery.convert.BigQueryRecordConverter;
+import com.wepay.kafka.connect.bigquery.convert.RecordConverter;
 import de.huxhorn.sulky.ulid.ULID;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.apache.kafka.common.record.TimestampType;
+import org.apache.kafka.connect.data.Schema;
+import org.apache.kafka.connect.data.SchemaBuilder;
+import org.apache.kafka.connect.data.Struct;
+import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.sink.SinkRecord;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 public class SinkRecordConverterTest {
+  private static final String TOPIC = "test-topic";
+  private static final int PARTITION = 1;
+  private static final long OFFSET = 42L;
+  private static final long RECORD_TIMESTAMP = 123456789L;
+
+  private Schema keySchema;
+  private Schema valueSchema;
+  private Struct keyStruct;
+  private Struct valueStruct;
+
+  private BigQuerySinkTaskConfig config;
+  private RecordConverter<Map<String, Object>> recordConverter;
 
   private static final String kafkaDataTopicValue = "testTopic";
   private static final int kafkaDataPartitionValue = 101;
@@ -55,6 +84,800 @@ public class SinkRecordConverterTest {
   private static final int kafkaDataMutatedPartitionValue = 201;
   private static final long kafkaDataMutatedOffsetValue = 456;
   private static final ULID ulid = new ULID();
+
+  @BeforeEach
+  public void setUp() {
+    keySchema = SchemaBuilder.struct().field("id", Schema.INT64_SCHEMA).build();
+    keyStruct = new Struct(keySchema).put("id", 123L);
+
+    valueSchema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT64_SCHEMA)
+            .field("name", Schema.STRING_SCHEMA)
+            .build();
+    valueStruct = new Struct(valueSchema).put("id", 123L).put("name", "Alice");
+
+    config = mock(BigQuerySinkTaskConfig.class);
+    recordConverter = new BigQueryRecordConverter(false, true);
+
+    when(config.getRecordConverter()).thenReturn(recordConverter);
+    when(config.getLong(BigQuerySinkConfig.MERGE_RECORDS_THRESHOLD_CONFIG)).thenReturn(-1L);
+    when(config.getBoolean(BigQuerySinkConfig.BIGQUERY_MESSAGE_TIME_PARTITIONING_CONFIG))
+        .thenReturn(false);
+    when(config.getBoolean(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG))
+        .thenReturn(true);
+    when(config.getBoolean(BigQuerySinkConfig.SANITIZE_FIELD_NAME_CONFIG)).thenReturn(false);
+    when(config.getKafkaKeyFieldName()).thenReturn(Optional.empty());
+    when(config.getKafkaDataFieldName()).thenReturn(Optional.empty());
+    when(config.getBoolean(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG)).thenReturn(true);
+  }
+
+  @Test
+  public void testCdcRowUpsert() {
+    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+
+    SinkRecord record =
+        new SinkRecord(
+            TOPIC,
+            PARTITION,
+            keySchema,
+            keyStruct,
+            valueSchema,
+            valueStruct,
+            OFFSET,
+            RECORD_TIMESTAMP,
+            org.apache.kafka.common.record.TimestampType.CREATE_TIME);
+
+    SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(config, null, null);
+    Map<String, Object> actual = sinkRecordConverter.getCdcRow(record);
+
+    // Verify root fields
+    assertEquals(123L, actual.get("id"));
+    assertEquals("Alice", actual.get("name"));
+
+    // Verify CDC metadata columns
+    assertEquals(CDC_CHANGE_TYPE_UPSERT, actual.get(CDC_CHANGE_TYPE_FIELD));
+    assertEquals(
+        String.format("%016X/%016X/%08X", RECORD_TIMESTAMP, OFFSET, PARTITION),
+        actual.get(CDC_CHANGE_SEQUENCE_NUMBER_FIELD));
+  }
+
+  @Test
+  public void testCdcRowUpsertDeterministicTimestampFallbackWhenNull() {
+    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+
+    SinkRecord record =
+        new SinkRecord(
+            TOPIC,
+            PARTITION,
+            keySchema,
+            keyStruct,
+            valueSchema,
+            valueStruct,
+            OFFSET,
+            null,
+            org.apache.kafka.common.record.TimestampType.NO_TIMESTAMP_TYPE);
+
+    SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(config, null, null);
+    Map<String, Object> actual = sinkRecordConverter.getCdcRow(record);
+
+    assertEquals(CDC_CHANGE_TYPE_UPSERT, actual.get(CDC_CHANGE_TYPE_FIELD));
+    assertEquals(
+        String.format("%016X/%016X/%08X", 0L, OFFSET, PARTITION),
+        actual.get(CDC_CHANGE_SEQUENCE_NUMBER_FIELD));
+  }
+
+  @Test
+  public void testCdcRowUpsertDeterministicTimestampFallbackWhenNegative() {
+    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+
+    SinkRecord record =
+        new SinkRecord(
+            TOPIC,
+            PARTITION,
+            keySchema,
+            keyStruct,
+            valueSchema,
+            valueStruct,
+            OFFSET,
+            -1L,
+            org.apache.kafka.common.record.TimestampType.NO_TIMESTAMP_TYPE);
+
+    SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(config, null, null);
+    Map<String, Object> actual = sinkRecordConverter.getCdcRow(record);
+
+    assertEquals(CDC_CHANGE_TYPE_UPSERT, actual.get(CDC_CHANGE_TYPE_FIELD));
+    assertEquals(
+        String.format("%016X/%016X/%08X", 0L, OFFSET, PARTITION),
+        actual.get(CDC_CHANGE_SEQUENCE_NUMBER_FIELD));
+  }
+
+  @Test
+  public void testCdcRowDelete() {
+    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+
+    SinkRecord record =
+        new SinkRecord(
+            TOPIC,
+            PARTITION,
+            keySchema,
+            keyStruct,
+            null,
+            null,
+            OFFSET,
+            RECORD_TIMESTAMP,
+            org.apache.kafka.common.record.TimestampType.CREATE_TIME);
+
+    SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(config, null, null);
+    Map<String, Object> actual = sinkRecordConverter.getCdcRow(record);
+
+    // Verify root fields from key
+    assertEquals(123L, actual.get("id"));
+    // Since value is null, "name" should not exist or should be null
+    assertTrue(!actual.containsKey("name") || actual.get("name") == null);
+
+    // Verify CDC metadata columns
+    assertEquals(CDC_CHANGE_TYPE_DELETE, actual.get(CDC_CHANGE_TYPE_FIELD));
+    assertEquals(
+        String.format("%016X/%016X/%08X", RECORD_TIMESTAMP, OFFSET, PARTITION),
+        actual.get(CDC_CHANGE_SEQUENCE_NUMBER_FIELD));
+  }
+
+  @Test
+  public void testCdcRowDeleteThrowsIfKeyNull() {
+    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+
+    SinkRecord record =
+        new SinkRecord(TOPIC, PARTITION, null, null, valueSchema, valueStruct, OFFSET);
+
+    SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(config, null, null);
+    assertThrows(ConnectException.class, () -> sinkRecordConverter.getCdcRow(record));
+  }
+
+  @Test
+  public void testCdcRowWithCustomSeqFromValue() {
+    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getCdcChangeSequenceNumberField()).thenReturn(Optional.of("name"));
+
+    SinkRecord record =
+        new SinkRecord(
+            TOPIC,
+            PARTITION,
+            keySchema,
+            keyStruct,
+            valueSchema,
+            valueStruct,
+            OFFSET,
+            RECORD_TIMESTAMP,
+            org.apache.kafka.common.record.TimestampType.CREATE_TIME);
+
+    SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(config, null, null);
+    Map<String, Object> actual = sinkRecordConverter.getCdcRow(record);
+
+    assertEquals("UPSERT", actual.get("_CHANGE_TYPE"));
+    String expectedAliceHex = String.format("%64s", "416C696365").replace(' ', '0');
+    assertEquals(
+        String.format("%s/%016X/%016X/%08X", expectedAliceHex, RECORD_TIMESTAMP, OFFSET, PARTITION),
+        actual.get("_CHANGE_SEQUENCE_NUMBER"));
+  }
+
+  @Test
+  public void testCdcRowWithCustomSeqFromKey() {
+    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getCdcChangeSequenceNumberField()).thenReturn(Optional.of("id"));
+
+    SinkRecord record =
+        new SinkRecord(
+            TOPIC,
+            PARTITION,
+            keySchema,
+            keyStruct,
+            null,
+            null,
+            OFFSET,
+            RECORD_TIMESTAMP,
+            org.apache.kafka.common.record.TimestampType.CREATE_TIME);
+
+    SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(config, null, null);
+    Map<String, Object> actual = sinkRecordConverter.getCdcRow(record);
+
+    assertEquals("DELETE", actual.get("_CHANGE_TYPE"));
+    assertEquals(
+        String.format("%016X/%016X/%016X/%08X", 123L, RECORD_TIMESTAMP, OFFSET, PARTITION),
+        actual.get("_CHANGE_SEQUENCE_NUMBER"));
+  }
+
+  @Test
+  public void testCdcRowWithKafkaTimestampSeq() {
+    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getCdcChangeSequenceNumberField()).thenReturn(Optional.of("_KAFKA_TIMESTAMP"));
+
+    long recordTimestamp = 123456789L;
+    SinkRecord record =
+        new SinkRecord(
+            TOPIC,
+            PARTITION,
+            keySchema,
+            keyStruct,
+            valueSchema,
+            valueStruct,
+            OFFSET,
+            recordTimestamp,
+            org.apache.kafka.common.record.TimestampType.CREATE_TIME);
+
+    SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(config, null, null);
+    Map<String, Object> actual = sinkRecordConverter.getCdcRow(record);
+
+    assertEquals("UPSERT", actual.get("_CHANGE_TYPE"));
+    assertEquals(
+        String.format("%016X/%016X/%08X", recordTimestamp, OFFSET, PARTITION),
+        actual.get("_CHANGE_SEQUENCE_NUMBER"));
+  }
+
+  @Test
+  public void testCdcRowWithCustomSeqFallbackToTimestamp() {
+    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getCdcChangeSequenceNumberField()).thenReturn(Optional.of("updated_at"));
+
+    long recordTimestamp = 9876543210L;
+    SinkRecord record =
+        new SinkRecord(
+            TOPIC,
+            PARTITION,
+            keySchema,
+            keyStruct,
+            null,
+            null,
+            OFFSET,
+            recordTimestamp,
+            org.apache.kafka.common.record.TimestampType.CREATE_TIME);
+
+    SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(config, null, null);
+    Map<String, Object> actual = sinkRecordConverter.getCdcRow(record);
+
+    assertEquals("DELETE", actual.get("_CHANGE_TYPE"));
+    assertEquals(
+        String.format("%016X/%016X/%08X", recordTimestamp, OFFSET, PARTITION),
+        actual.get("_CHANGE_SEQUENCE_NUMBER"));
+  }
+
+  @Test
+  public void testCdcRowWithTimestampString() {
+    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getCdcChangeSequenceNumberField()).thenReturn(Optional.of("timestamp_str"));
+
+    Schema timeValueSchema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT64_SCHEMA)
+            .field("timestamp_str", Schema.STRING_SCHEMA)
+            .build();
+
+    Struct timeValueStruct =
+        new Struct(timeValueSchema).put("id", 123L).put("timestamp_str", "2026-08-14T10:00:00Z");
+
+    SinkRecord record =
+        new SinkRecord(
+            TOPIC,
+            PARTITION,
+            keySchema,
+            keyStruct,
+            timeValueSchema,
+            timeValueStruct,
+            OFFSET,
+            RECORD_TIMESTAMP,
+            org.apache.kafka.common.record.TimestampType.CREATE_TIME);
+
+    SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(config, null, null);
+    Map<String, Object> actual = sinkRecordConverter.getCdcRow(record);
+
+    assertEquals("UPSERT", actual.get("_CHANGE_TYPE"));
+    long expectedEpochMs = java.time.Instant.parse("2026-08-14T10:00:00Z").toEpochMilli();
+    assertEquals(
+        String.format(
+            "%016X/%016X/%016X/%08X", expectedEpochMs, RECORD_TIMESTAMP, OFFSET, PARTITION),
+        actual.get("_CHANGE_SEQUENCE_NUMBER"));
+  }
+
+  @Test
+  public void testCdcRowWithTimestampStringNoOffset() {
+    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getCdcChangeSequenceNumberField()).thenReturn(Optional.of("timestamp_str"));
+
+    Schema timeValueSchema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT64_SCHEMA)
+            .field("timestamp_str", Schema.STRING_SCHEMA)
+            .build();
+
+    Struct timeValueStruct =
+        new Struct(timeValueSchema).put("id", 123L).put("timestamp_str", "2026-08-14 10:00:00");
+
+    SinkRecord record =
+        new SinkRecord(
+            TOPIC,
+            PARTITION,
+            keySchema,
+            keyStruct,
+            timeValueSchema,
+            timeValueStruct,
+            OFFSET,
+            RECORD_TIMESTAMP,
+            org.apache.kafka.common.record.TimestampType.CREATE_TIME);
+
+    SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(config, null, null);
+    Map<String, Object> actual = sinkRecordConverter.getCdcRow(record);
+
+    assertEquals("UPSERT", actual.get("_CHANGE_TYPE"));
+    long expectedEpochMs =
+        java.time.LocalDateTime.parse("2026-08-14T10:00:00")
+            .toInstant(java.time.ZoneOffset.UTC)
+            .toEpochMilli();
+    assertEquals(
+        String.format(
+            "%016X/%016X/%016X/%08X", expectedEpochMs, RECORD_TIMESTAMP, OFFSET, PARTITION),
+        actual.get("_CHANGE_SEQUENCE_NUMBER"));
+  }
+
+  @Test
+  public void testCdcRowWithCustomSeqFromHeader() {
+    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getCdcChangeSequenceNumberField()).thenReturn(Optional.of("tx_seq"));
+
+    org.apache.kafka.connect.header.ConnectHeaders headers =
+        new org.apache.kafka.connect.header.ConnectHeaders();
+    headers.addString("tx_seq", "5000");
+
+    SinkRecord record =
+        new SinkRecord(
+            TOPIC,
+            PARTITION,
+            keySchema,
+            keyStruct,
+            valueSchema,
+            valueStruct,
+            OFFSET,
+            123456789L,
+            org.apache.kafka.common.record.TimestampType.CREATE_TIME,
+            headers);
+
+    SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(config, null, null);
+    Map<String, Object> actual = sinkRecordConverter.getCdcRow(record);
+
+    assertEquals("UPSERT", actual.get("_CHANGE_TYPE"));
+    assertEquals(
+        String.format("%016X/%016X/%016X/%08X", 5000L, 123456789L, OFFSET, PARTITION),
+        actual.get("_CHANGE_SEQUENCE_NUMBER"));
+  }
+
+  @Test
+  public void testCdcRowWithPostgresLsn() {
+    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getCdcChangeSequenceNumberField()).thenReturn(Optional.of("lsn"));
+
+    Schema lsnValueSchema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT64_SCHEMA)
+            .field("lsn", Schema.STRING_SCHEMA)
+            .build();
+
+    Struct lsnValueStruct = new Struct(lsnValueSchema).put("id", 123L).put("lsn", "0/16B3748");
+
+    SinkRecord record =
+        new SinkRecord(
+            TOPIC,
+            PARTITION,
+            keySchema,
+            keyStruct,
+            lsnValueSchema,
+            lsnValueStruct,
+            OFFSET,
+            RECORD_TIMESTAMP,
+            org.apache.kafka.common.record.TimestampType.CREATE_TIME);
+
+    SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(config, null, null);
+    Map<String, Object> actual = sinkRecordConverter.getCdcRow(record);
+
+    assertEquals("UPSERT", actual.get("_CHANGE_TYPE"));
+    long expectedLsn = 0x16B3748L;
+    assertEquals(
+        String.format("%016X/%016X/%016X/%08X", expectedLsn, RECORD_TIMESTAMP, OFFSET, PARTITION),
+        actual.get("_CHANGE_SEQUENCE_NUMBER"));
+  }
+
+  @Test
+  public void testCdcRowWithPostgresLsnNonZeroUpper() {
+    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getCdcChangeSequenceNumberField()).thenReturn(Optional.of("lsn"));
+
+    Schema lsnValueSchema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT64_SCHEMA)
+            .field("lsn", Schema.STRING_SCHEMA)
+            .build();
+
+    Struct lsnValueStruct = new Struct(lsnValueSchema).put("id", 123L).put("lsn", "16/B3748");
+
+    SinkRecord record =
+        new SinkRecord(
+            TOPIC,
+            PARTITION,
+            keySchema,
+            keyStruct,
+            lsnValueSchema,
+            lsnValueStruct,
+            OFFSET,
+            RECORD_TIMESTAMP,
+            org.apache.kafka.common.record.TimestampType.CREATE_TIME);
+
+    SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(config, null, null);
+    Map<String, Object> actual = sinkRecordConverter.getCdcRow(record);
+
+    assertEquals("UPSERT", actual.get("_CHANGE_TYPE"));
+    long expectedLsn = (0x16L << 32) | 0xB3748L;
+    assertEquals(
+        String.format("%016X/%016X/%016X/%08X", expectedLsn, RECORD_TIMESTAMP, OFFSET, PARTITION),
+        actual.get("_CHANGE_SEQUENCE_NUMBER"));
+  }
+
+  @Test
+  public void testCdcRowWithPostgresLsnOrdering() {
+    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getCdcChangeSequenceNumberField()).thenReturn(Optional.of("lsn"));
+
+    String[] lsns =
+        new String[] {
+          "0/16B3748",
+          "0/16B3749",
+          "0/2000000",
+          "0/10000000",
+          "16/B3748",
+          "16/16B3748",
+          "16/B374D848"
+        };
+
+    SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(config, null, null);
+    String prevSeq = null;
+
+    for (int i = 0; i < lsns.length; i++) {
+      Schema lsnSchema =
+          SchemaBuilder.struct()
+              .field("id", Schema.INT64_SCHEMA)
+              .field("lsn", Schema.STRING_SCHEMA)
+              .build();
+
+      Struct lsnStruct = new Struct(lsnSchema).put("id", 123L).put("lsn", lsns[i]);
+
+      SinkRecord record =
+          new SinkRecord(
+              TOPIC,
+              PARTITION,
+              keySchema,
+              keyStruct,
+              lsnSchema,
+              lsnStruct,
+              OFFSET,
+              RECORD_TIMESTAMP,
+              org.apache.kafka.common.record.TimestampType.CREATE_TIME);
+
+      Map<String, Object> actual = sinkRecordConverter.getCdcRow(record);
+      String currentSeq = (String) actual.get("_CHANGE_SEQUENCE_NUMBER");
+
+      if (prevSeq != null) {
+        assertTrue(
+            currentSeq.compareTo(prevSeq) > 0,
+            String.format(
+                "Expected sequence for %s (%s) to be greater than sequence for %s (%s)",
+                lsns[i], currentSeq, lsns[i - 1], prevSeq));
+      }
+      prevSeq = currentSeq;
+    }
+  }
+
+  @Test
+  public void testCdcRowWithPostgresLsnLowercase() {
+    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getCdcChangeSequenceNumberField()).thenReturn(Optional.of("lsn"));
+
+    Schema lsnValueSchema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT64_SCHEMA)
+            .field("lsn", Schema.STRING_SCHEMA)
+            .build();
+
+    Struct lsnValueStruct = new Struct(lsnValueSchema).put("id", 123L).put("lsn", "0/16b3748");
+
+    SinkRecord record =
+        new SinkRecord(
+            TOPIC,
+            PARTITION,
+            keySchema,
+            keyStruct,
+            lsnValueSchema,
+            lsnValueStruct,
+            OFFSET,
+            RECORD_TIMESTAMP,
+            org.apache.kafka.common.record.TimestampType.CREATE_TIME);
+
+    SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(config, null, null);
+    Map<String, Object> actual = sinkRecordConverter.getCdcRow(record);
+
+    assertEquals("UPSERT", actual.get("_CHANGE_TYPE"));
+    long expectedLsn = 0x16B3748L;
+    assertEquals(
+        String.format("%016X/%016X/%016X/%08X", expectedLsn, RECORD_TIMESTAMP, OFFSET, PARTITION),
+        actual.get("_CHANGE_SEQUENCE_NUMBER"));
+  }
+
+  @Test
+  public void testCdcRowWithLongCustomSeqStringNoTruncation() {
+    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getCdcChangeSequenceNumberField()).thenReturn(Optional.of("tx_id"));
+
+    // Two identifiers differing only after the 8th character (16th hex char)
+    String id1 = "TX_RECORD_PAGE_00000001";
+    String id2 = "TX_RECORD_PAGE_00000002";
+
+    Schema schema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT64_SCHEMA)
+            .field("tx_id", Schema.STRING_SCHEMA)
+            .build();
+
+    SinkRecordConverter converter = new SinkRecordConverter(config, null, null);
+
+    SinkRecord record1 =
+        new SinkRecord(
+            TOPIC,
+            PARTITION,
+            keySchema,
+            keyStruct,
+            schema,
+            new Struct(schema).put("id", 1L).put("tx_id", id1),
+            OFFSET,
+            RECORD_TIMESTAMP,
+            org.apache.kafka.common.record.TimestampType.CREATE_TIME);
+
+    SinkRecord record2 =
+        new SinkRecord(
+            TOPIC,
+            PARTITION,
+            keySchema,
+            keyStruct,
+            schema,
+            new Struct(schema).put("id", 1L).put("tx_id", id2),
+            OFFSET,
+            RECORD_TIMESTAMP,
+            org.apache.kafka.common.record.TimestampType.CREATE_TIME);
+
+    String seq1 = (String) converter.getCdcRow(record1).get("_CHANGE_SEQUENCE_NUMBER");
+    String seq2 = (String) converter.getCdcRow(record2).get("_CHANGE_SEQUENCE_NUMBER");
+
+    assertNotEquals(seq1, seq2);
+    assertTrue(seq2.compareTo(seq1) > 0);
+  }
+
+  @Test
+  public void testCdcRowWithVariableLengthCustomSeqStringZeroPadded() {
+    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getCdcChangeSequenceNumberField()).thenReturn(Optional.of("version"));
+
+    // Strings of different lengths that would sort inversely if unpadded across delimiter
+    String v1 = "ver_9";
+    String v2 = "ver_10";
+
+    Schema schema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT64_SCHEMA)
+            .field("version", Schema.STRING_SCHEMA)
+            .build();
+
+    SinkRecordConverter converter = new SinkRecordConverter(config, null, null);
+
+    SinkRecord record1 =
+        new SinkRecord(
+            TOPIC,
+            PARTITION,
+            keySchema,
+            keyStruct,
+            schema,
+            new Struct(schema).put("id", 1L).put("version", v1),
+            OFFSET,
+            RECORD_TIMESTAMP,
+            org.apache.kafka.common.record.TimestampType.CREATE_TIME);
+
+    SinkRecord record2 =
+        new SinkRecord(
+            TOPIC,
+            PARTITION,
+            keySchema,
+            keyStruct,
+            schema,
+            new Struct(schema).put("id", 1L).put("version", v2),
+            OFFSET,
+            RECORD_TIMESTAMP,
+            org.apache.kafka.common.record.TimestampType.CREATE_TIME);
+
+    String seq1 = (String) converter.getCdcRow(record1).get("_CHANGE_SEQUENCE_NUMBER");
+    String seq2 = (String) converter.getCdcRow(record2).get("_CHANGE_SEQUENCE_NUMBER");
+
+    // Both should have their custom segment zero-padded to at least 64 chars
+    String[] parts1 = seq1.split("/");
+    String[] parts2 = seq2.split("/");
+    assertEquals(64, parts1[0].length());
+    assertEquals(64, parts2[0].length());
+    assertTrue(seq2.compareTo(seq1) > 0);
+  }
+
+  @Test
+  public void testCdcRowWithKafkaTimestampMissingFallback() {
+    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getCdcChangeSequenceNumberField()).thenReturn(Optional.of("_KAFKA_TIMESTAMP"));
+
+    SinkRecord record =
+        new SinkRecord(
+            TOPIC,
+            PARTITION,
+            keySchema,
+            keyStruct,
+            valueSchema,
+            valueStruct,
+            OFFSET,
+            -1L,
+            org.apache.kafka.common.record.TimestampType.NO_TIMESTAMP_TYPE);
+
+    SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(config, null, null);
+    Map<String, Object> actual = sinkRecordConverter.getCdcRow(record);
+
+    String seqStr = (String) actual.get("_CHANGE_SEQUENCE_NUMBER");
+    assertNotNull(seqStr);
+    assertFalse(seqStr.startsWith("FFFFFFFFFFFFFFFF"));
+    String[] parts = seqStr.split("/");
+    assertEquals(3, parts.length);
+    long parsedTs = Long.parseLong(parts[0], 16);
+    assertEquals(0L, parsedTs);
+    assertEquals(String.format("%016X", OFFSET), parts[1]);
+    assertEquals(String.format("%08X", PARTITION), parts[2]);
+  }
+
+  @Test
+  public void testIsCdcEnabledWithoutUpsertOrDeleteFlags() {
+    when(config.getBoolean(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG)).thenReturn(true);
+    when(config.isUpsertDeleteEnabled()).thenReturn(true);
+
+    SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(config, null, null);
+    assertTrue(sinkRecordConverter.isCdcEnabled());
+  }
+
+  @Test
+  public void testCdcRowDeleteRewrite() {
+    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+
+    Schema rewriteValueSchema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT64_SCHEMA)
+            .field("name", Schema.STRING_SCHEMA)
+            .field("version_id", Schema.INT64_SCHEMA)
+            .field(DELETED_PSEUDO_COLUMN, Schema.BOOLEAN_SCHEMA)
+            .build();
+
+    Struct rewriteValueStruct =
+        new Struct(rewriteValueSchema)
+            .put("id", 123L)
+            .put("name", "Alice")
+            .put("version_id", 3L)
+            .put(DELETED_PSEUDO_COLUMN, true);
+
+    SinkRecord record =
+        new SinkRecord(
+            TOPIC,
+            PARTITION,
+            keySchema,
+            keyStruct,
+            rewriteValueSchema,
+            rewriteValueStruct,
+            OFFSET,
+            RECORD_TIMESTAMP,
+            org.apache.kafka.common.record.TimestampType.CREATE_TIME);
+
+    SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(config, null, null);
+    Map<String, Object> actual = sinkRecordConverter.getCdcRow(record);
+
+    assertEquals(CDC_CHANGE_TYPE_DELETE, actual.get(CDC_CHANGE_TYPE_FIELD));
+    assertEquals(
+        String.format("%016X/%016X/%08X", RECORD_TIMESTAMP, OFFSET, PARTITION),
+        actual.get(CDC_CHANGE_SEQUENCE_NUMBER_FIELD));
+  }
+
+  @Test
+  public void testCdcRowDeleteRewriteString() {
+    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+
+    Schema rewriteValueSchema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT64_SCHEMA)
+            .field("name", Schema.STRING_SCHEMA)
+            .field("version_id", Schema.INT64_SCHEMA)
+            .field(DELETED_PSEUDO_COLUMN, Schema.STRING_SCHEMA)
+            .build();
+
+    Struct rewriteValueStruct =
+        new Struct(rewriteValueSchema)
+            .put("id", 123L)
+            .put("name", "Alice")
+            .put("version_id", 3L)
+            .put(DELETED_PSEUDO_COLUMN, "true");
+
+    SinkRecord record =
+        new SinkRecord(
+            TOPIC,
+            PARTITION,
+            keySchema,
+            keyStruct,
+            rewriteValueSchema,
+            rewriteValueStruct,
+            OFFSET,
+            RECORD_TIMESTAMP,
+            org.apache.kafka.common.record.TimestampType.CREATE_TIME);
+
+    SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(config, null, null);
+    Map<String, Object> actual = sinkRecordConverter.getCdcRow(record);
+
+    assertEquals(CDC_CHANGE_TYPE_DELETE, actual.get(CDC_CHANGE_TYPE_FIELD));
+    assertEquals(
+        String.format("%016X/%016X/%08X", RECORD_TIMESTAMP, OFFSET, PARTITION),
+        actual.get(CDC_CHANGE_SEQUENCE_NUMBER_FIELD));
+  }
+
+  @Test
+  public void testCdcRowStripsDeletedField() {
+    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+
+    Schema rewriteValueSchema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT64_SCHEMA)
+            .field("name", Schema.STRING_SCHEMA)
+            .field("version_id", Schema.INT64_SCHEMA)
+            .field(DELETED_PSEUDO_COLUMN, Schema.BOOLEAN_SCHEMA)
+            .build();
+
+    Struct rewriteValueStruct =
+        new Struct(rewriteValueSchema)
+            .put("id", 123L)
+            .put("name", "Alice")
+            .put("version_id", 3L)
+            .put(DELETED_PSEUDO_COLUMN, true);
+
+    SinkRecord record =
+        new SinkRecord(
+            TOPIC, PARTITION, keySchema, keyStruct, rewriteValueSchema, rewriteValueStruct, OFFSET);
+
+    SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(config, null, null);
+    Map<String, Object> actual = sinkRecordConverter.getCdcRow(record);
+
+    assertTrue(!actual.containsKey(DELETED_PSEUDO_COLUMN));
+  }
 
   private static Map<String, Object> defaultExpectedFields() {
     return new HashMap<>(

@@ -156,7 +156,7 @@ class StorageWriteApiBaseTest {
     RowsTooLargeStreamWriter streamWriter =
         new RowsTooLargeStreamWriter("appendRowsTooLargeTestWithStorageWriteAPI");
     BigQuerySinkTaskConfig config = storageWriteApiConfig();
-    executeInitializeAndWriteRecordsTestData(streamWriter, config, null);
+    executeInitializeAndWriteRecordsTestData(streamWriter, config, mock(SchemaManager.class));
 
     // verify the results
     List<JSONArray> result = streamWriter.appendCalls;
@@ -177,7 +177,7 @@ class StorageWriteApiBaseTest {
     RowsTooLargeStreamWriter streamWriter =
         new RowsTooLargeStreamWriter("appendRowsTooLargeTestWithStorageWriteGCS");
     BigQuerySinkTaskConfig config = storageWriteGCSConfig();
-    executeInitializeAndWriteRecordsTestData(streamWriter, config, null);
+    executeInitializeAndWriteRecordsTestData(streamWriter, config, mock(SchemaManager.class));
 
     // verify the results
     List<JSONArray> result = streamWriter.appendCalls;
@@ -243,6 +243,68 @@ class StorageWriteApiBaseTest {
     String ulid1 = assertSameUlid(result.get(0));
     String ulid2 = assertSameUlid(result.get(1));
     assertNotEquals(ulid2, ulid1);
+  }
+
+  @Test
+  public void testGetJsonRecords_generatesCorrectChangeSequenceNumberFormat() {
+    Map<String, String> params = new HashMap<>(defaultMap);
+    params.put("useStorageWriteApi", "true");
+    params.put("upsertEnabled", "true");
+    BigQuerySinkTaskConfig config = new BigQuerySinkTaskConfig(params);
+
+    StorageWriteApiBase underTest =
+        new StorageWriteApiBase(
+            1,
+            1000,
+            mock(BigQueryWriteSettings.class),
+            true,
+            null,
+            mock(SchemaManager.class),
+            false,
+            config) {
+          @Override
+          public void preShutdown() {}
+
+          @Override
+          protected StreamWriter streamWriter(
+              PartitionedTableId table, String streamName, List<ConvertedRecord> records) {
+            return null;
+          }
+
+          @Override
+          protected BigQueryWriteClient getWriteClient() {
+            return null;
+          }
+        };
+
+    long timestamp = 1693742400000L;
+    int partition = 3;
+    long offset = 1050L;
+    SinkRecord record =
+        new SinkRecord(
+            "test-topic",
+            partition,
+            null,
+            "key1",
+            SchemaBuilder.struct().field("val", Schema.STRING_SCHEMA),
+            new Struct(SchemaBuilder.struct().field("val", Schema.STRING_SCHEMA))
+                .put("val", "hello"),
+            offset,
+            timestamp,
+            org.apache.kafka.common.record.TimestampType.CREATE_TIME);
+
+    JSONObject converted = new JSONObject();
+    converted.put("val", "hello");
+    ConvertedRecord item = new ConvertedRecord(record, converted);
+
+    JSONArray result = underTest.getJsonRecords(Collections.singletonList(item));
+    assertEquals(1, result.length());
+    JSONObject row = result.getJSONObject(0);
+
+    assertEquals("UPSERT", row.getString(StorageWriteApiBase.CHANGE_TYPE_PSEUDO_COLUMN));
+    String expectedSeq = String.format("%016X/%016X/%08X", timestamp, offset, partition);
+    assertEquals(
+        expectedSeq, row.getString(StorageWriteApiBase.CHANGE_SEQUENCE_NUMBER_PSEUDO_COLUMN));
   }
 
   private String assertSameUlid(JSONArray ary) {

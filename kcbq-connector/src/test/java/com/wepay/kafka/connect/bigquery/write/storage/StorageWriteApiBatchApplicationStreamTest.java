@@ -47,6 +47,7 @@ import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiConnect
 import com.wepay.kafka.connect.bigquery.utils.MockTime;
 import com.wepay.kafka.connect.bigquery.utils.PartitionedTableId;
 import com.wepay.kafka.connect.bigquery.utils.TableNameUtils;
+import com.wepay.kafka.connect.bigquery.utils.Time;
 import io.grpc.StatusRuntimeException;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -129,7 +130,7 @@ public class StorageWriteApiBatchApplicationStreamTest {
       new ExecutionException(
           new StatusRuntimeException(
               io.grpc.Status.fromThrowable(new Throwable()).withDescription("STREAM_FINALISED")));
-  MockTime time = new MockTime();
+  Time time = new MockTime();
 
   @BeforeEach
   public void setup()

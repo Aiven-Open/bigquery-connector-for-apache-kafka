@@ -830,4 +830,27 @@ public class BigQuerySchemaConverterTest {
             ConversionConnectException.class, () -> createConverter().convertSchema(connectSchema));
     assertEquals("Kafka Connect schema contains cycle", e.getMessage());
   }
+
+  @Test
+  public void testConvertSchemaFiltersOutDeletedField() {
+    Schema kafkaConnectTestSchema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT64_SCHEMA)
+            .field("name", Schema.STRING_SCHEMA)
+            .field("__deleted", Schema.OPTIONAL_STRING_SCHEMA)
+            .build();
+
+    com.google.cloud.bigquery.Schema bigQueryExpectedSchema =
+        com.google.cloud.bigquery.Schema.of(
+            com.google.cloud.bigquery.Field.newBuilder("id", LegacySQLTypeName.INTEGER)
+                .setMode(com.google.cloud.bigquery.Field.Mode.REQUIRED)
+                .build(),
+            com.google.cloud.bigquery.Field.newBuilder("name", LegacySQLTypeName.STRING)
+                .setMode(com.google.cloud.bigquery.Field.Mode.REQUIRED)
+                .build());
+
+    com.google.cloud.bigquery.Schema actual =
+        createConverter().convertSchema(kafkaConnectTestSchema);
+    assertEquals(bigQueryExpectedSchema, actual);
+  }
 }

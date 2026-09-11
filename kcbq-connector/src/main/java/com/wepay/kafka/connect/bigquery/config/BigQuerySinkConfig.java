@@ -55,7 +55,6 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.config.Config;
 import org.apache.kafka.common.config.ConfigDef;
@@ -160,6 +159,43 @@ public class BigQuerySinkConfig extends AbstractConfig {
   public static final boolean DELETE_ENABLED_DEFAULT = false;
   public static final String INTERMEDIATE_TABLE_SUFFIX_CONFIG = "intermediateTableSuffix";
   public static final String INTERMEDIATE_TABLE_SUFFIX_DEFAULT = "tmp";
+  public static final String CDC_CHANGE_SEQUENCE_NUMBER_FIELD_CONFIG =
+      "cdcChangeSequenceNumberField";
+  public static final String CDC_CHANGE_SEQUENCE_NUMBER_FIELD_DEFAULT = null;
+  private static final ConfigDef.Type CDC_CHANGE_SEQUENCE_NUMBER_FIELD_TYPE = ConfigDef.Type.STRING;
+  private static final ConfigDef.Importance CDC_CHANGE_SEQUENCE_NUMBER_FIELD_IMPORTANCE =
+      ConfigDef.Importance.MEDIUM;
+  private static final String CDC_CHANGE_SEQUENCE_NUMBER_FIELD_DOC =
+      "The name of the field or header to use as the change sequence number (_CHANGE_SEQUENCE_NUMBER) for BigQuery CDC. "
+          + "If not set, Kafka Offset is used as the default sequence number.";
+  public static final String TABLE_MAX_STALENESS_CONFIG = "tableMaxStaleness";
+  public static final Integer TABLE_MAX_STALENESS_DEFAULT = null;
+  private static final ConfigDef.Type TABLE_MAX_STALENESS_TYPE = ConfigDef.Type.INT;
+  private static final ConfigDef.Validator TABLE_MAX_STALENESS_VALIDATOR =
+      ConfigDef.LambdaValidator.with(
+          (name, value) -> {
+            if (value != null) {
+              ConfigDef.Range.atLeast(0).ensureValid(name, value);
+            }
+          },
+          () -> "if set the value must be at least 0");
+  private static final ConfigDef.Importance TABLE_MAX_STALENESS_IMPORTANCE =
+      ConfigDef.Importance.MEDIUM;
+  private static final String TABLE_MAX_STALENESS_DOC =
+      "The maximum staleness allowed for the destination BigQuery table in seconds. "
+          + "Only applicable if upsert/delete (CDC) is enabled with the Storage Write API.";
+  public static final String IS_CDC_ENABLED_CONFIG = "isCdcEnabled";
+  public static final Boolean IS_CDC_ENABLED_DEFAULT = false;
+  private static final ConfigDef.Type IS_CDC_ENABLED_TYPE = ConfigDef.Type.BOOLEAN;
+  private static final ConfigDef.Importance IS_CDC_ENABLED_IMPORTANCE = ConfigDef.Importance.MEDIUM;
+  private static final String IS_CDC_ENABLED_DOC =
+      "Enable BigQuery Change Data Capture (CDC) with the Storage Write API. "
+          + "When true, records are ingested as upserts or deletes using BigQuery CDC.";
+  public static final String CONFIG_PRESET_CONFIG = "configPreset";
+  public static final String CONFIG_PRESET_DEFAULT = null;
+  private static final ConfigDef.Type CONFIG_PRESET_TYPE = ConfigDef.Type.STRING;
+  private static final ConfigDef.Importance CONFIG_PRESET_IMPORTANCE = ConfigDef.Importance.LOW;
+  private static final String CONFIG_PRESET_DOC = "Configuration preset (e.g. debezium_cdc).";
   public static final String MERGE_INTERVAL_MS_CONFIG = "mergeIntervalMs";
   public static final String MERGE_RECORDS_THRESHOLD_CONFIG = "mergeRecordsThreshold";
   public static final long MERGE_INTERVAL_MS_DEFAULT = 60_000L;
@@ -1039,6 +1075,31 @@ public class BigQuerySinkConfig extends AbstractConfig {
                     KAFKA_KEY_FIELD_NAME_CONFIG)
                 .build())
         .define(
+            CDC_CHANGE_SEQUENCE_NUMBER_FIELD_CONFIG,
+            CDC_CHANGE_SEQUENCE_NUMBER_FIELD_TYPE,
+            CDC_CHANGE_SEQUENCE_NUMBER_FIELD_DEFAULT,
+            CDC_CHANGE_SEQUENCE_NUMBER_FIELD_IMPORTANCE,
+            CDC_CHANGE_SEQUENCE_NUMBER_FIELD_DOC)
+        .define(
+            TABLE_MAX_STALENESS_CONFIG,
+            TABLE_MAX_STALENESS_TYPE,
+            TABLE_MAX_STALENESS_DEFAULT,
+            TABLE_MAX_STALENESS_VALIDATOR,
+            TABLE_MAX_STALENESS_IMPORTANCE,
+            TABLE_MAX_STALENESS_DOC)
+        .define(
+            IS_CDC_ENABLED_CONFIG,
+            IS_CDC_ENABLED_TYPE,
+            IS_CDC_ENABLED_DEFAULT,
+            IS_CDC_ENABLED_IMPORTANCE,
+            IS_CDC_ENABLED_DOC)
+        .define(
+            CONFIG_PRESET_CONFIG,
+            CONFIG_PRESET_TYPE,
+            CONFIG_PRESET_DEFAULT,
+            CONFIG_PRESET_IMPORTANCE,
+            CONFIG_PRESET_DOC)
+        .define(
             INTERMEDIATE_TABLE_SUFFIX_CONFIG,
             INTERMEDIATE_TABLE_SUFFIX_TYPE,
             INTERMEDIATE_TABLE_SUFFIX_DEFAULT,
@@ -1465,7 +1526,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
    */
   public Optional<String> getKafkaKeyFieldName() {
     String value = getString(KAFKA_KEY_FIELD_NAME_CONFIG);
-    if (StringUtils.isBlank(value)
+    if ((value == null || value.trim().isEmpty())
         && (isUpsertEnabled() || isDeleteEnabled())
         && useStorageWriteApi()) {
       return Optional.of("");
@@ -1485,12 +1546,40 @@ public class BigQuerySinkConfig extends AbstractConfig {
   }
 
   /**
+   * Returns the custom field or header name configured to be used as the change sequence number.
+   *
+   * @return The field/header name, or Optional.empty() if not configured.
+   */
+  public Optional<String> getCdcChangeSequenceNumberField() {
+    return Optional.ofNullable(getString(CDC_CHANGE_SEQUENCE_NUMBER_FIELD_CONFIG));
+  }
+
+  public Optional<Integer> getTableMaxStaleness() {
+    return Optional.ofNullable(getInt(TABLE_MAX_STALENESS_CONFIG));
+  }
+
+  /**
+   * Determines if CDC is enabled either explicitly via isCdcEnabled or via
+   * configPreset=debezium_cdc.
+   *
+   * @return {@code true} if CDC is enabled.
+   */
+  public boolean isCdcEnabled() {
+    return getBoolean(IS_CDC_ENABLED_CONFIG)
+        || "debezium_cdc".equalsIgnoreCase(getString(CONFIG_PRESET_CONFIG));
+  }
+
+  public boolean isUpsertDeleteEnabled() {
+    return getBoolean(UPSERT_ENABLED_CONFIG) || getBoolean(DELETE_ENABLED_CONFIG) || isCdcEnabled();
+  }
+
+  /**
    * Determines if upsert is enabled
    *
    * @return {@code true} if upsert is enabled.
    */
   public boolean isUpsertEnabled() {
-    return getBoolean(UPSERT_ENABLED_CONFIG);
+    return getBoolean(UPSERT_ENABLED_CONFIG) || isCdcEnabled();
   }
 
   /**
@@ -1499,7 +1588,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
    * @return {@code true} if delete is enabled.
    */
   public boolean isDeleteEnabled() {
-    return getBoolean(DELETE_ENABLED_CONFIG);
+    return getBoolean(DELETE_ENABLED_CONFIG) || isCdcEnabled();
   }
 
   /**
