@@ -261,8 +261,9 @@ public class SinkRecordConverterTest {
     Map<String, Object> actual = sinkRecordConverter.getCdcRow(record);
 
     assertEquals("UPSERT", actual.get("_CHANGE_TYPE"));
+    String expectedAliceHex = String.format("%64s", "416C696365").replace(' ', '0');
     assertEquals(
-        String.format("416C696365/%016X/%016X/%08X", RECORD_TIMESTAMP, OFFSET, PARTITION),
+        String.format("%s/%016X/%016X/%08X", expectedAliceHex, RECORD_TIMESTAMP, OFFSET, PARTITION),
         actual.get("_CHANGE_SEQUENCE_NUMBER"));
   }
 
@@ -458,6 +459,271 @@ public class SinkRecordConverterTest {
     assertEquals(
         String.format("%016X/%016X/%016X/%08X", 5000L, 123456789L, OFFSET, PARTITION),
         actual.get("_CHANGE_SEQUENCE_NUMBER"));
+  }
+
+  @Test
+  public void testCdcRowWithPostgresLsn() {
+    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getCdcChangeSequenceNumberField()).thenReturn(Optional.of("lsn"));
+
+    Schema lsnValueSchema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT64_SCHEMA)
+            .field("lsn", Schema.STRING_SCHEMA)
+            .build();
+
+    Struct lsnValueStruct = new Struct(lsnValueSchema).put("id", 123L).put("lsn", "0/16B3748");
+
+    SinkRecord record =
+        new SinkRecord(
+            TOPIC,
+            PARTITION,
+            keySchema,
+            keyStruct,
+            lsnValueSchema,
+            lsnValueStruct,
+            OFFSET,
+            RECORD_TIMESTAMP,
+            org.apache.kafka.common.record.TimestampType.CREATE_TIME);
+
+    SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(config, null, null);
+    Map<String, Object> actual = sinkRecordConverter.getCdcRow(record);
+
+    assertEquals("UPSERT", actual.get("_CHANGE_TYPE"));
+    long expectedLsn = 0x16B3748L;
+    assertEquals(
+        String.format("%016X/%016X/%016X/%08X", expectedLsn, RECORD_TIMESTAMP, OFFSET, PARTITION),
+        actual.get("_CHANGE_SEQUENCE_NUMBER"));
+  }
+
+  @Test
+  public void testCdcRowWithPostgresLsnNonZeroUpper() {
+    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getCdcChangeSequenceNumberField()).thenReturn(Optional.of("lsn"));
+
+    Schema lsnValueSchema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT64_SCHEMA)
+            .field("lsn", Schema.STRING_SCHEMA)
+            .build();
+
+    Struct lsnValueStruct = new Struct(lsnValueSchema).put("id", 123L).put("lsn", "16/B3748");
+
+    SinkRecord record =
+        new SinkRecord(
+            TOPIC,
+            PARTITION,
+            keySchema,
+            keyStruct,
+            lsnValueSchema,
+            lsnValueStruct,
+            OFFSET,
+            RECORD_TIMESTAMP,
+            org.apache.kafka.common.record.TimestampType.CREATE_TIME);
+
+    SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(config, null, null);
+    Map<String, Object> actual = sinkRecordConverter.getCdcRow(record);
+
+    assertEquals("UPSERT", actual.get("_CHANGE_TYPE"));
+    long expectedLsn = (0x16L << 32) | 0xB3748L;
+    assertEquals(
+        String.format("%016X/%016X/%016X/%08X", expectedLsn, RECORD_TIMESTAMP, OFFSET, PARTITION),
+        actual.get("_CHANGE_SEQUENCE_NUMBER"));
+  }
+
+  @Test
+  public void testCdcRowWithPostgresLsnOrdering() {
+    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getCdcChangeSequenceNumberField()).thenReturn(Optional.of("lsn"));
+
+    String[] lsns =
+        new String[] {
+          "0/16B3748",
+          "0/16B3749",
+          "0/2000000",
+          "0/10000000",
+          "16/B3748",
+          "16/16B3748",
+          "16/B374D848"
+        };
+
+    SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(config, null, null);
+    String prevSeq = null;
+
+    for (int i = 0; i < lsns.length; i++) {
+      Schema lsnSchema =
+          SchemaBuilder.struct()
+              .field("id", Schema.INT64_SCHEMA)
+              .field("lsn", Schema.STRING_SCHEMA)
+              .build();
+
+      Struct lsnStruct = new Struct(lsnSchema).put("id", 123L).put("lsn", lsns[i]);
+
+      SinkRecord record =
+          new SinkRecord(
+              TOPIC,
+              PARTITION,
+              keySchema,
+              keyStruct,
+              lsnSchema,
+              lsnStruct,
+              OFFSET,
+              RECORD_TIMESTAMP,
+              org.apache.kafka.common.record.TimestampType.CREATE_TIME);
+
+      Map<String, Object> actual = sinkRecordConverter.getCdcRow(record);
+      String currentSeq = (String) actual.get("_CHANGE_SEQUENCE_NUMBER");
+
+      if (prevSeq != null) {
+        assertTrue(
+            currentSeq.compareTo(prevSeq) > 0,
+            String.format(
+                "Expected sequence for %s (%s) to be greater than sequence for %s (%s)",
+                lsns[i], currentSeq, lsns[i - 1], prevSeq));
+      }
+      prevSeq = currentSeq;
+    }
+  }
+
+  @Test
+  public void testCdcRowWithPostgresLsnLowercase() {
+    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getCdcChangeSequenceNumberField()).thenReturn(Optional.of("lsn"));
+
+    Schema lsnValueSchema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT64_SCHEMA)
+            .field("lsn", Schema.STRING_SCHEMA)
+            .build();
+
+    Struct lsnValueStruct = new Struct(lsnValueSchema).put("id", 123L).put("lsn", "0/16b3748");
+
+    SinkRecord record =
+        new SinkRecord(
+            TOPIC,
+            PARTITION,
+            keySchema,
+            keyStruct,
+            lsnValueSchema,
+            lsnValueStruct,
+            OFFSET,
+            RECORD_TIMESTAMP,
+            org.apache.kafka.common.record.TimestampType.CREATE_TIME);
+
+    SinkRecordConverter sinkRecordConverter = new SinkRecordConverter(config, null, null);
+    Map<String, Object> actual = sinkRecordConverter.getCdcRow(record);
+
+    assertEquals("UPSERT", actual.get("_CHANGE_TYPE"));
+    long expectedLsn = 0x16B3748L;
+    assertEquals(
+        String.format("%016X/%016X/%016X/%08X", expectedLsn, RECORD_TIMESTAMP, OFFSET, PARTITION),
+        actual.get("_CHANGE_SEQUENCE_NUMBER"));
+  }
+
+  @Test
+  public void testCdcRowWithLongCustomSeqStringNoTruncation() {
+    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getCdcChangeSequenceNumberField()).thenReturn(Optional.of("tx_id"));
+
+    // Two identifiers differing only after the 8th character (16th hex char)
+    String id1 = "TX_RECORD_PAGE_00000001";
+    String id2 = "TX_RECORD_PAGE_00000002";
+
+    Schema schema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT64_SCHEMA)
+            .field("tx_id", Schema.STRING_SCHEMA)
+            .build();
+
+    SinkRecordConverter converter = new SinkRecordConverter(config, null, null);
+
+    SinkRecord record1 =
+        new SinkRecord(
+            TOPIC,
+            PARTITION,
+            keySchema,
+            keyStruct,
+            schema,
+            new Struct(schema).put("id", 1L).put("tx_id", id1),
+            OFFSET,
+            RECORD_TIMESTAMP,
+            org.apache.kafka.common.record.TimestampType.CREATE_TIME);
+
+    SinkRecord record2 =
+        new SinkRecord(
+            TOPIC,
+            PARTITION,
+            keySchema,
+            keyStruct,
+            schema,
+            new Struct(schema).put("id", 1L).put("tx_id", id2),
+            OFFSET,
+            RECORD_TIMESTAMP,
+            org.apache.kafka.common.record.TimestampType.CREATE_TIME);
+
+    String seq1 = (String) converter.getCdcRow(record1).get("_CHANGE_SEQUENCE_NUMBER");
+    String seq2 = (String) converter.getCdcRow(record2).get("_CHANGE_SEQUENCE_NUMBER");
+
+    assertNotEquals(seq1, seq2);
+    assertTrue(seq2.compareTo(seq1) > 0);
+  }
+
+  @Test
+  public void testCdcRowWithVariableLengthCustomSeqStringZeroPadded() {
+    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+    when(config.getCdcChangeSequenceNumberField()).thenReturn(Optional.of("version"));
+
+    // Strings of different lengths that would sort inversely if unpadded across delimiter
+    String v1 = "ver_9";
+    String v2 = "ver_10";
+
+    Schema schema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT64_SCHEMA)
+            .field("version", Schema.STRING_SCHEMA)
+            .build();
+
+    SinkRecordConverter converter = new SinkRecordConverter(config, null, null);
+
+    SinkRecord record1 =
+        new SinkRecord(
+            TOPIC,
+            PARTITION,
+            keySchema,
+            keyStruct,
+            schema,
+            new Struct(schema).put("id", 1L).put("version", v1),
+            OFFSET,
+            RECORD_TIMESTAMP,
+            org.apache.kafka.common.record.TimestampType.CREATE_TIME);
+
+    SinkRecord record2 =
+        new SinkRecord(
+            TOPIC,
+            PARTITION,
+            keySchema,
+            keyStruct,
+            schema,
+            new Struct(schema).put("id", 1L).put("version", v2),
+            OFFSET,
+            RECORD_TIMESTAMP,
+            org.apache.kafka.common.record.TimestampType.CREATE_TIME);
+
+    String seq1 = (String) converter.getCdcRow(record1).get("_CHANGE_SEQUENCE_NUMBER");
+    String seq2 = (String) converter.getCdcRow(record2).get("_CHANGE_SEQUENCE_NUMBER");
+
+    // Both should have their custom segment zero-padded to at least 64 chars
+    String[] parts1 = seq1.split("/");
+    String[] parts2 = seq2.split("/");
+    assertEquals(64, parts1[0].length());
+    assertEquals(64, parts2[0].length());
+    assertTrue(seq2.compareTo(seq1) > 0);
   }
 
   @Test

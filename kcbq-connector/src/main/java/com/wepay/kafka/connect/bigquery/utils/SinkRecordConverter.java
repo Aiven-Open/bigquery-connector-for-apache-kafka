@@ -41,6 +41,7 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeParseException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.regex.Pattern;
 import org.apache.kafka.common.record.TimestampType;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.header.Header;
@@ -55,6 +56,9 @@ import org.slf4j.LoggerFactory;
 public final class SinkRecordConverter {
   private static final Logger logger = LoggerFactory.getLogger(SinkRecordConverter.class);
   private static final char[] HEX_CHARS = "0123456789ABCDEF".toCharArray();
+  private static final Pattern POSTGRES_LSN_PATTERN =
+      Pattern.compile("^[0-9a-fA-F]{1,8}/[0-9a-fA-F]{1,8}$");
+  private static final int CUSTOM_HEX_SEQUENCE_MIN_WIDTH = 64;
 
   public static final String CDC_CHANGE_TYPE_FIELD = "_CHANGE_TYPE";
   public static final String CDC_CHANGE_SEQUENCE_NUMBER_FIELD = "_CHANGE_SEQUENCE_NUMBER";
@@ -411,24 +415,30 @@ public final class SinkRecordConverter {
       try {
         seqLong = Long.parseLong(strVal);
       } catch (NumberFormatException e) {
-        // Not a raw number. Try parsing as a timestamp string.
-        try {
-          String normalized = strVal.replace(' ', 'T');
-          Instant instant;
-          if (normalized.endsWith("Z")) {
-            instant = Instant.parse(normalized);
-          } else {
-            try {
-              instant = OffsetDateTime.parse(normalized).toInstant();
-            } catch (DateTimeParseException ex) {
-              instant = LocalDateTime.parse(normalized).toInstant(ZoneOffset.UTC);
+        // Try parsing as PostgreSQL LSN string (e.g. "0/16B3748" or "16/B3748")
+        Long lsn = parsePostgreSqlLsn(strVal);
+        if (lsn != null) {
+          seqLong = lsn;
+        } else {
+          // Not a raw number or LSN. Try parsing as a timestamp string.
+          try {
+            String normalized = strVal.replace(' ', 'T');
+            Instant instant;
+            if (normalized.endsWith("Z")) {
+              instant = Instant.parse(normalized);
+            } else {
+              try {
+                instant = OffsetDateTime.parse(normalized).toInstant();
+              } catch (DateTimeParseException ex) {
+                instant = LocalDateTime.parse(normalized).toInstant(ZoneOffset.UTC);
+              }
             }
+            seqLong = instant.toEpochMilli();
+          } catch (Exception ex) {
+            // If timestamp parsing fails, fallback to character hex-encoding with ts + offset +
+            // partition
+            return hexEncodeCustomSequence(strVal, ts, record);
           }
-          seqLong = instant.toEpochMilli();
-        } catch (Exception ex) {
-          // If timestamp parsing fails, fallback to character hex-encoding with ts + offset +
-          // partition
-          return hexEncodeCustomSequence(strVal, ts, record);
         }
       }
     }
@@ -448,9 +458,42 @@ public final class SinkRecordConverter {
       hexBuilder.append(HEX_CHARS[b & 0x0F]);
     }
     String hexStr = hexBuilder.toString();
-    String customSegment = hexStr.length() > 16 ? hexStr.substring(0, 16) : hexStr;
+    String customSegment;
+    if (hexStr.length() < CUSTOM_HEX_SEQUENCE_MIN_WIDTH) {
+      StringBuilder padded = new StringBuilder(CUSTOM_HEX_SEQUENCE_MIN_WIDTH);
+      for (int i = hexStr.length(); i < CUSTOM_HEX_SEQUENCE_MIN_WIDTH; i++) {
+        padded.append('0');
+      }
+      padded.append(hexStr);
+      customSegment = padded.toString();
+    } else {
+      customSegment = hexStr;
+    }
     return String.format(
         "%s/%016X/%016X/%08X", customSegment, ts, record.kafkaOffset(), record.kafkaPartition());
+  }
+
+  /**
+   * Parses a PostgreSQL LSN (Log Sequence Number) string into a 64-bit integer. PostgreSQL LSN
+   * strings are formatted as "X/Y" where X is up to 8 hex digits representing the logical WAL file
+   * ID (upper 32 bits) and Y is up to 8 hex digits representing the byte offset within the WAL file
+   * (lower 32 bits).
+   *
+   * @param strVal The candidate LSN string
+   * @return The 64-bit LSN value, or null if strVal is not a valid PostgreSQL LSN
+   */
+  private Long parsePostgreSqlLsn(String strVal) {
+    if (POSTGRES_LSN_PATTERN.matcher(strVal).matches()) {
+      int slashIdx = strVal.indexOf('/');
+      try {
+        long upper = Long.parseLong(strVal.substring(0, slashIdx), 16);
+        long lower = Long.parseLong(strVal.substring(slashIdx + 1), 16);
+        return (upper << 32) | (lower & 0xFFFFFFFFL);
+      } catch (NumberFormatException ignored) {
+        return null;
+      }
+    }
+    return null;
   }
 
   public boolean isCdcEnabled() {
