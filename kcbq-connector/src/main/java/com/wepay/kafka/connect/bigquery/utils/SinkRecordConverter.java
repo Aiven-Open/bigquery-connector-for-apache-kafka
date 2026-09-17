@@ -152,7 +152,13 @@ public final class SinkRecordConverter {
     }
 
     result.put(MergeQueries.INTERMEDIATE_TABLE_KEY_FIELD_NAME, convertedKey);
-    result.put(MergeQueries.INTERMEDIATE_TABLE_VALUE_FIELD_NAME, convertedValue);
+    // Omit the value for a tombstone rather than sending an explicit null. An absent field is
+    // stored as null anyway, so this is equivalent for an intermediate table that has a value
+    // column; but an intermediate table created from a batch of only tombstone records has no value
+    // column yet, and naming a column that does not exist would have the row rejected.
+    if (convertedValue != null) {
+      result.put(MergeQueries.INTERMEDIATE_TABLE_VALUE_FIELD_NAME, convertedValue);
+    }
     result.put(MergeQueries.INTERMEDIATE_TABLE_ITERATION_FIELD_NAME, totalBatchSize);
     if (usePartitionDecorator && useMessageTimeDatePartitioning) {
       if (record.timestampType() == TimestampType.NO_TIMESTAMP_TYPE) {

@@ -291,6 +291,24 @@ public class MergeQueries {
   String mergeFlushQuery(TableId intermediateTable, TableId destinationTable, int batchNumber) {
     Schema intermediateSchema = schemaManager.cachedSchema(intermediateTable);
 
+    // Special handling for when the task has seen ONLY tombstone records so far.
+    if (!hasValueColumn(intermediateSchema)) {
+      if (deleteEnabled) {
+        // The intermediate table was created from a batch of only tombstone records, so it has no
+        // value column yet and every row in it is therefore a delete. Neither the upsert nor the
+        // insert half of the usual statements can apply, and referencing the missing column would
+        // make the query invalid, so delete by key and nothing else.
+        return deleteOnlyMergeFlushQuery(
+            intermediateTable, destinationTable, batchNumber, intermediateSchema);
+      } else {
+        // This should never happen, because BigQuerySinkTask completely skips tombstone records
+        // unless deleteEnabled is true.
+        throw new IllegalStateException(
+            "The intermediate table contains only deletes, even though delete handling "
+                + "was not enabled.");
+      }
+    }
+
     if (upsertEnabled && deleteEnabled) {
       return upsertDeleteMergeFlushQuery(
           intermediateTable, destinationTable, batchNumber, intermediateSchema);
@@ -304,6 +322,74 @@ public class MergeQueries {
       throw new IllegalStateException(
           "At least one of upsert or delete must be enabled for merge flushing to occur.");
     }
+  }
+
+  /*
+     Special query for when the intermediate table contains ONLY deletes / tombstone records.  This
+     is indicated by the complete absence of a value column.
+
+     MERGE `<dataset>`.`<destinationTable>` dstTableAlias
+     USING (
+       SELECT * FROM (
+         SELECT ARRAY_AGG(
+           x ORDER BY i DESC LIMIT 1
+         )[OFFSET(0)] src
+         FROM `<dataset>`.`<intermediateTable>` x
+         WHERE batchNumber=<batchNumber>
+         GROUP BY key.<field>[, key.<field>...]
+       )
+     )
+     ON dstTableAlias.<keyField>=src.key
+     WHEN MATCHED
+       THEN DELETE;
+  */
+  private String deleteOnlyMergeFlushQuery(
+      TableId intermediateTable,
+      TableId destinationTable,
+      int batchNumber,
+      Schema intermediateSchema) {
+    List<String> keyFields =
+        listFields(
+            intermediateSchema.getFields().get(INTERMEDIATE_TABLE_KEY_FIELD_NAME).getSubFields(),
+            INTERMEDIATE_TABLE_KEY_FIELD_NAME + ".");
+
+    final String key = INTERMEDIATE_TABLE_KEY_FIELD_NAME;
+    final String i = INTERMEDIATE_TABLE_ITERATION_FIELD_NAME;
+    final String batch = INTERMEDIATE_TABLE_BATCH_NUMBER_FIELD;
+
+    return "MERGE "
+        + table(destinationTable)
+        + " "
+        + DESTINATION_TABLE_ALIAS
+        + " "
+        + "USING ("
+        + "SELECT * FROM ("
+        + "SELECT ARRAY_AGG("
+        + "x ORDER BY "
+        + i
+        + " DESC LIMIT 1"
+        + ")[OFFSET(0)] src "
+        + "FROM "
+        + table(intermediateTable)
+        + " x "
+        + "WHERE "
+        + batch
+        + "="
+        + batchNumber
+        + " "
+        + "GROUP BY "
+        + String.join(", ", keyFields)
+        + ")"
+        + ") "
+        + "ON "
+        + DESTINATION_TABLE_ALIAS
+        + "."
+        + keyFieldName
+        + "=src."
+        + key
+        + " "
+        + "WHEN MATCHED "
+        + "THEN DELETE;";
   }
 
   /*
@@ -671,6 +757,21 @@ public class MergeQueries {
 
   private String table(TableId tableId) {
     return String.format("`%s`.`%s`", tableId.getDataset(), tableId.getTable());
+  }
+
+  /**
+   * Checks whether an intermediate table has a value column yet. One that was created from a batch
+   * of only tombstone records does not; the column is added later, once a record with a value is
+   * received.
+   *
+   * @param intermediateTableSchema the schema of the intermediate table
+   * @return whether the intermediate table has a value column. If it does not, then the table
+   *     contains only deletes.
+   */
+  private boolean hasValueColumn(Schema intermediateTableSchema) {
+    // FieldList::get / getIndex throws for an absent field, so iterate instead
+    return intermediateTableSchema.getFields().stream()
+        .anyMatch(field -> INTERMEDIATE_TABLE_VALUE_FIELD_NAME.equalsIgnoreCase(field.getName()));
   }
 
   private List<String> valueColumns(Schema intermediateTableSchema) {

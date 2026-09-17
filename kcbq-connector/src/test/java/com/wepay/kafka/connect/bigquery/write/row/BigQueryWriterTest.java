@@ -29,10 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.BigQueryError;
@@ -168,7 +165,133 @@ public class BigQueryWriterTest {
     testTask.flush(Collections.emptyMap());
 
     verify(schemaManager, times(1)).createTable(any(TableId.class), anyList());
+    verify(schemaManager, never()).updateSchema(any(TableId.class), anyList());
     verify(bigQuery, times(2)).insertAll(any(InsertAllRequest.class));
+  }
+
+  @Test
+  public void testSchemaUpdateAttemptedWhenRetryingAfterTableCreate() {
+    final String topic = "test_topic";
+    final String dataset = "scratch";
+    final Map<String, String> properties = makeProperties("3", "2000", topic, dataset);
+    properties.put(BigQuerySinkConfig.TABLE_CREATE_CONFIG, "true");
+
+    BigQuery bigQuery = mock(BigQuery.class);
+
+    // The table does not exist, so the first attempt throws rather than reporting errors, which
+    // means the write gets as far as creating the table but never updates its schema
+    String errorMessage = "Not found: Table project.scratch.test_topic";
+    BigQueryError error = new BigQueryError("notFound", "global", errorMessage);
+    BigQueryException nonExistentTableException = new BigQueryException(404, errorMessage, error);
+
+    // Once the table exists, it turns out to be missing a field that these rows have because a
+    // different thread or task created the table, and createTable would have exited early.
+    InsertAllResponse insertAllResponseWithError = mock(InsertAllResponse.class);
+    when(insertAllResponseWithError.hasErrors()).thenReturn(true);
+    when(insertAllResponseWithError.getInsertErrors())
+        .thenReturn(
+            Collections.singletonMap(
+                0L,
+                Collections.singletonList(
+                    new BigQueryError("invalid", "some_field", "no such field: some_field."))));
+
+    // Finally, after we update schema, the insert would be expected to succeed.
+    InsertAllResponse insertAllResponseNoError = mock(InsertAllResponse.class);
+    when(insertAllResponseNoError.hasErrors()).thenReturn(false);
+    when(insertAllResponseNoError.getInsertErrors()).thenReturn(Collections.emptyMap());
+
+    when(bigQuery.insertAll(any(InsertAllRequest.class)))
+        .thenThrow(nonExistentTableException)
+        .thenReturn(insertAllResponseWithError)
+        .thenReturn(insertAllResponseNoError);
+
+    SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
+
+    Storage storage = mock(Storage.class);
+    SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
+    SchemaManager schemaManager = mock(SchemaManager.class);
+
+    BigQuerySinkTask testTask =
+        BigQuerySinkTaskTest.createTestTask(
+            bigQuery,
+            schemaRetriever,
+            storage,
+            schemaManager,
+            mockedStorageWriteApiDefaultStream,
+            mockedBatchHandler,
+            time);
+    testTask.initialize(sinkTaskContext);
+    testTask.start(properties);
+    testTask.put(
+        Collections.singletonList(spoofSinkRecord(topic, 0, 0, "some_field", "some_value")));
+    testTask.flush(Collections.emptyMap());
+
+    // The first createTable call would have exited early due to a concurrent table write that
+    // finished first.  That other table write would have omitted some_field in our example.
+    verify(schemaManager, times(1)).createTable(any(TableId.class), anyList());
+    // Thus we would have to attempt updating the schema on the new table.
+    verify(schemaManager, times(1)).updateSchema(any(TableId.class), anyList());
+    verify(bigQuery, times(3)).insertAll(any(InsertAllRequest.class));
+  }
+
+  @Test
+  public void testSchemaUpdateNotAttemptedTwiceWhileRetrying() {
+    final String topic = "test_topic";
+    final String dataset = "scratch";
+    final Map<String, String> properties = makeProperties("3", "2000", topic, dataset);
+    properties.put(BigQuerySinkConfig.ALLOW_NEW_BIGQUERY_FIELDS_CONFIG, "true");
+
+    BigQuery bigQuery = mock(BigQuery.class);
+
+    InsertAllResponse insertAllResponseWithError = mock(InsertAllResponse.class);
+    when(insertAllResponseWithError.hasErrors()).thenReturn(true);
+    when(insertAllResponseWithError.getInsertErrors())
+        .thenReturn(
+            Collections.singletonMap(
+                0L,
+                Collections.singletonList(
+                    new BigQueryError("invalid", "some_field", "no such field: some_field."))));
+
+    InsertAllResponse insertAllResponseNoError = mock(InsertAllResponse.class);
+    when(insertAllResponseNoError.hasErrors()).thenReturn(false);
+    when(insertAllResponseNoError.getInsertErrors()).thenReturn(Collections.emptyMap());
+
+    Table mockTable = mock(Table.class);
+    when(bigQuery.getTable(any())).thenReturn(mockTable);
+
+    // The first attempt reports the missing field, so the schema is updated before the retry loop
+    // is even reached; the second attempt still fails because the update has yet to take effect.
+    when(bigQuery.insertAll(any(InsertAllRequest.class)))
+        .thenReturn(insertAllResponseWithError)
+        .thenReturn(insertAllResponseWithError)
+        .thenReturn(insertAllResponseNoError);
+
+    SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
+
+    Storage storage = mock(Storage.class);
+    SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
+    SchemaManager schemaManager = mock(SchemaManager.class);
+
+    BigQuerySinkTask testTask =
+        BigQuerySinkTaskTest.createTestTask(
+            bigQuery,
+            schemaRetriever,
+            storage,
+            schemaManager,
+            mockedStorageWriteApiDefaultStream,
+            mockedBatchHandler,
+            time);
+    testTask.initialize(sinkTaskContext);
+    testTask.start(properties);
+    testTask.put(
+        Collections.singletonList(spoofSinkRecord(topic, 0, 0, "some_field", "some_value")));
+    testTask.flush(Collections.emptyMap());
+
+    // Waiting for the update to take effect is not a reason to update again: every attempt would
+    // derive the same schema from the same rows
+    verify(schemaManager, never()).createTable(any(TableId.class), anyList());
+    verify(schemaManager, times(1)).updateSchema(any(TableId.class), anyList());
+    verify(bigQuery, times(3)).insertAll(any(InsertAllRequest.class));
   }
 
   @Test
