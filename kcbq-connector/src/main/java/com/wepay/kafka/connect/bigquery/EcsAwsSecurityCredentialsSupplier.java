@@ -31,12 +31,14 @@ import com.google.auth.oauth2.ExternalAccountSupplierContext;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
+import com.wepay.kafka.connect.bigquery.utils.Time;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.concurrent.ThreadLocalRandom;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -72,6 +74,12 @@ public class EcsAwsSecurityCredentialsSupplier implements AwsSecurityCredentials
   static final String DEFAULT_REGION_ENV = "AWS_DEFAULT_REGION";
 
   private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(10);
+
+  /** Retries after the initial attempt, so the endpoint is called at most MAX_RETRIES + 1 times. */
+  static final int MAX_RETRIES = 3;
+
+  static final int BASE_BACKOFF_MS = 1000;
+  static final int MAX_BACKOFF_MS = 8000;
 
   private static final HttpClient HTTP_CLIENT =
       HttpClient.newBuilder().connectTimeout(REQUEST_TIMEOUT).build();
@@ -123,6 +131,45 @@ public class EcsAwsSecurityCredentialsSupplier implements AwsSecurityCredentials
               + "credentials endpoint is unavailable (is this running on ECS/Fargate?).");
     }
 
+    try {
+      // attempt 0 is the initial try, so MAX_RETRIES retries means MAX_RETRIES + 1 attempts.
+      for (int attempt = 0; ; attempt++) {
+        try {
+          return fetchOnce(relativeUri);
+        } catch (RetryableIoException e) {
+          if (attempt == MAX_RETRIES) {
+            throw new IOException(
+                "Failed to fetch AWS container credentials after "
+                    + (MAX_RETRIES + 1)
+                    + " attempts",
+                e);
+          }
+          long delayMs = jitteredBackoffMillis(attempt);
+          logger.warn(
+              "Attempt {} of {} to fetch AWS container credentials failed, retrying in {} ms: {}",
+              attempt + 1,
+              MAX_RETRIES + 1,
+              delayMs,
+              e.getMessage());
+          sleep(delayMs);
+        }
+      }
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new IOException("Interrupted while fetching AWS container credentials", e);
+    }
+  }
+
+  private static String trimToNull(String value) {
+    if (value == null) {
+      return null;
+    }
+    String trimmed = value.trim();
+    return trimmed.isEmpty() ? null : trimmed;
+  }
+
+  private AwsSecurityCredentials fetchOnce(String relativeUri)
+      throws IOException, InterruptedException {
     // Log the base URI only; the relative URI carries a per-task credential path token.
     logger.debug("Fetching AWS container credentials from ECS/Fargate endpoint {}", baseUri);
     HttpRequest request =
@@ -133,16 +180,23 @@ public class EcsAwsSecurityCredentialsSupplier implements AwsSecurityCredentials
             .build();
 
     HttpResponse<String> response;
+
     try {
       response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
-    } catch (InterruptedException e) {
-      Thread.currentThread().interrupt();
-      throw new IOException("Interrupted while fetching AWS container credentials", e);
+    } catch (IOException e) {
+      // Connect refused / timeout / reset: the ECS agent is momentarily unavailable.
+      throw new RetryableIoException(
+          "Failed to reach the ECS/Fargate container credentials endpoint " + baseUri, e);
     }
 
-    if (response.statusCode() != 200) {
-      throw new IOException(
-          "Failed to fetch AWS container credentials: HTTP " + response.statusCode());
+    int status = response.statusCode();
+    if (status != 200) {
+      // The body is deliberately left out: this endpoint serves credential material.
+      String message = "Failed to fetch AWS container credentials: HTTP " + status;
+      if (isRetryableStatus(status)) {
+        throw new RetryableIoException(message);
+      }
+      throw new IOException(message);
     }
 
     JsonObject json;
@@ -157,10 +211,8 @@ public class EcsAwsSecurityCredentialsSupplier implements AwsSecurityCredentials
     String accessKeyId = getAsString(json, "AccessKeyId");
     String secretAccessKey = getAsString(json, "SecretAccessKey");
     String token = getAsString(json, "Token");
-    // Token (the STS session token) is required: the ECS/Fargate endpoint only ever serves
-    // temporary role credentials, and google-auth must include it when SigV4-signing the
-    // GetCallerIdentity request. A missing token means a broken response and would otherwise
-    // fail later inside the STS exchange with an opaque signature error, so fail fast here.
+    // Token is required: this endpoint only serves temporary role credentials, and google-auth
+    // needs it to SigV4-sign GetCallerIdentity. Fail here rather than opaquely inside STS.
     if (accessKeyId == null || secretAccessKey == null || token == null) {
       throw new IOException(
           "AWS container credentials response missing AccessKeyId/SecretAccessKey/Token");
@@ -169,19 +221,47 @@ public class EcsAwsSecurityCredentialsSupplier implements AwsSecurityCredentials
     return new AwsSecurityCredentials(accessKeyId, secretAccessKey, token);
   }
 
-  private static String trimToNull(String value) {
-    if (value == null) {
-      return null;
-    }
-    String trimmed = value.trim();
-    return trimmed.isEmpty() ? null : trimmed;
-  }
-
   /**
    * Reads an environment variable. Package-private and overridable so tests can supply values
    * without mutating the real process environment.
    */
   String getEnv(String name) {
     return System.getenv(name);
+  }
+
+  /**
+   * Whether an HTTP status from the container credentials endpoint is worth retrying. 5xx and 429
+   * are transient agent-side conditions; other 4xx (e.g. 403/404) mean a misconfigured task role or
+   * path and are not retried.
+   */
+  private static boolean isRetryableStatus(int status) {
+    return status >= 500 || status == 429;
+  }
+
+  /** Full jitter: a uniform draw from [0, min(cap, base * 2^attempt)]. */
+  private static long jitteredBackoffMillis(int attempt) {
+    long bound = Math.min(MAX_BACKOFF_MS, (long) BASE_BACKOFF_MS << attempt);
+    return ThreadLocalRandom.current().nextLong(bound + 1);
+  }
+
+  /**
+   * Sleeps between retries. Package-private and overridable so tests can record delays without
+   * actually waiting.
+   */
+  void sleep(long millis) throws InterruptedException {
+    Time.SYSTEM.sleep(millis);
+  }
+
+  /** Marks a fetch failure that is worth retrying (transient endpoint/agent problem). */
+  private static final class RetryableIoException extends IOException {
+    private static final long serialVersionUID = 1L;
+
+    RetryableIoException(String message) {
+      super(message);
+    }
+
+    RetryableIoException(String message, Throwable cause) {
+      super(message, cause);
+    }
   }
 }
