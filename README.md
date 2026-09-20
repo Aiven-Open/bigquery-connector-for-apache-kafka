@@ -14,7 +14,7 @@ The site contains a complete list of the configuration options as well as inform
 
 ### Configuration notes
 
-If the configuration includes a JSON GCP credential structure that uses a `credential_source` entry, one of the following environment variables must be set.
+If the configuration includes a JSON GCP credential structure that uses a `credential_source` entry, one of the following environment variables must be set. This does not apply to `keySource=WIF_JSON`, which strips `credential_source` before validation — see [Workload Identity Federation (WIF_JSON)](#workload-identity-federation-wif_json).
 
 | Source Type | Environment Variable            |
 |-------------|---------------------------------|
@@ -89,19 +89,6 @@ alike**. It does **not** support:
 - **An ECS task without a `taskRoleArn`**, which falls back to the host's instance profile.
 - **EKS** — neither EKS Pod Identity nor IRSA is supported yet.
 
-The first two expose credentials only through the EC2 instance metadata service
-(IMDS, `169.254.169.254`), which this connector does not read. Injecting
-`AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` does not help either — under `WIF_JSON` the connector
-sources AWS credentials solely from the container endpoint and never consults the environment. Use
-`keySource=JSON` or `FILE` with a service-account key on such hosts.
-
-EKS delivers credentials differently again: **Pod Identity** uses a separate endpoint advertised via
-`AWS_CONTAINER_CREDENTIALS_FULL_URI`, with a bearer token from
-`AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE`, while **IRSA** projects an OIDC token at
-`AWS_WEB_IDENTITY_TOKEN_FILE` and uses no credentials endpoint at all. Both are plausible additions
-(for IRSA, configuring the cluster's OIDC issuer as a GCP *OIDC* provider avoids the AWS path
-entirely), but neither is implemented or tested today.
-
 Note that these failures surface at **runtime, not during connector configuration validation**: the
 credentials are only fetched when a token is first needed, so the connector starts successfully and
 then fails its first BigQuery call with
@@ -123,9 +110,10 @@ Connector configuration:
 }
 ```
 
-Example `external_account` keyfile — note there is **no `credential_source`**: the connector
-supplies the AWS credentials itself, and omitting `credential_source` keeps the keyfile within the
-connector's URL allowlist. Replace the `<...>` placeholders:
+Example `external_account` keyfile. It has **no `credential_source`**: the connector supplies the
+AWS credentials itself, so the block serves no purpose. A keyfile that does carry one still works —
+the connector strips it before validation, reading only `regional_cred_verification_url` from it.
+Replace the `<...>` placeholders:
 
 ```json
 {
@@ -155,18 +143,8 @@ connector's URL allowlist. Replace the `<...>` placeholders:
   it is absent and the connector will fail on its first BigQuery call. Set it explicitly in the task
   definition to be safe on both.
 
-#### Verifying on ECS Fargate
-
-There is no automated integration test for the AWS→GCP path: it only works inside a Fargate task
-against a configured GCP Workload Identity Pool. Verify a deployment manually:
-
-1. Deploy the connector on Fargate with `keySource=WIF_JSON` and the `external_account` keyfile above.
-2. Produce records to the configured topic(s).
-3. Confirm rows appear in BigQuery and consumer offsets advance.
-4. **Let it run past ~6 hours** to confirm AWS credential rotation is handled: the sink keeps
-   writing with no `Unable to refresh sourceCredentials` errors. The connector fetches fresh AWS
-   credentials from the container endpoint on demand; enable `DEBUG` logging to observe
-   `Obtained temporary AWS credentials from ECS/Fargate container endpoint`.
+Verifying a deployment, including how to exercise the credential-fetch retry path, is covered
+under [Integration test setup](#integration-test-setup).
 
 ### Complete docs
 See the [configuration documentation](https://aiven-open.github.io/bigquery-connector-for-apache-kafka/configuration.html) for a list of the connector's
@@ -214,3 +192,31 @@ To run the integration tests from a GitHub action the following variables must b
 - KCBQ_TEST_BUCKET - the bucket to use for the tests
 - KCBQ_TEST_DATASET - the data set to use for the tests.
 - KCBQ_TEST_PROJECT - the project to use for the tests.
+
+#### Manual verification on ECS Fargate (`keySource=WIF_JSON`)
+
+The AWS→GCP path has no automated coverage: it only works inside an ECS task against a configured
+GCP Workload Identity Pool. Verify a deployment by hand:
+
+1. Deploy with `keySource=WIF_JSON` and the `external_account` keyfile, produce records, and confirm
+   rows land in BigQuery and consumer offsets advance.
+2. **Let it run past ~6 hours** to cover AWS credential rotation: the sink keeps writing, with no
+   `Unable to refresh sourceCredentials`. With `DEBUG` logging, each refresh logs
+   `Obtained temporary AWS credentials from ECS/Fargate container endpoint`.
+
+The credential fetch is retried on connection failures, HTTP 5xx and HTTP 429 — 3 retries,
+exponential backoff with full jitter, capped at 8s. Any other non-200, a malformed response, or a
+missing `AWS_CONTAINER_CREDENTIALS_RELATIVE_URI` fails immediately. The real endpoint cannot be made
+to fail on demand, so to exercise that path:
+
+- **Retry and recovery — locally, no ECS needed.** The endpoint address is only special by
+  convention, so bind it to loopback (`sudo ip addr add 169.254.170.2/32 dev lo`, or
+  `sudo ifconfig lo0 alias 169.254.170.2` on macOS) and serve a stub on port 80 that answers `503`,
+  `503`, then a normal credentials payload. Set `AWS_CONTAINER_CREDENTIALS_RELATIVE_URI` and
+  `AWS_REGION`, start Connect, and expect two `retrying in <ms> ms` warnings followed by a
+  successful fetch. This drives the unmodified production path. Remove the alias afterwards.
+- **Fail-fast — on a real ECS task.** Point `AWS_CONTAINER_CREDENTIALS_RELATIVE_URI` at a path that
+  does not exist; the 4xx must fail on the first attempt, with no `retrying in` lines.
+
+Retry cannot be forced on Fargate itself: there is no host access or `NET_ADMIN`, so the iptables
+blackhole of `169.254.170.2` that works on the ECS EC2 launch type is unavailable.
