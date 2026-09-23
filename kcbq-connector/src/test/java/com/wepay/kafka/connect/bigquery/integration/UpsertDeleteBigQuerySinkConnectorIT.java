@@ -28,8 +28,8 @@ import static org.apache.kafka.connect.runtime.ConnectorConfig.VALUE_CONVERTER_C
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.google.cloud.bigquery.BigQuery;
+import com.google.cloud.bigquery.storage.v1.TableName;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
-import com.wepay.kafka.connect.bigquery.integration.utils.TableClearer;
 import com.wepay.kafka.connect.bigquery.retrieve.IdentitySchemaRetriever;
 import java.lang.reflect.Method;
 import java.util.Arrays;
@@ -85,6 +85,7 @@ public class UpsertDeleteBigQuerySinkConnectorIT extends BaseConnectorIT {
 
   @AfterEach
   public void close() {
+    delete(bigQuery, tableName());
     bigQuery = null;
     stopConnect();
   }
@@ -122,12 +123,12 @@ public class UpsertDeleteBigQuerySinkConnectorIT extends BaseConnectorIT {
   @Test
   public void testUpsert() throws Throwable {
     // create topic in Kafka
-    final String topic = suffixedTableOrTopic("test-upsert");
+    final String topic = topicName();
     // Make sure each task gets to read from at least one partition
     connect.kafka().createTopic(topic, TASKS_MAX);
 
-    final String table = sanitizedTable(topic);
-    TableClearer.clearTables(bigQuery, dataset(), table);
+    final TableName tableName = tableName();
+    //TableClearer.clearTables(bigQuery, dataset(), table);
 
     // setup props for the sink connector
     Map<String, String> props = baseConnectorProps(TASKS_MAX);
@@ -167,7 +168,7 @@ public class UpsertDeleteBigQuerySinkConnectorIT extends BaseConnectorIT {
     // wait for tasks to write to BigQuery and commit offsets for their records
     waitForCommittedRecords(connectorName, topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
 
-    List<List<Object>> allRows = readAllRows(bigQuery, table, KAFKA_FIELD_NAME + ".k1");
+    List<List<Object>> allRows = readAllRows(bigQuery, tableName, KAFKA_FIELD_NAME + ".k1");
     List<List<Object>> expectedRows =
         LongStream.range(0, NUM_RECORDS_PRODUCED / 2)
             .mapToObj(
@@ -184,12 +185,12 @@ public class UpsertDeleteBigQuerySinkConnectorIT extends BaseConnectorIT {
   @Test
   public void testDelete() throws Throwable {
     // create topic in Kafka
-    final String topic = suffixedTableOrTopic("test-delete");
+    final String topic = topicName();
     // Make sure each task gets to read from at least one partition
     connect.kafka().createTopic(topic, TASKS_MAX);
 
-    final String table = sanitizedTable(topic);
-    TableClearer.clearTables(bigQuery, dataset(), table);
+    final TableName tableName = tableName();
+    //TableClearer.clearTables(bigQuery, dataset(), tableName);
 
     // setup props for the sink connector
     Map<String, String> props = baseConnectorProps(TASKS_MAX);
@@ -234,7 +235,7 @@ public class UpsertDeleteBigQuerySinkConnectorIT extends BaseConnectorIT {
 
     // Since we have multiple rows per key, order by key and the f3 field (which should be
     // monotonically increasing in insertion order)
-    List<List<Object>> allRows = readAllRows(bigQuery, table, KAFKA_FIELD_NAME + ".k1, f3");
+    List<List<Object>> allRows = readAllRows(bigQuery, tableName, KAFKA_FIELD_NAME + ".k1, f3");
     List<List<Object>> expectedRows =
         LongStream.range(0, NUM_RECORDS_PRODUCED)
             .filter(i -> i % 4 < 2)
@@ -252,12 +253,12 @@ public class UpsertDeleteBigQuerySinkConnectorIT extends BaseConnectorIT {
   @Test
   public void testUpsertDelete() throws Throwable {
     // create topic in Kafka
-    final String topic = suffixedTableOrTopic("test-upsert-delete");
+    final String topic = topicName();
     // Make sure each task gets to read from at least one partition
     connect.kafka().createTopic(topic, TASKS_MAX);
 
-    final String table = sanitizedTable(topic);
-    TableClearer.clearTables(bigQuery, dataset(), table);
+    final TableName tableName = tableName();
+    //TableClearer.clearTables(bigQuery, dataset(), tableName);
 
     // setup props for the sink connector
     Map<String, String> props = baseConnectorProps(TASKS_MAX);
@@ -301,7 +302,7 @@ public class UpsertDeleteBigQuerySinkConnectorIT extends BaseConnectorIT {
 
     // Since we have multiple rows per key, order by key and the f3 field (which should be
     // monotonically increasing in insertion order)
-    List<List<Object>> allRows = readAllRows(bigQuery, table, KAFKA_FIELD_NAME + ".k1, f3");
+    List<List<Object>> allRows = readAllRows(bigQuery, tableName, KAFKA_FIELD_NAME + ".k1, f3");
     List<List<Object>> expectedRows =
         LongStream.range(0, NUM_RECORDS_PRODUCED)
             .filter(i -> i % 4 == 1)
@@ -324,11 +325,11 @@ public class UpsertDeleteBigQuerySinkConnectorIT extends BaseConnectorIT {
     final int tasksMax = 1;
 
     // create topic in Kafka
-    final String topic = suffixedTableOrTopic("test-upsert-delete-throughput");
+    final String topic = topicName();
     connect.kafka().createTopic(topic, numPartitions);
 
-    final String table = sanitizedTable(topic);
-    TableClearer.clearTables(bigQuery, dataset(), table);
+    final TableName tableName = tableName();
+    //TableClearer.clearTables(bigQuery, dataset(), tableName);
 
     // Instantiate the converters we'll use to send records to the connector
     Converter keyConverter = converter(true);
@@ -400,7 +401,7 @@ public class UpsertDeleteBigQuerySinkConnectorIT extends BaseConnectorIT {
 
     // Since we have multiple rows per key, order by key and the f3 field (which should be
     // monotonically increasing in insertion order)
-    List<List<Object>> allRows = readAllRows(bigQuery, table, KAFKA_FIELD_NAME + ".k1, f3");
+    List<List<Object>> allRows = readAllRows(bigQuery, tableName, KAFKA_FIELD_NAME + ".k1, f3");
     List<List<Object>> expectedRows =
         LongStream.range(0, numRecords)
             .filter(i -> i % 4 == 1)

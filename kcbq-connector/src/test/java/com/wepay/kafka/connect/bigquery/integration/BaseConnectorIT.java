@@ -373,6 +373,14 @@ public abstract class BaseConnectorIT {
         .collect(Collectors.toList());
   }
 
+  /**
+   * @deprecated use {@link #countRows(BigQuery, TableName)}
+   * @param bigQuery
+   * @param tableName
+   * @return
+   * @throws InterruptedException
+   */
+  @Deprecated
   protected long countRows(BigQuery bigQuery, String tableName) throws InterruptedException {
     TableResult tableResult =
         bigQuery.query(
@@ -383,6 +391,22 @@ public abstract class BaseConnectorIT {
     return fieldValueList.get(0).getLongValue();
   }
 
+  /**
+   * Counts the rows in a table.
+   * @param bigQuery the BigQuery to use.
+   * @param tableName the table name to query.
+   * @return the number of rows.
+   * @throws InterruptedException on error.
+   */
+  protected long countRows(BigQuery bigQuery, TableName tableName) throws InterruptedException {
+    TableResult tableResult =
+            bigQuery.query(
+                    QueryJobConfiguration.of(
+                            "SELECT COUNT(*) FROM `" + tableName.getDataset() + "`.`" + tableName.getTable() + "`"));
+    assertEquals(1, tableResult.getTotalRows());
+    FieldValueList fieldValueList = tableResult.iterateAll().iterator().next();
+    return fieldValueList.get(0).getLongValue();
+  }
   private Object convertField(Field fieldSchema, FieldValue field) {
     if (field.isNull()) {
       return null;
@@ -556,7 +580,7 @@ public abstract class BaseConnectorIT {
   }
 
   protected String gcsBucket() {
-    return readEnvVar(GCS_BUCKET_ENV_VAR).trim();
+    return readEnvVar(GCS_BUCKET_ENV_VAR).trim() + "-" + defaultSuffix;
   }
 
   protected String gcsFolder() {

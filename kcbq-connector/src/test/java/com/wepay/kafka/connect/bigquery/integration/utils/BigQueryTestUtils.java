@@ -45,6 +45,14 @@ public class BigQueryTestUtils {
 
   private static final Logger logger = LoggerFactory.getLogger(BigQueryTestUtils.class);
 
+  /**
+   * 
+   * @param bigQuery
+   * @param datasetName
+   * @param tableName
+   * @param schema
+   * @deprecated use {@link #createPartitionedTable(BigQuery, TableName, Schema)}
+   */
   @Deprecated
   public static void createPartitionedTable(
       BigQuery bigQuery, String datasetName, String tableName, Schema schema) {

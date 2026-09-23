@@ -35,13 +35,13 @@ import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.Field;
 import com.google.cloud.bigquery.LegacySQLTypeName;
 import com.google.cloud.bigquery.Table;
-import com.google.cloud.bigquery.TableId;
+import com.google.cloud.bigquery.storage.v1.TableName;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.integration.utils.BigQueryTestUtils;
 import com.wepay.kafka.connect.bigquery.integration.utils.BucketClearer;
 import com.wepay.kafka.connect.bigquery.integration.utils.SchemaRegistryTestUtils;
-import com.wepay.kafka.connect.bigquery.integration.utils.TableClearer;
 import com.wepay.kafka.connect.bigquery.retrieve.IdentitySchemaRetriever;
+import com.wepay.kafka.connect.bigquery.utils.TableNameUtils;
 import io.confluent.connect.avro.AvroConverter;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -76,8 +76,15 @@ public class GcsBatchSchemaEvolutionIT extends BaseConnectorIT {
   private Schema valueSchemaV1;
   private Schema valueSchemaV2;
   private String topic;
-  private String table;
+  private TableName tableName;
   private String bucketName;
+
+
+  @AfterEach
+  void teardown() {
+    delete(bigQuery, tableName());
+  }
+
 
   @BeforeEach
   public void setup() throws Exception {
@@ -91,12 +98,11 @@ public class GcsBatchSchemaEvolutionIT extends BaseConnectorIT {
     initialiseSchemas();
     initialiseConverters();
 
-    topic = suffixedTableOrTopic("gcs_schema_evolution");
-    table = suffixedAndSanitizedTable("gcs_schema_evolution");
-    bucketName = gcsBucket() + "-" + System.nanoTime();
+    topic = topicName();
+    tableName = tableName();
+    bucketName = gcsBucket();
 
     connect.kafka().createTopic(topic);
-    TableClearer.clearTables(bigQuery, dataset(), table);
     createInitialTable();
   }
 
@@ -111,7 +117,7 @@ public class GcsBatchSchemaEvolutionIT extends BaseConnectorIT {
         schemaRegistry.stop();
       }
       if (bigQuery != null) {
-        TableClearer.clearTables(bigQuery, dataset(), table);
+        delete(bigQuery, tableName);
       }
       BucketClearer.clearBucket(keyFile(), project(), bucketName, gcsFolder(), keySource());
       stopConnect();
@@ -135,7 +141,7 @@ public class GcsBatchSchemaEvolutionIT extends BaseConnectorIT {
     waitForCommittedRecords(CONNECTOR_NAME, topic, 2, TASKS_MAX);
     waitForRowCount(2L);
 
-    Table destinationTable = bigQuery.getTable(dataset(), table);
+    Table destinationTable = bigQuery.getTable(TableNameUtils.tableId(tableName));
     com.google.cloud.bigquery.Schema destinationSchema =
         destinationTable.getDefinition().getSchema();
     Field categoryField = destinationSchema.getFields().get("category");
@@ -145,7 +151,7 @@ public class GcsBatchSchemaEvolutionIT extends BaseConnectorIT {
     assertNotNull(usernameField, "username field should be created");
     assertEquals(Field.Mode.NULLABLE, usernameField.getMode());
 
-    List<List<Object>> rows = readAllRows(bigQuery, table, "id");
+    List<List<Object>> rows = readAllRows(bigQuery, tableName, "id");
     assertEquals(Arrays.asList(1L, "snacks", null), rows.get(0));
     assertEquals(Arrays.asList(2L, null, "john"), rows.get(1));
   }
@@ -159,7 +165,7 @@ public class GcsBatchSchemaEvolutionIT extends BaseConnectorIT {
     props.put(VALUE_CONVERTER_CLASS_CONFIG + "." + SCHEMA_REGISTRY_URL_CONFIG, schemaRegistryUrl);
     props.put(BigQuerySinkConfig.ALLOW_NEW_BIGQUERY_FIELDS_CONFIG, "true");
     props.put(BigQuerySinkConfig.ALLOW_BIGQUERY_REQUIRED_FIELD_RELAXATION_CONFIG, "true");
-    props.put(BigQuerySinkConfig.ENABLE_BATCH_CONFIG, topic + "," + table);
+    props.put(BigQuerySinkConfig.ENABLE_BATCH_CONFIG, topic + "," + tableName);
     props.put(BigQuerySinkConfig.BATCH_LOAD_INTERVAL_SEC_CONFIG, "5");
     props.put(BigQuerySinkConfig.GCS_BUCKET_NAME_CONFIG, bucketName);
     props.put(BigQuerySinkConfig.GCS_FOLDER_NAME_CONFIG, gcsFolder());
@@ -222,21 +228,20 @@ public class GcsBatchSchemaEvolutionIT extends BaseConnectorIT {
   }
 
   private void createInitialTable() {
-    TableId tableId = TableId.of(dataset(), table);
     com.google.cloud.bigquery.Schema schema =
         com.google.cloud.bigquery.Schema.of(
             Field.newBuilder("id", LegacySQLTypeName.INTEGER).setMode(Field.Mode.REQUIRED).build(),
             Field.newBuilder("category", LegacySQLTypeName.STRING)
                 .setMode(Field.Mode.REQUIRED)
                 .build());
-    BigQueryTestUtils.createPartitionedTable(bigQuery, dataset(), table, schema);
+    BigQueryTestUtils.createPartitionedTable(bigQuery, tableName, schema);
   }
 
   private void waitForRowCount(long expected) throws InterruptedException {
     waitForCondition(
         () -> {
           try {
-            return countRows(bigQuery, table) >= expected;
+            return countRows(bigQuery, tableName) >= expected;
           } catch (Exception e) {
             return false;
           }

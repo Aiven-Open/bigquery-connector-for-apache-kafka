@@ -34,10 +34,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.StandardTableDefinition;
-import com.google.cloud.bigquery.TableId;
 import com.google.cloud.bigquery.TimePartitioning;
+import com.google.cloud.bigquery.storage.v1.TableName;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
-import com.wepay.kafka.connect.bigquery.integration.utils.TableClearer;
 import com.wepay.kafka.connect.bigquery.integration.utils.TestCaseLogger;
 import com.wepay.kafka.connect.bigquery.integration.utils.TimePartitioningTestUtils;
 import com.wepay.kafka.connect.bigquery.retrieve.IdentitySchemaRetriever;
@@ -47,6 +46,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
+
+import com.wepay.kafka.connect.bigquery.utils.TableNameUtils;
 import org.apache.kafka.connect.json.JsonConverter;
 import org.apache.kafka.connect.json.JsonConverterConfig;
 import org.apache.kafka.connect.runtime.SinkConnectorConfig;
@@ -91,22 +92,18 @@ public class TimePartitioningIT {
   public static void globalSetup() {
     testBase = new BaseConnectorIT() {};
     BigQuery bigQuery = testBase.newBigQuery();
-    testArguments()
-        .forEach(
-            args -> {
-              int testCase = (int) args.get()[3];
-              TableClearer.clearTables(bigQuery, testBase.dataset(), table(testCase));
-            });
+//    testArguments()
+//        .forEach(
+//            args -> {
+//              int testCase = (int) args.get()[3];
+//              TableClearer.clearTables(bigQuery, testBase.dataset(), table(testCase));
+//            });
     testBase.startConnect();
   }
 
   @AfterAll
   public static void globalCleanup() {
     testBase.stopConnect();
-  }
-
-  private static String table(int testCase) {
-    return testBase.suffixedAndSanitizedTable("test-time-partitioning-" + testCase);
   }
 
   @BeforeEach
@@ -116,7 +113,9 @@ public class TimePartitioningIT {
 
   @AfterEach
   public void close() {
-    bigQuery = null;
+    if (bigQuery != null) {
+      testBase.delete(bigQuery, testBase.tableName());
+    }
     testBase.connect.deleteConnector(connectorName);
   }
 
@@ -150,7 +149,7 @@ public class TimePartitioningIT {
     final long testStartTime = System.currentTimeMillis();
 
     // create topic in Kafka
-    final String topic = testBase.suffixedTableOrTopic("test-time-partitioning-" + testCase);
+    final String topic = testBase.topicName();
     testBase.connect.kafka().createTopic(topic);
 
     // setup props for the sink connector
@@ -184,30 +183,30 @@ public class TimePartitioningIT {
     // wait for tasks to write to BigQuery and commit offsets for their records
     testBase.waitForCommittedRecords(connectorName, topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
 
-    String table = table(testCase);
+    TableName tableName = testBase.tableName();
 
     // Might fail to read from the table for a little bit; keep retrying until it's available
     waitForCondition(
         () -> {
           try {
-            testBase.readAllRows(bigQuery, table, "i");
+            testBase.readAllRows(bigQuery, tableName, "i");
             return true;
           } catch (RuntimeException e) {
-            logger.debug("Failed to read rows from table {}", table, e);
+            logger.debug("Failed to read rows from table {}", tableName, e);
             return false;
           }
         },
         TimeUnit.MINUTES.toMillis(5),
         "Could not read from table to verify data after connector committed offsets for the expected number of records");
 
-    List<List<Object>> allRows = testBase.readAllRows(bigQuery, table, "i");
+    List<List<Object>> allRows = testBase.readAllRows(bigQuery, tableName, "i");
     // Just check to make sure we sent the expected number of rows to the table. There can be
     // duplication so the check is at least there are NUM_RECORDS_PRODUCED
     assertTrue(NUM_RECORDS_PRODUCED <= allRows.size());
 
     // Ensure that the table was created with the expected time partitioning type
     StandardTableDefinition tableDefinition =
-        bigQuery.getTable(TableId.of(testBase.dataset(), table)).getDefinition();
+        bigQuery.getTable(TableNameUtils.tableId(tableName)).getDefinition();
     Optional<TimePartitioning.Type> actualPartitioningType =
         Optional.ofNullable((tableDefinition).getTimePartitioning()).map(TimePartitioning::getType);
     assertEquals(Optional.of(partitioningType), actualPartitioningType);
@@ -218,7 +217,7 @@ public class TimePartitioningIT {
         long partitionTime =
             TimePartitioningTestUtils.computeTimestamp(partitioningType, testStartTime, i);
         TimePartitioningTestUtils.assertPartitionContainsData(
-            bigQuery, testBase.dataset(), table, TimePartitioning.Type.DAY, partitionTime);
+            bigQuery, tableName, TimePartitioning.Type.DAY, partitionTime);
       }
     }
   }

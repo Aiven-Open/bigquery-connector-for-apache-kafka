@@ -26,6 +26,7 @@ import static org.apache.kafka.connect.runtime.ConnectorConfig.VALUE_CONVERTER_C
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.google.cloud.bigquery.BigQuery;
+import com.google.cloud.bigquery.storage.v1.TableName;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.integration.utils.TableClearer;
 import com.wepay.kafka.connect.bigquery.retrieve.IdentitySchemaRetriever;
@@ -109,12 +110,15 @@ public class StorageWriteApiUpsertDeleteIT extends BaseConnectorIT {
   @Test
   public void testUpsert() throws Throwable {
     // create topic in Kafka
-    final String topic = suffixedTableOrTopic("test-upsert" + System.nanoTime());
+
+    final String topic = topicName();
+    final TableName tableName = tableName();
+
     // Make sure each task gets to read from at least one partition
     connect.kafka().createTopic(topic, TASKS_MAX);
 
-    final String table = sanitizedTable(topic);
-    TableClearer.clearTables(bigQuery, dataset(), table);
+    //final String table = sanitizedTable(topic);
+    //TableClearer.clearTables(bigQuery, dataset(), table);
 
     // setup props for the sink connector
     Map<String, String> props = baseConnectorProps(TASKS_MAX);
@@ -156,15 +160,9 @@ public class StorageWriteApiUpsertDeleteIT extends BaseConnectorIT {
     waitForCommittedRecords(CONNECTOR_NAME, topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
 
     // Alter table to set max_staleness to 0 so that CDC changes are immediately visible
-    bigQuery.query(
-        com.google.cloud.bigquery.QueryJobConfiguration.of(
-            "ALTER TABLE `"
-                + dataset()
-                + "`.`"
-                + table
-                + "` SET OPTIONS(max_staleness = INTERVAL 0 MINUTE)"));
+    alterTable(tableName, "SET OPTIONS(max_staleness = INTERVAL 0 MINUTE)");
 
-    List<List<Object>> allRows = readAllRows(bigQuery, table, "k1");
+    List<List<Object>> allRows = readAllRows(bigQuery, tableName, "k1");
     List<List<Object>> expectedRows =
         LongStream.range(0, NUM_RECORDS_PRODUCED / 2)
             .mapToObj(
@@ -175,15 +173,22 @@ public class StorageWriteApiUpsertDeleteIT extends BaseConnectorIT {
     assertEquals(expectedRows, allRows);
   }
 
+  private void alterTable(TableName tableName, String alteration) throws InterruptedException {
+    bigQuery.query(
+            com.google.cloud.bigquery.QueryJobConfiguration.of(
+                    String.format("ALTER TABLE `%s'.'%s' %s", tableName.getDataset(), tableName.getTable(), alteration)));
+  }
+
   @Test
   public void testUpsertDelete() throws Throwable {
     // create topic in Kafka
-    final String topic = suffixedTableOrTopic("test-upsert-delete" + System.nanoTime());
+    final String topic = topicName();
+    final TableName tableName = tableName();
+
     // Make sure each task gets to read from at least one partition
     connect.kafka().createTopic(topic, TASKS_MAX);
 
-    final String table = sanitizedTable(topic);
-    TableClearer.clearTables(bigQuery, dataset(), table);
+    //TableClearer.clearTables(bigQuery, dataset(), table);
 
     // setup props for the sink connector
     Map<String, String> props = baseConnectorProps(TASKS_MAX);
@@ -228,17 +233,11 @@ public class StorageWriteApiUpsertDeleteIT extends BaseConnectorIT {
     waitForCommittedRecords(CONNECTOR_NAME, topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
 
     // Alter table to set max_staleness to 0 so that CDC changes are immediately visible
-    bigQuery.query(
-        com.google.cloud.bigquery.QueryJobConfiguration.of(
-            "ALTER TABLE `"
-                + dataset()
-                + "`.`"
-                + table
-                + "` SET OPTIONS(max_staleness = INTERVAL 0 MINUTE)"));
+    alterTable(tableName, "SET OPTIONS(max_staleness = INTERVAL 0 MINUTE)");
 
     // Since we have multiple rows per key, order by key and the f3 field (which should be
     // monotonically increasing in insertion order)
-    List<List<Object>> allRows = readAllRows(bigQuery, table, "k1, f3");
+    List<List<Object>> allRows = readAllRows(bigQuery, tableName, "k1, f3");
     List<List<Object>> expectedRows =
         LongStream.range(0, NUM_RECORDS_PRODUCED)
             .filter(i -> i % 4 == 1)

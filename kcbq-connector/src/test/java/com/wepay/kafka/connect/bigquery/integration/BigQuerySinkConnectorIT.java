@@ -27,10 +27,10 @@ import static com.wepay.kafka.connect.bigquery.integration.BaseConnectorIT.boxBy
 import static io.confluent.kafka.serializers.AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.google.cloud.bigquery.storage.v1.TableName;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.integration.utils.BucketClearer;
 import com.wepay.kafka.connect.bigquery.integration.utils.SchemaRegistryTestUtils;
-import com.wepay.kafka.connect.bigquery.integration.utils.TableClearer;
 import com.wepay.kafka.connect.bigquery.retrieve.IdentitySchemaRetriever;
 import com.wepay.kafka.connect.bigquery.utils.FieldNameSanitizer;
 import io.confluent.connect.avro.AvroConverter;
@@ -186,16 +186,15 @@ public class BigQuerySinkConnectorIT {
   @ParameterizedTest(name = "{index} {0}")
   @MethodSource("testArguments")
   void runTestCase(final String testCase, final List<List<Object>> expectedRows) throws Exception {
-    final String topic = TEST_CASE_PREFIX + testCase;
-    final String table = testBase.suffixedAndSanitizedTable(topic);
+    final String topic = testBase.topicName();
+    final TableName tableNaem = testBase.tableName();
     final String connectorName = "bigquery-connector-" + testCase;
 
     final int tasksMax = 1;
     try {
-      TableClearer.clearTables(testBase.newBigQuery(), testBase.dataset(), table);
       int numRecordsProduced = populate(testCase, topic);
 
-      testBase.connect.configureConnector(connectorName, connectorProps(tasksMax, topic));
+      testBase.connect.configureConnector(connectorName, connectorProps(tasksMax, topic, tableNaem));
 
       testBase.waitForConnectorToStart(connectorName, tasksMax);
 
@@ -206,8 +205,9 @@ public class BigQuerySinkConnectorIT {
           tasksMax,
           TimeUnit.MINUTES.toMillis(3));
 
-      assertEquals(expectedRows, readRows(testCase));
+      assertEquals(expectedRows, readRows(tableNaem));
     } finally {
+      testBase.delete(testBase.newBigQuery(), tableNaem);
       testBase.connect.deleteConnector(connectorName);
     }
   }
@@ -254,7 +254,7 @@ public class BigQuerySinkConnectorIT {
     return numRecordsProduced;
   }
 
-  private Map<String, String> connectorProps(int tasksMax, String topic) {
+  private Map<String, String> connectorProps(int tasksMax, String topic, TableName tableName) {
     Map<String, String> result = testBase.baseConnectorProps(tasksMax);
 
     result.put(ConnectorConfig.KEY_CONVERTER_CLASS_CONFIG, AvroConverter.class.getName());
@@ -270,9 +270,7 @@ public class BigQuerySinkConnectorIT {
 
     result.put(BigQuerySinkConfig.ALLOW_NEW_BIGQUERY_FIELDS_CONFIG, "true");
     result.put(BigQuerySinkConfig.ALLOW_BIGQUERY_REQUIRED_FIELD_RELAXATION_CONFIG, "true");
-    result.put(
-        BigQuerySinkConfig.ENABLE_BATCH_CONFIG,
-        testBase.suffixedAndSanitizedTable("kcbq_test_gcs-load"));
+    result.put(BigQuerySinkConfig.ENABLE_BATCH_CONFIG, tableName.getTable());
     result.put(BigQuerySinkConfig.BATCH_LOAD_INTERVAL_SEC_CONFIG, "10");
     result.put(BigQuerySinkConfig.GCS_BUCKET_NAME_CONFIG, testBase.gcsBucket() + System.nanoTime());
     result.put(BigQuerySinkConfig.GCS_FOLDER_NAME_CONFIG, testBase.gcsFolder());
@@ -290,12 +288,9 @@ public class BigQuerySinkConnectorIT {
     return result;
   }
 
-  private List<List<Object>> readRows(final String testCase) {
+  private List<List<Object>> readRows(TableName tableName) {
     try {
-      String table =
-          testBase.suffixedAndSanitizedTable(
-              TEST_CASE_PREFIX + FieldNameSanitizer.sanitizeName(testCase));
-      return testBase.readAllRows(testBase.newBigQuery(), table, "row");
+      return testBase.readAllRows(testBase.newBigQuery(), tableName, "row");
     } catch (InterruptedException e) {
       throw new RuntimeException(e);
     }
