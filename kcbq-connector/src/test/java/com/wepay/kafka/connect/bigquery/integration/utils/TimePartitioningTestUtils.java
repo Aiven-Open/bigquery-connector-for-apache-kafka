@@ -29,11 +29,10 @@ import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.QueryJobConfiguration;
 import com.google.cloud.bigquery.TableResult;
 import com.google.cloud.bigquery.TimePartitioning;
+import com.google.cloud.bigquery.storage.v1.TableName;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-
-import com.google.cloud.bigquery.storage.v1.TableName;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerConfig;
@@ -116,7 +115,8 @@ public class TimePartitioningTestUtils {
   }
 
   /**
-   * @deprecated use {@link #assertPartitionContainsData(BigQuery, TableName, TimePartitioning.Type, long)}
+   * @deprecated use {@link #assertPartitionContainsData(BigQuery, TableName, TimePartitioning.Type,
+   *     long)}
    * @param bigQuery
    * @param dataset
    * @param table
@@ -144,20 +144,16 @@ public class TimePartitioningTestUtils {
   }
 
   public static void assertPartitionContainsData(
-          BigQuery bigQuery,
-          TableName tableName,
-          TimePartitioning.Type type,
-          long timestampMillis)
-          throws InterruptedException {
+      BigQuery bigQuery, TableName tableName, TimePartitioning.Type type, long timestampMillis)
+      throws InterruptedException {
     String query =
-            String.format(
-                    "SELECT * FROM `%s`.`%s` WHERE _PARTITIONTIME = TIMESTAMP_TRUNC(TIMESTAMP_MILLIS(%d), %s)",
-                    tableName.getDataset(), tableName.getTable(), timestampMillis, type.name());
+        String.format(
+            "SELECT * FROM `%s`.`%s` WHERE _PARTITIONTIME = TIMESTAMP_TRUNC(TIMESTAMP_MILLIS(%d), %s)",
+            tableName.getDataset(), tableName.getTable(), timestampMillis, type.name());
     TableResult tableResult = bigQuery.query(QueryJobConfiguration.of(query));
 
     assertTrue(
-            tableResult.getValues().iterator().hasNext(),
-            "Expected records in partition for timestamp: " + timestampMillis);
+        tableResult.getValues().iterator().hasNext(),
+        "Expected records in partition for timestamp: " + timestampMillis);
   }
-
 }

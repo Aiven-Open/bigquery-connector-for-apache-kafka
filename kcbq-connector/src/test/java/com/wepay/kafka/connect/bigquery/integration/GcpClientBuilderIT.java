@@ -23,8 +23,8 @@
 
 package com.wepay.kafka.connect.bigquery.integration;
 
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.apache.kafka.test.TestUtils.waitForCondition;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.DatasetId;
@@ -46,7 +46,6 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.Map;
-
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
@@ -75,7 +74,10 @@ class GcpClientBuilderIT extends BaseConnectorIT {
       // table takes time after creation before being available for operations. You may have to wait
       // a few minutes (~5 minutes)
       // Try to wait for 5 minutes if table is seen.
-      waitForCondition(() -> bigQuery.getTable(tableId) != null, Duration.ofMinutes(5).toMillis(), "Created table is not yet available.");
+      waitForCondition(
+          () -> bigQuery.getTable(tableId) != null,
+          Duration.ofMinutes(5).toMillis(),
+          "Created table is not yet available.");
     }
   }
 

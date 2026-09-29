@@ -296,9 +296,6 @@ public class BigQuerySinkTask extends SinkTask {
     if (trackPutAttempts) {
       recordConverter.setCurrentPutAttemptId(ULID_GENERATOR.nextULID());
     }
-    if (records.size() > 0) {
-      logger.info(">>>>Poll presented {} records", records.size());
-    }
     try {
       writeSinkRecords(records);
       remainingRetries = config.getInt(BigQuerySinkConfig.MAX_RETRIES_CONFIG);

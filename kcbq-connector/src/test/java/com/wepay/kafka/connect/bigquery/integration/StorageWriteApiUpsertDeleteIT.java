@@ -52,7 +52,6 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
@@ -183,8 +182,9 @@ class StorageWriteApiUpsertDeleteIT extends BaseConnectorIT {
 
   private void alterTable(TableName tableName, String alteration) throws InterruptedException {
     bigQuery.query(
-            com.google.cloud.bigquery.QueryJobConfiguration.of(
-                    String.format("ALTER TABLE %s.%s %s", tableName.getDataset(), tableName.getTable(), alteration)));
+        com.google.cloud.bigquery.QueryJobConfiguration.of(
+            String.format(
+                "ALTER TABLE %s.%s %s", tableName.getDataset(), tableName.getTable(), alteration)));
   }
 
   @Test
@@ -252,7 +252,8 @@ class StorageWriteApiUpsertDeleteIT extends BaseConnectorIT {
     assertEquals(expectedRows, allRows);
   }
 
-  private void produceHighThroughputRecords(String topic, long numRecords, Converter keyConverter, Converter valueConverter) {
+  private void produceHighThroughputRecords(
+      String topic, long numRecords, Converter keyConverter, Converter valueConverter) {
     // Send records to Kafka. Pre-populate Kafka before starting the connector as we want to measure
     // the connector's throughput cleanly
     logger.info("Pre-populating Kafka with test data");
@@ -272,7 +273,7 @@ class StorageWriteApiUpsertDeleteIT extends BaseConnectorIT {
 
   @Test
   @Tag("slow")
-  //@Disabled("Skipped during regular testing; comment-out annotation to run")
+  // @Disabled("Skipped during regular testing; comment-out annotation to run")
   void testUpsertDeleteHighThroughput() throws Throwable {
     final long numRecords = 1_000_000L;
     final int numPartitions = 10;
@@ -333,7 +334,7 @@ class StorageWriteApiUpsertDeleteIT extends BaseConnectorIT {
         numRecords,
         tasksMax,
         TimeUnit.MINUTES.toMillis(10),
-            TimeUnit.SECONDS.toMillis(10));
+        TimeUnit.SECONDS.toMillis(10));
 
     long time = System.currentTimeMillis() - start;
     logger.info(
@@ -343,14 +344,14 @@ class StorageWriteApiUpsertDeleteIT extends BaseConnectorIT {
 
     final AtomicLong numRows = new AtomicLong();
     TestUtils.waitForCondition(
-            () -> {
-              numRows.set(countRows(bigQuery, tableName));
-              return numRows.get() >= numRecords;
-            },
-            TimeUnit.MINUTES.toMillis(10),
-            TimeUnit.SECONDS.toMillis(10),
-            () ->
-                    "Table should contain " + numRecords + " rows, but has " + numRows.get() + " instead");
+        () -> {
+          numRows.set(countRows(bigQuery, tableName));
+          return numRows.get() >= numRecords;
+        },
+        TimeUnit.MINUTES.toMillis(10),
+        TimeUnit.SECONDS.toMillis(10),
+        () ->
+            "Table should contain " + numRecords + " rows, but has " + numRows.get() + " instead");
     // Since we have multiple rows per key, order by key and the f3 field (which should be
     // monotonically increasing in insertion order)
     List<List<Object>> allRows = readAllRows(bigQuery, tableName, "k1, f3");

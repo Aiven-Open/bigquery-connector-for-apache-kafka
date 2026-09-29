@@ -45,7 +45,8 @@ public class TableClearer {
    * @param bigQuery The BigQuery client to use when sending table deletion requests.
    * @param dataset The dataset that the to-be-cleared tables belong to.
    * @param tables The tables to clear.
-   * @deprecated use {@link com.wepay.kafka.connect.bigquery.integration.BaseConnectorIT#delete(BigQuery, TableName)} .
+   * @deprecated use {@link
+   *     com.wepay.kafka.connect.bigquery.integration.BaseConnectorIT#delete(BigQuery, TableName)} .
    */
   @Deprecated
   public static void clearTables(BigQuery bigQuery, String dataset, Collection<String> tables) {
@@ -66,7 +67,8 @@ public class TableClearer {
    * @param bigQuery The BigQuery client to use when sending table deletion requests.
    * @param dataset The dataset that the to-be-cleared tables belong to.
    * @param tables The tables to clear.
-   * @deprecated use {@link com.wepay.kafka.connect.bigquery.integration.BaseConnectorIT#delete(BigQuery, TableName)} .
+   * @deprecated use {@link
+   *     com.wepay.kafka.connect.bigquery.integration.BaseConnectorIT#delete(BigQuery, TableName)} .
    */
   @Deprecated
   public static void clearTables(BigQuery bigQuery, String dataset, String... tables) {

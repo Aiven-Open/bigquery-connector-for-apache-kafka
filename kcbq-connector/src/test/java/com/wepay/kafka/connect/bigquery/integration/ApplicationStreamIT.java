@@ -34,31 +34,29 @@ import com.wepay.kafka.connect.bigquery.integration.utils.BigQueryTestUtils;
 import com.wepay.kafka.connect.bigquery.write.storage.ApplicationStream;
 import com.wepay.kafka.connect.bigquery.write.storage.JsonStreamWriterFactory;
 import com.wepay.kafka.connect.bigquery.write.storage.StreamState;
-
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 class ApplicationStreamIT extends BaseConnectorIT {
   private BigQueryWriteClient client;
-    private BigQuery bigQuery;
+  private BigQuery bigQuery;
   private ApplicationStream underTest;
 
   @BeforeEach
   void setup() throws Exception {
     bigQuery = newBigQuery();
     BigQueryTestUtils.createPartitionedTable(bigQuery, tableName(), null);
-      BigQueryWriteSettings writeSettings = new GcpClientBuilder.BigQueryWriteSettingsBuilder()
-              .withProject(project())
-              .withKeySource(GcpClientBuilder.KeySource.valueOf(keySource()))
-              .withKey(keyFile())
-              .withWriterApi(true)
-              .build();
+    BigQueryWriteSettings writeSettings =
+        new GcpClientBuilder.BigQueryWriteSettingsBuilder()
+            .withProject(project())
+            .withKeySource(GcpClientBuilder.KeySource.valueOf(keySource()))
+            .withKey(keyFile())
+            .withWriterApi(true)
+            .build();
     client = BigQueryWriteClient.create(writeSettings);
-      JsonStreamWriterFactory jsonWriterFactory = getJsonWriterFactory();
-    underTest =  new ApplicationStream(tableName().toString(), client, jsonWriterFactory);
+    JsonStreamWriterFactory jsonWriterFactory = getJsonWriterFactory();
+    underTest = new ApplicationStream(tableName().toString(), client, jsonWriterFactory);
   }
 
   @AfterEach
@@ -66,7 +64,6 @@ class ApplicationStreamIT extends BaseConnectorIT {
     underTest.closeStream();
     delete(bigQuery, tableName());
   }
-
 
   @Test
   void testStreamCreation() {

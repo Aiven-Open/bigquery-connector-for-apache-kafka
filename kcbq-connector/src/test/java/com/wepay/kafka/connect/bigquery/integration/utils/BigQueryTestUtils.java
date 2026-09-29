@@ -23,6 +23,9 @@
 
 package com.wepay.kafka.connect.bigquery.integration.utils;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.fail;
+
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.BigQueryException;
 import com.google.cloud.bigquery.Schema;
@@ -32,21 +35,16 @@ import com.google.cloud.bigquery.TableInfo;
 import com.google.cloud.bigquery.TimePartitioning;
 import com.google.cloud.bigquery.storage.v1.TableName;
 import com.wepay.kafka.connect.bigquery.utils.TableNameUtils;
+import java.time.Duration;
 import org.awaitility.Awaitility;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.time.Duration;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.fail;
 
 public class BigQueryTestUtils {
 
   private static final Logger logger = LoggerFactory.getLogger(BigQueryTestUtils.class);
 
   /**
-   * 
    * @param bigQuery
    * @param datasetName
    * @param tableName
@@ -71,44 +69,48 @@ public class BigQueryTestUtils {
 
       bigQuery.create(tableInfo);
       logger.info("Partitioned table {} created successfully", tableName);
-      Awaitility.await().atMost(Duration.ofSeconds(30)).untilAsserted(() -> assertThat(bigQuery.getTable(tableId)).isNotNull());
+      Awaitility.await()
+          .atMost(Duration.ofSeconds(30))
+          .untilAsserted(() -> assertThat(bigQuery.getTable(tableId)).isNotNull());
     } catch (BigQueryException e) {
       logger.error("Failed to create partitioned table {} in dataset {}", tableName, datasetName);
       throw e;
     }
   }
 
-  public static void createPartitionedTable(
-          BigQuery bigQuery, TableName tableName, Schema schema) {
+  public static void createPartitionedTable(BigQuery bigQuery, TableName tableName, Schema schema) {
     try {
       TableId tableId = TableNameUtils.tableId(tableName);
 
       TimePartitioning partitioning =
-              TimePartitioning.newBuilder(TimePartitioning.Type.DAY).build();
+          TimePartitioning.newBuilder(TimePartitioning.Type.DAY).build();
 
       StandardTableDefinition tableDefinition =
-              StandardTableDefinition.newBuilder()
-                      .setSchema(schema)
-                      .setTimePartitioning(partitioning)
-                      .build();
+          StandardTableDefinition.newBuilder()
+              .setSchema(schema)
+              .setTimePartitioning(partitioning)
+              .build();
       TableInfo tableInfo = TableInfo.newBuilder(tableId, tableDefinition).build();
 
       bigQuery.create(tableInfo);
       logger.info("Partitioned table {} created successfully", tableName);
-      Awaitility.await().atMost(Duration.ofSeconds(30)).untilAsserted(() -> assertThat(bigQuery.getTable(tableId)).isNotNull());
+      Awaitility.await()
+          .atMost(Duration.ofSeconds(30))
+          .untilAsserted(() -> assertThat(bigQuery.getTable(tableId)).isNotNull());
     } catch (BigQueryException e) {
       fail("Failed to create partitioned table {}", tableName, e);
     }
   }
 
-  public static void createStandardTable(
-          BigQuery bigQuery, TableName tableName, Schema schema) {
+  public static void createStandardTable(BigQuery bigQuery, TableName tableName, Schema schema) {
     try {
       // Create the table...
       TableId tableId = TableNameUtils.tableId(tableName);
       bigQuery.create(TableInfo.newBuilder(tableId, StandardTableDefinition.of(schema)).build());
       logger.info("Standard table {} created successfully", tableName);
-      Awaitility.await().atMost(Duration.ofSeconds(30)).untilAsserted(() -> assertThat(bigQuery.getTable(tableId)).isNotNull());
+      Awaitility.await()
+          .atMost(Duration.ofSeconds(30))
+          .untilAsserted(() -> assertThat(bigQuery.getTable(tableId)).isNotNull());
     } catch (BigQueryException e) {
       fail("Failed to create standard table {}", tableName, e);
     }

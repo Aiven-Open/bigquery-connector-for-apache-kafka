@@ -42,6 +42,7 @@ import com.google.cloud.bigquery.TableId;
 import com.google.cloud.bigquery.storage.v1.TableName;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryErrorResponses;
 import com.wepay.kafka.connect.bigquery.integration.utils.BigQueryTestUtils;
+import com.wepay.kafka.connect.bigquery.utils.TableNameUtils;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -56,8 +57,6 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
-
-import com.wepay.kafka.connect.bigquery.utils.TableNameUtils;
 import org.apache.kafka.test.TestUtils;
 import org.assertj.core.api.Condition;
 import org.awaitility.Awaitility;
@@ -83,16 +82,20 @@ class BigQueryErrorResponsesIT extends BaseConnectorIT {
     delete(bigQuery, tableName());
   }
 
-
   @Test
   void testWriteToNonExistentTable() {
     TableId table = TableNameUtils.tableId(tableName());
 
-    assertThatThrownBy(() -> bigQuery.insertAll(
-            InsertAllRequest.of(
-                    table, RowToInsert.of(Collections.singletonMap("f1", "v1")))))
-            .isInstanceOf(BigQueryException.class)
-            .is(new Condition<>(e -> BigQueryErrorResponses.isNonExistentTableError((BigQueryException)e), "Nonexistent table write error"));
+    assertThatThrownBy(
+            () ->
+                bigQuery.insertAll(
+                    InsertAllRequest.of(
+                        table, RowToInsert.of(Collections.singletonMap("f1", "v1")))))
+        .isInstanceOf(BigQueryException.class)
+        .is(
+            new Condition<>(
+                e -> BigQueryErrorResponses.isNonExistentTableError((BigQueryException) e),
+                "Nonexistent table write error"));
   }
 
   @Test
@@ -108,28 +111,29 @@ class BigQueryErrorResponsesIT extends BaseConnectorIT {
 
     // Verify we can write to it
     TestUtils.waitForCondition(
-            () -> {
-              // Try to write to it...
-              try {
-                bigQuery.insertAll(
-                        InsertAllRequest.of(tableId, RowToInsert.of(Collections.singletonMap("f1", "v1"))));
-                return true;
-              } catch (BigQueryException e) {
-                logger.debug(
-                        "Initial table write error: {}",
-                        exceptionTracker.recordException(e).getMessage());
-                return false;
-              }
-            },
-            TimeUnit.MINUTES.toMillis(1),
-            TimeUnit.SECONDS.toMillis(1),
-            () -> exceptionTracker.report("Never succeeded to write to initial table."));
+        () -> {
+          // Try to write to it...
+          try {
+            bigQuery.insertAll(
+                InsertAllRequest.of(tableId, RowToInsert.of(Collections.singletonMap("f1", "v1"))));
+            return true;
+          } catch (BigQueryException e) {
+            logger.debug(
+                "Initial table write error: {}", exceptionTracker.recordException(e).getMessage());
+            return false;
+          }
+        },
+        TimeUnit.MINUTES.toMillis(1),
+        TimeUnit.SECONDS.toMillis(1),
+        () -> exceptionTracker.report("Never succeeded to write to initial table."));
 
     // Delete it...
     delete(bigQuery, tableName);
 
     // Make sure that it's deleted
-    Awaitility.await().atMost(Duration.ofMinutes(2)).untilAsserted(() -> assertThat(bigQuery.getTable(tableId)).isNull());
+    Awaitility.await()
+        .atMost(Duration.ofMinutes(2))
+        .untilAsserted(() -> assertThat(bigQuery.getTable(tableId)).isNull());
 
     // ensure writhe to deleted table fails
     exceptionTracker.reset();
@@ -148,14 +152,17 @@ class BigQueryErrorResponsesIT extends BaseConnectorIT {
             return false;
           }
         },
-            TimeUnit.MINUTES.toMillis(1),
-            TimeUnit.SECONDS.toMillis(1),
-            () -> exceptionTracker.report("Never failed to write to just-deleted table."));
+        TimeUnit.MINUTES.toMillis(1),
+        TimeUnit.SECONDS.toMillis(1),
+        () -> exceptionTracker.report("Never failed to write to just-deleted table."));
 
     // Recreate it...
     BigQueryTestUtils.createStandardTable(bigQuery, tableName, schema);
     // Make sure that it's not deleted
-    Awaitility.await().atMost(Duration.ofMinutes(5)).pollDelay(Duration.ofMinutes(1)).untilAsserted(() -> assertThat(bigQuery.getTable(tableId)).isNotNull());
+    Awaitility.await()
+        .atMost(Duration.ofMinutes(5))
+        .pollDelay(Duration.ofMinutes(1))
+        .untilAsserted(() -> assertThat(bigQuery.getTable(tableId)).isNotNull());
 
     // verify we can write to the recreated table.
     exceptionTracker.reset();
@@ -173,8 +180,8 @@ class BigQueryErrorResponsesIT extends BaseConnectorIT {
             return false;
           }
         },
-            TimeUnit.MINUTES.toMillis(5),
-            TimeUnit.SECONDS.toMillis(1),
+        TimeUnit.MINUTES.toMillis(5),
+        TimeUnit.SECONDS.toMillis(1),
         () -> exceptionTracker.report("Never succeeded to write to just-recreated table."));
   }
 
@@ -185,11 +192,16 @@ class BigQueryErrorResponsesIT extends BaseConnectorIT {
     BigQueryTestUtils.createStandardTable(bigQuery, tableName, Schema.of());
     TableId tableId = TableNameUtils.tableId(tableName);
 
-    assertThatThrownBy(() -> bigQuery.insertAll(
-            InsertAllRequest.of(
-                    tableId, RowToInsert.of(Collections.singletonMap("f1", "v1")))))
-            .isInstanceOf(BigQueryException.class)
-            .is(new Condition<>(e -> BigQueryErrorResponses.isTableMissingSchemaError((BigQueryException)e), "Table missing schema write error"));
+    assertThatThrownBy(
+            () ->
+                bigQuery.insertAll(
+                    InsertAllRequest.of(
+                        tableId, RowToInsert.of(Collections.singletonMap("f1", "v1")))))
+        .isInstanceOf(BigQueryException.class)
+        .is(
+            new Condition<>(
+                e -> BigQueryErrorResponses.isTableMissingSchemaError((BigQueryException) e),
+                "Table missing schema write error"));
   }
 
   @Test
@@ -204,7 +216,9 @@ class BigQueryErrorResponsesIT extends BaseConnectorIT {
 
     BigQueryTestUtils.createStandardTable(bigQuery, tableName, schema);
 
-    InsertAllResponse response = bigQuery.insertAll(InsertAllRequest.of(tableId, RowToInsert.of(Collections.singletonMap("f1", "v1"))));
+    InsertAllResponse response =
+        bigQuery.insertAll(
+            InsertAllRequest.of(tableId, RowToInsert.of(Collections.singletonMap("f1", "v1"))));
     BigQueryError error = assertResponseHasSingleError(response);
     assertThat(BigQueryErrorResponses.isMissingRequiredFieldError(error)).isTrue();
   }
@@ -223,7 +237,8 @@ class BigQueryErrorResponsesIT extends BaseConnectorIT {
     Map<String, Object> row = new HashMap<>();
     row.put("f1", "v1");
     row.put("f2", 12L);
-    InsertAllResponse response =  bigQuery.insertAll(InsertAllRequest.of(tableId, RowToInsert.of(row)));
+    InsertAllResponse response =
+        bigQuery.insertAll(InsertAllRequest.of(tableId, RowToInsert.of(row)));
     BigQueryError error = assertResponseHasSingleError(response);
     assertThat(BigQueryErrorResponses.isUnrecognizedFieldError(error)).isTrue();
   }
@@ -243,7 +258,9 @@ class BigQueryErrorResponsesIT extends BaseConnectorIT {
     row1.put("f1", "v1");
     row1.put("f2", 12L);
     Map<String, Object> row2 = Collections.singletonMap("f1", "v2");
-    InsertAllResponse response = bigQuery.insertAll(InsertAllRequest.of(tableId, RowToInsert.of(row1), RowToInsert.of(row2)));
+    InsertAllResponse response =
+        bigQuery.insertAll(
+            InsertAllRequest.of(tableId, RowToInsert.of(row1), RowToInsert.of(row2)));
     assertThat(response.getInsertErrors()).hasSize(2);
 
     // As long as we have some kind of error on the first row it's fine; we want to be more precise
@@ -268,10 +285,16 @@ class BigQueryErrorResponsesIT extends BaseConnectorIT {
     Arrays.fill(chars, '*');
     String columnValue = new String(chars);
 
-    assertThatThrownBy(() -> bigQuery.insertAll(InsertAllRequest.of(
-                    tableId, RowToInsert.of(Collections.singletonMap("f1", columnValue)))))
-            .isInstanceOf(BigQueryException.class)
-            .is(new Condition<>(e -> BigQueryErrorResponses.isRequestTooLargeError((BigQueryException)e), "Large request payload write error"));
+    assertThatThrownBy(
+            () ->
+                bigQuery.insertAll(
+                    InsertAllRequest.of(
+                        tableId, RowToInsert.of(Collections.singletonMap("f1", columnValue)))))
+        .isInstanceOf(BigQueryException.class)
+        .is(
+            new Condition<>(
+                e -> BigQueryErrorResponses.isRequestTooLargeError((BigQueryException) e),
+                "Large request payload write error"));
   }
 
   @Test
@@ -289,10 +312,12 @@ class BigQueryErrorResponsesIT extends BaseConnectorIT {
             .map(RowToInsert::of)
             .collect(Collectors.toList());
 
-
     assertThatThrownBy(() -> bigQuery.insertAll(InsertAllRequest.of(tableId, rows)))
-            .isInstanceOf(BigQueryException.class)
-            .is(new Condition<>(e -> BigQueryErrorResponses.isTooManyRowsError((BigQueryException)e), "To mny rows write error"));
+        .isInstanceOf(BigQueryException.class)
+        .is(
+            new Condition<>(
+                e -> BigQueryErrorResponses.isTooManyRowsError((BigQueryException) e),
+                "To mny rows write error"));
   }
 
   private BigQueryError assertResponseHasSingleError(InsertAllResponse response) {

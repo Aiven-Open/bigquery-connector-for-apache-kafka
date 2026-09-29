@@ -214,8 +214,10 @@ class AvroLogicalTypesIT extends BaseConnectorIT {
   private void assertFieldType(Schema schema, String fieldName, LegacySQLTypeName expectedType) {
     Field field = schema.getFields().get(fieldName);
     assertNotNull(field, "Expected field '" + fieldName + "' not found in BigQuery schema");
-    assertThat(field.getType()).describedAs("Field '" + fieldName + "' should be " + expectedType + " but was " + field.getType())
-            .isEqualTo(expectedType);
+    assertThat(field.getType())
+        .describedAs(
+            "Field '" + fieldName + "' should be " + expectedType + " but was " + field.getType())
+        .isEqualTo(expectedType);
   }
 
   private java.util.Map<String, String> connectorProps(String topic) {

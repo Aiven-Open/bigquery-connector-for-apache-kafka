@@ -106,60 +106,60 @@ class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
 
   static {
     Schema subStructSchema =
-            SchemaBuilder.struct()
-                    .field("ssf1", Schema.INT64_SCHEMA)
-                    .field("ssf2", Schema.BOOLEAN_SCHEMA)
-                    .build();
+        SchemaBuilder.struct()
+            .field("ssf1", Schema.INT64_SCHEMA)
+            .field("ssf2", Schema.BOOLEAN_SCHEMA)
+            .build();
 
     Schema nestedStructSchema =
-            SchemaBuilder.struct()
-                    .field("sf1", Schema.STRING_SCHEMA)
-                    .field("sf2", subStructSchema)
-                    .field("sf3", Schema.FLOAT64_SCHEMA)
-                    .build();
+        SchemaBuilder.struct()
+            .field("sf1", Schema.STRING_SCHEMA)
+            .field("sf2", subStructSchema)
+            .field("sf3", Schema.FLOAT64_SCHEMA)
+            .build();
 
     Schema primitivesSchema =
-            SchemaBuilder.struct()
-                    .field("boolean_field", Schema.BOOLEAN_SCHEMA)
-                    .field("float32_field", Schema.FLOAT32_SCHEMA)
-                    .field("float64_field", Schema.FLOAT64_SCHEMA)
-                    .field("int8_field", Schema.INT8_SCHEMA)
-                    .field("int16_field", Schema.INT16_SCHEMA)
-                    .field("int32_field", Schema.INT32_SCHEMA)
-                    .field("int64_field", Schema.INT64_SCHEMA)
-                    .field("string_field", Schema.STRING_SCHEMA);
+        SchemaBuilder.struct()
+            .field("boolean_field", Schema.BOOLEAN_SCHEMA)
+            .field("float32_field", Schema.FLOAT32_SCHEMA)
+            .field("float64_field", Schema.FLOAT64_SCHEMA)
+            .field("int8_field", Schema.INT8_SCHEMA)
+            .field("int16_field", Schema.INT16_SCHEMA)
+            .field("int32_field", Schema.INT32_SCHEMA)
+            .field("int64_field", Schema.INT64_SCHEMA)
+            .field("string_field", Schema.STRING_SCHEMA);
 
     Schema logicalsSchema =
-            SchemaBuilder.struct()
-                    // dlf = "Debezium logical field"
-                    .field("dlf1", Timestamp.builder().optional().build())
-                    .field("dlf2", Time.builder().optional().build())
-                    .field("dlf3", Date.builder().optional().build())
-                    // klf = "Kafka logical field"
-                    .field("klf1", org.apache.kafka.connect.data.Timestamp.builder().optional().build())
-                    .field("klf2", org.apache.kafka.connect.data.Time.builder().optional().build())
-                    .field("klf3", org.apache.kafka.connect.data.Date.builder().optional().build())
-                    .field("klf4", org.apache.kafka.connect.data.Decimal.builder(5).optional().build())
-                    .build();
+        SchemaBuilder.struct()
+            // dlf = "Debezium logical field"
+            .field("dlf1", Timestamp.builder().optional().build())
+            .field("dlf2", Time.builder().optional().build())
+            .field("dlf3", Date.builder().optional().build())
+            // klf = "Kafka logical field"
+            .field("klf1", org.apache.kafka.connect.data.Timestamp.builder().optional().build())
+            .field("klf2", org.apache.kafka.connect.data.Time.builder().optional().build())
+            .field("klf3", org.apache.kafka.connect.data.Date.builder().optional().build())
+            .field("klf4", org.apache.kafka.connect.data.Decimal.builder(5).optional().build())
+            .build();
 
     Schema arraySchema = SchemaBuilder.array(Schema.STRING_SCHEMA);
 
     valueSchema =
-            SchemaBuilder.struct()
-                    .optional()
-                    .field("f1", Schema.STRING_SCHEMA)
-                    .field("f2", Schema.BOOLEAN_SCHEMA)
-                    .field("f3", Schema.FLOAT64_SCHEMA)
-                    .field("bytes_field", Schema.OPTIONAL_BYTES_SCHEMA)
-                    .field("nested_field", nestedStructSchema)
-                    .field("primitives_field", primitivesSchema)
-                    .field("logicals_field", logicalsSchema)
-                    .field("array_field", arraySchema)
-                    .build();
+        SchemaBuilder.struct()
+            .optional()
+            .field("f1", Schema.STRING_SCHEMA)
+            .field("f2", Schema.BOOLEAN_SCHEMA)
+            .field("f3", Schema.FLOAT64_SCHEMA)
+            .field("bytes_field", Schema.OPTIONAL_BYTES_SCHEMA)
+            .field("nested_field", nestedStructSchema)
+            .field("primitives_field", primitivesSchema)
+            .field("logicals_field", logicalsSchema)
+            .field("array_field", arraySchema)
+            .build();
 
     keySchema = SchemaBuilder.struct().field("k1", Schema.INT64_SCHEMA).build();
-
   }
+
   @BeforeAll
   static void beforeAll() {
     startConnect();
@@ -192,8 +192,7 @@ class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
     bigQuery = null;
   }
 
-  private void testBaseJson(boolean usePartitionDecorator)
-      throws InterruptedException {
+  private void testBaseJson(boolean usePartitionDecorator) throws InterruptedException {
     assumeTrue(
         !(isBatchMode() && usePartitionDecorator),
         "Skipping partition decorator test in batch mode");
@@ -377,7 +376,8 @@ class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
     // produce records
     produceJsonRecords();
 
-    assertCluster().assertions()
+    assertCluster()
+        .assertions()
         .assertConnectorIsRunningAndTasksHaveFailed(
             connectorName,
             TASKS_MAX,
@@ -595,7 +595,7 @@ class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
         numRecords,
         tasksMax,
         TimeUnit.MINUTES.toMillis(10),
-            TimeUnit.SECONDS.toMillis(10));
+        TimeUnit.SECONDS.toMillis(10));
 
     final AtomicLong numRows = new AtomicLong();
     TestUtils.waitForCondition(
@@ -604,15 +604,19 @@ class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
           assertEquals(numRecords, numRows.get());
           return true;
         },
-            TimeUnit.MINUTES.toMillis(10),
-            TimeUnit.SECONDS.toMillis(10),
+        TimeUnit.MINUTES.toMillis(10),
+        TimeUnit.SECONDS.toMillis(10),
         () ->
             "Table should contain " + numRecords + " rows, but has " + numRows.get() + " instead");
 
-    // we need to give the system a bit more time to see if the number of records increases beyond what is expected.
+    // we need to give the system a bit more time to see if the number of records increases beyond
+    // what is expected.
     Thread.sleep(TimeUnit.MINUTES.toMillis(1));
     numRows.set(countRows(bigQuery, tableName));
-    assertEquals(numRecords, numRows.get(), () ->
+    assertEquals(
+        numRecords,
+        numRows.get(),
+        () ->
             "Table should contain " + numRecords + " rows, but has " + numRows.get() + " instead");
   }
 
@@ -662,7 +666,7 @@ class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
         numRecords,
         tasksMax,
         TimeUnit.MINUTES.toMillis(10),
-            TimeUnit.SECONDS.toMillis(10));
+        TimeUnit.SECONDS.toMillis(10));
 
     final AtomicLong numRows = new AtomicLong();
     TestUtils.waitForCondition(
@@ -670,15 +674,19 @@ class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
           numRows.set(countRows(bigQuery, tableName));
           return numRows.get() >= numRecords;
         },
-            TimeUnit.MINUTES.toMillis(10),
-            TimeUnit.SECONDS.toMillis(10),
+        TimeUnit.MINUTES.toMillis(10),
+        TimeUnit.SECONDS.toMillis(10),
         () ->
             "Table should contain " + numRecords + " rows, but has " + numRows.get() + " instead");
 
-    // we need to give the system a bit more time to see if the number of records increases beyond what is expected.
+    // we need to give the system a bit more time to see if the number of records increases beyond
+    // what is expected.
     Thread.sleep(TimeUnit.MINUTES.toMillis(1));
     numRows.set(countRows(bigQuery, tableName));
-    assertEquals(numRecords, numRows.get(), () ->
+    assertEquals(
+        numRecords,
+        numRows.get(),
+        () ->
             "Table should contain " + numRecords + " rows, but has " + numRows.get() + " instead");
   }
 

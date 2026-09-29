@@ -72,7 +72,6 @@ class UpsertDeleteBigQuerySinkConnectorIT extends BaseConnectorIT {
 
   private BigQuery bigQuery;
 
-
   @BeforeAll
   static void beforeAll() {
     startConnect();
@@ -82,7 +81,6 @@ class UpsertDeleteBigQuerySinkConnectorIT extends BaseConnectorIT {
   static void afterAll() {
     stopConnect();
   }
-
 
   @BeforeEach
   void setup(TestInfo testInfo) {
@@ -266,7 +264,7 @@ class UpsertDeleteBigQuerySinkConnectorIT extends BaseConnectorIT {
     assertCluster().kafka().createTopic(topic, TASKS_MAX);
 
     final TableName tableName = tableName();
-    //TableClearer.clearTables(bigQuery, dataset(), tableName);
+    // TableClearer.clearTables(bigQuery, dataset(), tableName);
 
     // setup props for the sink connector
     Map<String, String> props = baseConnectorProps(TASKS_MAX);

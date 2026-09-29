@@ -71,15 +71,14 @@ public class BucketClearer {
     }
   }
 
-  public static void createBucket(
-          String key, String project, String bucketName,  String keySource) {
+  public static void createBucket(String key, String project, String bucketName, String keySource) {
     logger.info("Creating bucket {}", bucketName);
     Storage gcs =
-            new GcpClientBuilder.GcsBuilder()
-                    .withKeySource(GcpClientBuilder.KeySource.valueOf(keySource))
-                    .withKey(key)
-                    .withProject(project)
-                    .build();
+        new GcpClientBuilder.GcsBuilder()
+            .withKeySource(GcpClientBuilder.KeySource.valueOf(keySource))
+            .withKey(key)
+            .withProject(project)
+            .build();
     Bucket bucket = gcs.create(BucketInfo.newBuilder(bucketName).build());
     if (bucket != null) {
       logger.info("Bucket {} created successfully", bucketName);

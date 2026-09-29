@@ -63,7 +63,7 @@ import org.junit.jupiter.api.Test;
 
 @Tag("integration")
 class GcsBatchSchemaEvolutionIT extends BaseConnectorIT {
-  
+
   private static final int TASKS_MAX = 1;
   private static final Duration LOAD_TIMEOUT = Duration.ofMinutes(2);
 
@@ -106,21 +106,20 @@ class GcsBatchSchemaEvolutionIT extends BaseConnectorIT {
     assertCluster().configureConnector(connectorName, connectorProps());
     assertCluster().kafka().createTopic(topic);
 
-    //createBucket();
+    // createBucket();
     createInitialTable();
     waitForConnectorToStart(connectorName, TASKS_MAX);
-
   }
 
   @AfterEach
   void tearDown() throws Exception {
-      if (schemaRegistry != null) {
-        schemaRegistry.stop();
-      }
-      if (bigQuery != null) {
-        delete(bigQuery, tableName());
-      }
-      clearBucket();
+    if (schemaRegistry != null) {
+      schemaRegistry.stop();
+    }
+    if (bigQuery != null) {
+      delete(bigQuery, tableName());
+    }
+    clearBucket();
   }
 
   @Test

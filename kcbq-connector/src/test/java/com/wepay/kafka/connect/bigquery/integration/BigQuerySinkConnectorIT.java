@@ -25,7 +25,6 @@ package com.wepay.kafka.connect.bigquery.integration;
 
 import static io.confluent.kafka.serializers.AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.storage.v1.TableName;
@@ -151,7 +150,6 @@ class BigQuerySinkConnectorIT extends BaseConnectorIT {
     return result;
   }
 
-
   @BeforeAll
   static void beforeAll() throws Exception {
     EmbeddedConnectCluster cluster = startConnect();
@@ -195,20 +193,23 @@ class BigQuerySinkConnectorIT extends BaseConnectorIT {
     final String topic = topicName();
     final TableName tableName = tableName();
     final int tasksMax = 1;
-      int numRecordsProduced = populate(testCase, topic);
+    int numRecordsProduced = populate(testCase, topic);
 
-      assertCluster().configureConnector(connectorName(), connectorProps(tasksMax, topic, tableName));
+    assertCluster().configureConnector(connectorName(), connectorProps(tasksMax, topic, tableName));
 
-      waitForConnectorToStart(connectorName(), tasksMax);
+    waitForConnectorToStart(connectorName(), tasksMax);
 
-      waitForCommittedRecords(
-              connectorName(),
-          Collections.singleton(topic),
-          numRecordsProduced,
-          tasksMax,
-          TimeUnit.MINUTES.toMillis(3));
+    waitForCommittedRecords(
+        connectorName(),
+        Collections.singleton(topic),
+        numRecordsProduced,
+        tasksMax,
+        TimeUnit.MINUTES.toMillis(3));
 
-    Awaitility.await().atMost(Duration.ofMinutes(2)).untilAsserted(() -> assertThat(readRows(tableName)).containsExactlyElementsOf(expectedRows));
+    Awaitility.await()
+        .atMost(Duration.ofMinutes(2))
+        .untilAsserted(
+            () -> assertThat(readRows(tableName)).containsExactlyElementsOf(expectedRows));
   }
 
   private int populate(final String testCase, final String topic) {
@@ -275,14 +276,16 @@ class BigQuerySinkConnectorIT extends BaseConnectorIT {
     result.put(BigQuerySinkConfig.GCS_FOLDER_NAME_CONFIG, gcsFolder());
     result.put(BigQuerySinkConfig.SCHEMA_RETRIEVER_CONFIG, IdentitySchemaRetriever.class.getName());
 
-//    String suffix = tableSuffix();
-//    if (!suffix.isEmpty()) {
-//      String escapedSuffix = suffix.replaceAll("\\\\", "\\\\\\\\").replaceAll("\\$", "\\\\\\$");
-//      result.put("transforms", "addSuffix");
-//      result.put("transforms.addSuffix.type", "org.apache.kafka.connect.transforms.RegexRouter");
-//      result.put("transforms.addSuffix.regex", "(.*)");
-//      result.put("transforms.addSuffix.replacement", "$1" + escapedSuffix);
-//    }
+    //    String suffix = tableSuffix();
+    //    if (!suffix.isEmpty()) {
+    //      String escapedSuffix = suffix.replaceAll("\\\\", "\\\\\\\\").replaceAll("\\$",
+    // "\\\\\\$");
+    //      result.put("transforms", "addSuffix");
+    //      result.put("transforms.addSuffix.type",
+    // "org.apache.kafka.connect.transforms.RegexRouter");
+    //      result.put("transforms.addSuffix.regex", "(.*)");
+    //      result.put("transforms.addSuffix.replacement", "$1" + escapedSuffix);
+    //    }
 
     return result;
   }

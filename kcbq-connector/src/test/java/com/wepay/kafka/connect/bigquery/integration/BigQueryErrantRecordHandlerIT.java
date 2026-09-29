@@ -46,7 +46,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.IntFunction;
-
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.connect.data.SchemaAndValue;
 import org.apache.kafka.connect.data.SchemaBuilder;
@@ -74,7 +73,6 @@ class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
   private Converter converter;
 
   private org.apache.kafka.connect.data.Schema valueSchema;
-
 
   @BeforeAll
   static void beforeAll() {
@@ -163,7 +161,11 @@ class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
     Converter valueConverter = converter(false);
 
     // Send Invalid records to BigQuery
-    sendMessages(topic, NUM_RECORDS_PRODUCED, k -> key(keyConverter, topic, k), v -> value(valueConverter, topic, v));
+    sendMessages(
+        topic,
+        NUM_RECORDS_PRODUCED,
+        k -> key(keyConverter, topic, k),
+        v -> value(valueConverter, topic, v));
 
     // Check records show up in dlq topic
     verify(dlqTopic, Duration.ofMinutes(2), NUM_RECORDS_PRODUCED);
@@ -239,15 +241,18 @@ class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
     Converter keyConverter = converter(true);
     Converter valueConverter = converter(false);
 
-    sendMessages(topic, NUM_RECORDS_PRODUCED, k -> key(keyConverter, topic, k), v -> value(valueConverter, topic, v));
+    sendMessages(
+        topic,
+        NUM_RECORDS_PRODUCED,
+        k -> key(keyConverter, topic, k),
+        v -> value(valueConverter, topic, v));
 
     // Check records show up in dlq topic
     verify(dlqTopic, Duration.ofMinutes(3), NUM_RECORDS_PRODUCED);
   }
 
   @Test
-  void testRecordsSentToDlqOnRecordConversionErrorBatchStorageApi()
-      throws InterruptedException {
+  void testRecordsSentToDlqOnRecordConversionErrorBatchStorageApi() throws InterruptedException {
     final String topic = topicName();
     final String dlqTopic = dlqTopic();
 
@@ -263,7 +268,6 @@ class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
 
     // wait for tasks to spin up
     waitForConnectorToStart(connectorName(), 1);
-
 
     // Send Invalid records to Kafka
     sendMessages(topic, NUM_RECORDS_PRODUCED, k -> "key-" + k, v -> "\"f1\":1");
@@ -316,7 +320,11 @@ class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
     Converter valueConverter = converter(false);
 
     // Send Invalid records to BigQuery
-    sendMessages(topic, NUM_RECORDS_PRODUCED, k -> key(keyConverter, topic, k), v -> value(valueConverter, topic, v));
+    sendMessages(
+        topic,
+        NUM_RECORDS_PRODUCED,
+        k -> key(keyConverter, topic, k),
+        v -> value(valueConverter, topic, v));
 
     // Check records show up in dlq topic
     verify(dlqTopic, Duration.ofMinutes(2), NUM_RECORDS_PRODUCED);
@@ -345,14 +353,15 @@ class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
     verify(dlqTopic, Duration.ofSeconds(2), NUM_RECORDS_PRODUCED);
   }
 
-  private void sendMessages(String topic, int count, IntFunction<String> keyFunc, IntFunction<String> valueFunc) {
+  private void sendMessages(
+      String topic, int count, IntFunction<String> keyFunc, IntFunction<String> valueFunc) {
     logger.debug(
-            "Sending messages with keys ['{}', '{}']  and value ['{}', '{}'] to topic '{}'",
-            keyFunc.apply(0),
-            keyFunc.apply(count-1),
-            valueFunc.apply(0),
-            valueFunc.apply(count-1),
-            topic);
+        "Sending messages with keys ['{}', '{}']  and value ['{}', '{}'] to topic '{}'",
+        keyFunc.apply(0),
+        keyFunc.apply(count - 1),
+        valueFunc.apply(0),
+        valueFunc.apply(count - 1),
+        topic);
     for (int i = 0; i < NUM_RECORDS_PRODUCED; i++) {
       assertCluster().kafka().produce(topic, keyFunc.apply(i), valueFunc.apply(i));
     }
@@ -449,10 +458,10 @@ class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
     final TableName tableName = tableName();
     // Create table schema
     Schema schema =
-            Schema.of(
-                    Field.of("f1", StandardSQLTypeName.STRING),
-                    Field.of("f2", StandardSQLTypeName.BOOL),
-                    Field.of("f3", StandardSQLTypeName.INT64));
+        Schema.of(
+            Field.of("f1", StandardSQLTypeName.STRING),
+            Field.of("f2", StandardSQLTypeName.BOOL),
+            Field.of("f3", StandardSQLTypeName.INT64));
 
     // Try to create BigQuery table
     try {
@@ -464,11 +473,13 @@ class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
 
   private void verify(String dlqTopic, Duration duration, int recordCount) {
     ConsumerRecords<byte[], byte[]> records =
-            assertCluster().kafka().consume(recordCount, duration.toMillis(), dlqTopic);
+        assertCluster().kafka().consume(recordCount, duration.toMillis(), dlqTopic);
 
     if (logger.isDebugEnabled() && records.count() != recordCount) {
-      records.partitions().forEach(tp -> logger.debug("topic {} partition {}", tp.topic(), tp.partition()));
-      records.records(dlqTopic).forEach( cr -> logger.debug("value: {}", new String(cr.value())));
+      records
+          .partitions()
+          .forEach(tp -> logger.debug("topic {} partition {}", tp.topic(), tp.partition()));
+      records.records(dlqTopic).forEach(cr -> logger.debug("value: {}", new String(cr.value())));
     }
     assertThat(records.count()).isEqualTo(recordCount);
   }
