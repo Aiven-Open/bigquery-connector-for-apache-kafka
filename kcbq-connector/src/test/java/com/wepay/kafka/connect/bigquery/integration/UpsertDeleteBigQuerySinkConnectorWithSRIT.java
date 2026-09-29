@@ -50,7 +50,9 @@ import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.runtime.ConnectorConfig;
 import org.apache.kafka.connect.runtime.SinkConnectorConfig;
 import org.apache.kafka.connect.storage.Converter;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -59,7 +61,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @Tag("integration")
-public class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
+class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
 
   private static final Logger logger =
       LoggerFactory.getLogger(UpsertDeleteBigQuerySinkConnectorWithSRIT.class);
@@ -69,7 +71,6 @@ public class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
   private static final String KAFKA_FIELD_NAME = "kafkaKey";
   private static SchemaRegistryTestUtils schemaRegistry;
   private static String schemaRegistryUrl;
-  private String connectorName;
   private BigQuery bigQuery;
   private Converter keyConverter;
 
@@ -78,18 +79,26 @@ public class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
 
   private Schema keySchema;
 
+  @BeforeAll
+  static void beforeAll() {
+    startConnect();
+  }
+
+  @AfterAll
+  static void afterAll() {
+    stopConnect();
+  }
+
   @BeforeEach
-  public void setup(TestInfo testInfo) throws Exception {
+  void setup(TestInfo testInfo) throws Exception {
     String testMethod =
         testInfo
             .getTestMethod()
             .map(Method::getName)
             .orElseThrow(() -> new AssertionError("Test method not found"));
-    connectorName = "kcbq-sink-connector-" + testMethod + "-sr";
-    startConnect();
     bigQuery = newBigQuery();
 
-    schemaRegistry = new SchemaRegistryTestUtils(connect.kafka().bootstrapServers());
+    schemaRegistry = new SchemaRegistryTestUtils(assertCluster().kafka().bootstrapServers());
     schemaRegistry.start();
     schemaRegistryUrl = schemaRegistry.schemaRegistryUrl();
 
@@ -105,12 +114,12 @@ public class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
   }
 
   @AfterEach
-  public void close() throws Exception {
-    bigQuery = null;
-    stopConnect();
+  void close() throws Exception {
+    delete(bigQuery, tableName());
     if (schemaRegistry != null) {
       schemaRegistry.stop();
     }
+    bigQuery = null;
   }
 
   private Map<String, String> upsertDeleteProps(
@@ -150,14 +159,13 @@ public class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
   }
 
   @Test
-  public void testUpsert() throws Throwable {
+  void testUpsert() throws Throwable {
     // create topic in Kafka
     final String topic = topicName();
     // Make sure each task gets to read from at least one partition
-    connect.kafka().createTopic(topic, TASKS_MAX);
+    assertCluster().kafka().createTopic(topic, TASKS_MAX);
 
     final TableName tableName = tableName();
-    //TableClearer.clearTables(bigQuery, dataset(), tableName);
 
     // setup props for the sink connector
     Map<String, String> props = baseConnectorProps(TASKS_MAX);
@@ -171,10 +179,10 @@ public class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
     props.putAll(upsertDeleteProps(true, false, 2));
 
     // start a sink connector
-    connect.configureConnector(connectorName, props);
+    assertCluster().configureConnector(connectorName(), props);
 
     // wait for tasks to spin up
-    waitForConnectorToStart(connectorName, TASKS_MAX);
+    waitForConnectorToStart(connectorName(), TASKS_MAX);
 
     // Instantiate the converters we'll use to send records to the connector
     initialiseConverters();
@@ -206,7 +214,7 @@ public class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
     schemaRegistry.produceRecordsWithKey(keyConverter, valueConverter, records, topic);
 
     // wait for tasks to write to BigQuery and commit offsets for their records
-    waitForCommittedRecords(connectorName, topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
+    waitForCommittedRecords(connectorName(), topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
 
     List<List<Object>> allRows = readAllRows(bigQuery, tableName, KAFKA_FIELD_NAME + ".k1");
     List<List<Object>> expectedRows =
@@ -223,14 +231,13 @@ public class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
   }
 
   @Test
-  public void testDelete() throws Throwable {
+  void testDelete() throws Throwable {
     // create topic in Kafka
     final String topic = topicName();
     // Make sure each task gets to read from at least one partition
-    connect.kafka().createTopic(topic, TASKS_MAX);
+    assertCluster().kafka().createTopic(topic, TASKS_MAX);
 
     final TableName tableName = tableName();
-    //TableClearer.clearTables(bigQuery, dataset(), tableName);
 
     // setup props for the sink connector
     Map<String, String> props = baseConnectorProps(TASKS_MAX);
@@ -244,10 +251,10 @@ public class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
     props.putAll(upsertDeleteProps(false, true, 2));
 
     // start a sink connector
-    connect.configureConnector(connectorName, props);
+    assertCluster().configureConnector(connectorName(), props);
 
     // wait for tasks to spin up
-    waitForConnectorToStart(connectorName, TASKS_MAX);
+    waitForConnectorToStart(connectorName(), TASKS_MAX);
 
     // Instantiate the converters we'll use to send records to the connector
     initialiseConverters();
@@ -287,7 +294,7 @@ public class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
     schemaRegistry.produceRecordsWithKey(keyConverter, valueConverter, records, topic);
 
     // wait for tasks to write to BigQuery and commit offsets for their records
-    waitForCommittedRecords(connectorName, topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
+    waitForCommittedRecords(connectorName(), topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
 
     // Since we have multiple rows per key, order by key and the f3 field (which should be
     // monotonically increasing in insertion order)
@@ -307,14 +314,13 @@ public class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
   }
 
   @Test
-  public void testUpsertDelete() throws Throwable {
+  void testUpsertDelete() throws Throwable {
     // create topic in Kafka
     final String topic = topicName();
     // Make sure each task gets to read from at least one partition
-    connect.kafka().createTopic(topic, TASKS_MAX);
+    assertCluster().kafka().createTopic(topic, TASKS_MAX);
 
     final TableName tableName = tableName();
-    //TableClearer.clearTables(bigQuery, dataset(), tableName);
 
     // setup props for the sink connector
     Map<String, String> props = baseConnectorProps(TASKS_MAX);
@@ -328,10 +334,10 @@ public class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
     props.putAll(upsertDeleteProps(true, true, 2));
 
     // start a sink connector
-    connect.configureConnector(connectorName, props);
+    assertCluster().configureConnector(connectorName(), props);
 
     // wait for tasks to spin up
-    waitForConnectorToStart(connectorName, TASKS_MAX);
+    waitForConnectorToStart(connectorName(), TASKS_MAX);
 
     // Instantiate the converters we'll use to send records to the connector
     initialiseConverters();
@@ -371,7 +377,7 @@ public class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
     schemaRegistry.produceRecordsWithKey(keyConverter, valueConverter, records, topic);
 
     // wait for tasks to write to BigQuery and commit offsets for their records
-    waitForCommittedRecords(connectorName, topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
+    waitForCommittedRecords(connectorName(), topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
 
     // Since we have multiple rows per key, order by key and the f3 field (which should be
     // monotonically increasing in insertion order)

@@ -490,6 +490,7 @@
               </goals>
               <configuration>
                 <groups>integration</groups>
+                <excludedGroups>slow</excludedGroups>
               </configuration>
             </execution>
           </executions>
@@ -606,6 +607,18 @@
                 <parallel>classes</parallel>
                 <useUnlimitedThreads>true</useUnlimitedThreads>
               </configuration>
+              <executions>
+                <execution>
+                  <id>embedded-integration-test</id>
+                  <goals>
+                    <goal>integration-test</goal>
+                    <goal>verify</goal>
+                  </goals>
+                  <configuration>
+                    <groups>integration</groups>
+                  </configuration>
+                </execution>
+              </executions>
             </plugin>
           </plugins>
         </pluginManagement>

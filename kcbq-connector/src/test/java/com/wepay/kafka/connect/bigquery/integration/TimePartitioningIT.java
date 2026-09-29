@@ -66,16 +66,14 @@ import org.slf4j.LoggerFactory;
 
 @Tag("integration")
 @ExtendWith(TestCaseLogger.class)
-public class TimePartitioningIT {
+class TimePartitioningIT extends BaseConnectorIT {
 
   private static final Logger logger = LoggerFactory.getLogger(TimePartitioningIT.class);
 
   private static final long NUM_RECORDS_PRODUCED = 20;
   private static final int TASKS_MAX = 1;
 
-  private static BaseConnectorIT testBase;
   private BigQuery bigQuery;
-  private String connectorName;
 
   public static Stream<Arguments> testArguments() {
     int testCase = 0;
@@ -89,34 +87,25 @@ public class TimePartitioningIT {
   }
 
   @BeforeAll
-  public static void globalSetup() {
-    testBase = new BaseConnectorIT() {};
-    BigQuery bigQuery = testBase.newBigQuery();
-//    testArguments()
-//        .forEach(
-//            args -> {
-//              int testCase = (int) args.get()[3];
-//              TableClearer.clearTables(bigQuery, testBase.dataset(), table(testCase));
-//            });
-    testBase.startConnect();
+  static void beforeAll() {
+    startConnect();
   }
 
   @AfterAll
-  public static void globalCleanup() {
-    testBase.stopConnect();
+  static void afterAll() {
+    stopConnect();
   }
 
   @BeforeEach
-  public void setup() {
-    bigQuery = testBase.newBigQuery();
+  void setup() {
+    bigQuery = newBigQuery();
   }
 
   @AfterEach
-  public void close() {
+  void teardown() {
     if (bigQuery != null) {
-      testBase.delete(bigQuery, testBase.tableName());
+      delete(bigQuery, tableName());
     }
-    testBase.connect.deleteConnector(connectorName);
   }
 
   private Map<String, String> partitioningProps(
@@ -139,21 +128,20 @@ public class TimePartitioningIT {
 
   @ParameterizedTest
   @MethodSource("testArguments")
-  public void testTimePartitioning(
+  void testTimePartitioning(
       TimePartitioning.Type partitioningType,
       boolean usePartitionDecorator,
       boolean messageTimePartitioning,
       int testCase)
       throws Throwable {
-    this.connectorName = "kcbq-time-partitioning-test-" + testCase;
     final long testStartTime = System.currentTimeMillis();
 
     // create topic in Kafka
-    final String topic = testBase.topicName();
-    testBase.connect.kafka().createTopic(topic);
+    final String topic = topicName();
+    assertCluster().kafka().createTopic(topic);
 
     // setup props for the sink connector
-    Map<String, String> props = testBase.baseConnectorProps(TASKS_MAX);
+    Map<String, String> props = baseConnectorProps(TASKS_MAX);
     props.put(SinkConnectorConfig.TOPICS_CONFIG, topic);
 
     props.put(BigQuerySinkConfig.SANITIZE_TOPICS_CONFIG, "true");
@@ -164,16 +152,16 @@ public class TimePartitioningIT {
         partitioningProps(partitioningType, usePartitionDecorator, messageTimePartitioning));
 
     // start a sink connector
-    testBase.connect.configureConnector(connectorName, props);
+    assertCluster().configureConnector(connectorName(), props);
 
     // wait for tasks to spin up
-    testBase.waitForConnectorToStart(connectorName, TASKS_MAX);
+    waitForConnectorToStart(connectorName(), TASKS_MAX);
 
     // Instantiate the converter we'll use to send records to the connector
     Converter valueConverter = converter();
 
     TimePartitioningTestUtils.produceRecordsWithTimestamps(
-        testBase.connect,
+        assertCluster(),
         topic,
         NUM_RECORDS_PRODUCED,
         testStartTime,
@@ -181,15 +169,15 @@ public class TimePartitioningIT {
         valueConverter);
 
     // wait for tasks to write to BigQuery and commit offsets for their records
-    testBase.waitForCommittedRecords(connectorName, topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
+    waitForCommittedRecords(connectorName(), topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
 
-    TableName tableName = testBase.tableName();
+    TableName tableName = tableName();
 
     // Might fail to read from the table for a little bit; keep retrying until it's available
     waitForCondition(
         () -> {
           try {
-            testBase.readAllRows(bigQuery, tableName, "i");
+            readAllRows(bigQuery, tableName, "i");
             return true;
           } catch (RuntimeException e) {
             logger.debug("Failed to read rows from table {}", tableName, e);
@@ -199,7 +187,7 @@ public class TimePartitioningIT {
         TimeUnit.MINUTES.toMillis(5),
         "Could not read from table to verify data after connector committed offsets for the expected number of records");
 
-    List<List<Object>> allRows = testBase.readAllRows(bigQuery, tableName, "i");
+    List<List<Object>> allRows = readAllRows(bigQuery, tableName, "i");
     // Just check to make sure we sent the expected number of rows to the table. There can be
     // duplication so the check is at least there are NUM_RECORDS_PRODUCED
     assertTrue(NUM_RECORDS_PRODUCED <= allRows.size());

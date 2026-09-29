@@ -38,7 +38,6 @@ import com.google.cloud.bigquery.Table;
 import com.google.cloud.bigquery.storage.v1.TableName;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.integration.utils.BigQueryTestUtils;
-import com.wepay.kafka.connect.bigquery.integration.utils.BucketClearer;
 import com.wepay.kafka.connect.bigquery.integration.utils.SchemaRegistryTestUtils;
 import com.wepay.kafka.connect.bigquery.retrieve.IdentitySchemaRetriever;
 import com.wepay.kafka.connect.bigquery.utils.TableNameUtils;
@@ -55,15 +54,16 @@ import org.apache.kafka.connect.data.SchemaAndValue;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.storage.Converter;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 @Tag("integration")
-public class GcsBatchSchemaEvolutionIT extends BaseConnectorIT {
-
-  private static final String CONNECTOR_NAME = "gcs-schema-evolution-connector";
+class GcsBatchSchemaEvolutionIT extends BaseConnectorIT {
+  
   private static final int TASKS_MAX = 1;
   private static final Duration LOAD_TIMEOUT = Duration.ofMinutes(2);
 
@@ -77,21 +77,23 @@ public class GcsBatchSchemaEvolutionIT extends BaseConnectorIT {
   private Schema valueSchemaV2;
   private String topic;
   private TableName tableName;
-  private String bucketName;
+  private String connectorName;
 
-
-  @AfterEach
-  void teardown() {
-    delete(bigQuery, tableName());
+  @BeforeAll
+  static void beforeAll() {
+    startConnect();
   }
 
+  @AfterAll
+  static void afterAll() {
+    stopConnect();
+  }
 
   @BeforeEach
-  public void setup() throws Exception {
-    startConnect();
+  void setup() throws Exception {
     bigQuery = newBigQuery();
 
-    schemaRegistry = new SchemaRegistryTestUtils(connect.kafka().bootstrapServers());
+    schemaRegistry = new SchemaRegistryTestUtils(assertCluster().kafka().bootstrapServers());
     schemaRegistry.start();
     schemaRegistryUrl = schemaRegistry.schemaRegistryUrl();
 
@@ -100,45 +102,40 @@ public class GcsBatchSchemaEvolutionIT extends BaseConnectorIT {
 
     topic = topicName();
     tableName = tableName();
-    bucketName = gcsBucket();
+    connectorName = connectorName();
+    assertCluster().configureConnector(connectorName, connectorProps());
+    assertCluster().kafka().createTopic(topic);
 
-    connect.kafka().createTopic(topic);
+    //createBucket();
     createInitialTable();
+    waitForConnectorToStart(connectorName, TASKS_MAX);
+
   }
 
   @AfterEach
-  public void tearDown() throws Exception {
-    try {
-      if (connect != null) {
-        connect.deleteConnector(CONNECTOR_NAME);
-      }
-    } finally {
+  void tearDown() throws Exception {
       if (schemaRegistry != null) {
         schemaRegistry.stop();
       }
       if (bigQuery != null) {
-        delete(bigQuery, tableName);
+        delete(bigQuery, tableName());
       }
-      BucketClearer.clearBucket(keyFile(), project(), bucketName, gcsFolder(), keySource());
-      stopConnect();
-    }
+      clearBucket();
   }
 
   @Test
-  public void testSchemaEvolutionAcrossBatchLoads() throws Exception {
-    connect.configureConnector(CONNECTOR_NAME, connectorProps());
-    waitForConnectorToStart(CONNECTOR_NAME, TASKS_MAX);
+  void testSchemaEvolutionAcrossBatchLoads() throws Exception {
 
     schemaRegistry.produceRecordsWithKey(
         keyConverter, valueConverter, Collections.singletonList(recordV1(1L, "snacks")), topic);
 
-    waitForCommittedRecords(CONNECTOR_NAME, topic, 1, TASKS_MAX);
+    waitForCommittedRecords(connectorName, topic, 1, TASKS_MAX);
     waitForRowCount(1L);
 
     schemaRegistry.produceRecordsWithKey(
         keyConverter, valueConverter, Collections.singletonList(recordV2(2L, null, "john")), topic);
 
-    waitForCommittedRecords(CONNECTOR_NAME, topic, 2, TASKS_MAX);
+    waitForCommittedRecords(connectorName, topic, 2, TASKS_MAX);
     waitForRowCount(2L);
 
     Table destinationTable = bigQuery.getTable(TableNameUtils.tableId(tableName));
@@ -167,7 +164,7 @@ public class GcsBatchSchemaEvolutionIT extends BaseConnectorIT {
     props.put(BigQuerySinkConfig.ALLOW_BIGQUERY_REQUIRED_FIELD_RELAXATION_CONFIG, "true");
     props.put(BigQuerySinkConfig.ENABLE_BATCH_CONFIG, topic + "," + tableName);
     props.put(BigQuerySinkConfig.BATCH_LOAD_INTERVAL_SEC_CONFIG, "5");
-    props.put(BigQuerySinkConfig.GCS_BUCKET_NAME_CONFIG, bucketName);
+    props.put(BigQuerySinkConfig.GCS_BUCKET_NAME_CONFIG, gcsBucket());
     props.put(BigQuerySinkConfig.GCS_FOLDER_NAME_CONFIG, gcsFolder());
     props.put(BigQuerySinkConfig.SCHEMA_RETRIEVER_CONFIG, IdentitySchemaRetriever.class.getName());
     props.put(BigQuerySinkConfig.TABLE_CREATE_CONFIG, "false");

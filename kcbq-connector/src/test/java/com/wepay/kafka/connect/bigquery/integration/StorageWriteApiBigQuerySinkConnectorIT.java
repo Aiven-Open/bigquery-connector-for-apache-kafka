@@ -75,7 +75,9 @@ import org.apache.kafka.connect.runtime.SinkConnectorConfig;
 import org.apache.kafka.connect.sink.SinkTask;
 import org.apache.kafka.connect.storage.Converter;
 import org.apache.kafka.test.TestUtils;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -83,101 +85,111 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @Tag("integration")
-public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
+class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
 
   protected static final long COMMIT_MAX_DURATION_MS = TimeUnit.MINUTES.toMillis(2);
   private static final Logger logger =
       LoggerFactory.getLogger(StorageWriteApiBigQuerySinkConnectorIT.class);
-  private static final String CONNECTOR_NAME = "bigquery-storage-api-sink-connector";
   private static final String KAFKA_FIELD_NAME = "kafkaKey";
   private static final int TASKS_MAX = 3;
   private static final long NUM_RECORDS_PRODUCED = 5 * TASKS_MAX;
   private static SchemaRegistryTestUtils schemaRegistry;
   private static String schemaRegistryUrl;
-  private Schema valueSchema;
+  private static final Schema valueSchema;
+  private static final Schema keySchema;
   private BigQuery bigQuery;
-  private Schema keySchema;
   private Converter keyConverter;
   private Converter valueConverter;
   private String topic;
   private TableName tableName;
+  private String connectorName;
 
-  @BeforeEach
-  public void setup() throws Exception {
-    startConnect();
-    bigQuery = newBigQuery();
-    topic = topicName();
-    tableName = tableName();
-    schemaRegistry = new SchemaRegistryTestUtils(connect.kafka().bootstrapServers());
-    schemaRegistry.start();
-    schemaRegistryUrl = schemaRegistry.schemaRegistryUrl();
-
+  static {
     Schema subStructSchema =
-        SchemaBuilder.struct()
-            .field("ssf1", Schema.INT64_SCHEMA)
-            .field("ssf2", Schema.BOOLEAN_SCHEMA)
-            .build();
+            SchemaBuilder.struct()
+                    .field("ssf1", Schema.INT64_SCHEMA)
+                    .field("ssf2", Schema.BOOLEAN_SCHEMA)
+                    .build();
 
     Schema nestedStructSchema =
-        SchemaBuilder.struct()
-            .field("sf1", Schema.STRING_SCHEMA)
-            .field("sf2", subStructSchema)
-            .field("sf3", Schema.FLOAT64_SCHEMA)
-            .build();
+            SchemaBuilder.struct()
+                    .field("sf1", Schema.STRING_SCHEMA)
+                    .field("sf2", subStructSchema)
+                    .field("sf3", Schema.FLOAT64_SCHEMA)
+                    .build();
 
     Schema primitivesSchema =
-        SchemaBuilder.struct()
-            .field("boolean_field", Schema.BOOLEAN_SCHEMA)
-            .field("float32_field", Schema.FLOAT32_SCHEMA)
-            .field("float64_field", Schema.FLOAT64_SCHEMA)
-            .field("int8_field", Schema.INT8_SCHEMA)
-            .field("int16_field", Schema.INT16_SCHEMA)
-            .field("int32_field", Schema.INT32_SCHEMA)
-            .field("int64_field", Schema.INT64_SCHEMA)
-            .field("string_field", Schema.STRING_SCHEMA);
+            SchemaBuilder.struct()
+                    .field("boolean_field", Schema.BOOLEAN_SCHEMA)
+                    .field("float32_field", Schema.FLOAT32_SCHEMA)
+                    .field("float64_field", Schema.FLOAT64_SCHEMA)
+                    .field("int8_field", Schema.INT8_SCHEMA)
+                    .field("int16_field", Schema.INT16_SCHEMA)
+                    .field("int32_field", Schema.INT32_SCHEMA)
+                    .field("int64_field", Schema.INT64_SCHEMA)
+                    .field("string_field", Schema.STRING_SCHEMA);
 
     Schema logicalsSchema =
-        SchemaBuilder.struct()
-            // dlf = "Debezium logical field"
-            .field("dlf1", Timestamp.builder().optional().build())
-            .field("dlf2", Time.builder().optional().build())
-            .field("dlf3", Date.builder().optional().build())
-            // klf = "Kafka logical field"
-            .field("klf1", org.apache.kafka.connect.data.Timestamp.builder().optional().build())
-            .field("klf2", org.apache.kafka.connect.data.Time.builder().optional().build())
-            .field("klf3", org.apache.kafka.connect.data.Date.builder().optional().build())
-            .field("klf4", org.apache.kafka.connect.data.Decimal.builder(5).optional().build())
-            .build();
+            SchemaBuilder.struct()
+                    // dlf = "Debezium logical field"
+                    .field("dlf1", Timestamp.builder().optional().build())
+                    .field("dlf2", Time.builder().optional().build())
+                    .field("dlf3", Date.builder().optional().build())
+                    // klf = "Kafka logical field"
+                    .field("klf1", org.apache.kafka.connect.data.Timestamp.builder().optional().build())
+                    .field("klf2", org.apache.kafka.connect.data.Time.builder().optional().build())
+                    .field("klf3", org.apache.kafka.connect.data.Date.builder().optional().build())
+                    .field("klf4", org.apache.kafka.connect.data.Decimal.builder(5).optional().build())
+                    .build();
 
     Schema arraySchema = SchemaBuilder.array(Schema.STRING_SCHEMA);
 
     valueSchema =
-        SchemaBuilder.struct()
-            .optional()
-            .field("f1", Schema.STRING_SCHEMA)
-            .field("f2", Schema.BOOLEAN_SCHEMA)
-            .field("f3", Schema.FLOAT64_SCHEMA)
-            .field("bytes_field", Schema.OPTIONAL_BYTES_SCHEMA)
-            .field("nested_field", nestedStructSchema)
-            .field("primitives_field", primitivesSchema)
-            .field("logicals_field", logicalsSchema)
-            .field("array_field", arraySchema)
-            .build();
+            SchemaBuilder.struct()
+                    .optional()
+                    .field("f1", Schema.STRING_SCHEMA)
+                    .field("f2", Schema.BOOLEAN_SCHEMA)
+                    .field("f3", Schema.FLOAT64_SCHEMA)
+                    .field("bytes_field", Schema.OPTIONAL_BYTES_SCHEMA)
+                    .field("nested_field", nestedStructSchema)
+                    .field("primitives_field", primitivesSchema)
+                    .field("logicals_field", logicalsSchema)
+                    .field("array_field", arraySchema)
+                    .build();
 
     keySchema = SchemaBuilder.struct().field("k1", Schema.INT64_SCHEMA).build();
+
+  }
+  @BeforeAll
+  static void beforeAll() {
+    startConnect();
+  }
+
+  @AfterAll
+  static void afterAll() {
+    stopConnect();
+  }
+
+  @BeforeEach
+  void setup() throws Exception {
+    bigQuery = newBigQuery();
+    topic = topicName();
+    tableName = tableName();
+    connectorName = connectorName();
+    schemaRegistry = new SchemaRegistryTestUtils(assertCluster().kafka().bootstrapServers());
+    schemaRegistry.start();
+    schemaRegistryUrl = schemaRegistry.schemaRegistryUrl();
   }
 
   @AfterEach
-  public void close() throws Exception {
-    bigQuery = null;
-
+  void close() throws Exception {
     if (schemaRegistry != null) {
       schemaRegistry.stop();
     }
     if (bigQuery != null) {
       delete(bigQuery, tableName());
     }
-    stopConnect();
+    bigQuery = null;
   }
 
   private void testBaseJson(boolean usePartitionDecorator)
@@ -186,11 +198,12 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
         !(isBatchMode() && usePartitionDecorator),
         "Skipping partition decorator test in batch mode");
 
-    // create topic
-    connect.kafka().createTopic(topic, TASKS_MAX);
+    final String topic = topicName();
+    final TableName tableName = tableName();
+    final String connectorName = connectorName();
 
-    // clean table
-    //TableClearer.clearTables(bigQuery, dataset(), table);
+    // create topic
+    assertCluster().kafka().createTopic(topic, TASKS_MAX);
 
     // create the table with the correct schema
     createTable(tableName, false);
@@ -211,10 +224,10 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
         String.valueOf(usePartitionDecorator));
 
     // start a sink connector
-    connect.configureConnector(CONNECTOR_NAME, props);
+    assertCluster().configureConnector(connectorName, props);
 
     // wait for tasks to spin up
-    waitForConnectorToStart(CONNECTOR_NAME, TASKS_MAX);
+    waitForConnectorToStart(connectorName, TASKS_MAX);
 
     // Instantiate the converters we'll use to send records to the connector
     initialiseJsonConverters(false);
@@ -223,7 +236,7 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
     produceJsonRecords();
 
     // wait for tasks to write to BigQuery and commit offsets for their records
-    waitForCommittedRecords(CONNECTOR_NAME, topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
+    waitForCommittedRecords(connectorName, topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
 
     // verify records are present.
     List<List<Object>> testRows;
@@ -248,23 +261,19 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
   }
 
   @Test
-  public void testBaseAvro() throws InterruptedException {
-    // create topic in Kafka
+  void testBaseAvro() throws InterruptedException {
 
     // create topic
-    connect.kafka().createTopic(topic, TASKS_MAX);
-
-    // clean table
-    //TableClearer.clearTables(bigQuery, tableName);
+    assertCluster().kafka().createTopic(topic, TASKS_MAX);
 
     // setup props for the sink connector
     Map<String, String> props = configs();
 
     // start a sink connector
-    connect.configureConnector(CONNECTOR_NAME, props);
+    assertCluster().configureConnector(connectorName, props);
 
     // wait for tasks to spin up
-    waitForConnectorToStart(CONNECTOR_NAME, TASKS_MAX);
+    waitForConnectorToStart(connectorName, TASKS_MAX);
 
     // Instantiate the converters we'll use to send records to the connector
     initialiseAvroConverters();
@@ -274,7 +283,7 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
 
     // wait for tasks to write to BigQuery and commit offsets for their records
     waitForCommittedRecords(
-        CONNECTOR_NAME,
+        connectorName,
         Collections.singleton(topic),
         NUM_RECORDS_PRODUCED,
         TASKS_MAX,
@@ -293,13 +302,10 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
   }
 
   @Test
-  public void testAvroWithSchemaUpdate() throws InterruptedException {
+  void testAvroWithSchemaUpdate() throws InterruptedException {
 
     // create topic
-    connect.kafka().createTopic(topic, TASKS_MAX);
-
-    // clean table
-    //TableClearer.clearTables(bigQuery, dataset(), table);
+    assertCluster().kafka().createTopic(topic, TASKS_MAX);
 
     // create the table with an incomplete schema
     createTable(tableName, true);
@@ -313,10 +319,10 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
     props.put(BigQuerySinkConfig.ALL_BQ_FIELDS_NULLABLE_CONFIG, "true");
 
     // start a sink connector
-    connect.configureConnector(CONNECTOR_NAME, props);
+    assertCluster().configureConnector(connectorName, props);
 
     // wait for tasks to spin up
-    waitForConnectorToStart(CONNECTOR_NAME, TASKS_MAX);
+    waitForConnectorToStart(connectorName, TASKS_MAX);
 
     // Instantiate the converters we'll use to send records to the connector
     initialiseAvroConverters();
@@ -325,7 +331,7 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
     produceAvroRecords();
 
     // wait for tasks to write to BigQuery and commit offsets for their records
-    waitForCommittedRecords(CONNECTOR_NAME, topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
+    waitForCommittedRecords(connectorName, topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
 
     // verify records are present.
     List<List<Object>> testRows;
@@ -340,13 +346,9 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
   }
 
   @Test
-  public void testRecordWithUnknownFieldFails() throws InterruptedException {
-
+  void testRecordWithUnknownFieldFails() throws InterruptedException {
     // create topic
-    connect.kafka().createTopic(topic, TASKS_MAX);
-
-    // clean table
-    //TableClearer.clearTables(bigQuery, dataset(), tableName);
+    assertCluster().kafka().createTopic(topic, TASKS_MAX);
 
     // create the table with an incomplete schema
     createTable(tableName, true);
@@ -364,33 +366,29 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
     props.remove(BigQuerySinkConfig.KAFKA_KEY_FIELD_NAME_CONFIG);
 
     // start a sink connector
-    connect.configureConnector(CONNECTOR_NAME, props);
+    assertCluster().configureConnector(connectorName, props);
 
     // wait for tasks to spin up
-    waitForConnectorToStart(CONNECTOR_NAME, TASKS_MAX);
+    waitForConnectorToStart(connectorName, TASKS_MAX);
 
     // Instantiate the converters we'll use to send records to the connector
     initialiseJsonConverters(false);
 
     // produce records
     produceJsonRecords();
-    connect
-        .assertions()
+
+    assertCluster().assertions()
         .assertConnectorIsRunningAndTasksHaveFailed(
-            CONNECTOR_NAME,
+            connectorName,
             TASKS_MAX,
             "Tasks should have failed when writing record with fields not present"
                 + "in target table.");
   }
 
   @Test
-  public void testRecordWithUnknownFieldWhenIgnoreEnabled() throws InterruptedException {
-
+  void testRecordWithUnknownFieldWhenIgnoreEnabled() throws InterruptedException {
     // create topic
-    connect.kafka().createTopic(topic, TASKS_MAX);
-
-    // clean table
-    //TableClearer.clearTables(bigQuery, dataset(), tableName);
+    assertCluster().kafka().createTopic(topic, TASKS_MAX);
 
     // create the table with the incomplete schema
     createTable(tableName, true);
@@ -410,10 +408,10 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
     props.put(BigQuerySinkConfig.IGNORE_UNKNOWN_FIELDS_CONFIG, "true");
 
     // start a sink connector
-    connect.configureConnector(CONNECTOR_NAME, props);
+    assertCluster().configureConnector(connectorName, props);
 
     // wait for tasks to spin up
-    waitForConnectorToStart(CONNECTOR_NAME, TASKS_MAX);
+    waitForConnectorToStart(connectorName, TASKS_MAX);
 
     // Instantiate the converters we'll use to send records to the connector
     initialiseJsonConverters(false);
@@ -422,7 +420,7 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
     produceJsonRecords();
 
     // wait for tasks to write to BigQuery and commit offsets for their records
-    waitForCommittedRecords(CONNECTOR_NAME, topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
+    waitForCommittedRecords(connectorName, topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
 
     List<List<Object>> testRows;
     try {
@@ -436,12 +434,9 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
   }
 
   @Test
-  public void testTopicsRegex() throws InterruptedException {
+  void testTopicsRegex() throws InterruptedException {
     // create topic
-    connect.kafka().createTopic(topic, TASKS_MAX);
-
-    // clean table
-    //TableClearer.clearTables(bigQuery, dataset(), table);
+    assertCluster().kafka().createTopic(topic, TASKS_MAX);
 
     // create the table with the correct schema
     createTable(tableName, false);
@@ -462,10 +457,10 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
         VALUE_CONVERTER_CLASS_CONFIG + "." + JsonConverterConfig.SCHEMAS_ENABLE_CONFIG, "false");
     props.remove(BigQuerySinkConfig.KAFKA_KEY_FIELD_NAME_CONFIG);
     // start a sink connector
-    connect.configureConnector(CONNECTOR_NAME, props);
+    assertCluster().configureConnector(connectorName, props);
 
     // wait for tasks to spin up
-    waitForConnectorToStart(CONNECTOR_NAME, TASKS_MAX);
+    waitForConnectorToStart(connectorName, TASKS_MAX);
 
     // Instantiate the converters we'll use to send records to the connector
     initialiseJsonConverters(false);
@@ -474,7 +469,7 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
     produceJsonRecords();
 
     // wait for tasks to write to BigQuery and commit offsets for their records
-    waitForCommittedRecords(CONNECTOR_NAME, topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
+    waitForCommittedRecords(connectorName, topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
 
     // verify records are present.
     List<List<Object>> testRows;
@@ -489,35 +484,32 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
   }
 
   @Test
-  public void testPartitioningByMessageTimestamp() throws InterruptedException {
+  void testPartitioningByMessageTimestamp() throws InterruptedException {
     assumeTrue(!isBatchMode(), "Skipping test in batch mode");
-
-    connect.kafka().createTopic(topic, TASKS_MAX);
-
-    //TableClearer.clearTables(bigQuery, dataset(), table);
+    assertCluster().kafka().createTopic(topic, TASKS_MAX);
 
     Map<String, String> props = configs();
     props.put(BigQuerySinkConfig.BIGQUERY_MESSAGE_TIME_PARTITIONING_CONFIG, "true");
     props.put(KEY_CONVERTER_CLASS_CONFIG, JsonConverter.class.getName());
     props.put(VALUE_CONVERTER_CLASS_CONFIG, JsonConverter.class.getName());
     props.remove(BigQuerySinkConfig.KAFKA_KEY_FIELD_NAME_CONFIG, KAFKA_FIELD_NAME);
-    connect.configureConnector(CONNECTOR_NAME, props);
+    assertCluster().configureConnector(connectorName, props);
 
-    waitForConnectorToStart(CONNECTOR_NAME, TASKS_MAX);
+    waitForConnectorToStart(connectorName, TASKS_MAX);
 
     long testStartTime = System.currentTimeMillis();
 
     initialiseJsonConverters(true);
 
     TimePartitioningTestUtils.produceRecordsWithTimestamps(
-        connect,
+        assertCluster(),
         topic,
         NUM_RECORDS_PRODUCED,
         testStartTime,
         TimePartitioning.Type.DAY,
         valueConverter);
 
-    waitForCommittedRecords(CONNECTOR_NAME, topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
+    waitForCommittedRecords(connectorName, topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
 
     for (int i = -1; i < 2; i++) {
       long partitionTime =
@@ -528,22 +520,19 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
   }
 
   @Test
-  public void testFailWhenTableDoesNotExistAndCreationDisabled() throws InterruptedException {
+  void testFailWhenTableDoesNotExistAndCreationDisabled() throws InterruptedException {
     // create topic
-    connect.kafka().createTopic(topic, TASKS_MAX);
-
-    // clean table
-    //TableClearer.clearTables(bigQuery, dataset(), table);
+    assertCluster().kafka().createTopic(topic, TASKS_MAX);
 
     // setup props for the sink connector
     Map<String, String> props = configs();
     props.put(BigQuerySinkConfig.TABLE_CREATE_CONFIG, "false");
 
     // start a sink connector
-    connect.configureConnector(CONNECTOR_NAME, props);
+    assertCluster().configureConnector(connectorName, props);
 
     // wait for tasks to spin up
-    waitForConnectorToStart(CONNECTOR_NAME, TASKS_MAX);
+    waitForConnectorToStart(connectorName, TASKS_MAX);
 
     // Instantiate the converters we'll use to send records to the connector
     initialiseAvroConverters();
@@ -551,17 +540,18 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
     // produce records
     produceAvroRecords();
 
-    connect
+    assertCluster()
         .assertions()
         .assertConnectorIsRunningAndTasksHaveFailed(
-            CONNECTOR_NAME,
+            connectorName,
             TASKS_MAX,
             "Tasks should have failed when writing to nonexistent table "
                 + "with automatic table creation disabled");
   }
 
   @Test
-  public void testAvroLargeBatches() throws InterruptedException {
+  @Tag("slow")
+  void testAvroLargeBatches() throws InterruptedException {
     // pre-create the table
     createPerformanceTestingTable(tableName);
 
@@ -569,10 +559,7 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
     long numRecords = 100_000;
 
     // create topic
-    connect.kafka().createTopic(topic, tasksMax);
-
-    // clean table
-    //TableClearer.clearTables(bigQuery, dataset(), table);
+    assertCluster().kafka().createTopic(topic, tasksMax);
 
     // Instantiate the converters we'll use to send records to the connector
     initialiseAvroConverters();
@@ -596,20 +583,19 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
         Integer.toString(Integer.MAX_VALUE));
 
     // start a sink connector
-    connect.configureConnector(CONNECTOR_NAME, props);
+    assertCluster().configureConnector(connectorName, props);
 
     // wait for tasks to spin up
-    waitForConnectorToStart(CONNECTOR_NAME, tasksMax);
+    waitForConnectorToStart(connectorName(), tasksMax);
 
     // wait for tasks to write to BigQuery and commit offsets for their records
     waitForCommittedRecords(
-        CONNECTOR_NAME,
+        connectorName,
         Collections.singleton(topic),
         numRecords,
         tasksMax,
-        TimeUnit.MINUTES.toMillis(5));
-
-    connect.deleteConnector(CONNECTOR_NAME);
+        TimeUnit.MINUTES.toMillis(10),
+            TimeUnit.SECONDS.toMillis(10));
 
     final AtomicLong numRows = new AtomicLong();
     TestUtils.waitForCondition(
@@ -618,15 +604,20 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
           assertEquals(numRecords, numRows.get());
           return true;
         },
-        10_000L,
+            TimeUnit.MINUTES.toMillis(10),
+            TimeUnit.SECONDS.toMillis(10),
         () ->
+            "Table should contain " + numRecords + " rows, but has " + numRows.get() + " instead");
+
+    // we need to give the system a bit more time to see if the number of records increases beyond what is expected.
+    Thread.sleep(TimeUnit.MINUTES.toMillis(1));
+    numRows.set(countRows(bigQuery, tableName));
+    assertEquals(numRecords, numRows.get(), () ->
             "Table should contain " + numRecords + " rows, but has " + numRows.get() + " instead");
   }
 
   @Test
-//  @Disabled(
-//      "TODO: Handle 'java.lang.RuntimeException: Request has waited in inflight queue for <duration> for writer <writer>, which is over maximum wait time PT5M'")
-  public void testAvroHighThroughput() throws InterruptedException {
+  void testAvroHighThroughput() throws InterruptedException {
     // pre-create the table
     createPerformanceTestingTable(tableName);
 
@@ -634,10 +625,7 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
     long numRecords = 10_000_000;
 
     // create topic
-    connect.kafka().createTopic(topic, tasksMax);
-
-    // clean table
-    //TableClearer.clearTables(bigQuery, dataset(), table);
+    assertCluster().kafka().createTopic(topic, tasksMax);
 
     // Instantiate the converters we'll use to send records to the connector
     initialiseAvroConverters();
@@ -662,30 +650,35 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
         Long.toString(numRecords));
 
     // start a sink connector
-    connect.configureConnector(CONNECTOR_NAME, props);
+    assertCluster().configureConnector(connectorName, props);
 
     // wait for tasks to spin up
-    waitForConnectorToStart(CONNECTOR_NAME, tasksMax);
+    waitForConnectorToStart(connectorName, tasksMax);
 
     // wait for tasks to write to BigQuery and commit offsets for their records
     waitForCommittedRecords(
-        CONNECTOR_NAME,
+        connectorName,
         Collections.singleton(topic),
         numRecords,
         tasksMax,
-        TimeUnit.MINUTES.toMillis(10));
-
-    connect.deleteConnector(CONNECTOR_NAME);
+        TimeUnit.MINUTES.toMillis(10),
+            TimeUnit.SECONDS.toMillis(10));
 
     final AtomicLong numRows = new AtomicLong();
     TestUtils.waitForCondition(
         () -> {
           numRows.set(countRows(bigQuery, tableName));
-          assertEquals(numRecords, numRows.get());
-          return true;
+          return numRows.get() >= numRecords;
         },
-        10_000L,
+            TimeUnit.MINUTES.toMillis(10),
+            TimeUnit.SECONDS.toMillis(10),
         () ->
+            "Table should contain " + numRecords + " rows, but has " + numRows.get() + " instead");
+
+    // we need to give the system a bit more time to see if the number of records increases beyond what is expected.
+    Thread.sleep(TimeUnit.MINUTES.toMillis(1));
+    numRows.set(countRows(bigQuery, tableName));
+    assertEquals(numRecords, numRows.get(), () ->
             "Table should contain " + numRecords + " rows, but has " + numRows.get() + " instead");
   }
 
@@ -697,7 +690,7 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
             Field.of(
                 KAFKA_FIELD_NAME,
                 StandardSQLTypeName.STRUCT,
-                Field.of("k1", StandardSQLTypeName.STRING)));
+                Field.of("k1", StandardSQLTypeName.INT64)));
     try {
       BigQueryTestUtils.createPartitionedTable(bigQuery, table, tableSchema);
     } catch (BigQueryException ex) {
@@ -881,7 +874,7 @@ public class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
       kafkaValue.put("logicals_field", logicalsValue);
       kafkaValue.put("array_field", arrayValue);
 
-      connect
+      assertCluster()
           .kafka()
           .produce(
               topic, null, new String(valueConverter.fromConnectData(topic, null, kafkaValue)));

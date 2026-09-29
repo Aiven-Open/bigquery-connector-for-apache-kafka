@@ -49,7 +49,9 @@ import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.runtime.ConnectorConfig;
 import org.apache.kafka.connect.runtime.SinkConnectorConfig;
 import org.apache.kafka.connect.storage.Converter;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -66,7 +68,6 @@ import org.junit.jupiter.api.Test;
 @Tag("integration")
 class AvroLogicalTypesIT extends BaseConnectorIT {
 
-  private static final String CONNECTOR_NAME = "bigquery-avro-logical-types-connector";
   private static final int TASKS_MAX = 1;
 
   // 2017-03-01 22:20:38.808123 UTC
@@ -85,12 +86,21 @@ class AvroLogicalTypesIT extends BaseConnectorIT {
   private org.apache.kafka.connect.data.Schema keySchema;
   private org.apache.kafka.connect.data.Schema valueSchema;
 
+  @BeforeAll
+  static void beforeAll() {
+    startConnect();
+  }
+
+  @AfterAll
+  static void afterAll() {
+    stopConnect();
+  }
+
   @BeforeEach
   void setup() throws Exception {
-    startConnect();
     bigQuery = newBigQuery();
 
-    schemaRegistry = new SchemaRegistryTestUtils(connect.kafka().bootstrapServers());
+    schemaRegistry = new SchemaRegistryTestUtils(bootstrapServers());
     schemaRegistry.start();
 
     keySchema =
@@ -127,11 +137,10 @@ class AvroLogicalTypesIT extends BaseConnectorIT {
 
   @AfterEach
   void cleanup() throws Exception {
-    connect.deleteConnector(CONNECTOR_NAME);
+    assertCluster().deleteConnector(connectorName());
     if (schemaRegistry != null) {
       schemaRegistry.stop();
     }
-    stopConnect();
     delete(bigQuery, tableName());
   }
 
@@ -140,15 +149,15 @@ class AvroLogicalTypesIT extends BaseConnectorIT {
 
     final String topic = topicName();
 
-    connect.kafka().createTopic(topic, TASKS_MAX);
+    assertCluster().kafka().createTopic(topic, TASKS_MAX);
 
-    connect.configureConnector(CONNECTOR_NAME, connectorProps(topic));
-    waitForConnectorToStart(CONNECTOR_NAME, TASKS_MAX);
+    assertCluster().configureConnector(connectorName(), connectorProps(topic));
+    waitForConnectorToStart(connectorName(), TASKS_MAX);
 
     produceRecord(topic, 1L);
 
     waitForCommittedRecords(
-        CONNECTOR_NAME, Collections.singleton(topic), 1, TASKS_MAX, COMMIT_MAX_DURATION_MS);
+        connectorName(), Collections.singleton(topic), 1, TASKS_MAX, COMMIT_MAX_DURATION_MS);
 
     Schema bqSchema = getBigQuerySchema(tableName());
     assertFieldType(bqSchema, "ts_micros", LegacySQLTypeName.TIMESTAMP);

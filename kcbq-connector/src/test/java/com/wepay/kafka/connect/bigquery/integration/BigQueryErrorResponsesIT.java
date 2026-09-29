@@ -53,6 +53,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
@@ -66,7 +67,7 @@ import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class BigQueryErrorResponsesIT extends BaseConnectorIT {
+class BigQueryErrorResponsesIT extends BaseConnectorIT {
 
   private static final Logger logger = LoggerFactory.getLogger(BigQueryErrorResponsesIT.class);
 
@@ -84,7 +85,7 @@ public class BigQueryErrorResponsesIT extends BaseConnectorIT {
 
 
   @Test
-  public void testWriteToNonExistentTable() {
+  void testWriteToNonExistentTable() {
     TableId table = TableNameUtils.tableId(tableName());
 
     assertThatThrownBy(() -> bigQuery.insertAll(
@@ -95,49 +96,69 @@ public class BigQueryErrorResponsesIT extends BaseConnectorIT {
   }
 
   @Test
-  public void testWriteToRecreatedTable() throws Exception {
-    TableName tableName = tableName();
+  void testWriteToRecreatedTable() throws Exception {
+    final TableName tableName = tableName();
+    final TableId tableId = TableNameUtils.tableId(tableName);
+    final ExceptionTracker exceptionTracker = new ExceptionTracker();
 
     Schema schema = Schema.of(Field.of("f1", LegacySQLTypeName.STRING));
 
     // Create the table...
     BigQueryTestUtils.createStandardTable(bigQuery, tableName, schema);
 
+    // Verify we can write to it
+    TestUtils.waitForCondition(
+            () -> {
+              // Try to write to it...
+              try {
+                bigQuery.insertAll(
+                        InsertAllRequest.of(tableId, RowToInsert.of(Collections.singletonMap("f1", "v1"))));
+                return true;
+              } catch (BigQueryException e) {
+                logger.debug(
+                        "Initial table write error: {}",
+                        exceptionTracker.recordException(e).getMessage());
+                return false;
+              }
+            },
+            TimeUnit.MINUTES.toMillis(1),
+            TimeUnit.SECONDS.toMillis(1),
+            () -> exceptionTracker.report("Never succeeded to write to initial table."));
+
     // Delete it...
     delete(bigQuery, tableName);
 
     // Make sure that it's deleted
-    TableId tableId = TableNameUtils.tableId(tableName);
     Awaitility.await().atMost(Duration.ofMinutes(2)).untilAsserted(() -> assertThat(bigQuery.getTable(tableId)).isNull());
 
-    final ExceptionTracker exceptionTracker = new ExceptionTracker();
-
+    // ensure writhe to deleted table fails
+    exceptionTracker.reset();
     TestUtils.waitForCondition(
         () -> {
-          // Try to write to it...
           try {
             bigQuery.insertAll(
                 InsertAllRequest.of(tableId, RowToInsert.of(Collections.singletonMap("f1", "v1"))));
             return false;
           } catch (BigQueryException e) {
             if (BigQueryErrorResponses.isNonExistentTableError(e)) {
-              logger.debug("Deleted table write error: {}", e.getMessage());
+              logger.debug("Verified write failed: {}", e.getMessage());
               return true;
             }
             logger.info("Unexpected error: {}", exceptionTracker.recordException(e).getMessage());
             return false;
           }
         },
-        ONE_MINUTE,
-        exceptionTracker.report("Never failed to write to just-deleted table."));
+            TimeUnit.MINUTES.toMillis(1),
+            TimeUnit.SECONDS.toMillis(1),
+            () -> exceptionTracker.report("Never failed to write to just-deleted table."));
 
     // Recreate it...
     BigQueryTestUtils.createStandardTable(bigQuery, tableName, schema);
+    // Make sure that it's not deleted
+    Awaitility.await().atMost(Duration.ofMinutes(5)).pollDelay(Duration.ofMinutes(1)).untilAsserted(() -> assertThat(bigQuery.getTable(tableId)).isNotNull());
 
+    // verify we can write to the recreated table.
     exceptionTracker.reset();
-
-    // this one takes time so only check every second.
-    //Awaitility.waitAtMost(Duration.ofMinutes(1)).untilAsserted();
     TestUtils.waitForCondition(
         () -> {
           // Try to write to it...
@@ -152,13 +173,13 @@ public class BigQueryErrorResponsesIT extends BaseConnectorIT {
             return false;
           }
         },
-        ONE_MINUTE,
-        ONE_SECOND,
+            TimeUnit.MINUTES.toMillis(5),
+            TimeUnit.SECONDS.toMillis(1),
         () -> exceptionTracker.report("Never succeeded to write to just-recreated table."));
   }
 
   @Test
-  public void testWriteToTableWithoutSchema() {
+  void testWriteToTableWithoutSchema() {
 
     TableName tableName = tableName();
     BigQueryTestUtils.createStandardTable(bigQuery, tableName, Schema.of());
@@ -172,7 +193,7 @@ public class BigQueryErrorResponsesIT extends BaseConnectorIT {
   }
 
   @Test
-  public void testWriteWithMissingRequiredFields() {
+  void testWriteWithMissingRequiredFields() {
     TableName tableName = tableName();
     TableId tableId = TableNameUtils.tableId(tableName);
     Schema schema =
@@ -189,7 +210,7 @@ public class BigQueryErrorResponsesIT extends BaseConnectorIT {
   }
 
   @Test
-  public void testWriteWithUnrecognizedFields() {
+  void testWriteWithUnrecognizedFields() {
     TableName tableName = tableName();
     TableId tableId = TableNameUtils.tableId(tableName);
     Schema schema =
@@ -208,7 +229,7 @@ public class BigQueryErrorResponsesIT extends BaseConnectorIT {
   }
 
   @Test
-  public void testStoppedRowsDuringInvalidWrite() {
+  void testStoppedRowsDuringInvalidWrite() {
     TableName tableName = tableName();
     TableId tableId = TableNameUtils.tableId(tableName);
     Schema schema =
@@ -233,7 +254,7 @@ public class BigQueryErrorResponsesIT extends BaseConnectorIT {
   }
 
   @Test
-  public void testRequestPayloadTooLarge() {
+  void testRequestPayloadTooLarge() {
     TableName tableName = tableName();
     TableId tableId = TableNameUtils.tableId(tableName);
     Schema schema =
@@ -254,7 +275,7 @@ public class BigQueryErrorResponsesIT extends BaseConnectorIT {
   }
 
   @Test
-  public void testTooManyRows() {
+  void testTooManyRows() {
     TableName tableName = tableName();
     TableId tableId = TableNameUtils.tableId(tableName);
     Schema schema =

@@ -57,15 +57,16 @@ import org.apache.kafka.connect.runtime.ConnectorConfig;
 import org.apache.kafka.connect.runtime.SinkConnectorConfig;
 import org.apache.kafka.connect.storage.Converter;
 import org.apache.kafka.connect.storage.StringConverter;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
+class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
   private static final Logger logger = LoggerFactory.getLogger(BigQueryErrantRecordHandlerIT.class);
-  private static final String CONNECTOR_NAME = "kcbq-sink-connector";
   private static final int NUM_RECORDS_PRODUCED = 20;
   private static SchemaRegistryTestUtils schemaRegistry;
   private static String schemaRegistryUrl;
@@ -74,12 +75,22 @@ public class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
 
   private org.apache.kafka.connect.data.Schema valueSchema;
 
+
+  @BeforeAll
+  static void beforeAll() {
+    startConnect();
+  }
+
+  @AfterAll
+  static void afterAll() {
+    stopConnect();
+  }
+
   @BeforeEach
   void setup() throws Exception {
-    startConnect();
     bigQuery = newBigQuery();
 
-    schemaRegistry = new SchemaRegistryTestUtils(connect.kafka().bootstrapServers());
+    schemaRegistry = new SchemaRegistryTestUtils(bootstrapServers());
     schemaRegistry.start();
     schemaRegistryUrl = schemaRegistry.schemaRegistryUrl();
 
@@ -96,7 +107,6 @@ public class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
   void close() throws Exception {
     delete(bigQuery, tableName());
     bigQuery = null;
-    stopConnect();
     if (schemaRegistry != null) {
       schemaRegistry.stop();
     }
@@ -107,7 +117,7 @@ public class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
   }
 
   @Test
-  public void testRecordsSentToDlqOnInvalidArgumentAvroStorageApi() throws Exception {
+  void testRecordsSentToDlqOnInvalidArgumentAvroStorageApi() throws Exception {
     final String topic = topicName();
     final String dlqTopic = dlqTopic();
 
@@ -116,10 +126,10 @@ public class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
 
     props.put(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, "true");
     // start a sink connector
-    connect.configureConnector(CONNECTOR_NAME, props);
+    assertCluster().configureConnector(connectorName(), props);
 
     // wait for tasks to spin up
-    waitForConnectorToStart(CONNECTOR_NAME, 1);
+    waitForConnectorToStart(connectorName(), 1);
 
     // Instantiate the converters we'll use to send records to the connector
     converter = new AvroConverter();
@@ -135,7 +145,7 @@ public class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
   }
 
   @Test
-  public void testRecordsSentToDlqOnInvalidArgumentStorageApi() throws InterruptedException {
+  void testRecordsSentToDlqOnInvalidArgumentStorageApi() throws InterruptedException {
     final String topic = topicName();
     final String dlqTopic = dlqTopic();
 
@@ -143,10 +153,10 @@ public class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
     Map<String, String> props = connectorProps(topic, dlqTopic);
     props.put(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, "true");
     // start a sink connector
-    connect.configureConnector(CONNECTOR_NAME, props);
+    assertCluster().configureConnector(connectorName(), props);
 
     // wait for tasks to spin up
-    waitForConnectorToStart(CONNECTOR_NAME, 1);
+    waitForConnectorToStart(connectorName(), 1);
 
     // Instantiate the converters we'll use to send records to the connector
     Converter keyConverter = converter(true);
@@ -160,11 +170,11 @@ public class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
   }
 
   @Test
-  public void testRecordsSentToDlqOnRecordConversionErrorStorageApi() throws InterruptedException {
+  void testRecordsSentToDlqOnRecordConversionErrorStorageApi() throws InterruptedException {
     final String topic = topicName();
     final String dlqTopic = dlqTopic();
     // Make sure each task gets to read from at least one partition
-    connect.kafka().createTopic(topic, 1);
+    assertCluster().kafka().createTopic(topic, 1);
 
     Map<String, String> props = connectorProps(topic, dlqTopic);
     props.put(KEY_CONVERTER_CLASS_CONFIG, StringConverter.class.getName());
@@ -172,10 +182,10 @@ public class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
     props.put("value.converter.schemas.enable", "false");
     props.put(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, "true");
     // start a sink connector
-    connect.configureConnector(CONNECTOR_NAME, props);
+    assertCluster().configureConnector(connectorName(), props);
 
     // wait for tasks to spin up
-    waitForConnectorToStart(CONNECTOR_NAME, 1);
+    waitForConnectorToStart(connectorName(), 1);
 
     // Send Invalid records to Kafka
     sendMessages(topic, NUM_RECORDS_PRODUCED, k -> "key-" + k, v -> "\"f1\":1");
@@ -184,7 +194,7 @@ public class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
   }
 
   @Test
-  public void testRecordsSentToDlqOnInvalidArgumentAvroBatchStorageApi() throws Exception {
+  void testRecordsSentToDlqOnInvalidArgumentAvroBatchStorageApi() throws Exception {
     final String topic = topicName();
     final String dlqTopic = dlqTopic();
     int recordCount = 2;
@@ -194,10 +204,10 @@ public class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
     props.put(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, "true");
     props.put(BigQuerySinkConfig.ENABLE_BATCH_MODE_CONFIG, "true");
     // start a sink connector
-    connect.configureConnector(CONNECTOR_NAME, props);
+    assertCluster().configureConnector(connectorName(), props);
 
     // wait for tasks to spin up
-    waitForConnectorToStart(CONNECTOR_NAME, 1);
+    waitForConnectorToStart(connectorName(), 1);
 
     // Instantiate the converters we'll use to send records to the connector
     converter = new AvroConverter();
@@ -212,7 +222,7 @@ public class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
   }
 
   @Test
-  public void testRecordsSentToDlqOnInvalidArgumentBatchStorageApi() throws InterruptedException {
+  void testRecordsSentToDlqOnInvalidArgumentBatchStorageApi() throws InterruptedException {
     final String topic = topicName();
     final String dlqTopic = dlqTopic();
     createTopicAndTable();
@@ -220,10 +230,10 @@ public class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
     props.put(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, "true");
     props.put(BigQuerySinkConfig.ENABLE_BATCH_MODE_CONFIG, "true");
     // start a sink connector
-    connect.configureConnector(CONNECTOR_NAME, props);
+    assertCluster().configureConnector(connectorName(), props);
 
     // wait for tasks to spin up
-    waitForConnectorToStart(CONNECTOR_NAME, 1);
+    waitForConnectorToStart(connectorName(), 1);
 
     // Instantiate the converters we'll use to send records to the connector
     Converter keyConverter = converter(true);
@@ -236,7 +246,7 @@ public class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
   }
 
   @Test
-  public void testRecordsSentToDlqOnRecordConversionErrorBatchStorageApi()
+  void testRecordsSentToDlqOnRecordConversionErrorBatchStorageApi()
       throws InterruptedException {
     final String topic = topicName();
     final String dlqTopic = dlqTopic();
@@ -249,10 +259,10 @@ public class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
     props.put(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, "true");
     props.put(BigQuerySinkConfig.ENABLE_BATCH_MODE_CONFIG, "true");
     // start a sink connector
-    connect.configureConnector(CONNECTOR_NAME, props);
+    assertCluster().configureConnector(connectorName(), props);
 
     // wait for tasks to spin up
-    waitForConnectorToStart(CONNECTOR_NAME, 1);
+    waitForConnectorToStart(connectorName(), 1);
 
 
     // Send Invalid records to Kafka
@@ -262,7 +272,7 @@ public class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
   }
 
   @Test
-  public void testRecordsSentToDlqOnInvalidReasonAvro() throws Exception {
+  void testRecordsSentToDlqOnInvalidReasonAvro() throws Exception {
     final String topic = topicName();
     final String dlqTopic = dlqTopic();
 
@@ -270,10 +280,10 @@ public class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
     Map<String, String> props = connectorAvroProps(topic, dlqTopic);
 
     // start a sink connector
-    connect.configureConnector(CONNECTOR_NAME, props);
+    assertCluster().configureConnector(connectorName(), props);
 
     // wait for tasks to spin up
-    waitForConnectorToStart(CONNECTOR_NAME, 1);
+    waitForConnectorToStart(connectorName(), 1);
 
     // Instantiate the converters we'll use to send records to the connector
     converter = new AvroConverter();
@@ -288,7 +298,7 @@ public class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
   }
 
   @Test
-  public void testRecordsSentToDlqOnInvalidReason() throws InterruptedException {
+  void testRecordsSentToDlqOnInvalidReason() throws InterruptedException {
     final String topic = topicName();
     final String dlqTopic = dlqTopic();
 
@@ -296,10 +306,10 @@ public class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
     Map<String, String> props = connectorProps(topic, dlqTopic);
 
     // start a sink connector
-    connect.configureConnector(CONNECTOR_NAME, props);
+    assertCluster().configureConnector(connectorName(), props);
 
     // wait for tasks to spin up
-    waitForConnectorToStart(CONNECTOR_NAME, 1);
+    waitForConnectorToStart(connectorName(), 1);
 
     // Instantiate the converters we'll use to send records to the connector
     Converter keyConverter = converter(true);
@@ -313,21 +323,21 @@ public class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
   }
 
   @Test
-  public void testRecordsSentToDlqOnRecordConversionError() throws InterruptedException {
+  void testRecordsSentToDlqOnRecordConversionError() throws InterruptedException {
     final String topic = topicName();
     final String dlqTopic = dlqTopic();
     // Make sure each task gets to read from at least one partition
-    connect.kafka().createTopic(topic, 1);
+    assertCluster().kafka().createTopic(topic, 1);
 
     Map<String, String> props = connectorProps(topic, dlqTopic);
     props.put(KEY_CONVERTER_CLASS_CONFIG, StringConverter.class.getName());
     props.put("key.converter.schemas.enable", "false");
     props.put("value.converter.schemas.enable", "false");
     // start a sink connector
-    connect.configureConnector(CONNECTOR_NAME, props);
+    assertCluster().configureConnector(connectorName(), props);
 
     // wait for tasks to spin up
-    waitForConnectorToStart(CONNECTOR_NAME, 1);
+    waitForConnectorToStart(connectorName(), 1);
 
     // Send Invalid records to Kafka
     sendMessages(topic, NUM_RECORDS_PRODUCED, k -> "key-" + k, v -> "\"f1\":1");
@@ -344,7 +354,7 @@ public class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
             valueFunc.apply(count-1),
             topic);
     for (int i = 0; i < NUM_RECORDS_PRODUCED; i++) {
-      connect.kafka().produce(topic, keyFunc.apply(i), valueFunc.apply(i));
+      assertCluster().kafka().produce(topic, keyFunc.apply(i), valueFunc.apply(i));
     }
   }
 
@@ -434,7 +444,7 @@ public class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
   }
 
   private void createTopicAndTable() {
-    connect.kafka().createTopic(topicName());
+    assertCluster().kafka().createTopic(topicName());
 
     final TableName tableName = tableName();
     // Create table schema
@@ -454,7 +464,7 @@ public class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
 
   private void verify(String dlqTopic, Duration duration, int recordCount) {
     ConsumerRecords<byte[], byte[]> records =
-            connect.kafka().consume(recordCount, duration.toMillis(), dlqTopic);
+            assertCluster().kafka().consume(recordCount, duration.toMillis(), dlqTopic);
 
     if (logger.isDebugEnabled() && records.count() != recordCount) {
       records.partitions().forEach(tp -> logger.debug("topic {} partition {}", tp.topic(), tp.partition()));

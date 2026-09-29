@@ -55,7 +55,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @Tag("integration")
-public class GcpClientBuilderIT extends BaseConnectorIT {
+class GcpClientBuilderIT extends BaseConnectorIT {
 
   private static final Logger logger = LoggerFactory.getLogger(GcpClientBuilderIT.class);
 
@@ -84,6 +84,7 @@ public class GcpClientBuilderIT extends BaseConnectorIT {
     if (bigQuery != null) {
       delete(bigQuery, tableName);
     }
+    clearBucket();
   }
 
   private Map<String, String> connectorProps(GcpClientBuilder.KeySource keySource)
@@ -135,17 +136,17 @@ public class GcpClientBuilderIT extends BaseConnectorIT {
   }
 
   @Test
-  public void testApplicationDefaultCredentials() throws Exception {
+  void testApplicationDefaultCredentials() throws Exception {
     testClients(GcpClientBuilder.KeySource.APPLICATION_DEFAULT);
   }
 
   @Test
-  public void testFile() throws Exception {
+  void testFile() throws Exception {
     testClients(GcpClientBuilder.KeySource.FILE);
   }
 
   @Test
-  public void testJson() throws Exception {
+  void testJson() throws Exception {
     testClients(GcpClientBuilder.KeySource.JSON);
   }
 }
