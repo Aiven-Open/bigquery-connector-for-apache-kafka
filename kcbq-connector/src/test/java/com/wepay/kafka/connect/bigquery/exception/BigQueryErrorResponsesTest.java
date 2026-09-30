@@ -98,6 +98,21 @@ public class BigQueryErrorResponsesTest {
   }
 
   @Test
+  public void testIsContentTooLargeError() {
+    // Google's HTTP frontend answers with an HTML body, so the client populates neither a reason
+    // nor a structured error - only the status code
+    assertTrue(
+        BigQueryErrorResponses.isContentTooLargeError(
+            new BigQueryException(413, "413 Request Entity Too Large")));
+
+    // the 400 form of the same condition is matched by isRequestTooLargeError instead
+    String message = "Request payload size exceeds the limit: 10485760 bytes.";
+    assertFalse(
+        BigQueryErrorResponses.isContentTooLargeError(
+            new BigQueryException(400, message, new BigQueryError("badRequest", null, message))));
+  }
+
+  @Test
   public void testIsAuthenticationError() {
     BigQueryException error = new BigQueryException(0, "......401.....Unauthorized error.....");
     assertTrue(BigQueryErrorResponses.isAuthenticationError(error));

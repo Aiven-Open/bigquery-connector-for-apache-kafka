@@ -119,9 +119,13 @@ public class TableWriter implements Runnable {
      * documented but is referenced slightly under "Error codes" here:
      * https://cloud.google.com/bigquery/quota-policy
      * (by decreasing the batch size we can eventually expect to end up with a request under 10MB)
+     *
+     * A 413 is the same condition reported by Google's HTTP frontend rather than by BigQuery
+     * itself, which happens intermittently for payloads well above the limit.
      */
     return BigQueryErrorResponses.isUnspecifiedBadRequestError(exception)
         || BigQueryErrorResponses.isRequestTooLargeError(exception)
+        || BigQueryErrorResponses.isContentTooLargeError(exception)
         || BigQueryErrorResponses.isTooManyRowsError(exception);
   }
 
