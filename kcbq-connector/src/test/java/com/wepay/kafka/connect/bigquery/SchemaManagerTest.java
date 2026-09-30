@@ -23,6 +23,7 @@
 
 package com.wepay.kafka.connect.bigquery;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -1617,6 +1618,177 @@ public class SchemaManagerTest {
     public com.google.cloud.bigquery.Schema convertSchema(Schema schema) {
       return result;
     }
+  }
+
+  @Test
+  public void testCheckAndApplyTableOptions() throws Exception {
+    int maxStalenessSeconds = 0;
+    SchemaManagerTestConfig config =
+        createConfig(
+            Map.of(
+                BigQuerySinkConfig.TABLE_MAX_STALENESS_CONFIG,
+                Integer.toString(maxStalenessSeconds)));
+    config.schemaConverter = mockSchemaConverter;
+    SchemaManager schemaManager = new SchemaManager(config, mockBigQuery);
+
+    Table mockTable = mock(Table.class);
+    when(mockBigQuery.getTable(tableId)).thenReturn(mockTable);
+
+    com.google.cloud.bigquery.TableResult mockResult =
+        mock(com.google.cloud.bigquery.TableResult.class);
+    when(mockBigQuery.query(any(com.google.cloud.bigquery.QueryJobConfiguration.class)))
+        .thenReturn(mockResult);
+
+    // 1. First invocation: should execute the query
+    schemaManager.checkAndApplyTableOptions(tableId);
+
+    String expectedQuery =
+        String.format(
+            "ALTER TABLE `%s`.`%s` SET OPTIONS (max_staleness = INTERVAL %d SECOND)",
+            tableId.getDataset(), tableId.getTable(), maxStalenessSeconds);
+
+    ArgumentCaptor<com.google.cloud.bigquery.QueryJobConfiguration> captor =
+        ArgumentCaptor.forClass(com.google.cloud.bigquery.QueryJobConfiguration.class);
+    verify(mockBigQuery, times(2)).query(captor.capture());
+    assertEquals(expectedQuery, captor.getValue().getQuery());
+
+    // Reset mock for next assertion
+    org.mockito.Mockito.clearInvocations(mockBigQuery);
+    when(mockBigQuery.getTable(tableId)).thenReturn(mockTable);
+
+    // 2. Second invocation: should skip query execution (deduped via checkedTableOptions)
+    schemaManager.checkAndApplyTableOptions(tableId);
+    verify(mockBigQuery, org.mockito.Mockito.never())
+        .query(any(com.google.cloud.bigquery.QueryJobConfiguration.class));
+  }
+
+  @Test
+  public void testCheckAndApplyTableOptions_swallows409AndConcurrentConflict()
+      throws InterruptedException {
+    int maxStalenessSeconds = 60;
+    SchemaManagerTestConfig config =
+        createConfig(
+            Map.of(
+                BigQuerySinkConfig.TABLE_MAX_STALENESS_CONFIG,
+                Integer.toString(maxStalenessSeconds)));
+    config.schemaConverter = mockSchemaConverter;
+    SchemaManager schemaManager = new SchemaManager(config, mockBigQuery);
+
+    Table mockTable = mock(Table.class);
+    when(mockBigQuery.getTable(tableId)).thenReturn(mockTable);
+
+    com.google.cloud.bigquery.TableResult mockCheckResult =
+        mock(com.google.cloud.bigquery.TableResult.class);
+    when(mockCheckResult.iterateAll()).thenReturn(Collections.emptyList());
+
+    BigQueryException conflictException = mock(BigQueryException.class);
+    when(conflictException.getCode()).thenReturn(409);
+    when(conflictException.getMessage())
+        .thenReturn("Already Exists: Table option max_staleness already set");
+
+    when(mockBigQuery.query(any(com.google.cloud.bigquery.QueryJobConfiguration.class)))
+        .thenReturn(mockCheckResult)
+        .thenThrow(conflictException);
+
+    assertDoesNotThrow(() -> schemaManager.checkAndApplyTableOptions(tableId));
+  }
+
+  @Test
+  public void testCheckAndApplyTableOptions_swallowsConcurrentDdlConflictMessage()
+      throws InterruptedException {
+    int maxStalenessSeconds = 60;
+    SchemaManagerTestConfig config =
+        createConfig(
+            Map.of(
+                BigQuerySinkConfig.TABLE_MAX_STALENESS_CONFIG,
+                Integer.toString(maxStalenessSeconds)));
+    config.schemaConverter = mockSchemaConverter;
+    SchemaManager schemaManager = new SchemaManager(config, mockBigQuery);
+
+    Table mockTable = mock(Table.class);
+    when(mockBigQuery.getTable(tableId)).thenReturn(mockTable);
+
+    com.google.cloud.bigquery.TableResult mockCheckResult =
+        mock(com.google.cloud.bigquery.TableResult.class);
+    when(mockCheckResult.iterateAll()).thenReturn(Collections.emptyList());
+
+    BigQueryException concurrentException = mock(BigQueryException.class);
+    when(concurrentException.getCode()).thenReturn(400);
+    when(concurrentException.getMessage()).thenReturn("concurrent update in progress on table");
+
+    when(mockBigQuery.query(any(com.google.cloud.bigquery.QueryJobConfiguration.class)))
+        .thenReturn(mockCheckResult)
+        .thenThrow(concurrentException);
+
+    assertDoesNotThrow(() -> schemaManager.checkAndApplyTableOptions(tableId));
+  }
+
+  @Test
+  public void testConstructTableInfo_setsPrimaryKeyConstraintsWhenCdcEnabled() {
+    SchemaManagerTestConfig config =
+        createConfig(
+            Map.of(
+                BigQuerySinkConfig.UPSERT_ENABLED_CONFIG, "true",
+                BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, "true"));
+    config.schemaConverter = mockSchemaConverter;
+    SchemaManager schemaManager = new SchemaManager(config, mockBigQuery);
+
+    List<String> pkColumns = List.of("id", "tenant_id");
+    SchemaManager.SchemaAndPrimaryKeyColumns schemaAndColumns =
+        new SchemaManager.SchemaAndPrimaryKeyColumns(fakeBigQuerySchema, pkColumns);
+
+    TableInfo tableInfo =
+        schemaManager.constructTableInfo(tableId, schemaAndColumns, testDoc, true);
+    StandardTableDefinition def = (StandardTableDefinition) tableInfo.getDefinition();
+
+    assertNotNull(def.getTableConstraints());
+    assertNotNull(def.getTableConstraints().getPrimaryKey());
+    assertEquals(pkColumns, def.getTableConstraints().getPrimaryKey().getColumns());
+  }
+
+  @Test
+  public void testConstructTableInfo_noPrimaryKeyConstraintsWhenNotCdc() {
+    SchemaManagerTestConfig config =
+        createConfig(
+            Map.of(
+                BigQuerySinkConfig.UPSERT_ENABLED_CONFIG, "false",
+                BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, "true"));
+    config.schemaConverter = mockSchemaConverter;
+    SchemaManager schemaManager = new SchemaManager(config, mockBigQuery);
+
+    List<String> pkColumns = List.of("id");
+    SchemaManager.SchemaAndPrimaryKeyColumns schemaAndColumns =
+        new SchemaManager.SchemaAndPrimaryKeyColumns(fakeBigQuerySchema, pkColumns);
+
+    TableInfo tableInfo =
+        schemaManager.constructTableInfo(tableId, schemaAndColumns, testDoc, true);
+    StandardTableDefinition def = (StandardTableDefinition) tableInfo.getDefinition();
+
+    assertNull(def.getTableConstraints());
+  }
+
+  @Test
+  public void testCreateTableWithPrimitiveKeySchema() {
+    SchemaManagerTestConfig config = createConfig(Collections.emptyMap());
+    config.schemaConverter = mockSchemaConverter;
+    SchemaManager schemaManager = new SchemaManager(config, mockBigQuery);
+
+    SinkRecord record =
+        new SinkRecord(
+            "test_topic",
+            0,
+            org.apache.kafka.connect.data.Schema.INT64_SCHEMA,
+            123L,
+            mockKafkaSchema,
+            null,
+            0);
+
+    when(mockSchemaRetriever.retrieveKeySchema(record))
+        .thenReturn(org.apache.kafka.connect.data.Schema.INT64_SCHEMA);
+    when(mockSchemaConverter.convertSchema(mockKafkaSchema)).thenReturn(fakeBigQuerySchema);
+    when(mockBigQuery.create(any(TableInfo.class))).thenReturn(mock(Table.class));
+
+    assertDoesNotThrow(() -> schemaManager.createTable(tableId, Collections.singletonList(record)));
   }
 
   static class SchemaManagerTestConfig extends BigQuerySinkConfig {
