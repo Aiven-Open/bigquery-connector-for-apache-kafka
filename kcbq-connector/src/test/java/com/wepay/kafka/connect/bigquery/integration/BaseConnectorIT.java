@@ -716,6 +716,7 @@ abstract class BaseConnectorIT {
    * @return the table suffix.
    */
   protected String tableSuffix() {
-    return defaultSuffix; // readEnvVar(TEST_NAMESPACE_ENV_VAR, defaultSuffix);
+    String pfx = readEnvVar(TEST_NAMESPACE_ENV_VAR, "");
+    return pfx.isEmpty() ? defaultSuffix :  pfx +"_" + defaultSuffix;
   }
 }
