@@ -339,7 +339,16 @@ public class BigQuerySinkConfig extends AbstractConfig {
           + ", the "
           + KEYFILE_CONFIG
           + " should not be provided and the connector will use any GCP "
-          + "application default credentials that it can find on the Connect worker for authentication.";
+          + "application default credentials that it can find on the Connect worker for authentication. "
+          + "If set to "
+          + GcpClientBuilder.KeySource.WIF_JSON.name()
+          + ", the "
+          + KEYFILE_CONFIG
+          + " should be the raw json of a Workload Identity Federation external_account credential "
+          + "configuration (no static service-account key). For an AWS external_account (e.g. running "
+          + "on ECS/Fargate), the connector obtains AWS credentials from the container credentials "
+          + "endpoint and exchanges them for GCP credentials via STS; the keyfile should omit "
+          + "credential_source (it is stripped before use if present).";
   private static final ConfigDef.Type SANITIZE_TOPICS_TYPE = ConfigDef.Type.BOOLEAN;
   private static final ConfigDef.Importance SANITIZE_TOPICS_IMPORTANCE =
       ConfigDef.Importance.MEDIUM;

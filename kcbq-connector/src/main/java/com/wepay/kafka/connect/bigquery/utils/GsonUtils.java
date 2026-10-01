@@ -25,6 +25,7 @@ package com.wepay.kafka.connect.bigquery.utils;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonObject;
 import com.google.gson.TypeAdapter;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonToken;
@@ -51,6 +52,16 @@ public final class GsonUtils {
 
   private GsonUtils() {
     // no instances
+  }
+
+  /**
+   * Reads a string field from a {@link JsonObject}, returning {@code null} when the field is absent
+   * or explicitly JSON null. Avoids the {@code NullPointerException} (missing field) and {@code
+   * UnsupportedOperationException} (JSON null) that a raw {@code get(field).getAsString()} would
+   * throw.
+   */
+  public static String getAsString(JsonObject json, String field) {
+    return json.has(field) && !json.get(field).isJsonNull() ? json.get(field).getAsString() : null;
   }
 
   /**
