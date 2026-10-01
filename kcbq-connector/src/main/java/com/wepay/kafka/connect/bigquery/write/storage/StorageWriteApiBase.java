@@ -329,6 +329,8 @@ public abstract class StorageWriteApiBase {
               "Connector is not configured to perform schema updates.");
         }
         retryHandler.attemptTableOperation(schemaManager::updateSchema);
+        // Recreate the stream writer; JsonStreamWriter keeps the pre-update table schema.
+        writer.refresh();
         throw new RetryException();
       } else if (writeResult.hasError()) {
         String errorMessage =
@@ -365,6 +367,7 @@ public abstract class StorageWriteApiBase {
         logger.warn(
             "Sent records schema does not match with table schema, will attempt to update schema");
         retryHandler.attemptTableOperation(schemaManager::updateSchema);
+        writer.refresh();
       } else if (BigQueryStorageWriteApiErrorResponses.isMessageTooLargeError(message)) {
         throw new BatchTooLargeException(errorMessage);
       } else if (BigQueryStorageWriteApiErrorResponses.isMalformedRequest(message)) {
@@ -372,6 +375,7 @@ public abstract class StorageWriteApiBase {
       } else if (BigQueryStorageWriteApiErrorResponses.isTableMissing(message)
           && getAutoCreateTables()) {
         retryHandler.attemptTableOperation(schemaManager::createTable);
+        writer.refresh();
       } else {
         failTask(retryHandler.getMostRecentException());
       }
