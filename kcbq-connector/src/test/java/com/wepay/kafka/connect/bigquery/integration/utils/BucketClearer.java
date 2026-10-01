@@ -26,6 +26,7 @@ package com.wepay.kafka.connect.bigquery.integration.utils;
 import com.google.api.gax.paging.Page;
 import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.Bucket;
+import com.google.cloud.storage.BucketInfo;
 import com.google.cloud.storage.Storage;
 import com.wepay.kafka.connect.bigquery.GcpClientBuilder;
 import org.slf4j.Logger;
@@ -67,6 +68,23 @@ public class BucketClearer {
       logger.info("Bucket {} deleted successfully", bucketName);
     } else {
       logger.info("Bucket {} does not exist", bucketName);
+    }
+  }
+
+  public static void createBucket(
+      String testMethod, String key, String project, String bucketName, String keySource) {
+    logger.info("Creating bucket {}", bucketName);
+    Storage gcs =
+        new GcpClientBuilder.GcsBuilder()
+            .withKeySource(GcpClientBuilder.KeySource.valueOf(keySource))
+            .withKey(key)
+            .withProject(project)
+            .build();
+    Bucket bucket = gcs.create(BucketInfo.newBuilder(bucketName).build());
+    if (bucket != null) {
+      logger.info("Bucket {} created successfully by {}", bucketName, testMethod);
+    } else {
+      logger.info("Bucket {} was not created by {}", bucketName, testMethod);
     }
   }
 

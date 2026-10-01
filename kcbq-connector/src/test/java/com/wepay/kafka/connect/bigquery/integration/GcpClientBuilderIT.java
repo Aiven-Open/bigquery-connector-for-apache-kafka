@@ -23,6 +23,7 @@
 
 package com.wepay.kafka.connect.bigquery.integration;
 
+import static org.apache.kafka.test.TestUtils.waitForCondition;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.cloud.bigquery.BigQuery;
@@ -33,6 +34,7 @@ import com.google.cloud.bigquery.TableInfo;
 import com.google.cloud.bigquery.storage.v1.BigQueryWriteClient;
 import com.google.cloud.bigquery.storage.v1.BigQueryWriteSettings;
 import com.google.cloud.bigquery.storage.v1.JsonStreamWriter;
+import com.google.cloud.bigquery.storage.v1.TableName;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageException;
 import com.wepay.kafka.connect.bigquery.GcpClientBuilder;
@@ -42,8 +44,9 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.time.Duration;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -51,16 +54,19 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @Tag("integration")
-public class GcpClientBuilderIT extends BaseConnectorIT {
+class GcpClientBuilderIT extends BaseConnectorIT {
 
   private static final Logger logger = LoggerFactory.getLogger(GcpClientBuilderIT.class);
 
   private TableId tableId;
+  private BigQuery bigQuery;
+  private TableName tableName;
 
   @BeforeEach
-  public void setup() throws Exception {
-    BigQuery bigQuery = newBigQuery();
-    tableId = TableId.of(project(), dataset(), "authenticate-storage-api");
+  void setup() throws Exception {
+    bigQuery = newBigQuery();
+    tableName = tableName();
+    tableId = TableNameUtils.tableId(tableName());
     if (bigQuery.getTable(tableId) == null) {
       logger.info("Going to Create table : " + tableId.toString());
       bigQuery.create(TableInfo.of(tableId, StandardTableDefinition.newBuilder().build()));
@@ -68,18 +74,19 @@ public class GcpClientBuilderIT extends BaseConnectorIT {
       // table takes time after creation before being available for operations. You may have to wait
       // a few minutes (~5 minutes)
       // Try to wait for 5 minutes if table is seen.
-      int attempts = 10;
-      while (bigQuery.getTable(tableId) == null && attempts > 0) {
-        logger.debug(
-            "Busy waiting for table {} to appear! Attempt {}", tableId.getTable(), (10 - attempts));
-        Thread.sleep(TimeUnit.SECONDS.toMillis(30));
-        attempts--;
-      }
-      if (attempts == 0) {
-        throw new AssertionError(
-            "Created table is not yet available. Re-run test after a few minutes");
-      }
+      waitForCondition(
+          () -> bigQuery.getTable(tableId) != null,
+          Duration.ofMinutes(5).toMillis(),
+          "Created table is not yet available.");
     }
+  }
+
+  @AfterEach
+  void teardown() {
+    if (bigQuery != null) {
+      delete(bigQuery, tableName);
+    }
+    clearBucket();
   }
 
   private Map<String, String> connectorProps(GcpClientBuilder.KeySource keySource)
@@ -131,17 +138,17 @@ public class GcpClientBuilderIT extends BaseConnectorIT {
   }
 
   @Test
-  public void testApplicationDefaultCredentials() throws Exception {
+  void testApplicationDefaultCredentials() throws Exception {
     testClients(GcpClientBuilder.KeySource.APPLICATION_DEFAULT);
   }
 
   @Test
-  public void testFile() throws Exception {
+  void testFile() throws Exception {
     testClients(GcpClientBuilder.KeySource.FILE);
   }
 
   @Test
-  public void testJson() throws Exception {
+  void testJson() throws Exception {
     testClients(GcpClientBuilder.KeySource.JSON);
   }
 }

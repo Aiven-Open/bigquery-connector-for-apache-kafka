@@ -23,20 +23,19 @@
 
 package com.wepay.kafka.connect.bigquery.integration;
 
-import static com.wepay.kafka.connect.bigquery.integration.BaseConnectorIT.boxByteArray;
 import static io.confluent.kafka.serializers.AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
 
+import com.google.cloud.bigquery.BigQuery;
+import com.google.cloud.bigquery.storage.v1.TableName;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
-import com.wepay.kafka.connect.bigquery.integration.utils.BucketClearer;
 import com.wepay.kafka.connect.bigquery.integration.utils.SchemaRegistryTestUtils;
-import com.wepay.kafka.connect.bigquery.integration.utils.TableClearer;
 import com.wepay.kafka.connect.bigquery.retrieve.IdentitySchemaRetriever;
-import com.wepay.kafka.connect.bigquery.utils.FieldNameSanitizer;
 import io.confluent.connect.avro.AvroConverter;
 import io.confluent.kafka.formatter.AvroMessageReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -56,22 +55,24 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.connect.runtime.ConnectorConfig;
 import org.apache.kafka.connect.runtime.SinkConnectorConfig;
+import org.apache.kafka.connect.util.clusters.EmbeddedConnectCluster;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 @Tag("integration")
-public class BigQuerySinkConnectorIT {
+class BigQuerySinkConnectorIT extends BaseConnectorIT {
 
   private static final String TEST_CASE_PREFIX = "kcbq_test_";
-  // Share a single embedded Connect and Schema Registry cluster for all test cases to keep the
-  // runtime down
-  private static BaseConnectorIT testBase;
   private static SchemaRegistryTestUtils schemaRegistry;
   private static String schemaRegistryUrl;
+  private BigQuery bigQuery;
 
   public static List<Arguments> testArguments() {
     List<Arguments> result = new ArrayList<>();
@@ -150,71 +151,70 @@ public class BigQuerySinkConnectorIT {
   }
 
   @BeforeAll
-  public static void globalSetup() throws Exception {
-    testBase = new BaseConnectorIT() {};
-    testBase.startConnect();
+  static void beforeAll() throws Exception {
+    EmbeddedConnectCluster cluster = startConnect();
 
-    schemaRegistry = new SchemaRegistryTestUtils(testBase.connect.kafka().bootstrapServers());
-
+    schemaRegistry = new SchemaRegistryTestUtils(cluster.kafka().bootstrapServers());
     schemaRegistry.start();
-
     schemaRegistryUrl = schemaRegistry.schemaRegistryUrl();
-
-    BucketClearer.clearBucket(
-        testBase.keyFile(),
-        testBase.project(),
-        testBase.gcsBucket(),
-        testBase.gcsFolder(),
-        testBase.keySource());
   }
 
   @AfterAll
-  public static void globalCleanup() throws Exception {
+  static void afterAll() throws Exception {
+    stopConnect();
     if (schemaRegistry != null) {
       schemaRegistry.stop();
     }
-    testBase.stopConnect();
+  }
+
+  @BeforeEach
+  void setup() {
+    bigQuery = newBigQuery();
+    createBucket();
+  }
+
+  @AfterEach
+  void cleanup() {
+    delete(bigQuery, tableName());
+    clearBucket();
+    bigQuery = null;
   }
 
   private Map<String, Object> producerProps() {
     Map<String, Object> producerProps = new HashMap<>();
     producerProps.put(
-        ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, testBase.connect.kafka().bootstrapServers());
+        ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, assertCluster().kafka().bootstrapServers());
     return producerProps;
   }
 
   @ParameterizedTest(name = "{index} {0}")
   @MethodSource("testArguments")
   void runTestCase(final String testCase, final List<List<Object>> expectedRows) throws Exception {
-    final String topic = TEST_CASE_PREFIX + testCase;
-    final String table = testBase.suffixedAndSanitizedTable(topic);
-    final String connectorName = "bigquery-connector-" + testCase;
-
+    final String topic = topicName();
+    final TableName tableName = tableName();
     final int tasksMax = 1;
-    try {
-      TableClearer.clearTables(testBase.newBigQuery(), testBase.dataset(), table);
-      int numRecordsProduced = populate(testCase, topic);
+    int numRecordsProduced = populate(testCase, topic);
 
-      testBase.connect.configureConnector(connectorName, connectorProps(tasksMax, topic));
+    assertCluster().configureConnector(connectorName(), connectorProps(tasksMax, topic, tableName));
 
-      testBase.waitForConnectorToStart(connectorName, tasksMax);
+    waitForConnectorToStart(connectorName(), tasksMax);
 
-      testBase.waitForCommittedRecords(
-          connectorName,
-          Collections.singleton(topic),
-          numRecordsProduced,
-          tasksMax,
-          TimeUnit.MINUTES.toMillis(3));
+    waitForCommittedRecords(
+        connectorName(),
+        Collections.singleton(topic),
+        numRecordsProduced,
+        tasksMax,
+        TimeUnit.MINUTES.toMillis(3));
 
-      assertEquals(expectedRows, readRows(testCase));
-    } finally {
-      testBase.connect.deleteConnector(connectorName);
-    }
+    Awaitility.await()
+        .atMost(Duration.ofMinutes(2))
+        .untilAsserted(
+            () -> assertThat(readRows(tableName)).containsExactlyElementsOf(expectedRows));
   }
 
   private int populate(final String testCase, final String topic) {
     int numRecordsProduced = 0;
-    testBase.connect.kafka().createTopic(topic);
+    assertCluster().kafka().createTopic(topic);
 
     String testCaseDir = "integration_test_cases/" + testCase + "/";
 
@@ -254,8 +254,8 @@ public class BigQuerySinkConnectorIT {
     return numRecordsProduced;
   }
 
-  private Map<String, String> connectorProps(int tasksMax, String topic) {
-    Map<String, String> result = testBase.baseConnectorProps(tasksMax);
+  private Map<String, String> connectorProps(int tasksMax, String topic, TableName tableName) {
+    Map<String, String> result = baseConnectorProps(tasksMax);
 
     result.put(ConnectorConfig.KEY_CONVERTER_CLASS_CONFIG, AvroConverter.class.getName());
     result.put(
@@ -270,32 +270,17 @@ public class BigQuerySinkConnectorIT {
 
     result.put(BigQuerySinkConfig.ALLOW_NEW_BIGQUERY_FIELDS_CONFIG, "true");
     result.put(BigQuerySinkConfig.ALLOW_BIGQUERY_REQUIRED_FIELD_RELAXATION_CONFIG, "true");
-    result.put(
-        BigQuerySinkConfig.ENABLE_BATCH_CONFIG,
-        testBase.suffixedAndSanitizedTable("kcbq_test_gcs-load"));
+    result.put(BigQuerySinkConfig.ENABLE_BATCH_CONFIG, tableName.getTable());
     result.put(BigQuerySinkConfig.BATCH_LOAD_INTERVAL_SEC_CONFIG, "10");
-    result.put(BigQuerySinkConfig.GCS_BUCKET_NAME_CONFIG, testBase.gcsBucket() + System.nanoTime());
-    result.put(BigQuerySinkConfig.GCS_FOLDER_NAME_CONFIG, testBase.gcsFolder());
+    result.put(BigQuerySinkConfig.GCS_BUCKET_NAME_CONFIG, gcsBucket());
+    result.put(BigQuerySinkConfig.GCS_FOLDER_NAME_CONFIG, gcsFolder());
     result.put(BigQuerySinkConfig.SCHEMA_RETRIEVER_CONFIG, IdentitySchemaRetriever.class.getName());
-
-    String suffix = testBase.tableSuffix();
-    if (!suffix.isEmpty()) {
-      String escapedSuffix = suffix.replaceAll("\\\\", "\\\\\\\\").replaceAll("\\$", "\\\\\\$");
-      result.put("transforms", "addSuffix");
-      result.put("transforms.addSuffix.type", "org.apache.kafka.connect.transforms.RegexRouter");
-      result.put("transforms.addSuffix.regex", "(.*)");
-      result.put("transforms.addSuffix.replacement", "$1" + escapedSuffix);
-    }
-
     return result;
   }
 
-  private List<List<Object>> readRows(final String testCase) {
+  private List<List<Object>> readRows(TableName tableName) {
     try {
-      String table =
-          testBase.suffixedAndSanitizedTable(
-              TEST_CASE_PREFIX + FieldNameSanitizer.sanitizeName(testCase));
-      return testBase.readAllRows(testBase.newBigQuery(), table, "row");
+      return readAllRows(newBigQuery(), tableName, "row");
     } catch (InterruptedException e) {
       throw new RuntimeException(e);
     }

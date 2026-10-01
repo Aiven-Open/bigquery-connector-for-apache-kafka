@@ -36,6 +36,7 @@ import static com.google.cloud.bigquery.LegacySQLTypeName.TIME;
 import static com.google.cloud.bigquery.LegacySQLTypeName.TIMESTAMP;
 import static org.apache.kafka.connect.runtime.ConnectorConfig.CONNECTOR_CLASS_CONFIG;
 import static org.apache.kafka.connect.runtime.ConnectorConfig.TASKS_MAX_CONFIG;
+import static org.apache.kafka.test.TestUtils.DEFAULT_POLL_INTERVAL_MS;
 import static org.apache.kafka.test.TestUtils.waitForCondition;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -48,10 +49,15 @@ import com.google.cloud.bigquery.QueryJobConfiguration;
 import com.google.cloud.bigquery.Schema;
 import com.google.cloud.bigquery.Table;
 import com.google.cloud.bigquery.TableResult;
+import com.google.cloud.bigquery.storage.v1.TableName;
 import com.wepay.kafka.connect.bigquery.GcpClientBuilder;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
+import com.wepay.kafka.connect.bigquery.integration.utils.BucketClearer;
 import com.wepay.kafka.connect.bigquery.integration.utils.TestCaseLogger;
 import com.wepay.kafka.connect.bigquery.utils.FieldNameSanitizer;
+import com.wepay.kafka.connect.bigquery.utils.TableNameUtils;
+import de.huxhorn.sulky.ulid.ULID;
+import java.lang.reflect.Method;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -63,6 +69,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
@@ -82,14 +89,17 @@ import org.apache.kafka.connect.runtime.rest.entities.ConnectorStateInfo;
 import org.apache.kafka.connect.util.clusters.EmbeddedConnectCluster;
 import org.apache.kafka.server.config.ServerConfigs;
 import org.apache.kafka.test.NoRetryException;
+import org.apache.kafka.test.TestUtils;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @Tag("integration")
 @ExtendWith(TestCaseLogger.class)
-public abstract class BaseConnectorIT {
+abstract class BaseConnectorIT {
   protected static final long OFFSET_COMMIT_INTERVAL_MS = TimeUnit.SECONDS.toMillis(10);
   protected static final long COMMIT_MAX_DURATION_MS = TimeUnit.MINUTES.toMillis(5);
   protected static final long OFFSETS_READ_TIMEOUT_MS = TimeUnit.SECONDS.toMillis(10);
@@ -102,15 +112,27 @@ public abstract class BaseConnectorIT {
   private static final String GCS_BUCKET_ENV_VAR = "KCBQ_TEST_BUCKET";
   private static final String GCS_FOLDER_ENV_VAR = "KCBQ_TEST_FOLDER";
   private static final String TEST_NAMESPACE_ENV_VAR = "KCBQ_TEST_TABLE_SUFFIX";
-  protected static final long ONE_MINUTE = 60_000L;
-  protected static final long ONE_SECOND = 1_000L;
 
-  protected EmbeddedConnectCluster connect;
+  /**
+   * The default suffixes for this instance. the default suffix is a unique value that is set once
+   * for each instance of BaseConnectorIT. It is a ULID value.
+   *
+   * @see <a href="https://github.com/ulid/spec">ULID specification</a>.
+   */
+  private final String defaultSuffix;
+
+  /** THe test info for currently executed tests. */
+  private TestInfo testInfo;
+
+  protected BaseConnectorIT() {
+    defaultSuffix = new ULID().nextULID();
+  }
 
   /** The status message if there are any issues with the connector status check */
   protected String connectorStatus;
 
-  private Admin kafkaAdminClient;
+  private static final ThreadLocal<EmbeddedConnectCluster> connect = new ThreadLocal<>();
+  private static final ThreadLocal<Admin> kafkaAdminClient = new ThreadLocal<>();
 
   protected static List<Byte> boxByteArray(byte[] bytes) {
     Byte[] result = new Byte[bytes.length];
@@ -120,48 +142,159 @@ public abstract class BaseConnectorIT {
     return Arrays.asList(result);
   }
 
-  protected void startConnect() {
-    Map<String, String> workerProps = new HashMap<>();
-    workerProps.put(
-        WorkerConfig.OFFSET_COMMIT_INTERVAL_MS_CONFIG, Long.toString(OFFSET_COMMIT_INTERVAL_MS));
-    // Allow per-connector consumer configuration for throughput testing
-    workerProps.put(WorkerConfig.CONNECTOR_CLIENT_POLICY_CLASS_CONFIG, "All");
-    // Some external plugin dependencies don't yet have service loader manifests
-    workerProps.put(WorkerConfig.PLUGIN_DISCOVERY_CONFIG, "HYBRID_WARN");
+  /** Starts the connector and places it in a static thread local variable. */
+  protected static EmbeddedConnectCluster startConnect() {
+    if (connect.get() == null) {
+      Map<String, String> workerProps = new HashMap<>();
+      workerProps.put(
+          WorkerConfig.OFFSET_COMMIT_INTERVAL_MS_CONFIG, Long.toString(OFFSET_COMMIT_INTERVAL_MS));
+      // Allow per-connector consumer configuration for throughput testing
+      workerProps.put(WorkerConfig.CONNECTOR_CLIENT_POLICY_CLASS_CONFIG, "All");
+      // Some external plugin dependencies don't yet have service loader manifests
+      workerProps.put(WorkerConfig.PLUGIN_DISCOVERY_CONFIG, "HYBRID_WARN");
 
-    Properties brokerProps = new Properties();
-    brokerProps.put(ServerConfigs.MESSAGE_MAX_BYTES_CONFIG, 10 * 1024 * 1024);
+      Properties brokerProps = new Properties();
+      brokerProps.put(ServerConfigs.MESSAGE_MAX_BYTES_CONFIG, 10 * 1024 * 1024);
 
-    connect =
-        new EmbeddedConnectCluster.Builder()
-            .name("kcbq-connect-cluster")
-            .numBrokers(1)
-            .brokerProps(brokerProps)
-            .workerProps(workerProps)
-            .build();
+      connect.set(
+          new EmbeddedConnectCluster.Builder()
+              .name("kcbq-connect-cluster")
+              .numBrokers(1)
+              .brokerProps(brokerProps)
+              .workerProps(workerProps)
+              .build());
 
-    // start the clusters
-    connect.start();
+      // start the clusters
+      connect.get().start();
 
-    kafkaAdminClient = connect.kafka().createAdminClient();
+      kafkaAdminClient.set(connect.get().kafka().createAdminClient());
 
-    // the exception handler installed by the embedded zookeeper instance is noisy and unnecessary
-    Thread.setDefaultUncaughtExceptionHandler((t, e) -> {});
+      // the exception handler installed by the embedded zookeeper instance is noisy and unnecessary
+      Thread.setDefaultUncaughtExceptionHandler((t, e) -> {});
+    }
+    return connect.get();
   }
 
-  protected void stopConnect() {
-    if (kafkaAdminClient != null) {
-      Utils.closeQuietly(kafkaAdminClient, "admin client for embedded Kafka cluster");
-      kafkaAdminClient = null;
-    }
+  /** Stops and clears the connector */
+  protected static void stopConnect() {
+    if (connect.get() != null) {
+      if (kafkaAdminClient.get() != null) {
+        Utils.closeQuietly(kafkaAdminClient.get(), "admin client for embedded Kafka cluster");
+        kafkaAdminClient.set(null);
+      }
 
-    // stop all Connect, Kafka and Zk threads.
-    if (connect != null) {
-      Utils.closeQuietly(connect::stop, "embedded Connect, Kafka, and Zookeeper clusters");
-      connect = null;
+      // stop all Connect, Kafka and Zk threads.
+      if (connect.get() != null) {
+        Utils.closeQuietly(connect.get()::stop, "embedded Connect, Kafka, and Zookeeper clusters");
+        connect.set(null);
+      }
     }
   }
 
+  /**
+   * Asserts that the cluster has been started.
+   *
+   * @return the Embedded cluster.
+   * @throws IllegalStateException if the cluster has not been started.
+   */
+  protected final EmbeddedConnectCluster assertCluster() {
+    if (connect.get() == null) {
+      throw new IllegalStateException("Cluster not started");
+    }
+    return connect.get();
+  }
+
+  /**
+   * Gets the bootstrap server string.
+   *
+   * @return the bootstrap server string.
+   */
+  protected final String bootstrapServers() {
+    return assertCluster().kafka().bootstrapServers();
+  }
+
+  /** Creates the standard bucket. */
+  protected final void createBucket() {
+    BucketClearer.createBucket(testMethod(), keyFile(), project(), gcsBucket(), keySource());
+  }
+
+  /**
+   * Gets the string representation of the test method.
+   *
+   * @return the string representation of the test method.
+   */
+  protected String testMethod() {
+    Optional<Method> m = testInfo.getTestMethod();
+    return m.isPresent() ? m.get().getName() : testInfo.getDisplayName().replaceAll("\\(\\)", "");
+  }
+
+  /** Deletes the standard bucket */
+  protected final void clearBucket() {
+    BucketClearer.clearBucket(keyFile(), project(), gcsBucket(), gcsFolder(), keySource());
+  }
+
+  /**
+   * Captures the {@link TestInfo} so that it can be used to generate names.
+   *
+   * @param testInfo the testInfo for the tests.
+   */
+  @BeforeEach
+  void BaseConnectorSetup(TestInfo testInfo) {
+    this.testInfo = testInfo;
+  }
+
+  /**
+   * Gets the topic name for the test. topic name is the {@link #connectorName()}, either the
+   * testInfo display name which includes the test method if available, or the test method name, and
+   * the {@link #tableSuffix()}
+   *
+   * @return the topic name for the test.
+   */
+  protected final String topicName() {
+    final String[] names = new String[3];
+    names[0] = connectorName();
+    names[1] = testMethod();
+    names[2] = tableSuffix();
+    return String.join("_", names);
+  }
+
+  /**
+   * Gets the connector for the test. The connector name is the name of the test class as reported
+   * by {@link TestInfo} or, if that is not available, the simple name of the executing test class.
+   *
+   * @return the topic name for connector.
+   */
+  protected final String connectorName() {
+    return testInfo.getTestClass().orElse(this.getClass()).getSimpleName();
+  }
+
+  /**
+   * Gets the table name for the test. The tablename comprises {@link #project()}, {@link
+   * #dataset()}, and a sanitized {@link #topicName()} See also {@link
+   * FieldNameSanitizer#sanitizeName(String)}.
+   *
+   * @return the table name for the test.
+   */
+  protected final TableName tableName() {
+    return TableName.of(project(), dataset(), FieldNameSanitizer.sanitizeName(topicName()));
+  }
+
+  /**
+   * Convenience method to delete the table from bigquery.
+   *
+   * @param bigQuery The big query instance to delete from.
+   * @param tableName the table name to delete.
+   */
+  protected final void delete(BigQuery bigQuery, TableName tableName) {
+    bigQuery.delete(TableNameUtils.tableId(tableName));
+  }
+
+  /**
+   * Generates the default connector properties.
+   *
+   * @param tasksMax the maximum number of tasks for the connector.
+   * @return the default properties.
+   */
   protected Map<String, String> baseConnectorProps(int tasksMax) {
     Map<String, String> result = new HashMap<>();
 
@@ -178,6 +311,12 @@ public abstract class BaseConnectorIT {
     return result;
   }
 
+  /**
+   * Creates a new BigQuery instance. Uses the credentials and options from the environment
+   * variables as retrieved by {@link #keyFile()}, {@link #keySource()}, and {@link #project()}
+   *
+   * @return a new BigQuery instance.
+   */
   protected BigQuery newBigQuery() {
     try {
       return new GcpClientBuilder.BigQueryBuilder()
@@ -191,14 +330,61 @@ public abstract class BaseConnectorIT {
     }
   }
 
+  /**
+   * Wait for the specified number of records to be written to Kafka within the {@link
+   * #COMMIT_MAX_DURATION_MS} time limit and {@link TestUtils#DEFAULT_POLL_INTERVAL_MS} poll
+   * interval. Test will fail if the connector fails.
+   *
+   * @param connector the connector
+   * @param topic the topic
+   * @param numRecords the number of records expected
+   * @param numTasks the number of tasks.
+   * @throws InterruptedException on error.
+   */
   protected void waitForCommittedRecords(
       String connector, String topic, long numRecords, int numTasks) throws InterruptedException {
     waitForCommittedRecords(
         connector, Collections.singleton(topic), numRecords, numTasks, COMMIT_MAX_DURATION_MS);
   }
 
+  /**
+   * Wait for the specified number of records to be written to Kafka within the specified time limit
+   * using {@link TestUtils#DEFAULT_POLL_INTERVAL_MS} poll interval. Test will fail if the connector
+   * fails.
+   *
+   * @param connector the connector
+   * @param topics the topics to check.
+   * @param numRecords the number of records expected
+   * @param numTasks the number of tasks.
+   * @param timeoutMs the number of milliseconds to wait for completion.
+   * @throws InterruptedException on error.
+   */
   protected void waitForCommittedRecords(
       String connector, Collection<String> topics, long numRecords, int numTasks, long timeoutMs)
+      throws InterruptedException {
+    waitForCommittedRecords(
+        connector, topics, numRecords, numTasks, timeoutMs, DEFAULT_POLL_INTERVAL_MS);
+  }
+
+  /**
+   * Wait for the specified number of records to be written to Kafka within the specified time limit
+   * and using specified poll interval. Test will fail if the connector fails.
+   *
+   * @param connector the connector
+   * @param topics the topics to check.
+   * @param numRecords the number of records expected
+   * @param numTasks the number of tasks.
+   * @param timeoutMs the number of milliseconds to wait for completion.
+   * @param pollInterval the number of milliseconds to wait between polling.
+   * @throws InterruptedException on error.
+   */
+  protected void waitForCommittedRecords(
+      String connector,
+      Collection<String> topics,
+      long numRecords,
+      int numTasks,
+      long timeoutMs,
+      long pollInterval)
       throws InterruptedException {
     waitForCondition(
         () -> {
@@ -229,9 +415,21 @@ public abstract class BaseConnectorIT {
           }
         },
         timeoutMs,
-        "Either the connector failed, or the message commit duration expired without all expected messages committed");
+        pollInterval,
+        () ->
+            "Either the connector failed, or the message commit duration expired without all expected messages committed");
   }
 
+  /**
+   * gets the total committed records as recorded by Kafka.
+   *
+   * @param connector the connector to talk to.
+   * @param topics the topics to check.
+   * @return the number of committed records across all the specified topics.
+   * @throws TimeoutException on timeout
+   * @throws ExecutionException on execution error.
+   * @throws InterruptedException on thread interruption.
+   */
   protected synchronized long totalCommittedRecords(String connector, Collection<String> topics)
       throws TimeoutException, ExecutionException, InterruptedException {
     // See
@@ -239,6 +437,7 @@ public abstract class BaseConnectorIT {
     // for how the consumer group ID is constructed for sink connectors
     Map<TopicPartition, OffsetAndMetadata> offsets =
         kafkaAdminClient
+            .get()
             .listConsumerGroupOffsets("connect-" + connector)
             .partitionsToOffsetAndMetadata()
             .get(OFFSETS_READ_TIMEOUT_MS, TimeUnit.MILLISECONDS);
@@ -257,30 +456,44 @@ public abstract class BaseConnectorIT {
    * @param bigQuery used to connect to BigQuery
    * @param tableName the table to read
    * @param sortColumn a column to sort rows by (can use dot notation to refer to nested fields)
-   * @return a list of all rows from the table, in random order.
+   * @return a list of all rows from the table, in sort column order.
    */
-  protected List<List<Object>> readAllRows(BigQuery bigQuery, String tableName, String sortColumn)
+  protected final List<List<Object>> readAllRows(
+      final BigQuery bigQuery, final TableName tableName, final String sortColumn)
       throws InterruptedException {
 
-    Table table = bigQuery.getTable(dataset(), tableName);
-    Schema schema = table.getDefinition().getSchema();
+    final Table table = bigQuery.getTable(tableName.getDataset(), tableName.getTable());
+    final Schema schema = table.getDefinition().getSchema();
 
     TableResult tableResult =
         bigQuery.query(
             QueryJobConfiguration.of(
                 String.format(
-                    "SELECT * FROM `%s`.`%s` ORDER BY %s ASC", dataset(), tableName, sortColumn)));
+                    "SELECT * FROM `%s`.`%s` ORDER BY %s ASC",
+                    tableName.getDataset(), tableName.getTable(), sortColumn)));
 
     return StreamSupport.stream(tableResult.iterateAll().spliterator(), false)
         .map(fieldValues -> convertRow(schema.getFields(), fieldValues))
         .collect(Collectors.toList());
   }
 
-  protected long countRows(BigQuery bigQuery, String tableName) throws InterruptedException {
+  /**
+   * Counts the rows in a table.
+   *
+   * @param bigQuery the BigQuery to use.
+   * @param tableName the table name to query.
+   * @return the number of rows.
+   * @throws InterruptedException on error.
+   */
+  protected long countRows(BigQuery bigQuery, TableName tableName) throws InterruptedException {
     TableResult tableResult =
         bigQuery.query(
             QueryJobConfiguration.of(
-                "SELECT COUNT(*) FROM `" + dataset() + "`.`" + tableName + "`"));
+                "SELECT COUNT(*) FROM `"
+                    + tableName.getDataset()
+                    + "`.`"
+                    + tableName.getTable()
+                    + "`"));
     assertEquals(1, tableResult.getTotalRows());
     FieldValueList fieldValueList = tableResult.iterateAll().iterator().next();
     return fieldValueList.get(0).getLongValue();
@@ -343,7 +556,7 @@ public abstract class BaseConnectorIT {
     }
   }
 
-  private List<Object> convertRow(List<Field> rowSchema, List<FieldValue> row) {
+  private List<Object> convertRow(final List<Field> rowSchema, final List<FieldValue> row) {
     List<Object> result = new ArrayList<>();
     assert (rowSchema.size() == row.size());
 
@@ -366,7 +579,10 @@ public abstract class BaseConnectorIT {
     waitForCondition(
         () -> assertConnectorAndTasksRunning(name, numTasks).orElse(false),
         CONNECTOR_STARTUP_DURATION_MS,
-        "Connector tasks did not start in time: " + connectorStatus);
+        () ->
+            "Connector tasks did not start in time" + connectorStatus == null
+                ? "."
+                : ": " + connectorStatus);
   }
 
   /**
@@ -379,7 +595,7 @@ public abstract class BaseConnectorIT {
    */
   protected Optional<Boolean> assertConnectorAndTasksRunning(String connectorName, int numTasks) {
     try {
-      ConnectorStateInfo info = connect.connectorStatus(connectorName);
+      ConnectorStateInfo info = assertCluster().connectorStatus(connectorName);
       List<String> msgs = new ArrayList<>();
       if (info == null) {
         msgs.add("Could not retrieve connector status.");
@@ -407,18 +623,13 @@ public abstract class BaseConnectorIT {
     }
   }
 
-  protected String suffixedTableOrTopic(String tableOrTopic) {
-    return tableOrTopic + tableSuffix();
-  }
-
-  protected String sanitizedTable(String table) {
-    return FieldNameSanitizer.sanitizeName(table);
-  }
-
-  protected String suffixedAndSanitizedTable(String table) {
-    return sanitizedTable(suffixedTableOrTopic(table));
-  }
-
+  /**
+   * Reads the environment variable.
+   *
+   * @param var the variable to read.
+   * @return the value of the variable.
+   * @throws IllegalStateException if the environment variable is not set.
+   */
   private String readEnvVar(String var) {
     String result = System.getenv(var);
     if (StringUtils.isEmpty(result)) {
@@ -429,10 +640,23 @@ public abstract class BaseConnectorIT {
     return result.trim();
   }
 
+  /**
+   * Reads the environment variable or a default value if the variable is not set.
+   *
+   * @param var the variable to read.
+   * @param defaultVal the default value.
+   * @return the value of the environment variable or a default value if the variable is not set.
+   */
   private String readEnvVar(String var, String defaultVal) {
     return System.getenv().getOrDefault(var, defaultVal).trim();
   }
 
+  /**
+   * Gets the name of the keyfile from the environment variable {@link #KEYFILE_ENV_VAR}.
+   *
+   * @return the keyfile value, may be an empty string.
+   * @throws IllegalStateException if the environment variable is not set.
+   */
   protected String keyFile() {
     if (GcpClientBuilder.KeySource.APPLICATION_DEFAULT.name().equalsIgnoreCase(keySource())) {
       // Key file is optional for most tests when using application default credentials
@@ -443,27 +667,66 @@ public abstract class BaseConnectorIT {
     }
   }
 
+  /**
+   * Gets the name of the project from the environment variable {@link #PROJECT_ENV_VAR}.
+   *
+   * @return the project value.
+   * @throws IllegalStateException if the environment variable is not set.
+   */
   protected String project() {
     return readEnvVar(PROJECT_ENV_VAR);
   }
 
+  /**
+   * Gets the name of the dataset from the environment variable {@link #DATASET_ENV_VAR}.
+   *
+   * @return the dataset value.
+   * @throws IllegalStateException if the environment variable is not set.
+   */
   protected String dataset() {
     return readEnvVar(DATASET_ENV_VAR);
   }
 
+  /**
+   * Gets the keysource from the environment variable {@link #KEY_SOURCE_ENV_VAR} if it is set.
+   * Otherwise, return the value of {@link BigQuerySinkConfig#KEY_SOURCE_DEFAULT}.
+   *
+   * @return the keysource value
+   */
   protected String keySource() {
     return readEnvVar(KEY_SOURCE_ENV_VAR, BigQuerySinkConfig.KEY_SOURCE_DEFAULT);
   }
 
+  /**
+   * Gets the name of the GCS bucket for the test. The bucket name comprises the {@link
+   * #GCS_BUCKET_ENV_VAR}, a hyphen '-', and the {@link #defaultSuffix}.
+   *
+   * @return the name of the GCS bucket for the test.
+   * @throws IllegalStateException if the environment variable is not set.
+   */
   protected String gcsBucket() {
-    return readEnvVar(GCS_BUCKET_ENV_VAR).trim();
+    return readEnvVar(GCS_BUCKET_ENV_VAR).trim() + "-" + defaultSuffix.toLowerCase(Locale.ROOT);
   }
 
+  /**
+   * Gets the name of the GCS folder within the bucket for the test. The folder name is specified in
+   * the {@link #GCS_FOLDER_ENV_VAR}. If the environment variable is not specified an empty string
+   * is returned.
+   *
+   * @return the name of the GCS folder within the bucket for the test.
+   */
   protected String gcsFolder() {
-    return readEnvVar(GCS_FOLDER_ENV_VAR, BigQuerySinkConfig.GCS_FOLDER_NAME_DEFAULT);
+    return readEnvVar(GCS_FOLDER_ENV_VAR, "").trim();
   }
 
+  /**
+   * Gets the table suffix. The table suffix is either the value of the {@link
+   * #TEST_NAMESPACE_ENV_VAR} or the {@link #defaultSuffix} if that is not set
+   *
+   * @return the table suffix.
+   */
   protected String tableSuffix() {
-    return readEnvVar(TEST_NAMESPACE_ENV_VAR, "");
+    String pfx = readEnvVar(TEST_NAMESPACE_ENV_VAR, "");
+    return pfx.isEmpty() ? defaultSuffix : pfx + "_" + defaultSuffix;
   }
 }
