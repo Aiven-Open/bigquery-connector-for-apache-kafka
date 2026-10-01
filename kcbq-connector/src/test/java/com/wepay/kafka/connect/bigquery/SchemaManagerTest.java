@@ -81,6 +81,7 @@ public class SchemaManagerTest {
   private SchemaConverter<com.google.cloud.bigquery.Schema> mockSchemaConverter;
   private BigQuery mockBigQuery;
   private Schema mockKafkaSchema;
+  private Schema mockKafkaKeySchema;
   private com.google.cloud.bigquery.Schema fakeBigQuerySchema;
   private SchemaManager.SchemaAndPrimaryKeyColumns fakeSchemaAndColumns;
 
@@ -91,6 +92,7 @@ public class SchemaManagerTest {
         (SchemaConverter<com.google.cloud.bigquery.Schema>) mock(SchemaConverter.class);
     mockBigQuery = mock(BigQuery.class);
     mockKafkaSchema = mock(Schema.class);
+    mockKafkaKeySchema = mock(Schema.class);
     fakeBigQuerySchema =
         com.google.cloud.bigquery.Schema.of(Field.of("mock field", LegacySQLTypeName.STRING));
     fakeSchemaAndColumns =
@@ -999,6 +1001,87 @@ public class SchemaManagerTest {
   }
 
   @Test
+  public void testIntermediateTableWithOnlyTombstoneRecordsWithUnionization() {
+    Field keyField =
+        Field.newBuilder("k1", LegacySQLTypeName.INTEGER).setMode(Mode.REQUIRED).build();
+    when(mockSchemaConverter.convertSchema(mockKafkaKeySchema))
+        .thenReturn(com.google.cloud.bigquery.Schema.of(keyField));
+
+    testGetAndValidateProposedSchema(
+        createIntermediateSchemaManager(true),
+        null,
+        null,
+        intermediateSchema(keyField, null),
+        Collections.singletonList(recordWithKeyAndValueSchema(mockKafkaKeySchema, null)));
+  }
+
+  @Test
+  public void testIntermediateTableWithOnlyTombstoneRecordsWithoutUnionization() {
+    Field keyField =
+        Field.newBuilder("k1", LegacySQLTypeName.INTEGER).setMode(Mode.REQUIRED).build();
+    when(mockSchemaConverter.convertSchema(mockKafkaKeySchema))
+        .thenReturn(com.google.cloud.bigquery.Schema.of(keyField));
+
+    testGetAndValidateProposedSchema(
+        createIntermediateSchemaManager(false),
+        null,
+        null,
+        intermediateSchema(keyField, null),
+        Collections.singletonList(recordWithKeyAndValueSchema(mockKafkaKeySchema, null)));
+  }
+
+  @Test
+  public void testIntermediateTableWithValueSchemaWithUnionization() {
+    Field keyField =
+        Field.newBuilder("k1", LegacySQLTypeName.INTEGER).setMode(Mode.REQUIRED).build();
+    when(mockSchemaConverter.convertSchema(mockKafkaKeySchema))
+        .thenReturn(com.google.cloud.bigquery.Schema.of(keyField));
+    Field valueField =
+        Field.newBuilder("f1", LegacySQLTypeName.STRING).setMode(Mode.REQUIRED).build();
+
+    testGetAndValidateProposedSchema(
+        createIntermediateSchemaManager(true),
+        null,
+        Collections.singletonList(com.google.cloud.bigquery.Schema.of(valueField)),
+        intermediateSchema(keyField, valueField),
+        Collections.singletonList(
+            recordWithKeyAndValueSchema(mockKafkaKeySchema, mockKafkaSchema)));
+  }
+
+  @Test
+  public void testIntermediateTableWithOnlyTombstoneRecordsAndIgnoreUnknownFields() {
+    Field keyField =
+        Field.newBuilder("k1", LegacySQLTypeName.INTEGER).setMode(Mode.REQUIRED).build();
+    when(mockSchemaConverter.convertSchema(mockKafkaKeySchema))
+        .thenReturn(com.google.cloud.bigquery.Schema.of(keyField));
+
+    SchemaManagerTestConfig config =
+        createConfig(
+            Map.of(
+                BigQuerySinkConfig.SCHEMA_RETRIEVER_CONFIG, IdentitySchemaRetriever.class.getName(),
+                BigQuerySinkConfig.KAFKA_KEY_FIELD_NAME_CONFIG, "kafkaKey",
+                BigQuerySinkConfig.IGNORE_UNKNOWN_FIELDS_CONFIG, "true"));
+    config.schemaConverter = mockSchemaConverter;
+    SchemaManager schemaManager = new SchemaManager(config, mockBigQuery).forIntermediateTables();
+
+    BigQueryConnectException exception =
+        assertThrows(
+            BigQueryConnectException.class,
+            () ->
+                schemaManager.createTable(
+                    tableId,
+                    Collections.singletonList(
+                        recordWithKeyAndValueSchema(mockKafkaKeySchema, null))));
+    // getTableInfo wraps our exception once, so the cause carries the message
+    String message = exception.getCause().getMessage();
+    assertTrue(
+        message.contains(
+            "Cannot create an intermediate table from a batch of only tombstone records while '"
+                + BigQuerySinkConfig.IGNORE_UNKNOWN_FIELDS_CONFIG),
+        "The exception should name the config to change, but was: " + message);
+  }
+
+  @Test
   public void testGetUnionizedTableDescriptionFromTombstoneRecord() {
     SchemaManager schemaManager = createSchemaManager(false, true, true);
     SinkRecord tombstone = recordWithValueSchema(null);
@@ -1090,6 +1173,28 @@ public class SchemaManagerTest {
     return new SchemaManager(config, mockBigQuery);
   }
 
+  /**
+   * Creates a SchemaManager for intermediate tables.
+   *
+   * @param allowUnionization
+   * @return A configured SchemaManager
+   */
+  private SchemaManager createIntermediateSchemaManager(boolean allowUnionization) {
+    SchemaManagerTestConfig config =
+        createConfig(
+            Map.of(
+                BigQuerySinkConfig.ALLOW_NEW_BIGQUERY_FIELDS_CONFIG, "false",
+                BigQuerySinkConfig.ALLOW_BIGQUERY_REQUIRED_FIELD_RELAXATION_CONFIG, "false",
+                BigQuerySinkConfig.ALLOW_SCHEMA_UNIONIZATION_CONFIG,
+                    Boolean.toString(allowUnionization),
+                BigQuerySinkConfig.SCHEMA_RETRIEVER_CONFIG, IdentitySchemaRetriever.class.getName(),
+                BigQuerySinkConfig.KAFKA_KEY_FIELD_NAME_CONFIG, "kafkaKey"));
+
+    config.schemaConverter = mockSchemaConverter;
+
+    return new SchemaManager(config, mockBigQuery).forIntermediateTables();
+  }
+
   private SchemaManager createSchemaManagerWithConcurrentRetry(
       boolean allowNewFields,
       boolean allowFieldRelaxation,
@@ -1116,6 +1221,44 @@ public class SchemaManagerTest {
         concurrentRetryWaitMs,
         maxRetries,
         sinkConfig);
+  }
+
+  private com.google.cloud.bigquery.Schema intermediateSchema(Field keyField, Field valueField) {
+    List<Field> fields = new ArrayList<>();
+
+    if (valueField != null) {
+      fields.add(
+          Field.newBuilder(
+                  MergeQueries.INTERMEDIATE_TABLE_VALUE_FIELD_NAME,
+                  LegacySQLTypeName.RECORD,
+                  valueField)
+              .setMode(Mode.NULLABLE)
+              .build());
+    }
+
+    fields.add(
+        Field.newBuilder(
+                MergeQueries.INTERMEDIATE_TABLE_KEY_FIELD_NAME, LegacySQLTypeName.RECORD, keyField)
+            .setMode(Mode.REQUIRED)
+            .build());
+    fields.add(
+        Field.newBuilder(
+                MergeQueries.INTERMEDIATE_TABLE_ITERATION_FIELD_NAME, LegacySQLTypeName.INTEGER)
+            .setMode(Mode.REQUIRED)
+            .build());
+    fields.add(
+        Field.newBuilder(
+                MergeQueries.INTERMEDIATE_TABLE_PARTITION_TIME_FIELD_NAME,
+                LegacySQLTypeName.TIMESTAMP)
+            .setMode(Mode.NULLABLE)
+            .build());
+    fields.add(
+        Field.newBuilder(
+                MergeQueries.INTERMEDIATE_TABLE_BATCH_NUMBER_FIELD, LegacySQLTypeName.INTEGER)
+            .setMode(Mode.REQUIRED)
+            .build());
+
+    return com.google.cloud.bigquery.Schema.of(fields);
   }
 
   private void testGetAndValidateProposedSchema(
@@ -1174,6 +1317,13 @@ public class SchemaManagerTest {
     Table result = mock(Table.class);
     when(result.getDefinition()).thenReturn(definition);
 
+    return result;
+  }
+
+  private SinkRecord recordWithKeyAndValueSchema(Schema keySchema, Schema valueSchema) {
+    SinkRecord result = mock(SinkRecord.class);
+    when(result.keySchema()).thenReturn(keySchema);
+    when(result.valueSchema()).thenReturn(valueSchema);
     return result;
   }
 

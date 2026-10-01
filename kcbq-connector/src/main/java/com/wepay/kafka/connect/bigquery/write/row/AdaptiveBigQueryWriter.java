@@ -128,13 +128,16 @@ public class AdaptiveBigQueryWriter extends BigQueryWriter {
       PartitionedTableId tableId, SortedMap<SinkRecord, InsertAllRequest.RowToInsert> rows) {
     InsertAllResponse writeResponse = null;
     InsertAllRequest request = null;
+    // Should only perform one schema update attempt. Every attempt derives the same schema from the
+    // same rows, so a second one could not achieve anything that the first did not.
+    boolean schemaUpdateAttempted = false;
 
     try {
       request = createInsertAllRequest(tableId, rows.values());
       writeResponse = bigQuery.insertAll(request);
-      // Should only perform one schema update attempt.
       if (writeResponse.hasErrors()
           && onlyContainsInvalidSchemaErrors(writeResponse.getInsertErrors())) {
+        schemaUpdateAttempted = true;
         attemptSchemaUpdate(tableId, new ArrayList<>(rows.keySet()));
       }
     } catch (BigQueryException exception) {
@@ -142,6 +145,7 @@ public class AdaptiveBigQueryWriter extends BigQueryWriter {
       if (BigQueryErrorResponses.isNonExistentTableError(exception) && autoCreateTables) {
         attemptTableCreate(tableId.getBaseTableId(), new ArrayList<>(rows.keySet()));
       } else if (BigQueryErrorResponses.isTableMissingSchemaError(exception)) {
+        schemaUpdateAttempted = true;
         attemptSchemaUpdate(tableId, new ArrayList<>(rows.keySet()));
       } else {
         throw exception;
@@ -153,13 +157,26 @@ public class AdaptiveBigQueryWriter extends BigQueryWriter {
     int attemptCount = 0;
     while (writeResponse == null || writeResponse.hasErrors()) {
       logger.trace("insertion failed");
-      if (writeResponse == null
-          || onlyContainsInvalidSchemaErrors(writeResponse.getInsertErrors())) {
+      boolean doesOnlyContainInvalidSchemaErrors =
+          writeResponse != null && onlyContainsInvalidSchemaErrors(writeResponse.getInsertErrors());
+      if (writeResponse == null || doesOnlyContainInvalidSchemaErrors) {
+        if (doesOnlyContainInvalidSchemaErrors && !schemaUpdateAttempted) {
+          // We got here because the earlier exception handler called attemptTableCreate.  It's
+          // possible that a concurrent writer from a different task or writer thread created the
+          // table instead with a different, inadequate schema for this request, and our call to
+          // attemptTableCreate then exited early without actually changing or creating any schema.
+          // Therefore, it's still worth trying a schema update.
+          schemaUpdateAttempted = true;
+          attemptSchemaUpdate(tableId, new ArrayList<>(rows.keySet()));
+        }
         try {
           // If the table was missing its schema, we never received a writeResponse
           logger.debug("re-attempting insertion");
           writeResponse = bigQuery.insertAll(request);
         } catch (BigQueryException exception) {
+          // This attempt produced no response, so nothing below or in the next loop iteration
+          // should read the previous one
+          writeResponse = null;
           if ((BigQueryErrorResponses.isNonExistentTableError(exception) && autoCreateTables)
               || BigQueryErrorResponses.isTableMissingSchemaError(exception)) {
             // no-op, we want to keep retrying the insert
