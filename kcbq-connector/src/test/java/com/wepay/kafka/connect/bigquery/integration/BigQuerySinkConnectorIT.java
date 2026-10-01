@@ -275,18 +275,6 @@ class BigQuerySinkConnectorIT extends BaseConnectorIT {
     result.put(BigQuerySinkConfig.GCS_BUCKET_NAME_CONFIG, gcsBucket());
     result.put(BigQuerySinkConfig.GCS_FOLDER_NAME_CONFIG, gcsFolder());
     result.put(BigQuerySinkConfig.SCHEMA_RETRIEVER_CONFIG, IdentitySchemaRetriever.class.getName());
-
-    //    String suffix = tableSuffix();
-    //    if (!suffix.isEmpty()) {
-    //      String escapedSuffix = suffix.replaceAll("\\\\", "\\\\\\\\").replaceAll("\\$",
-    // "\\\\\\$");
-    //      result.put("transforms", "addSuffix");
-    //      result.put("transforms.addSuffix.type",
-    // "org.apache.kafka.connect.transforms.RegexRouter");
-    //      result.put("transforms.addSuffix.regex", "(.*)");
-    //      result.put("transforms.addSuffix.replacement", "$1" + escapedSuffix);
-    //    }
-
     return result;
   }
 

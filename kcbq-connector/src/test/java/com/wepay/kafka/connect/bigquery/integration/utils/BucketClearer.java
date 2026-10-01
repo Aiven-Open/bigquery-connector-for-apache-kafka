@@ -71,7 +71,8 @@ public class BucketClearer {
     }
   }
 
-  public static void createBucket(String key, String project, String bucketName, String keySource) {
+  public static void createBucket(
+      String testMethod, String key, String project, String bucketName, String keySource) {
     logger.info("Creating bucket {}", bucketName);
     Storage gcs =
         new GcpClientBuilder.GcsBuilder()
@@ -81,9 +82,9 @@ public class BucketClearer {
             .build();
     Bucket bucket = gcs.create(BucketInfo.newBuilder(bucketName).build());
     if (bucket != null) {
-      logger.info("Bucket {} created successfully", bucketName);
+      logger.info("Bucket {} created successfully by {}", bucketName, testMethod);
     } else {
-      logger.info("Bucket {} was not created", bucketName);
+      logger.info("Bucket {} was not created by {}", bucketName, testMethod);
     }
   }
 

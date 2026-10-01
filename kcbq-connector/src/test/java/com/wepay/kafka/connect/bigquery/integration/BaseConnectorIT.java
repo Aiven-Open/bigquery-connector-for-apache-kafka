@@ -57,6 +57,7 @@ import com.wepay.kafka.connect.bigquery.integration.utils.TestCaseLogger;
 import com.wepay.kafka.connect.bigquery.utils.FieldNameSanitizer;
 import com.wepay.kafka.connect.bigquery.utils.TableNameUtils;
 import de.huxhorn.sulky.ulid.ULID;
+import java.lang.reflect.Method;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -214,7 +215,17 @@ abstract class BaseConnectorIT {
 
   /** Creates the standard bucket. */
   protected final void createBucket() {
-    BucketClearer.createBucket(keyFile(), project(), gcsBucket(), keySource());
+    BucketClearer.createBucket(testMethod(), keyFile(), project(), gcsBucket(), keySource());
+  }
+
+  /**
+   * Gets the string representation of the test method.
+   *
+   * @return the string representation of the test method.
+   */
+  protected String testMethod() {
+    Optional<Method> m = testInfo.getTestMethod();
+    return m.isPresent() ? m.get().getName() : testInfo.getDisplayName().replaceAll("\\(\\)", "");
   }
 
   /** Deletes the standard bucket */
@@ -242,8 +253,7 @@ abstract class BaseConnectorIT {
   protected final String topicName() {
     final String[] names = new String[3];
     names[0] = connectorName();
-    names[1] = testInfo.getDisplayName().replaceAll("\\(\\)", "");
-    testInfo.getTestMethod().ifPresent(m -> names[1] = m.getName());
+    names[1] = testMethod();
     names[2] = tableSuffix();
     return String.join("_", names);
   }

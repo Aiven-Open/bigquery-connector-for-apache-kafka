@@ -273,7 +273,6 @@ class StorageWriteApiUpsertDeleteIT extends BaseConnectorIT {
 
   @Test
   @Tag("slow")
-  // @Disabled("Skipped during regular testing; comment-out annotation to run")
   void testUpsertDeleteHighThroughput() throws Throwable {
     final long numRecords = 1_000_000L;
     final int numPartitions = 10;
