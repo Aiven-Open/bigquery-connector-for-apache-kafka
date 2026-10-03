@@ -166,6 +166,9 @@ public class BigQuerySinkConfig extends AbstractConfig {
   public static final long MERGE_RECORDS_THRESHOLD_DEFAULT = -1;
   public static final String THREAD_POOL_SIZE_CONFIG = "threadPoolSize";
   public static final Integer THREAD_POOL_SIZE_DEFAULT = 10;
+  public static final String DEFAULT_STREAM_WRITERS_PER_TABLE_CONFIG =
+      "defaultStreamWritersPerTable";
+  public static final int DEFAULT_STREAM_WRITERS_PER_TABLE_DEFAULT = 1;
   public static final String QUEUE_SIZE_CONFIG = "queueSize";
   // should this even have a default?
   public static final Long QUEUE_SIZE_DEFAULT = -1L;
@@ -579,6 +582,18 @@ public class BigQuerySinkConfig extends AbstractConfig {
   private static final String THREAD_POOL_SIZE_DOC =
       "The size of the BigQuery write thread pool. This establishes the maximum number of "
           + "concurrent writes to BigQuery.";
+  private static final ConfigDef.Type DEFAULT_STREAM_WRITERS_PER_TABLE_TYPE = ConfigDef.Type.INT;
+  private static final ConfigDef.Validator DEFAULT_STREAM_WRITERS_PER_TABLE_VALIDATOR =
+      ConfigDef.Range.atLeast(1);
+  private static final ConfigDef.Importance DEFAULT_STREAM_WRITERS_PER_TABLE_IMPORTANCE =
+      ConfigDef.Importance.LOW;
+  private static final String DEFAULT_STREAM_WRITERS_PER_TABLE_DOC =
+      "The number of concurrent Storage Write API writers per destination table in default-stream "
+          + "mode (useStorageWriteApi=true, enableBatchMode=false). Each writer serializes its "
+          + "appends, so with the default of 1 all write threads targeting a table take turns; "
+          + "raising it lets up to that many threads write to the table in parallel. Set it to "
+          + "threadPoolSize for full parallelism; values above that have no effect. Not used in "
+          + "batch mode.";
   private static final ConfigDef.Type QUEUE_SIZE_TYPE = ConfigDef.Type.LONG;
   private static final ConfigDef.Validator QUEUE_SIZE_VALIDATOR = ConfigDef.Range.atLeast(-1);
   private static final ConfigDef.Importance QUEUE_SIZE_IMPORTANCE = ConfigDef.Importance.HIGH;
@@ -1066,6 +1081,13 @@ public class BigQuerySinkConfig extends AbstractConfig {
             THREAD_POOL_SIZE_VALIDATOR,
             THREAD_POOL_SIZE_IMPORTANCE,
             THREAD_POOL_SIZE_DOC)
+        .define(
+            DEFAULT_STREAM_WRITERS_PER_TABLE_CONFIG,
+            DEFAULT_STREAM_WRITERS_PER_TABLE_TYPE,
+            DEFAULT_STREAM_WRITERS_PER_TABLE_DEFAULT,
+            DEFAULT_STREAM_WRITERS_PER_TABLE_VALIDATOR,
+            DEFAULT_STREAM_WRITERS_PER_TABLE_IMPORTANCE,
+            DEFAULT_STREAM_WRITERS_PER_TABLE_DOC)
         .define(
             QUEUE_SIZE_CONFIG,
             QUEUE_SIZE_TYPE,

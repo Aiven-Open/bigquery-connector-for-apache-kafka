@@ -212,6 +212,14 @@ BigQuery Sink Connector Configuration Options
   * Default: false
   * Importance: low
 
+``defaultStreamWritersPerTable``
+  The number of concurrent Storage Write API writers per destination table in default-stream mode (useStorageWriteApi=true, enableBatchMode=false). Each writer serializes its appends, so with the default of 1 all write threads targeting a table take turns; raising it lets up to that many threads write to the table in parallel. Set it to threadPoolSize for full parallelism; values above that have no effect. Not used in batch mode.
+
+  * Type: int
+  * Default: 1
+  * Valid Values: [1,...]
+  * Importance: low
+
 ``deleteEnabled``
   Enable delete functionality on the connector through the use of record keys, intermediate tables, and periodic merge flushes. A delete will be performed when a record with a null value (i.e., a tombstone record) is read.
 

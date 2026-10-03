@@ -26,9 +26,12 @@ package com.wepay.kafka.connect.bigquery.write.storage;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
+import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -48,13 +51,16 @@ import com.wepay.kafka.connect.bigquery.utils.MockTime;
 import com.wepay.kafka.connect.bigquery.utils.PartitionedTableId;
 import com.wepay.kafka.connect.bigquery.utils.TableNameUtils;
 import io.grpc.StatusRuntimeException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.stream.Stream;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.sink.ErrantRecordReporter;
@@ -123,8 +129,11 @@ public class StorageWriteApiDefaultStreamTest {
   @BeforeEach
   public void setUp() throws Exception {
     errorMapping.put(0, "f0 field is unknown");
-    defaultStream.tableToStream = new ConcurrentHashMap<>();
-    defaultStream.tableToStream.put("testTable", mockedStreamWriter);
+    defaultStream.tableToStreams = new ConcurrentHashMap<>();
+    defaultStream.tableToStreams.put(
+        "testTable", new AtomicReferenceArray<>(new JsonStreamWriter[] {mockedStreamWriter}));
+    defaultStream.writersPerTable = 1;
+    defaultStream.threadWriterSlot = ThreadLocal.withInitial(() -> 0);
     defaultStream.schemaManager = mockedSchemaManager;
     defaultStream.time = time;
     defaultStream.errantRecordHandler = mockedErrantRecordHandler;
@@ -260,10 +269,125 @@ public class StorageWriteApiDefaultStreamTest {
 
   @Test
   public void testShutdown() {
-    defaultStream.tableToStream = new ConcurrentHashMap<>();
-    defaultStream.tableToStream.put("testTable", mockedStreamWriter);
+    defaultStream.tableToStreams = new ConcurrentHashMap<>();
+    defaultStream.tableToStreams.put(
+        "testTable", new AtomicReferenceArray<>(new JsonStreamWriter[] {mockedStreamWriter}));
     defaultStream.preShutdown();
     verify(mockedStreamWriter, times(1)).close();
+  }
+
+  @Test
+  public void testGetDefaultStreamCreatesOneWriterPerSlotLazily() {
+    JsonStreamWriter w0 = mock(JsonStreamWriter.class);
+    JsonStreamWriter w1 = mock(JsonStreamWriter.class);
+    defaultStream.tableToStreams = new ConcurrentHashMap<>();
+    defaultStream.writersPerTable = 2;
+    defaultStream.threadWriterSlot = ThreadLocal.withInitial(() -> 0);
+    doCallRealMethod().when(defaultStream).getDefaultStream(any(), any());
+    doReturn(w0, w1).when(defaultStream).createDefaultStream(any(), any(), any());
+
+    assertSame(w0, defaultStream.getDefaultStream(mockedPartitionedTableId, testRows));
+    assertSame(w0, defaultStream.getDefaultStream(mockedPartitionedTableId, testRows));
+    assertNull(defaultStream.tableToStreams.get(mockedTableName).get(1));
+
+    defaultStream.threadWriterSlot.set(1);
+    assertSame(w1, defaultStream.getDefaultStream(mockedPartitionedTableId, testRows));
+    verify(defaultStream, times(2)).createDefaultStream(any(), any(), any());
+  }
+
+  @Test
+  public void testSlotAssignerIsRoundRobinAcrossThreadsAndStickyPerThread() throws Exception {
+    ThreadLocal<Integer> slots = StorageWriteApiDefaultStream.slotAssigner(2);
+    List<Integer> firstCalls = new CopyOnWriteArrayList<>();
+    List<Boolean> sticky = new CopyOnWriteArrayList<>();
+    List<Thread> threads = new ArrayList<>();
+    for (int i = 0; i < 4; i++) {
+      Thread t =
+          new Thread(
+              () -> {
+                int slot = slots.get();
+                firstCalls.add(slot);
+                sticky.add(slot == slots.get());
+              });
+      threads.add(t);
+      t.start();
+    }
+    for (Thread t : threads) {
+      t.join();
+    }
+    assertEquals(2, Collections.frequency(firstCalls, 0));
+    assertEquals(2, Collections.frequency(firstCalls, 1));
+    assertTrue(sticky.stream().allMatch(Boolean::booleanValue));
+  }
+
+  @Test
+  public void testRefreshClosesOnlyTheFailedWriterSlot() throws Exception {
+    JsonStreamWriter other = mock(JsonStreamWriter.class);
+    defaultStream.tableToStreams = new ConcurrentHashMap<>();
+    defaultStream.tableToStreams.put(
+        mockedTableName,
+        new AtomicReferenceArray<>(new JsonStreamWriter[] {mockedStreamWriter, other}));
+    defaultStream.threadWriterSlot = ThreadLocal.withInitial(() -> 0);
+    StorageWriteApiDefaultStream.DefaultStreamWriter writer =
+        defaultStream.new DefaultStreamWriter(mockedPartitionedTableId, testRows);
+    writer.appendRows(new JSONArray());
+
+    writer.refresh();
+
+    verify(mockedStreamWriter, times(1)).close();
+    verify(other, times(0)).close();
+    AtomicReferenceArray<JsonStreamWriter> writers =
+        defaultStream.tableToStreams.get(mockedTableName);
+    assertNull(writers.get(0));
+    assertSame(other, writers.get(1));
+  }
+
+  @Test
+  public void testRefreshLeavesAlreadyReplacedWriterAlone() throws Exception {
+    JsonStreamWriter replacement = mock(JsonStreamWriter.class);
+    AtomicReferenceArray<JsonStreamWriter> writers =
+        new AtomicReferenceArray<>(new JsonStreamWriter[] {mockedStreamWriter});
+    defaultStream.tableToStreams = new ConcurrentHashMap<>();
+    defaultStream.tableToStreams.put(mockedTableName, writers);
+    defaultStream.threadWriterSlot = ThreadLocal.withInitial(() -> 0);
+    StorageWriteApiDefaultStream.DefaultStreamWriter writer =
+        defaultStream.new DefaultStreamWriter(mockedPartitionedTableId, testRows);
+    writer.appendRows(new JSONArray());
+    writers.set(0, replacement);
+
+    writer.refresh();
+
+    verify(mockedStreamWriter, never()).close();
+    verify(replacement, never()).close();
+    assertSame(replacement, writers.get(0));
+  }
+
+  @Test
+  public void testShutdownClosesAllWritersPerTable() {
+    JsonStreamWriter writerA = mock(JsonStreamWriter.class);
+    JsonStreamWriter writerB = mock(JsonStreamWriter.class);
+    defaultStream.tableToStreams = new ConcurrentHashMap<>();
+    // slot 1 never opened a stream
+    defaultStream.tableToStreams.put(
+        "testTable", new AtomicReferenceArray<>(new JsonStreamWriter[] {writerA, null, writerB}));
+    defaultStream.preShutdown();
+    verify(writerA, times(1)).close();
+    verify(writerB, times(1)).close();
+    assertFalse(defaultStream.tableToStreams.containsKey("testTable"));
+  }
+
+  @Test
+  public void testShutdownToleratesWriterCloseFailure() {
+    JsonStreamWriter failing = mock(JsonStreamWriter.class);
+    JsonStreamWriter ok = mock(JsonStreamWriter.class);
+    doThrow(new RuntimeException("close failed")).when(failing).close();
+    defaultStream.tableToStreams = new ConcurrentHashMap<>();
+    defaultStream.tableToStreams.put(
+        "testTable", new AtomicReferenceArray<>(new JsonStreamWriter[] {failing, ok}));
+    defaultStream.preShutdown();
+    verify(failing, times(1)).close();
+    verify(ok, times(1)).close();
+    assertFalse(defaultStream.tableToStreams.containsKey("testTable"));
   }
 
   private void verifyTerminalException(String expectedException) {
