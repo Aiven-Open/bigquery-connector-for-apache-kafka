@@ -30,14 +30,18 @@ import com.google.cloud.bigquery.BigQueryException;
 import com.google.cloud.bigquery.Clustering;
 import com.google.cloud.bigquery.Field;
 import com.google.cloud.bigquery.Field.Mode;
+import com.google.cloud.bigquery.FieldValueList;
 import com.google.cloud.bigquery.LegacySQLTypeName;
 import com.google.cloud.bigquery.PrimaryKey;
+import com.google.cloud.bigquery.QueryJobConfiguration;
+import com.google.cloud.bigquery.QueryParameterValue;
 import com.google.cloud.bigquery.StandardTableDefinition;
 import com.google.cloud.bigquery.Table;
 import com.google.cloud.bigquery.TableConstraints;
 import com.google.cloud.bigquery.TableDefinition;
 import com.google.cloud.bigquery.TableId;
 import com.google.cloud.bigquery.TableInfo;
+import com.google.cloud.bigquery.TableResult;
 import com.google.cloud.bigquery.TimePartitioning;
 import com.google.cloud.bigquery.TimePartitioning.Type;
 import com.google.common.annotations.VisibleForTesting;
@@ -52,11 +56,14 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.sink.SinkRecord;
@@ -95,6 +102,7 @@ public class SchemaManager {
   private final boolean mediateConcurrentSchemaUpdates;
   private final long concurrentSchemaUpdateRetryWaitMs;
   private final int concurrentSchemaUpdateMaxRetries;
+  private final Integer tableMaxStaleness;
 
   /**
    * @param config a big query sink configuration.
@@ -145,6 +153,11 @@ public class SchemaManager {
         config.getLong(BigQuerySinkConfig.CONCURRENT_SCHEMA_UPDATE_RETRY_WAIT_MS_CONFIG);
     concurrentSchemaUpdateMaxRetries =
         config.getInt(BigQuerySinkConfig.CONCURRENT_SCHEMA_UPDATE_MAX_RETRIES_CONFIG);
+
+    tableMaxStaleness =
+        !intermediateTables && config.isCdcEnabled()
+            ? config.getInt(BigQuerySinkConfig.TABLE_MAX_STALENESS_CONFIG)
+            : null;
   }
 
   /**
@@ -210,7 +223,13 @@ public class SchemaManager {
     this.tableCreateLocks = new ConcurrentHashMap<>();
     this.tableUpdateLocks = new ConcurrentHashMap<>();
     this.schemaCache = new ConcurrentHashMap<>();
-    kafkaKeyAsPrimaryKey = config.isUpsertEnabled() && config.useStorageWriteApi();
+
+    kafkaKeyAsPrimaryKey =
+        config != null && config.isUpsertEnabled() && config.useStorageWriteApi();
+    this.tableMaxStaleness =
+        config != null && config.isCdcEnabled()
+            ? config.getInt(BigQuerySinkConfig.TABLE_MAX_STALENESS_CONFIG)
+            : null;
   }
 
   /**
@@ -284,6 +303,7 @@ public class SchemaManager {
         bigQuery.create(tableInfo);
         logger.debug("Successfully created {}", table(table));
         schemaCache.put(table, SchemaAndPrimaryKeyColumns.of(tableInfo));
+        ensureMaxStaleness(table);
         return true;
       } catch (BigQueryException e) {
         if (e.getCode() == 409) {
@@ -320,6 +340,7 @@ public class SchemaManager {
           bigQuery.update(tableInfo);
           logger.debug("Successfully updated {}", table(table));
           schemaCache.put(table, SchemaAndPrimaryKeyColumns.of(tableInfo));
+          ensureMaxStaleness(table);
         } catch (BigQueryException e) {
           if (!mediateConcurrentSchemaUpdates) {
             throw e;
@@ -433,6 +454,12 @@ public class SchemaManager {
     } catch (BigQueryConnectException exception) {
       throw new BigQueryConnectException(
           "Failed to unionize schemas of records for the table " + table, exception);
+    }
+    List<String> primaryKeys = proposedSchema.primaryKeyColumns();
+    if (primaryKeys != null && !primaryKeys.isEmpty()) {
+      com.google.cloud.bigquery.Schema relaxedSchema =
+          relaxNonKeyFields(proposedSchema.schema(), primaryKeys);
+      proposedSchema = new SchemaAndPrimaryKeyColumns(relaxedSchema, primaryKeys);
     }
     return constructTableInfo(table, proposedSchema, tableDescription, createSchema);
   }
@@ -786,17 +813,13 @@ public class SchemaManager {
       // Primary key constraints are needed for Storage Write API upsert CDC semantics.
       // This must be applied regardless of whether time-partitioning is configured,
       // so it lives outside the timePartitioningType.ifPresent() block.
-      if (kafkaKeyAsPrimaryKey) {
-        if (!Optional.of("").equals(kafkaKeyFieldName)) {
-          throw new IllegalStateException(
-              "kafkaKeyFieldName must be '' when kafkaKeyAsPrimaryKey is true");
-        }
-
-        builder.setTableConstraints(
-            TableConstraints.newBuilder()
-                .setPrimaryKey(
-                    PrimaryKey.newBuilder().setColumns(bigQuerySchema.primaryKeyColumns()).build())
-                .build());
+      if (kafkaKeyAsPrimaryKey
+          && bigQuerySchema.primaryKeyColumns() != null
+          && !bigQuerySchema.primaryKeyColumns().isEmpty()) {
+        PrimaryKey pk =
+            PrimaryKey.newBuilder().setColumns(bigQuerySchema.primaryKeyColumns()).build();
+        TableConstraints constraints = TableConstraints.newBuilder().setPrimaryKey(pk).build();
+        builder.setTableConstraints(constraints);
       }
     }
 
@@ -937,6 +960,33 @@ public class SchemaManager {
         com.google.cloud.bigquery.Schema.of(fields), primaryKeyColumns);
   }
 
+  /**
+   * Relaxes the schema by converting non-primary-key required fields to nullable. This is necessary
+   * for CDC deletes (tombstones or rewritten deletes), which only populate primary key columns and
+   * omit required non-key columns. Without this relaxation, write operations for deletes would
+   * crash due to missing required fields.
+   *
+   * @param schema The proposed BigQuery schema
+   * @param primaryKeys The list of primary key columns
+   * @return The modified schema with relaxed non-key fields
+   */
+  private com.google.cloud.bigquery.Schema relaxNonKeyFields(
+      com.google.cloud.bigquery.Schema schema, List<String> primaryKeys) {
+    List<Field> relaxedFields = new ArrayList<>();
+    for (Field field : schema.getFields()) {
+      if (primaryKeys.contains(field.getName())) {
+        relaxedFields.add(field);
+      } else {
+        if (field.getMode() == Field.Mode.REQUIRED) {
+          relaxedFields.add(field.toBuilder().setMode(Field.Mode.NULLABLE).build());
+        } else {
+          relaxedFields.add(field);
+        }
+      }
+    }
+    return com.google.cloud.bigquery.Schema.of(relaxedFields);
+  }
+
   private String table(TableId table) {
     return intermediateTables ? TableNameUtils.intTable(table) : TableNameUtils.table(table);
   }
@@ -950,6 +1000,256 @@ public class SchemaManager {
 
   private Object lock(ConcurrentMap<TableId, Object> locks, TableId table) {
     return locks.computeIfAbsent(table, t -> new Object());
+  }
+
+  private static final Pattern CANONICAL_INTERVAL_PATTERN =
+      Pattern.compile(
+          "^([+-]?\\d+)-([+-]?\\d+)\\s+([+-]?\\d+)\\s+([+-]?\\d+):(\\d+):(\\d+)(?:\\.\\d+)?$");
+  private static final Pattern SQL_INTERVAL_SECOND_PATTERN =
+      Pattern.compile(
+          "^INTERVAL\\s+([+-]?\\d+)\\s+SECONDS?$", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
+
+  private final java.util.Set<TableId> checkedTableOptions = ConcurrentHashMap.newKeySet();
+
+  public void checkAndApplyTableOptions(TableId table) {
+    if (intermediateTables || tableMaxStaleness == null || checkedTableOptions.contains(table)) {
+      return;
+    }
+
+    synchronized (lock(tableUpdateLocks, table)) {
+      if (checkedTableOptions.contains(table)) {
+        return;
+      }
+      if (bigQuery.getTable(table) != null) {
+        ensureMaxStaleness(table);
+      }
+    }
+  }
+
+  /**
+   * Ensures the {@code max_staleness} table option on the specified BigQuery table matches {@link
+   * #tableMaxStaleness}. Queries {@code INFORMATION_SCHEMA.TABLE_OPTIONS} first and only executes
+   * {@code ALTER TABLE} when the option is missing or differs from the configured value. If a
+   * concurrent table update conflict occurs during {@code ALTER TABLE}, waits {@link
+   * #concurrentSchemaUpdateRetryWaitMs} and re-checks up to {@link
+   * #concurrentSchemaUpdateMaxRetries} times before failing the task.
+   *
+   * @param table the BigQuery table to inspect and update
+   */
+  private void ensureMaxStaleness(TableId table) {
+    if (intermediateTables || tableMaxStaleness == null || checkedTableOptions.contains(table)) {
+      return;
+    }
+
+    synchronized (lock(tableUpdateLocks, table)) {
+      if (checkedTableOptions.contains(table)) {
+        return;
+      }
+
+      long expectedSeconds = tableMaxStaleness.longValue();
+      BigQueryException lastConflictException = null;
+
+      for (int attempt = 0; attempt <= concurrentSchemaUpdateMaxRetries; attempt++) {
+        if (attempt > 0 && concurrentSchemaUpdateRetryWaitMs > 0) {
+          try {
+            Thread.sleep(concurrentSchemaUpdateRetryWaitMs);
+          } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            throw new BigQueryConnectException(
+                "Interrupted while waiting to retry max_staleness update on table " + table(table),
+                ie);
+          }
+        }
+
+        if (isMaxStalenessAlreadySet(table, expectedSeconds)) {
+          logger.debug(
+              "max_staleness is already set to {} seconds on table {}; skipping ALTER TABLE",
+              expectedSeconds,
+              table(table));
+          checkedTableOptions.add(table);
+          return;
+        }
+
+        try {
+          executeAlterMaxStaleness(table, expectedSeconds);
+          checkedTableOptions.add(table);
+          return;
+        } catch (BigQueryException e) {
+          if (isConcurrentTableUpdateException(e)) {
+            lastConflictException = e;
+            logger.warn(
+                "Concurrent update conflict when applying max_staleness to table {} "
+                    + "(attempt {}/{}): {}",
+                table(table),
+                attempt + 1,
+                concurrentSchemaUpdateMaxRetries + 1,
+                e.getMessage());
+          } else {
+            throw new BigQueryConnectException(
+                "Failed to apply max_staleness option to table " + table(table), e);
+          }
+        }
+      }
+
+      throw new BigQueryConnectException(
+          String.format(
+              "Failed to apply max_staleness (%d seconds) to table %s after %d retry attempt(s) "
+                  + "due to concurrent table updates",
+              expectedSeconds, table(table), concurrentSchemaUpdateMaxRetries),
+          lastConflictException);
+    }
+  }
+
+  private boolean isMaxStalenessAlreadySet(TableId table, long expectedSeconds) {
+    String projectId =
+        table.getProject() != null
+            ? table.getProject()
+            : bigQuery.getOptions() != null ? bigQuery.getOptions().getProjectId() : null;
+    String infoSchemaTable =
+        projectId != null
+            ? String.format(
+                "`%s`.`%s`.INFORMATION_SCHEMA.TABLE_OPTIONS", projectId, table.getDataset())
+            : String.format("`%s`.INFORMATION_SCHEMA.TABLE_OPTIONS", table.getDataset());
+    String checkQuery =
+        String.format(
+            "SELECT option_value FROM %s WHERE table_name = @tableName AND option_name = 'max_staleness'",
+            infoSchemaTable);
+    QueryJobConfiguration checkQueryConfig =
+        QueryJobConfiguration.newBuilder(checkQuery)
+            .addNamedParameter("tableName", QueryParameterValue.string(table.getTable()))
+            .build();
+
+    try {
+      TableResult result = bigQuery.query(checkQueryConfig);
+      if (result != null && result.iterateAll() != null) {
+        for (FieldValueList row : result.iterateAll()) {
+          if (row.get("option_value") != null && !row.get("option_value").isNull()) {
+            String rawValue = row.get("option_value").getStringValue();
+            Optional<Long> currentSeconds = parseIntervalToSeconds(rawValue);
+            if (currentSeconds.isPresent() && currentSeconds.get() == expectedSeconds) {
+              return true;
+            }
+          }
+        }
+      }
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new BigQueryConnectException(
+          "Interrupted while checking existing max_staleness option on table " + table(table), e);
+    } catch (Exception e) {
+      logger.warn(
+          "Could not verify existing max_staleness option on table {}, proceeding with ALTER TABLE. Reason: {}",
+          table(table),
+          e.getMessage(),
+          e);
+    }
+    return false;
+  }
+
+  private void executeAlterMaxStaleness(TableId table, long expectedSeconds)
+      throws BigQueryException {
+    String fullyQualifiedTable =
+        table.getProject() != null
+            ? String.format(
+                "`%s`.`%s`.`%s`", table.getProject(), table.getDataset(), table.getTable())
+            : String.format("`%s`.`%s`", table.getDataset(), table.getTable());
+
+    String query =
+        String.format(
+            "ALTER TABLE %s SET OPTIONS (max_staleness = INTERVAL %d SECOND)",
+            fullyQualifiedTable, expectedSeconds);
+
+    logger.info(
+        "Applying max_staleness option of '{}' seconds to table {} using query: {}",
+        expectedSeconds,
+        table(table),
+        query);
+    try {
+      bigQuery.query(QueryJobConfiguration.of(query));
+      logger.info(
+          "Successfully set max_staleness to '{}' seconds on table {}",
+          expectedSeconds,
+          table(table));
+    } catch (BigQueryException e) {
+      throw e;
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new BigQueryConnectException(
+          "Interrupted while applying max_staleness option to table " + table(table), e);
+    } catch (Exception e) {
+      throw new BigQueryConnectException(
+          "Failed to apply max_staleness option to table " + table(table), e);
+    }
+  }
+
+  private static boolean isConcurrentTableUpdateException(BigQueryException e) {
+    if (e.getCode() == 409) {
+      return true;
+    }
+    if (e.getMessage() == null) {
+      return false;
+    }
+    String msg = e.getMessage().toLowerCase(Locale.ROOT);
+    return msg.contains("could not serialize access to table")
+        || msg.contains("concurrent update")
+        || msg.contains("too many table update operations for this table");
+  }
+
+  /**
+   * Parses a BigQuery {@code INTERVAL} option value into total seconds. Supports both BigQuery's
+   * canonical interval literal returned by {@code INFORMATION_SCHEMA.TABLE_OPTIONS} ({@code [Y]-[M]
+   * [D] [H]:[M]:[S]}) and {@code INTERVAL <n> SECOND} SQL literals.
+   *
+   * @param optionValue raw string from {@code INFORMATION_SCHEMA.TABLE_OPTIONS.option_value}
+   * @return total seconds if the interval has zero years/months and can be represented in seconds
+   */
+  @VisibleForTesting
+  static Optional<Long> parseIntervalToSeconds(String optionValue) {
+    if (optionValue == null) {
+      return Optional.empty();
+    }
+    String trimmed = optionValue.trim();
+    if (trimmed.length() >= 2 && trimmed.startsWith("\"") && trimmed.endsWith("\"")) {
+      trimmed = trimmed.substring(1, trimmed.length() - 1).trim();
+    }
+    if (trimmed.length() >= 2 && trimmed.startsWith("'") && trimmed.endsWith("'")) {
+      trimmed = trimmed.substring(1, trimmed.length() - 1).trim();
+    }
+
+    Matcher canonicalMatcher = CANONICAL_INTERVAL_PATTERN.matcher(trimmed);
+    if (canonicalMatcher.matches()) {
+      try {
+        long years = Long.parseLong(canonicalMatcher.group(1));
+        long months = Long.parseLong(canonicalMatcher.group(2));
+        if (years != 0 || months != 0) {
+          return Optional.empty();
+        }
+        long days = Long.parseLong(canonicalMatcher.group(3));
+        String hoursGroup = canonicalMatcher.group(4);
+        boolean negativeTime = hoursGroup.startsWith("-");
+        long hours = Math.abs(Long.parseLong(hoursGroup));
+        long minutes = Long.parseLong(canonicalMatcher.group(5));
+        long seconds = Long.parseLong(canonicalMatcher.group(6));
+        long timeSeconds = hours * 3600L + minutes * 60L + seconds;
+        if (negativeTime) {
+          timeSeconds = -timeSeconds;
+        }
+        return Optional.of(days * 86400L + timeSeconds);
+      } catch (NumberFormatException e) {
+        return Optional.empty();
+      }
+    }
+
+    Matcher sqlIntervalMatcher = SQL_INTERVAL_SECOND_PATTERN.matcher(trimmed);
+    if (sqlIntervalMatcher.matches()) {
+      try {
+        return Optional.of(Long.parseLong(sqlIntervalMatcher.group(1)));
+      } catch (NumberFormatException e) {
+        return Optional.empty();
+      }
+    }
+
+    return Optional.empty();
   }
 
   /**

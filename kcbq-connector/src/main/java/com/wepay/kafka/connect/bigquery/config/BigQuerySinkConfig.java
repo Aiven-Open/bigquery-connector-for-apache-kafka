@@ -160,6 +160,36 @@ public class BigQuerySinkConfig extends AbstractConfig {
   public static final boolean DELETE_ENABLED_DEFAULT = false;
   public static final String INTERMEDIATE_TABLE_SUFFIX_CONFIG = "intermediateTableSuffix";
   public static final String INTERMEDIATE_TABLE_SUFFIX_DEFAULT = "tmp";
+  public static final String TABLE_MAX_STALENESS_CONFIG = "tableMaxStaleness";
+  public static final Integer TABLE_MAX_STALENESS_DEFAULT = null;
+  private static final ConfigDef.Type TABLE_MAX_STALENESS_TYPE = ConfigDef.Type.INT;
+  private static final ConfigDef.Validator TABLE_MAX_STALENESS_VALIDATOR =
+      ConfigDef.LambdaValidator.with(
+          (name, value) -> {
+            if (value != null) {
+              ConfigDef.Range.atLeast(0).ensureValid(name, value);
+            }
+          },
+          () -> "if set the value must be at least 0");
+  private static final ConfigDef.Importance TABLE_MAX_STALENESS_IMPORTANCE =
+      ConfigDef.Importance.MEDIUM;
+  private static final String TABLE_MAX_STALENESS_DOC =
+      "The maximum staleness allowed for the destination BigQuery table in seconds. "
+          + "Only applicable if upsert/delete (CDC) is enabled with the Storage Write API. "
+          + "Checking and applying this option executes BigQuery SQL queries and requires "
+          + "bigquery.jobs.create permission in addition to Storage Write API permissions.";
+  public static final String IS_CDC_ENABLED_CONFIG = "isCdcEnabled";
+  public static final Boolean IS_CDC_ENABLED_DEFAULT = false;
+  private static final ConfigDef.Type IS_CDC_ENABLED_TYPE = ConfigDef.Type.BOOLEAN;
+  private static final ConfigDef.Importance IS_CDC_ENABLED_IMPORTANCE = ConfigDef.Importance.MEDIUM;
+  private static final String IS_CDC_ENABLED_DOC =
+      "Enable BigQuery Change Data Capture (CDC) with the Storage Write API. "
+          + "When true, records are ingested as upserts or deletes using BigQuery CDC.";
+  public static final String CONFIG_PRESET_CONFIG = "configPreset";
+  public static final String CONFIG_PRESET_DEFAULT = null;
+  private static final ConfigDef.Type CONFIG_PRESET_TYPE = ConfigDef.Type.STRING;
+  private static final ConfigDef.Importance CONFIG_PRESET_IMPORTANCE = ConfigDef.Importance.LOW;
+  private static final String CONFIG_PRESET_DOC = "Configuration preset (e.g. debezium_cdc).";
   public static final String MERGE_INTERVAL_MS_CONFIG = "mergeIntervalMs";
   public static final String MERGE_RECORDS_THRESHOLD_CONFIG = "mergeRecordsThreshold";
   public static final long MERGE_INTERVAL_MS_DEFAULT = 60_000L;
@@ -484,7 +514,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
   private static final ConfigDef.Importance USE_STORAGE_WRITE_API_IMPORTANCE =
       ConfigDef.Importance.MEDIUM;
   private static final String USE_STORAGE_WRITE_API_DOC =
-      "(Beta feature: use with caution) Use Google's New Storage Write API for data streaming. Not available for upsert/delete mode";
+      "(Beta feature: use with caution) Use Google's New Storage Write API for data streaming.";
   private static final ConfigDef.Type USE_CREDENTIALS_PROJECT_ID_TYPE = ConfigDef.Type.BOOLEAN;
   private static final ConfigDef.Importance USE_CREDENTIALS_PROJECT_ID_IMPORTANCE =
       ConfigDef.Importance.MEDIUM;
@@ -856,6 +886,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
     SinceInfo v2m8 = since.version("2.8.0").build().setVersionOnly();
     SinceInfo v2m10 = since.version("2.10.0").build().setVersionOnly();
     SinceInfo v2m15 = since.version("2.15.0").build().setVersionOnly();
+    SinceInfo v2m16 = since.version("2.16.0").build().setVersionOnly();
     return new ConfigDef()
         .define(
             TOPICS_CONFIG,
@@ -1037,6 +1068,31 @@ public class BigQuerySinkConfig extends AbstractConfig {
                     USE_STORAGE_WRITE_API_CONFIG,
                     MERGE_INTERVAL_MS_CONFIG,
                     KAFKA_KEY_FIELD_NAME_CONFIG)
+                .build())
+        .define(
+            ExtendedConfigKey.builder(TABLE_MAX_STALENESS_CONFIG)
+                .type(TABLE_MAX_STALENESS_TYPE)
+                .defaultValue(TABLE_MAX_STALENESS_DEFAULT)
+                .validator(TABLE_MAX_STALENESS_VALIDATOR)
+                .importance(TABLE_MAX_STALENESS_IMPORTANCE)
+                .documentation(TABLE_MAX_STALENESS_DOC)
+                .since(v2m16)
+                .build())
+        .define(
+            ExtendedConfigKey.builder(IS_CDC_ENABLED_CONFIG)
+                .type(IS_CDC_ENABLED_TYPE)
+                .defaultValue(IS_CDC_ENABLED_DEFAULT)
+                .importance(IS_CDC_ENABLED_IMPORTANCE)
+                .documentation(IS_CDC_ENABLED_DOC)
+                .since(v2m16)
+                .build())
+        .define(
+            ExtendedConfigKey.builder(CONFIG_PRESET_CONFIG)
+                .type(CONFIG_PRESET_TYPE)
+                .defaultValue(CONFIG_PRESET_DEFAULT)
+                .importance(CONFIG_PRESET_IMPORTANCE)
+                .documentation(CONFIG_PRESET_DOC)
+                .since(v2m16)
                 .build())
         .define(
             INTERMEDIATE_TABLE_SUFFIX_CONFIG,
@@ -1465,10 +1521,8 @@ public class BigQuerySinkConfig extends AbstractConfig {
    */
   public Optional<String> getKafkaKeyFieldName() {
     String value = getString(KAFKA_KEY_FIELD_NAME_CONFIG);
-    if (StringUtils.isBlank(value)
-        && (isUpsertEnabled() || isDeleteEnabled())
-        && useStorageWriteApi()) {
-      return Optional.of("");
+    if (StringUtils.isBlank(value) && isCdcEnabled()) {
+      value = "";
     }
     return Optional.ofNullable(value);
   }
@@ -1484,13 +1538,46 @@ public class BigQuerySinkConfig extends AbstractConfig {
     return Optional.ofNullable(getString(KAFKA_DATA_FIELD_NAME_CONFIG));
   }
 
+  public Optional<Integer> getTableMaxStaleness() {
+    return Optional.ofNullable(getInt(TABLE_MAX_STALENESS_CONFIG));
+  }
+
+  /**
+   * Determines if CDC is configured either explicitly via isCdcEnabled or via
+   * configPreset=debezium_cdc.
+   *
+   * @return {@code true} if CDC is configured.
+   */
+  public boolean isCdcConfigured() {
+    return getBoolean(IS_CDC_ENABLED_CONFIG)
+        || "debezium_cdc".equalsIgnoreCase(getString(CONFIG_PRESET_CONFIG));
+  }
+
+  /**
+   * Determines if BigQuery CDC ingestion is enabled (i.e. Storage Write API is used and upsert or
+   * delete is enabled).
+   *
+   * @return {@code true} if CDC is enabled with Storage Write API.
+   */
+  public boolean isCdcEnabled() {
+    boolean enabled = useStorageWriteApi() && isUpsertDeleteEnabled();
+    logger.trace("isCdcEnabled check - Result: {}", enabled);
+    return enabled;
+  }
+
+  public boolean isUpsertDeleteEnabled() {
+    return getBoolean(UPSERT_ENABLED_CONFIG)
+        || getBoolean(DELETE_ENABLED_CONFIG)
+        || isCdcConfigured();
+  }
+
   /**
    * Determines if upsert is enabled
    *
    * @return {@code true} if upsert is enabled.
    */
   public boolean isUpsertEnabled() {
-    return getBoolean(UPSERT_ENABLED_CONFIG);
+    return getBoolean(UPSERT_ENABLED_CONFIG) || isCdcConfigured();
   }
 
   /**
@@ -1499,7 +1586,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
    * @return {@code true} if delete is enabled.
    */
   public boolean isDeleteEnabled() {
-    return getBoolean(DELETE_ENABLED_CONFIG);
+    return getBoolean(DELETE_ENABLED_CONFIG) || isCdcConfigured();
   }
 
   /**

@@ -51,20 +51,24 @@ public class KafkaKeyFieldNameValidator extends MultiPropertyValidator<BigQueryS
       if (StringUtils.isNotBlank(value) && upsertOrDelete) {
         return Optional.of(
             String.format(
-                "%s may not be set if %s is set and either %s or %s are set.",
+                "%s may not be set if %s is set and any of %s, %s, %s, or %s are set.",
                 BigQuerySinkConfig.KAFKA_KEY_FIELD_NAME_CONFIG,
                 BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG,
                 BigQuerySinkConfig.UPSERT_ENABLED_CONFIG,
-                BigQuerySinkConfig.DELETE_ENABLED_CONFIG));
+                BigQuerySinkConfig.DELETE_ENABLED_CONFIG,
+                BigQuerySinkConfig.IS_CDC_ENABLED_CONFIG,
+                BigQuerySinkConfig.CONFIG_PRESET_CONFIG));
       }
     } else {
       if (StringUtils.isBlank(value) && upsertOrDelete) {
         return Optional.of(
             String.format(
-                "%s must be specified when %s or %s is set to true and %s is false",
+                "%s must be specified when any of %s, %s, %s, or %s is set and %s is false",
                 KAFKA_KEY_FIELD_NAME_CONFIG,
                 BigQuerySinkConfig.UPSERT_ENABLED_CONFIG,
                 BigQuerySinkConfig.DELETE_ENABLED_CONFIG,
+                BigQuerySinkConfig.IS_CDC_ENABLED_CONFIG,
+                BigQuerySinkConfig.CONFIG_PRESET_CONFIG,
                 BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG));
       }
     }
