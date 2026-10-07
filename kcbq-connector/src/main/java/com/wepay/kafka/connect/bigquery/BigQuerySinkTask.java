@@ -92,6 +92,7 @@ import org.slf4j.MDC;
 public class BigQuerySinkTask extends SinkTask {
   private static final Logger logger = LoggerFactory.getLogger(BigQuerySinkTask.class);
   private static final int EXECUTOR_SHUTDOWN_TIMEOUT_SEC = 30;
+  @VisibleForTesting static final int PAUSED_POLL_TIMEOUT_MS = 100;
   private final BigQuery testBigQuery;
   private final Storage testGcs;
   private final SchemaManager testSchemaManager;
@@ -318,10 +319,9 @@ public class BigQuerySinkTask extends SinkTask {
   // a ConcurrentModificationException may be triggered if the Connect framework is in the middle of
   // a method invocation on the consumer for this task. This becomes especially likely if all topics
   // have been paused as the framework will most likely be in the middle of a poll for that consumer
-  // which, because all of its topics have been paused, will not return until it's time for the next
-  // offset commit. Invoking context.requestCommit() won't wake up the consumer in that case, so we
-  // really have no choice but to wait for the framework to call a method on this task that implies
-  // that it's safe to pause or resume partitions on the consumer.
+  // which, because all of its topics have been paused, will not return until later. We must wait
+  // for the framework to call one of those methods on this task that implies that it's safe to
+  // pause or resume partitions on the consumer.
   private void checkQueueSize() {
     long queueSoftLimit = config.getLong(BigQuerySinkConfig.QUEUE_SIZE_CONFIG);
     if (queueSoftLimit != -1) {
@@ -331,6 +331,13 @@ public class BigQuerySinkTask extends SinkTask {
       } else if (currentQueueSize <= queueSoftLimit / 2) {
         // resume only if there is a reasonable chance we won't immediately have to pause again.
         topicPartitionManager.resumeAll();
+      }
+      if (topicPartitionManager.isPaused()) {
+        // If the consumer is (still) paused, we need to more frequently check if the queue has been
+        // sufficiently drained. If we don't, the task will completely halt and stop doing anything
+        // useful after the queue completely drains, until the next commit or flush. (Note that
+        // this is a one-shot timeout, so we have to call it every time the consumer is paused.)
+        context.timeout(PAUSED_POLL_TIMEOUT_MS);
       }
     }
   }
@@ -710,6 +717,10 @@ public class BigQuerySinkTask extends SinkTask {
     public TopicPartitionManager() {
       this.lastChangeMs = System.currentTimeMillis();
       this.isPaused = false;
+    }
+
+    public boolean isPaused() {
+      return isPaused;
     }
 
     public void pauseAll() {
