@@ -30,9 +30,15 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
+import com.google.cloud.bigquery.TableId;
+import com.wepay.kafka.connect.bigquery.MergeQueries;
 import com.wepay.kafka.connect.bigquery.SchemaManager;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
+import com.wepay.kafka.connect.bigquery.write.batch.MergeBatches;
 import de.huxhorn.sulky.ulid.ULID;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -54,6 +60,7 @@ public class SinkRecordConverterTest {
   private static final String kafkaDataMutatedTopicValue = "mutatedTopic";
   private static final int kafkaDataMutatedPartitionValue = 201;
   private static final long kafkaDataMutatedOffsetValue = 456;
+  private static final long recordTimestampValue = 1789000000000L;
   private static final ULID ulid = new ULID();
 
   private static Map<String, Object> defaultExpectedFields() {
@@ -74,6 +81,15 @@ public class SinkRecordConverterTest {
     properties.put("taskId", "1");
     properties.putAll(overrides);
     return new TestingBigQuerySinkConfig(properties);
+  }
+
+  private static TestingBigQuerySinkConfig createUpsertDeleteConfig(Map<String, String> overrides) {
+    Map<String, String> properties = new HashMap<>();
+    properties.put("deleteEnabled", "true");
+    properties.put("kafkaKeyFieldName", "kafkaKey");
+    properties.put("mergeIntervalMs", "10000");
+    properties.putAll(overrides);
+    return createConfig(properties);
   }
 
   @ParameterizedTest(name = "{index} {0}")
@@ -157,6 +173,158 @@ public class SinkRecordConverterTest {
             createConfig(Map.of(BigQuerySinkConfig.TRACK_PUT_ATTEMPTS_CONFIG, "true")),
             putAttempt,
             null));
+  }
+
+  @ParameterizedTest(name = "{index} {0}")
+  @MethodSource("testGetUpsertDeleteRowData")
+  void testGetUpsertDeleteRow(
+      String name,
+      BigQuerySinkConfig config,
+      String ulid,
+      Object recordValue,
+      Map<String, Object> expected,
+      boolean expectMergeFlush,
+      Long expectedPartitionTimeFromRecord) {
+    SinkRecord record =
+        new SinkRecord(
+            kafkaDataTopicValue,
+            kafkaDataPartitionValue,
+            null,
+            Map.of("k1", "1"),
+            null,
+            recordValue,
+            kafkaDataOffsetValue,
+            recordTimestampValue,
+            TimestampType.CREATE_TIME);
+    MergeBatches mergeBatches = new MergeBatches("_tmp_1_uuid_epoch");
+    TableId table = mergeBatches.intermediateTableFor(TableId.of("defaultDataset", "table"));
+    MergeQueries mergeQueries = mock(MergeQueries.class);
+
+    SinkRecordConverter underTest = new SinkRecordConverter(config, mergeBatches, mergeQueries);
+    long earliestPartitionTime = System.currentTimeMillis() / 1000;
+    Map<String, Object> upsertDeleteRow = underTest.getRecordRow(record, table, ulid).getContent();
+    long latestPartitionTime = System.currentTimeMillis() / 1000;
+
+    if (expectMergeFlush) {
+      verify(mergeQueries).mergeFlush(table);
+    }
+    verifyNoMoreInteractions(mergeQueries);
+
+    assertEquals(
+        Map.of("k1", "1"), upsertDeleteRow.get(MergeQueries.INTERMEDIATE_TABLE_KEY_FIELD_NAME));
+    if (recordValue == null) {
+      assertFalse(upsertDeleteRow.containsKey(MergeQueries.INTERMEDIATE_TABLE_VALUE_FIELD_NAME));
+    } else {
+      Map<String, Object> value =
+          (Map<String, Object>)
+              upsertDeleteRow.get(MergeQueries.INTERMEDIATE_TABLE_VALUE_FIELD_NAME);
+      assertEquals("1", value.get("one"));
+      assertEquals("2", value.get("two"));
+      if (expected == null) {
+        assertNull(value.get("kafkaDataFieldName"));
+      } else {
+        Map<String, Object> actual = (Map<String, Object>) value.get("kafkaDataFieldName");
+        assertNotNull(actual.get(SchemaManager.KAFKA_DATA_INSERT_TIME_FIELD_NAME));
+        actual.remove(SchemaManager.KAFKA_DATA_INSERT_TIME_FIELD_NAME);
+        assertEquals(expected, actual);
+      }
+    }
+
+    assertEquals(1L, upsertDeleteRow.get(MergeQueries.INTERMEDIATE_TABLE_ITERATION_FIELD_NAME));
+    assertEquals(0, upsertDeleteRow.get(MergeQueries.INTERMEDIATE_TABLE_BATCH_NUMBER_FIELD));
+    long partitionTime =
+        (Long) upsertDeleteRow.get(MergeQueries.INTERMEDIATE_TABLE_PARTITION_TIME_FIELD_NAME);
+    if (expectedPartitionTimeFromRecord == null) {
+      assertTrue(partitionTime >= earliestPartitionTime && partitionTime <= latestPartitionTime);
+    } else {
+      assertEquals(expectedPartitionTimeFromRecord.longValue(), partitionTime);
+    }
+  }
+
+  static List<Arguments> testGetUpsertDeleteRowData() {
+    String putAttempt = ulid.nextULID();
+    Map<String, Object> expectedWithAttempt = defaultExpectedFields();
+    expectedWithAttempt.put(SchemaManager.KAFKA_DATA_PUT_ATTEMPT_ID_FIELD_NAME, putAttempt);
+
+    return List.of(
+        Arguments.of(
+            "+data+attempt",
+            createUpsertDeleteConfig(
+                Map.of(
+                    BigQuerySinkConfig.TRACK_PUT_ATTEMPTS_CONFIG,
+                    "true",
+                    BigQuerySinkConfig.KAFKA_DATA_FIELD_NAME_CONFIG,
+                    "kafkaDataFieldName")),
+            putAttempt,
+            Map.of("one", "1", "two", "2"),
+            expectedWithAttempt,
+            false,
+            null),
+        Arguments.of(
+            "+data-null_attempt",
+            createUpsertDeleteConfig(
+                Map.of(
+                    BigQuerySinkConfig.TRACK_PUT_ATTEMPTS_CONFIG,
+                    "true",
+                    BigQuerySinkConfig.KAFKA_DATA_FIELD_NAME_CONFIG,
+                    "kafkaDataFieldName")),
+            null,
+            Map.of("one", "1", "two", "2"),
+            defaultExpectedFields(),
+            false,
+            null),
+        Arguments.of(
+            "+data-attempt",
+            createUpsertDeleteConfig(
+                Map.of(BigQuerySinkConfig.KAFKA_DATA_FIELD_NAME_CONFIG, "kafkaDataFieldName")),
+            putAttempt,
+            Map.of("one", "1", "two", "2"),
+            defaultExpectedFields(),
+            false,
+            null),
+        Arguments.of(
+            "-data+attempt",
+            createUpsertDeleteConfig(Map.of(BigQuerySinkConfig.TRACK_PUT_ATTEMPTS_CONFIG, "true")),
+            putAttempt,
+            Map.of("one", "1", "two", "2"),
+            null,
+            false,
+            null),
+        Arguments.of(
+            "tombstone+data",
+            createUpsertDeleteConfig(
+                Map.of(BigQuerySinkConfig.KAFKA_DATA_FIELD_NAME_CONFIG, "kafkaDataFieldName")),
+            putAttempt,
+            null,
+            null,
+            false,
+            null),
+        Arguments.of(
+            "tombstone-data",
+            createUpsertDeleteConfig(Collections.emptyMap()),
+            putAttempt,
+            null,
+            null,
+            false,
+            null),
+        Arguments.of(
+            "+merge_flush",
+            createUpsertDeleteConfig(
+                Map.of(BigQuerySinkConfig.MERGE_RECORDS_THRESHOLD_CONFIG, "1")),
+            putAttempt,
+            Map.of("one", "1", "two", "2"),
+            null,
+            true,
+            null),
+        Arguments.of(
+            "+message_time_partitioning",
+            createUpsertDeleteConfig(
+                Map.of(BigQuerySinkConfig.BIGQUERY_MESSAGE_TIME_PARTITIONING_CONFIG, "true")),
+            putAttempt,
+            Map.of("one", "1", "two", "2"),
+            null,
+            false,
+            recordTimestampValue));
   }
 
   @ParameterizedTest(name = "{index} {0}")

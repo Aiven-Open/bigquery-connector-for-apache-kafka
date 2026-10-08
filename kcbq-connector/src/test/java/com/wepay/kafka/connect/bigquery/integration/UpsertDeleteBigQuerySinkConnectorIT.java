@@ -322,6 +322,92 @@ class UpsertDeleteBigQuerySinkConnectorIT extends BaseConnectorIT {
     assertEquals(expectedRows, allRows);
   }
 
+  /**
+   * Checks that a batch of nothing but genuine tombstone records can still create the intermediate
+   * table and applies the deletes, and that the value column is lazy-added to the intermediate
+   * table once a record with a value arrives.
+   */
+  @Test
+  void testDeleteWithTombstoneOnlyBatchOnNewIntermediateTable() throws Throwable {
+    // 1. Send a record with a value; this creates the main destination table.
+    // 2. Restart task; this will recreate the intermediate table.
+    // 3. Send a tombstone record. Ensure correct processing of the delete with a merge flush; the
+    //    intermediate table will not yet have a value column.
+    // 4. Send a record with a value; this adds the value column to the intermediate table.
+
+    // create topic in Kafka
+    final String topic = topicName();
+    // Make sure each task gets to read from at least one partition
+    assertCluster().kafka().createTopic(topic, TASKS_MAX);
+
+    final TableName tableName = tableName();
+
+    // setup props for the sink connector
+    Map<String, String> props = baseConnectorProps(TASKS_MAX);
+    props.put(SinkConnectorConfig.TOPICS_CONFIG, topic);
+    props.put(BigQuerySinkConfig.SANITIZE_TOPICS_CONFIG, "true");
+    props.put(BigQuerySinkConfig.SCHEMA_RETRIEVER_CONFIG, IdentitySchemaRetriever.class.getName());
+    props.put(BigQuerySinkConfig.TABLE_CREATE_CONFIG, "true");
+
+    // Enable only delete and not upsert, and merge flush after every record
+    props.putAll(upsertDeleteProps(false, true, 1));
+
+    // start a sink connector
+    assertCluster().configureConnector(connectorName(), props);
+
+    // wait for tasks to spin up
+    waitForConnectorToStart(connectorName(), TASKS_MAX);
+
+    // Instantiate the converters we'll use to send records to the connector
+    Converter keyConverter = converter(true);
+    Converter valueConverter = converter(false);
+
+    // Every record here shares one key, so that the tombstone deletes the row written before it
+    final String kafkaKey = key(keyConverter, topic, 0);
+
+    // Send a record with a value to Kafka, so that the destination table gets created and holds a
+    // row
+    String kafkaValue = value(valueConverter, topic, 0, false);
+    logger.debug(
+        "Sending message with key '{}' and value '{}' to topic '{}'", kafkaKey, kafkaValue, topic);
+    assertCluster().kafka().produce(topic, kafkaKey, kafkaValue);
+
+    // wait for tasks to write to BigQuery and commit offsets for their records
+    waitForCommittedRecords(connectorName(), topic, 1, TASKS_MAX);
+
+    // confirm the initial row was written
+    assertEquals(1, countRows(bigQuery, tableName));
+
+    // Restart the connector so that the task mints a brand-new intermediate table, which will have
+    // to be created without knowing the value schema when the connector shortly encounters only a
+    // tombstone record.  Do separate stop/resume steps because these APIs are async so we need a
+    // separate barrier for stop.
+    logger.debug("Restarting the connector");
+    assertCluster().stopConnector(connectorName());
+    waitForConnectorToStop(connectorName());
+    assertCluster().resumeConnector(connectorName());
+    waitForConnectorToStart(connectorName(), TASKS_MAX);
+
+    // Send a tombstone.  The intermediate table will have to be created without any value schema.
+    logger.debug("Sending tombstone with key '{}' to topic '{}'", kafkaKey, topic);
+    assertCluster().kafka().produce(topic, kafkaKey, null);
+
+    // wait for tasks to write to BigQuery and commit offsets for their records
+    waitForCommittedRecords(connectorName(), topic, 2, TASKS_MAX);
+    assertEquals(0, countRows(bigQuery, tableName));
+
+    // Send a record with a value again. This will trigger the addition of the value column to the
+    // existing intermediate table.
+    kafkaValue = value(valueConverter, topic, 2, false);
+    logger.debug(
+        "Sending message with key '{}' and value '{}' to topic '{}'", kafkaKey, kafkaValue, topic);
+    assertCluster().kafka().produce(topic, kafkaKey, kafkaValue);
+
+    // wait for tasks to write to BigQuery and commit offsets for their records
+    waitForCommittedRecords(connectorName(), topic, 3, TASKS_MAX);
+    assertEquals(1, countRows(bigQuery, tableName));
+  }
+
   @Test
   @Disabled("Skipped during regular testing; comment-out annotation to run")
   void testUpsertDeleteHighThroughput() throws Throwable {

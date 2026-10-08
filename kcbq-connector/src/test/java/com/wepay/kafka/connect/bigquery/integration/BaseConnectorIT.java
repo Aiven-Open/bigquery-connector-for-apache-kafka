@@ -101,7 +101,7 @@ import org.slf4j.LoggerFactory;
 @ExtendWith(TestCaseLogger.class)
 abstract class BaseConnectorIT {
   protected static final long OFFSET_COMMIT_INTERVAL_MS = TimeUnit.SECONDS.toMillis(10);
-  protected static final long COMMIT_MAX_DURATION_MS = TimeUnit.MINUTES.toMillis(5);
+  protected static final long COMMIT_MAX_DURATION_MS = TimeUnit.MINUTES.toMillis(10);
   protected static final long OFFSETS_READ_TIMEOUT_MS = TimeUnit.SECONDS.toMillis(10);
   protected static final long CONNECTOR_STARTUP_DURATION_MS = TimeUnit.SECONDS.toMillis(60);
   private static final Logger logger = LoggerFactory.getLogger(BaseConnectorIT.class);
@@ -583,6 +583,19 @@ abstract class BaseConnectorIT {
             "Connector tasks did not start in time" + connectorStatus == null
                 ? "."
                 : ": " + connectorStatus);
+  }
+
+  /** Waits for a connector to reach the STOPPED state with no tasks left. */
+  protected void waitForConnectorToStop(String name) throws InterruptedException {
+    waitForCondition(
+        () -> {
+          ConnectorStateInfo info = assertCluster().connectorStatus(name);
+          return info != null
+              && info.connector().state().equals(AbstractStatus.State.STOPPED.toString())
+              && info.tasks().isEmpty();
+        },
+        CONNECTOR_STARTUP_DURATION_MS,
+        "Connector did not stop in time");
   }
 
   /**

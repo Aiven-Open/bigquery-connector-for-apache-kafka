@@ -92,6 +92,7 @@ public class SchemaManager {
   private final ConcurrentMap<TableId, Object> tableUpdateLocks;
   private final boolean kafkaKeyAsPrimaryKey;
   private final ConcurrentMap<TableId, SchemaAndPrimaryKeyColumns> schemaCache;
+  private final boolean ignoreUnknownFields;
   private final boolean mediateConcurrentSchemaUpdates;
   private final long concurrentSchemaUpdateRetryWaitMs;
   private final int concurrentSchemaUpdateMaxRetries;
@@ -139,6 +140,7 @@ public class SchemaManager {
     kafkaKeyAsPrimaryKey = config.isUpsertEnabled() && config.useStorageWriteApi();
 
     sanitizeFieldNames = config.getBoolean(BigQuerySinkConfig.SANITIZE_FIELD_NAME_CONFIG);
+    ignoreUnknownFields = config.isIgnoreUnknownFields();
     mediateConcurrentSchemaUpdates =
         config.getBoolean(BigQuerySinkConfig.MEDIATE_CONCURRENT_SCHEMA_UPDATES_CONFIG);
     concurrentSchemaUpdateRetryWaitMs =
@@ -202,6 +204,7 @@ public class SchemaManager {
     this.partitionExpiration = partitionExpiration;
     this.clusteringFieldName = clusteringFieldName;
     this.timePartitioningType = timePartitioningType;
+    this.ignoreUnknownFields = config.isIgnoreUnknownFields();
     this.mediateConcurrentSchemaUpdates = mediateConcurrentSchemaUpdates;
     this.concurrentSchemaUpdateRetryWaitMs = concurrentSchemaUpdateRetryWaitMs;
     this.concurrentSchemaUpdateMaxRetries = concurrentSchemaUpdateMaxRetries;
@@ -439,10 +442,15 @@ public class SchemaManager {
 
   @VisibleForTesting
   SchemaAndPrimaryKeyColumns getAndValidateProposedSchema(TableId table, List<SinkRecord> records) {
-    SchemaAndPrimaryKeyColumns result;
     if (allowSchemaUnionization) {
       List<SchemaAndPrimaryKeyColumns> bigQuerySchemas = getSchemasList(table, records);
-      result = getUnionizedSchema(bigQuerySchemas);
+      if (bigQuerySchemas.isEmpty() && intermediateTables) {
+        // The table does not exist yet and every record in the batch is a tombstone, so there is no
+        // value schema anywhere to unionize.  For intermediate tables, this will return a table
+        // without the value column, which signifies all the changes are deletes.
+        return getIntermediateSchema(null, schemaRetriever.retrieveKeySchema(records.get(0)));
+      }
+      return getUnionizedSchema(bigQuerySchemas);
     } else {
       SchemaAndPrimaryKeyColumns existingSchema = readTableSchema(table);
       SinkRecord recordToConvert = getRecordToConvert(records);
@@ -450,12 +458,16 @@ public class SchemaManager {
         String errorMessage =
             "Could not convert to BigQuery schema with a batch of tombstone records.";
         if (existingSchema == null) {
-          throw new BigQueryConnectException(errorMessage);
+          if (intermediateTables) {
+            return getIntermediateSchema(null, schemaRetriever.retrieveKeySchema(records.get(0)));
+          } else {
+            throw new BigQueryConnectException(errorMessage);
+          }
         }
         logger.debug(errorMessage + " Will fall back to existing schema.");
         return existingSchema;
       }
-      result = convertRecordSchema(recordToConvert);
+      SchemaAndPrimaryKeyColumns result = convertRecordSchema(recordToConvert);
       if (existingSchema != null) {
         validateSchemaChange(existingSchema.schema(), result.schema());
         if (allowBqRequiredFieldRelaxation) {
@@ -465,15 +477,16 @@ public class SchemaManager {
                   result.primaryKeyColumns());
         }
       }
+      return result;
     }
-    return result;
   }
 
   /**
    * Returns a list of BigQuery schemas of the specified table and the sink records
    *
-   * @param table The BigQuery table's schema to add to the list of schemas
-   * @param records The sink records' schemas to add to the list of schemas
+   * @param table The BigQuery table's schema to add to the list of schemas, if it exists
+   * @param records The sink records' schemas to add to the list of schemas, if the record is not a
+   *     tombstone
    * @return List of BigQuery schemas
    */
   private List<SchemaAndPrimaryKeyColumns> getSchemasList(TableId table, List<SinkRecord> records) {
@@ -527,6 +540,11 @@ public class SchemaManager {
    * @return The resulting unionized BigQuery schema
    */
   private SchemaAndPrimaryKeyColumns getUnionizedSchema(List<SchemaAndPrimaryKeyColumns> schemas) {
+    if (schemas.isEmpty()) {
+      // Nothing to unionize: the table does not exist and no record in the batch has a value schema
+      throw new BigQueryConnectException(
+          "Could not convert to BigQuery schema with a batch of tombstone records.");
+    }
     com.google.cloud.bigquery.Schema currentSchema = schemas.get(0).schema();
     com.google.cloud.bigquery.Schema proposedSchema;
     for (int i = 1; i < schemas.size(); i++) {
@@ -672,7 +690,11 @@ public class SchemaManager {
   }
 
   private boolean isValidFieldAddition(Field newField) {
-    return allowNewBqFields
+    // Intermediate tables are internal to the connector, so ignore the allowNewBigQueryFields
+    // config when adding a field to an intermediate table. In particular, this is necessary when
+    // adding a value column to an intermediate table that did not initially have one because the
+    // initial batch of records only contained tombstones/deletes.
+    return (allowNewBqFields || intermediateTables)
         && (newField.getMode().equals(Field.Mode.NULLABLE)
             || newField.getMode().equals(Field.Mode.REPEATED)
             || (newField.getMode().equals(Field.Mode.REQUIRED) && allowBqRequiredFieldRelaxation));
@@ -820,6 +842,15 @@ public class SchemaManager {
         : getRegularSchema(valueSchema, kafkaKeySchema);
   }
 
+  /**
+   * Returns an intermediate table schema.
+   *
+   * @param valueSchema The schema of the Kafka value, if known. If a batch of records is only
+   *     tombstones, then this parameter can be null and the table will not have a value column. It
+   *     can be added later when it becomes known in later batches.
+   * @param kafkaKeySchema The schema of the Kafka key. This is always required.
+   * @return Schema of the intermediate table.
+   */
   private SchemaAndPrimaryKeyColumns getIntermediateSchema(
       com.google.cloud.bigquery.Schema valueSchema, Schema kafkaKeySchema) {
     if (kafkaKeySchema == null) {
@@ -829,28 +860,52 @@ public class SchemaManager {
               BigQuerySinkConfig.KAFKA_KEY_FIELD_NAME_CONFIG));
     }
 
-    List<Field> fields = new ArrayList<>();
-
-    List<Field> valueFields = new ArrayList<>(valueSchema.getFields());
-    if (kafkaDataFieldName.isPresent()) {
-      String dataFieldName =
-          sanitizeFieldNames
-              ? FieldNameSanitizer.sanitizeName(kafkaDataFieldName.get())
-              : kafkaDataFieldName.get();
-      Field kafkaDataField = buildKafkaDataField(dataFieldName);
-      valueFields.add(kafkaDataField);
+    if (valueSchema == null && ignoreUnknownFields) {
+      // A null value schema means the batch held nothing but tombstones, so the table would be
+      // created without a value column and the column would have to be added later once a record
+      // with a value arrives.  The former cannot be done safely while unknown fields are being
+      // ignored: the insertAll API would ignore the new value column entirely in the second batch,
+      // and the upsert would instead be treated as a deletion since the table still would not have
+      // a value column.
+      //
+      // Ignoring unknown fields is in any case not properly supported alongside upserts or deletes
+      // that involve intermediate tables: an intermediate table's schema is unconditionally derived
+      // from the initial record batch, even if the destination table lacks one of those fields and
+      // the user had set the ignoreUnknownFields config.
+      throw new BigQueryConnectException(
+          String.format(
+              "Cannot create an intermediate table from a batch of only tombstone records while "
+                  + "'%s' is true. That setting is not supported together with '%s' or '%s' when "
+                  + "the initial batch of records is all tombstones.",
+              BigQuerySinkConfig.IGNORE_UNKNOWN_FIELDS_CONFIG,
+              BigQuerySinkConfig.UPSERT_ENABLED_CONFIG,
+              BigQuerySinkConfig.DELETE_ENABLED_CONFIG));
     }
 
-    // Wrap the sink record value (and possibly also its Kafka data) in a struct in order to support
-    // deletes
-    Field wrappedValueField =
-        Field.newBuilder(
-                MergeQueries.INTERMEDIATE_TABLE_VALUE_FIELD_NAME,
-                LegacySQLTypeName.RECORD,
-                valueFields.toArray(new Field[0]))
-            .setMode(Field.Mode.NULLABLE)
-            .build();
-    fields.add(wrappedValueField);
+    List<Field> fields = new ArrayList<>();
+
+    if (valueSchema != null) {
+      List<Field> valueFields = new ArrayList<>(valueSchema.getFields());
+      if (kafkaDataFieldName.isPresent()) {
+        String dataFieldName =
+            sanitizeFieldNames
+                ? FieldNameSanitizer.sanitizeName(kafkaDataFieldName.get())
+                : kafkaDataFieldName.get();
+        Field kafkaDataField = buildKafkaDataField(dataFieldName);
+        valueFields.add(kafkaDataField);
+      }
+
+      // Wrap the sink record value (and possibly also its Kafka data) in a struct in order to
+      // support deletes
+      Field wrappedValueField =
+          Field.newBuilder(
+                  MergeQueries.INTERMEDIATE_TABLE_VALUE_FIELD_NAME,
+                  LegacySQLTypeName.RECORD,
+                  valueFields.toArray(new Field[0]))
+              .setMode(Field.Mode.NULLABLE)
+              .build();
+      fields.add(wrappedValueField);
+    }
 
     com.google.cloud.bigquery.Schema keySchema = schemaConverter.convertSchema(kafkaKeySchema);
     Field kafkaKeyField =

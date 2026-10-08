@@ -67,7 +67,9 @@ public class MergeQueriesTest {
   private static final int BIGQUERY_RETRY_WAIT = 1000;
   private static final TableId DESTINATION_TABLE = TableId.of("ds1", "t");
   private static final TableId INTERMEDIATE_TABLE = TableId.of("ds1", "t_tmp_6_uuid_epoch");
-  private static final Schema INTERMEDIATE_TABLE_SCHEMA = constructIntermediateTable();
+  private static final Schema INTERMEDIATE_TABLE_SCHEMA = constructIntermediateTable(true);
+  private static final Schema TOMBSTONE_ONLY_INTERMEDIATE_TABLE_SCHEMA =
+      constructIntermediateTable(false);
 
   private static final SinkRecord TEST_SINK_RECORD =
       new SinkRecord("test", 0, null, null, null, null, 0);
@@ -78,24 +80,26 @@ public class MergeQueriesTest {
   private final SchemaManager schemaManager = mock(SchemaManager.class);
   private final SinkTaskContext context = mock(SinkTaskContext.class);
 
-  private static Schema constructIntermediateTable() {
+  private static Schema constructIntermediateTable(boolean includeValueColumn) {
     List<Field> fields = new ArrayList<>();
 
-    List<Field> valueFields =
-        Arrays.asList(
-            Field.of("f1", LegacySQLTypeName.STRING),
-            Field.of(
-                "f2", LegacySQLTypeName.RECORD, Field.of("nested_f1", LegacySQLTypeName.INTEGER)),
-            Field.of("f3", LegacySQLTypeName.BOOLEAN),
-            Field.of("f4", LegacySQLTypeName.BYTES));
-    Field wrappedValueField =
-        Field.newBuilder(
-                MergeQueries.INTERMEDIATE_TABLE_VALUE_FIELD_NAME,
-                LegacySQLTypeName.RECORD,
-                valueFields.toArray(new Field[0]))
-            .setMode(Field.Mode.NULLABLE)
-            .build();
-    fields.add(wrappedValueField);
+    if (includeValueColumn) {
+      List<Field> valueFields =
+          Arrays.asList(
+              Field.of("f1", LegacySQLTypeName.STRING),
+              Field.of(
+                  "f2", LegacySQLTypeName.RECORD, Field.of("nested_f1", LegacySQLTypeName.INTEGER)),
+              Field.of("f3", LegacySQLTypeName.BOOLEAN),
+              Field.of("f4", LegacySQLTypeName.BYTES));
+      Field wrappedValueField =
+          Field.newBuilder(
+                  MergeQueries.INTERMEDIATE_TABLE_VALUE_FIELD_NAME,
+                  LegacySQLTypeName.RECORD,
+                  valueFields.toArray(new Field[0]))
+              .setMode(Field.Mode.NULLABLE)
+              .build();
+      fields.add(wrappedValueField);
+    }
 
     List<Field> keyFields =
         Arrays.asList(
@@ -339,6 +343,49 @@ public class MergeQueriesTest {
         mergeQueries(false, false, true)
             .mergeFlushQuery(INTERMEDIATE_TABLE, DESTINATION_TABLE, BATCH_NUMBER);
     assertEquals(expectedQuery, actualQuery);
+  }
+
+  @Test
+  public void testDeleteOnlyQueryWhenIntermediateTableHasNoValueColumn() {
+    when(schemaManager.cachedSchema(INTERMEDIATE_TABLE))
+        .thenReturn(TOMBSTONE_ONLY_INTERMEDIATE_TABLE_SCHEMA);
+
+    String expectedQuery =
+        "MERGE "
+            + table(DESTINATION_TABLE)
+            + " dstTableAlias "
+            + "USING (SELECT * FROM (SELECT ARRAY_AGG(x ORDER BY i DESC LIMIT 1)[OFFSET(0)] src "
+            + "FROM "
+            + table(INTERMEDIATE_TABLE)
+            + " x "
+            + "WHERE batchNumber="
+            + BATCH_NUMBER
+            + " "
+            + "GROUP BY key.k1, key.k2.nested_k1.doubly_nested_k, key.k2.nested_k2)) "
+            + "ON dstTableAlias."
+            + KEY
+            + "=src.key "
+            + "WHEN MATCHED "
+            + "THEN DELETE;";
+    String actualQueryWithUpserts =
+        mergeQueries(false, true, true)
+            .mergeFlushQuery(INTERMEDIATE_TABLE, DESTINATION_TABLE, BATCH_NUMBER);
+    assertEquals(expectedQuery, actualQueryWithUpserts);
+    String actualQueryWithoutUpserts =
+        mergeQueries(false, false, true)
+            .mergeFlushQuery(INTERMEDIATE_TABLE, DESTINATION_TABLE, BATCH_NUMBER);
+    assertEquals(expectedQuery, actualQueryWithoutUpserts);
+  }
+
+  @Test
+  public void testDeleteOnlyQueryRefusedWhenDeletesAreDisabled() {
+    when(schemaManager.cachedSchema(INTERMEDIATE_TABLE))
+        .thenReturn(TOMBSTONE_ONLY_INTERMEDIATE_TABLE_SCHEMA);
+
+    MergeQueries mergeQueries = mergeQueries(false, true, false);
+    assertThrows(
+        IllegalStateException.class,
+        () -> mergeQueries.mergeFlushQuery(INTERMEDIATE_TABLE, DESTINATION_TABLE, BATCH_NUMBER));
   }
 
   @Test
