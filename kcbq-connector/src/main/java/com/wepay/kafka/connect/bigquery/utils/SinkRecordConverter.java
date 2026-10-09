@@ -33,10 +33,18 @@ import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.convert.BigQuerySchemaConverter;
 import com.wepay.kafka.connect.bigquery.convert.RecordConverter;
 import com.wepay.kafka.connect.bigquery.write.batch.MergeBatches;
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeParseException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.regex.Pattern;
 import org.apache.kafka.common.record.TimestampType;
 import org.apache.kafka.connect.errors.ConnectException;
+import org.apache.kafka.connect.header.Header;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,6 +55,10 @@ import org.slf4j.LoggerFactory;
  */
 public final class SinkRecordConverter {
   private static final Logger logger = LoggerFactory.getLogger(SinkRecordConverter.class);
+  private static final char[] HEX_CHARS = "0123456789ABCDEF".toCharArray();
+  private static final Pattern POSTGRES_LSN_PATTERN =
+      Pattern.compile("^[0-9a-fA-F]{1,8}/[0-9a-fA-F]{1,8}$");
+  private static final int CUSTOM_HEX_SEQUENCE_MIN_WIDTH = 64;
 
   public static final String CDC_CHANGE_TYPE_FIELD = "_CHANGE_TYPE";
   public static final String CDC_CHANGE_SEQUENCE_NUMBER_FIELD = "_CHANGE_SEQUENCE_NUMBER";
@@ -315,22 +327,176 @@ public final class SinkRecordConverter {
     // Strip the transient __deleted metadata field to prevent BigQuery ingestion crashes due to
     // unknown fields.
     result.remove(DELETED_PSEUDO_COLUMN);
-    // Default: Kafka Record Timestamp, followed by Offset, followed by Partition
+
+    String customSeqField = config.getCdcChangeSequenceNumberField().orElse(null);
+    String seqNumber;
     Long recordTimestamp = record.timestamp();
     long ts = (recordTimestamp != null && recordTimestamp >= 0) ? recordTimestamp : 0L;
-    result.put(
-        CDC_CHANGE_SEQUENCE_NUMBER_FIELD,
-        String.format("%016X/%016X/%08X", ts, record.kafkaOffset(), record.kafkaPartition()));
+
+    if (customSeqField != null && !customSeqField.trim().isEmpty()) {
+      if ("_KAFKA_TIMESTAMP".equalsIgnoreCase(customSeqField)) {
+        // Option 1 (Default): timestamp / offset / partition
+        seqNumber = formatDefaultSequence(ts, record);
+      } else {
+        Object seqValue = null;
+        if (convertedValue != null && convertedValue.get(customSeqField) != null) {
+          seqValue = convertedValue.get(customSeqField);
+        } else if (convertedKey != null && convertedKey.get(customSeqField) != null) {
+          seqValue = convertedKey.get(customSeqField);
+        } else if (record.headers() != null) {
+          Header header = record.headers().lastWithName(customSeqField);
+          if (header != null && header.value() != null) {
+            Object headerVal = header.value();
+            if (headerVal instanceof byte[]) {
+              seqValue = new String((byte[]) headerVal, StandardCharsets.UTF_8);
+            } else {
+              seqValue = headerVal;
+            }
+          }
+        }
+
+        if (seqValue != null) {
+          // Option 2 (Custom sequence number): customsequence / timestamp / offset / partition
+          seqNumber = convertToCustomHexSequence(seqValue, ts, record);
+        } else {
+          // Fallback to Option 1 (Default) if custom field is missing (e.g. raw tombstones)
+          seqNumber = formatDefaultSequence(ts, record);
+        }
+      }
+    } else {
+      // Option 1 (Default): timestamp / offset / partition
+      seqNumber = formatDefaultSequence(ts, record);
+    }
+    result.put(CDC_CHANGE_SEQUENCE_NUMBER_FIELD, seqNumber);
 
     logger.trace(
-        "getCdcRow OUTPUT - Topic: {}, Offset: {}, Result Map: {}",
+        "getCdcRow OUTPUT - Topic: {}, Partition: {}, Offset: {}, Result Map: {}",
         record.topic(),
+        record.kafkaPartition(),
         record.kafkaOffset(),
         result);
 
     // 5. Sanitize column names if the user turned on the sanitize option (replacing
     // spaces/special characters)
     return maybeSanitize(result);
+  }
+
+  /**
+   * Formats the default sequence as "[16-hex-timestamp]/[16-hex-offset]/[8-hex-partition]".
+   *
+   * @param ts The record timestamp (or current time millis)
+   * @param record The sink record providing offset and partition
+   * @return The formatted default hex sequence string
+   */
+  private String formatDefaultSequence(long ts, SinkRecord record) {
+    return String.format("%016X/%016X/%08X", ts, record.kafkaOffset(), record.kafkaPartition());
+  }
+
+  /**
+   * Formats the custom sequence as
+   * "[16-hex-customsequence]/[16-hex-timestamp]/[16-hex-offset]/[8-hex-partition]". BigQuery's
+   * Storage Write API parses slash-separated segments of up to 16 hex digits each and preserves
+   * strict multi-segment lexicographical ordering.
+   *
+   * @param seqValue The raw sequence number or timestamp string
+   * @param ts The record timestamp (or current time millis)
+   * @param record The sink record providing offset and partition
+   * @return The formatted composite hex sequence string
+   */
+  private String convertToCustomHexSequence(Object seqValue, long ts, SinkRecord record) {
+    if (seqValue == null) {
+      return formatDefaultSequence(ts, record);
+    }
+
+    Long seqLong = null;
+
+    if (seqValue instanceof Number) {
+      seqLong = ((Number) seqValue).longValue();
+    } else {
+      String strVal = seqValue.toString().trim();
+      // Try to parse as raw Long first (e.g. "1785367800000")
+      try {
+        seqLong = Long.parseLong(strVal);
+      } catch (NumberFormatException e) {
+        // Try parsing as PostgreSQL LSN string (e.g. "0/16B3748" or "16/B3748")
+        Long lsn = parsePostgreSqlLsn(strVal);
+        if (lsn != null) {
+          seqLong = lsn;
+        } else {
+          // Not a raw number or LSN. Try parsing as a timestamp string.
+          try {
+            String normalized = strVal.replace(' ', 'T');
+            Instant instant;
+            if (normalized.endsWith("Z")) {
+              instant = Instant.parse(normalized);
+            } else {
+              try {
+                instant = OffsetDateTime.parse(normalized).toInstant();
+              } catch (DateTimeParseException ex) {
+                instant = LocalDateTime.parse(normalized).toInstant(ZoneOffset.UTC);
+              }
+            }
+            seqLong = instant.toEpochMilli();
+          } catch (Exception ex) {
+            // If timestamp parsing fails, fallback to character hex-encoding with ts + offset +
+            // partition
+            return hexEncodeCustomSequence(strVal, ts, record);
+          }
+        }
+      }
+    }
+
+    if (seqLong != null) {
+      return String.format(
+          "%016X/%016X/%016X/%08X", seqLong, ts, record.kafkaOffset(), record.kafkaPartition());
+    }
+    return formatDefaultSequence(ts, record);
+  }
+
+  private String hexEncodeCustomSequence(String strVal, long ts, SinkRecord record) {
+    byte[] bytes = strVal.getBytes(StandardCharsets.UTF_8);
+    StringBuilder hexBuilder = new StringBuilder(bytes.length * 2);
+    for (byte b : bytes) {
+      hexBuilder.append(HEX_CHARS[(b >> 4) & 0x0F]);
+      hexBuilder.append(HEX_CHARS[b & 0x0F]);
+    }
+    String hexStr = hexBuilder.toString();
+    String customSegment;
+    if (hexStr.length() < CUSTOM_HEX_SEQUENCE_MIN_WIDTH) {
+      StringBuilder padded = new StringBuilder(CUSTOM_HEX_SEQUENCE_MIN_WIDTH);
+      for (int i = hexStr.length(); i < CUSTOM_HEX_SEQUENCE_MIN_WIDTH; i++) {
+        padded.append('0');
+      }
+      padded.append(hexStr);
+      customSegment = padded.toString();
+    } else {
+      customSegment = hexStr;
+    }
+    return String.format(
+        "%s/%016X/%016X/%08X", customSegment, ts, record.kafkaOffset(), record.kafkaPartition());
+  }
+
+  /**
+   * Parses a PostgreSQL LSN (Log Sequence Number) string into a 64-bit integer. PostgreSQL LSN
+   * strings are formatted as "X/Y" where X is up to 8 hex digits representing the logical WAL file
+   * ID (upper 32 bits) and Y is up to 8 hex digits representing the byte offset within the WAL file
+   * (lower 32 bits).
+   *
+   * @param strVal The candidate LSN string
+   * @return The 64-bit LSN value, or null if strVal is not a valid PostgreSQL LSN
+   */
+  private Long parsePostgreSqlLsn(String strVal) {
+    if (POSTGRES_LSN_PATTERN.matcher(strVal).matches()) {
+      int slashIdx = strVal.indexOf('/');
+      try {
+        long upper = Long.parseLong(strVal.substring(0, slashIdx), 16);
+        long lower = Long.parseLong(strVal.substring(slashIdx + 1), 16);
+        return (upper << 32) | (lower & 0xFFFFFFFFL);
+      } catch (NumberFormatException ignored) {
+        return null;
+      }
+    }
+    return null;
   }
 
   /**

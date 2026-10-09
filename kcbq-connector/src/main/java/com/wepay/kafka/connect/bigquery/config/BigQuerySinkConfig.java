@@ -160,6 +160,15 @@ public class BigQuerySinkConfig extends AbstractConfig {
   public static final boolean DELETE_ENABLED_DEFAULT = false;
   public static final String INTERMEDIATE_TABLE_SUFFIX_CONFIG = "intermediateTableSuffix";
   public static final String INTERMEDIATE_TABLE_SUFFIX_DEFAULT = "tmp";
+  public static final String CDC_CHANGE_SEQUENCE_NUMBER_FIELD_CONFIG =
+      "cdcChangeSequenceNumberField";
+  public static final String CDC_CHANGE_SEQUENCE_NUMBER_FIELD_DEFAULT = null;
+  private static final ConfigDef.Type CDC_CHANGE_SEQUENCE_NUMBER_FIELD_TYPE = ConfigDef.Type.STRING;
+  private static final ConfigDef.Importance CDC_CHANGE_SEQUENCE_NUMBER_FIELD_IMPORTANCE =
+      ConfigDef.Importance.MEDIUM;
+  private static final String CDC_CHANGE_SEQUENCE_NUMBER_FIELD_DOC =
+      "The name of the field or header to use as the change sequence number (_CHANGE_SEQUENCE_NUMBER) for BigQuery CDC. "
+          + "If not set, Kafka Offset is used as the default sequence number.";
   public static final String TABLE_MAX_STALENESS_CONFIG = "tableMaxStaleness";
   public static final Integer TABLE_MAX_STALENESS_DEFAULT = null;
   private static final ConfigDef.Type TABLE_MAX_STALENESS_TYPE = ConfigDef.Type.INT;
@@ -1074,6 +1083,12 @@ public class BigQuerySinkConfig extends AbstractConfig {
                     KAFKA_KEY_FIELD_NAME_CONFIG)
                 .build())
         .define(
+            CDC_CHANGE_SEQUENCE_NUMBER_FIELD_CONFIG,
+            CDC_CHANGE_SEQUENCE_NUMBER_FIELD_TYPE,
+            CDC_CHANGE_SEQUENCE_NUMBER_FIELD_DEFAULT,
+            CDC_CHANGE_SEQUENCE_NUMBER_FIELD_IMPORTANCE,
+            CDC_CHANGE_SEQUENCE_NUMBER_FIELD_DOC)
+        .define(
             ExtendedConfigKey.builder(TABLE_MAX_STALENESS_CONFIG)
                 .type(TABLE_MAX_STALENESS_TYPE)
                 .defaultValue(TABLE_MAX_STALENESS_DEFAULT)
@@ -1544,6 +1559,10 @@ public class BigQuerySinkConfig extends AbstractConfig {
 
   public Optional<Integer> getTableMaxStaleness() {
     return Optional.ofNullable(getInt(TABLE_MAX_STALENESS_CONFIG));
+  }
+
+  public Optional<String> getCdcChangeSequenceNumberField() {
+    return Optional.ofNullable(getString(CDC_CHANGE_SEQUENCE_NUMBER_FIELD_CONFIG));
   }
 
   /**
