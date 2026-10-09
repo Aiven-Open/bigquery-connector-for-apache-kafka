@@ -59,6 +59,8 @@ public final class SinkRecordConverter {
   private static final Pattern POSTGRES_LSN_PATTERN =
       Pattern.compile("^[0-9a-fA-F]{1,8}/[0-9a-fA-F]{1,8}$");
   private static final int CUSTOM_HEX_SEQUENCE_MIN_WIDTH = 64;
+  private static final int CUSTOM_HEX_SEGMENT_WIDTH = 16;
+  private static final int CUSTOM_HEX_MAX_SEGMENTS = 7;
 
   public static final String CDC_CHANGE_TYPE_FIELD = "_CHANGE_TYPE";
   public static final String CDC_CHANGE_SEQUENCE_NUMBER_FIELD = "_CHANGE_SEQUENCE_NUMBER";
@@ -461,19 +463,32 @@ public final class SinkRecordConverter {
       hexBuilder.append(HEX_CHARS[b & 0x0F]);
     }
     String hexStr = hexBuilder.toString();
-    String customSegment;
-    if (hexStr.length() < CUSTOM_HEX_SEQUENCE_MIN_WIDTH) {
-      StringBuilder padded = new StringBuilder(CUSTOM_HEX_SEQUENCE_MIN_WIDTH);
-      for (int i = hexStr.length(); i < CUSTOM_HEX_SEQUENCE_MIN_WIDTH; i++) {
-        padded.append('0');
+    int maxHexWidth = CUSTOM_HEX_MAX_SEGMENTS * CUSTOM_HEX_SEGMENT_WIDTH;
+    if (hexStr.length() > maxHexWidth) {
+      hexStr = hexStr.substring(0, maxHexWidth);
+    }
+    int targetWidth = Math.max(CUSTOM_HEX_SEQUENCE_MIN_WIDTH, hexStr.length());
+    int remainder = targetWidth % CUSTOM_HEX_SEGMENT_WIDTH;
+    if (remainder != 0) {
+      targetWidth += (CUSTOM_HEX_SEGMENT_WIDTH - remainder);
+    }
+    StringBuilder padded = new StringBuilder(targetWidth);
+    for (int i = hexStr.length(); i < targetWidth; i++) {
+      padded.append('0');
+    }
+    padded.append(hexStr);
+
+    int numSegments = targetWidth / CUSTOM_HEX_SEGMENT_WIDTH;
+    StringBuilder customSegments = new StringBuilder(targetWidth + numSegments);
+    for (int i = 0; i < numSegments; i++) {
+      if (i > 0) {
+        customSegments.append('/');
       }
-      padded.append(hexStr);
-      customSegment = padded.toString();
-    } else {
-      customSegment = hexStr;
+      int start = i * CUSTOM_HEX_SEGMENT_WIDTH;
+      customSegments.append(padded, start, start + CUSTOM_HEX_SEGMENT_WIDTH);
     }
     return String.format(
-        "%s/%016X/%016X/%08X", customSegment, ts, record.kafkaOffset(), record.kafkaPartition());
+        "%s/%016X/%016X/%08X", customSegments, ts, record.kafkaOffset(), record.kafkaPartition());
   }
 
   /**

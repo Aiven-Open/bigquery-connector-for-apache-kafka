@@ -378,8 +378,8 @@ public class SinkRecordConverterTest {
 
   @Test
   public void testCdcRowWithCustomSeqFromValue() {
-    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
-    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+    when(config.isDeleteEnabled()).thenReturn(true);
+    when(config.isUpsertEnabled()).thenReturn(true);
     when(config.getCdcChangeSequenceNumberField()).thenReturn(Optional.of("name"));
 
     SinkRecord record =
@@ -398,7 +398,7 @@ public class SinkRecordConverterTest {
     Map<String, Object> actual = sinkRecordConverter.getCdcRow(record);
 
     assertEquals("UPSERT", actual.get("_CHANGE_TYPE"));
-    String expectedAliceHex = String.format("%64s", "416C696365").replace(' ', '0');
+    String expectedAliceHex = "0000000000000000/0000000000000000/0000000000000000/000000416C696365";
     assertEquals(
         String.format("%s/%016X/%016X/%08X", expectedAliceHex, RECORD_TIMESTAMP, OFFSET, PARTITION),
         actual.get("_CHANGE_SEQUENCE_NUMBER"));
@@ -406,8 +406,8 @@ public class SinkRecordConverterTest {
 
   @Test
   public void testCdcRowWithCustomSeqFromKey() {
-    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
-    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+    when(config.isDeleteEnabled()).thenReturn(true);
+    when(config.isUpsertEnabled()).thenReturn(true);
     when(config.getCdcChangeSequenceNumberField()).thenReturn(Optional.of("id"));
 
     SinkRecord record =
@@ -433,8 +433,8 @@ public class SinkRecordConverterTest {
 
   @Test
   public void testCdcRowWithKafkaTimestampSeq() {
-    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
-    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+    when(config.isDeleteEnabled()).thenReturn(true);
+    when(config.isUpsertEnabled()).thenReturn(true);
     when(config.getCdcChangeSequenceNumberField()).thenReturn(Optional.of("_KAFKA_TIMESTAMP"));
 
     long recordTimestamp = 123456789L;
@@ -461,8 +461,8 @@ public class SinkRecordConverterTest {
 
   @Test
   public void testCdcRowWithCustomSeqFallbackToTimestamp() {
-    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
-    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+    when(config.isDeleteEnabled()).thenReturn(true);
+    when(config.isUpsertEnabled()).thenReturn(true);
     when(config.getCdcChangeSequenceNumberField()).thenReturn(Optional.of("updated_at"));
 
     long recordTimestamp = 9876543210L;
@@ -489,8 +489,8 @@ public class SinkRecordConverterTest {
 
   @Test
   public void testCdcRowWithTimestampString() {
-    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
-    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+    when(config.isDeleteEnabled()).thenReturn(true);
+    when(config.isUpsertEnabled()).thenReturn(true);
     when(config.getCdcChangeSequenceNumberField()).thenReturn(Optional.of("timestamp_str"));
 
     Schema timeValueSchema =
@@ -527,8 +527,8 @@ public class SinkRecordConverterTest {
 
   @Test
   public void testCdcRowWithTimestampStringNoOffset() {
-    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
-    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+    when(config.isDeleteEnabled()).thenReturn(true);
+    when(config.isUpsertEnabled()).thenReturn(true);
     when(config.getCdcChangeSequenceNumberField()).thenReturn(Optional.of("timestamp_str"));
 
     Schema timeValueSchema =
@@ -568,8 +568,8 @@ public class SinkRecordConverterTest {
 
   @Test
   public void testCdcRowWithCustomSeqFromHeader() {
-    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
-    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+    when(config.isDeleteEnabled()).thenReturn(true);
+    when(config.isUpsertEnabled()).thenReturn(true);
     when(config.getCdcChangeSequenceNumberField()).thenReturn(Optional.of("tx_seq"));
 
     org.apache.kafka.connect.header.ConnectHeaders headers =
@@ -600,8 +600,8 @@ public class SinkRecordConverterTest {
 
   @Test
   public void testCdcRowWithPostgresLsn() {
-    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
-    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+    when(config.isDeleteEnabled()).thenReturn(true);
+    when(config.isUpsertEnabled()).thenReturn(true);
     when(config.getCdcChangeSequenceNumberField()).thenReturn(Optional.of("lsn"));
 
     Schema lsnValueSchema =
@@ -636,8 +636,8 @@ public class SinkRecordConverterTest {
 
   @Test
   public void testCdcRowWithPostgresLsnNonZeroUpper() {
-    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
-    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+    when(config.isDeleteEnabled()).thenReturn(true);
+    when(config.isUpsertEnabled()).thenReturn(true);
     when(config.getCdcChangeSequenceNumberField()).thenReturn(Optional.of("lsn"));
 
     Schema lsnValueSchema =
@@ -672,8 +672,8 @@ public class SinkRecordConverterTest {
 
   @Test
   public void testCdcRowWithPostgresLsnOrdering() {
-    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
-    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+    when(config.isDeleteEnabled()).thenReturn(true);
+    when(config.isUpsertEnabled()).thenReturn(true);
     when(config.getCdcChangeSequenceNumberField()).thenReturn(Optional.of("lsn"));
 
     String[] lsns =
@@ -727,8 +727,8 @@ public class SinkRecordConverterTest {
 
   @Test
   public void testCdcRowWithPostgresLsnLowercase() {
-    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
-    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+    when(config.isDeleteEnabled()).thenReturn(true);
+    when(config.isUpsertEnabled()).thenReturn(true);
     when(config.getCdcChangeSequenceNumberField()).thenReturn(Optional.of("lsn"));
 
     Schema lsnValueSchema =
@@ -763,8 +763,8 @@ public class SinkRecordConverterTest {
 
   @Test
   public void testCdcRowWithLongCustomSeqStringNoTruncation() {
-    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
-    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+    when(config.isDeleteEnabled()).thenReturn(true);
+    when(config.isUpsertEnabled()).thenReturn(true);
     when(config.getCdcChangeSequenceNumberField()).thenReturn(Optional.of("tx_id"));
 
     // Two identifiers differing only after the 8th character (16th hex char)
@@ -812,8 +812,8 @@ public class SinkRecordConverterTest {
 
   @Test
   public void testCdcRowWithVariableLengthCustomSeqStringZeroPadded() {
-    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
-    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+    when(config.isDeleteEnabled()).thenReturn(true);
+    when(config.isUpsertEnabled()).thenReturn(true);
     when(config.getCdcChangeSequenceNumberField()).thenReturn(Optional.of("version"));
 
     // Strings of different lengths that would sort inversely if unpadded across delimiter
@@ -855,18 +855,23 @@ public class SinkRecordConverterTest {
     String seq1 = (String) converter.getCdcRow(record1).get("_CHANGE_SEQUENCE_NUMBER");
     String seq2 = (String) converter.getCdcRow(record2).get("_CHANGE_SEQUENCE_NUMBER");
 
-    // Both should have their custom segment zero-padded to at least 64 chars
+    // Both should have their custom sequence split into 4 zero-padded 16-hex-char segments
+    // (7 segments total including timestamp/offset/partition, each <= 16 hex chars)
     String[] parts1 = seq1.split("/");
     String[] parts2 = seq2.split("/");
-    assertEquals(64, parts1[0].length());
-    assertEquals(64, parts2[0].length());
+    assertEquals(7, parts1.length);
+    assertEquals(7, parts2.length);
+    for (int i = 0; i < 4; i++) {
+      assertEquals(16, parts1[i].length());
+      assertEquals(16, parts2[i].length());
+    }
     assertTrue(seq2.compareTo(seq1) > 0);
   }
 
   @Test
   public void testCdcRowWithKafkaTimestampMissingFallback() {
-    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
-    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+    when(config.isDeleteEnabled()).thenReturn(true);
+    when(config.isUpsertEnabled()).thenReturn(true);
     when(config.getCdcChangeSequenceNumberField()).thenReturn(Optional.of("_KAFKA_TIMESTAMP"));
 
     SinkRecord record =
