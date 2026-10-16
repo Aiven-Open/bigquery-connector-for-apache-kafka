@@ -365,6 +365,9 @@ public abstract class StorageWriteApiBase {
         logger.warn(
             "Sent records schema does not match with table schema, will attempt to update schema");
         retryHandler.attemptTableOperation(schemaManager::updateSchema);
+        // The writer caches the table schema it was created with and only refreshes it on its own
+        // for unknown top-level fields, so recreate it to pick up e.g. new nested fields
+        writer.refresh();
       } else if (BigQueryStorageWriteApiErrorResponses.isMessageTooLargeError(message)) {
         throw new BatchTooLargeException(errorMessage);
       } else if (BigQueryStorageWriteApiErrorResponses.isMalformedRequest(message)) {

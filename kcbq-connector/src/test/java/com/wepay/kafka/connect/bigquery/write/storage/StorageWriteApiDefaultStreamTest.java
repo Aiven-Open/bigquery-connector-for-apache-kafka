@@ -247,6 +247,34 @@ public class StorageWriteApiDefaultStreamTest {
   }
 
   @Test
+  public void testRefreshesWriterAfterSchemaUpdateForUnknownNestedField() throws Exception {
+    JsonStreamWriter staleWriter = mock(JsonStreamWriter.class);
+    JsonStreamWriter refreshedWriter = mock(JsonStreamWriter.class);
+    Map<Integer, String> rowErrors =
+        Collections.singletonMap(
+            0,
+            "Field root.entity failed to convert to STRUCT. Error: The map of row index to error"
+                + " message is {0=The source object has fields unknown to BigQuery:"
+                + " root.entity.new_field.}");
+    when(staleWriter.append(any(JSONArray.class)))
+        .thenThrow(
+            new Exceptions.AppendSerializationError(
+                3,
+                "INVALID_ARGUMENT: Append serialization failed for writer: DEFAULT",
+                "DEFAULT",
+                rowErrors));
+    when(refreshedWriter.append(any(JSONArray.class))).thenReturn(mockedResponse);
+    when(mockedResponse.get()).thenReturn(successResponse);
+    doReturn(staleWriter, refreshedWriter).when(defaultStream).getDefaultStream(any(), any());
+
+    defaultStream.initializeAndWriteRecords(mockedPartitionedTableId, testRows, null);
+
+    verify(mockedSchemaManager, times(1)).updateSchema(any(), any());
+    verify(staleWriter, times(1)).append(any(JSONArray.class));
+    verify(refreshedWriter, times(1)).append(any(JSONArray.class));
+  }
+
+  @Test
   public void testDefaultStreamClosedException() throws Exception {
     ExecutionException exception =
         new ExecutionException(
