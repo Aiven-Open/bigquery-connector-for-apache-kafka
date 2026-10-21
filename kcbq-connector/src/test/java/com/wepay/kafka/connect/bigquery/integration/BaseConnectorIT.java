@@ -363,7 +363,7 @@ abstract class BaseConnectorIT {
       String connector, Collection<String> topics, long numRecords, int numTasks, long timeoutMs)
       throws InterruptedException {
     waitForCommittedRecords(
-        connector, topics, numRecords, numTasks, timeoutMs, DEFAULT_POLL_INTERVAL_MS);
+        connector, topics, numRecords, numTasks, timeoutMs, Math.max(DEFAULT_POLL_INTERVAL_MS, OFFSET_COMMIT_INTERVAL_MS / 2));
   }
 
   /**
@@ -409,8 +409,6 @@ abstract class BaseConnectorIT {
                 totalCommittedRecords,
                 topics,
                 numRecords);
-            // Sleep here so as not to spam Kafka with list-offsets requests
-            Thread.sleep(OFFSET_COMMIT_INTERVAL_MS / 2);
             return false;
           }
         },
