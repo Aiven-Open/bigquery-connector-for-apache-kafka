@@ -38,6 +38,7 @@ import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.Bucket;
 import com.google.cloud.storage.StorageException;
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.util.concurrent.AtomicDouble;
 import com.google.re2j.Matcher;
 import com.google.re2j.Pattern;
 import com.wepay.kafka.connect.bigquery.write.row.GcsToBqWriter;
@@ -319,6 +320,7 @@ public class GcsToBqLoadRunnable implements Runnable {
       logger.debug("No active jobs to check. Skipping check jobs.");
       return;
     }
+
     logger.debug("Checking {} active jobs", activeJobs.size());
 
     Iterator<Map.Entry<Job, List<BlobId>>> jobIterator = activeJobs.entrySet().iterator();

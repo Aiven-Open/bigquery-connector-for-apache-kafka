@@ -28,10 +28,12 @@ import com.google.cloud.bigquery.TableId;
 import com.wepay.kafka.connect.bigquery.ErrantRecordHandler;
 import com.wepay.kafka.connect.bigquery.convert.RecordConverter;
 import com.wepay.kafka.connect.bigquery.utils.SinkRecordConverter;
+import com.wepay.kafka.connect.bigquery.write.NeedsStreamState;
 import com.wepay.kafka.connect.bigquery.write.row.GcsToBqWriter;
 import java.util.Comparator;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.stream.Stream;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.slf4j.Logger;
@@ -41,7 +43,7 @@ import org.slf4j.LoggerFactory;
  * Batch Table Writer that uploads records to GCS as a blob and then triggers a load job from that
  * GCS file to BigQuery.
  */
-public class GcsBatchTableWriter implements Runnable {
+public class GcsBatchTableWriter implements Runnable, NeedsStreamState {
   private static final Logger logger = LoggerFactory.getLogger(GcsBatchTableWriter.class);
 
   private final TableId tableId;
@@ -74,6 +76,16 @@ public class GcsBatchTableWriter implements Runnable {
     this.rows = rows;
     this.writer = writer;
     this.errantRecordHandler = errantRecordHandler;
+  }
+
+  /**
+   * Gets a Stream of the SinkRecord being processed by this table Writer.
+   *
+   * @return a Stream of the SinkRecord being processed by this table Writer.
+   */
+  @Override
+  public final Stream<SinkRecord> records() {
+    return rows.keySet().stream();
   }
 
   @Override

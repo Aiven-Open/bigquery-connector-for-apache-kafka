@@ -43,6 +43,7 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -580,7 +581,28 @@ public class BigQuerySinkConfig extends AbstractConfig {
       "The size of the BigQuery write thread pool. This establishes the maximum number of "
           + "concurrent writes to BigQuery.";
   private static final ConfigDef.Type QUEUE_SIZE_TYPE = ConfigDef.Type.LONG;
-  private static final ConfigDef.Validator QUEUE_SIZE_VALIDATOR = ConfigDef.Range.atLeast(-1);
+  private static final ConfigDef.Validator QUEUE_SIZE_VALIDATOR =
+      new ConfigDef.Validator() {
+        ConfigDef.Range range = ConfigDef.Range.atLeast(5);
+
+        @Override
+        public void ensureValid(String name, Object value) {
+          if (value != null) {
+            String txt = value.toString().trim();
+            if (txt.equals("-1")) {
+              return;
+            }
+            range.ensureValid(name, value);
+          }
+          throw new ConfigException(String.format("'%s' must be %s", name, toString()));
+        }
+
+        @Override
+        public String toString() {
+          return "-1 or " + range.toString();
+        }
+      };
+
   private static final ConfigDef.Importance QUEUE_SIZE_IMPORTANCE = ConfigDef.Importance.HIGH;
   private static final String QUEUE_SIZE_DOC =
       "The maximum size (or -1 for no maximum size) of the worker queue for bigQuery write "
@@ -913,11 +935,13 @@ public class BigQuerySinkConfig extends AbstractConfig {
             DEFAULT_DATASET_IMPORTANCE,
             DEFAULT_DATASET_DOC)
         .define(
-            SCHEMA_RETRIEVER_CONFIG,
-            SCHEMA_RETRIEVER_TYPE,
-            SCHEMA_RETRIEVER_DEFAULT,
-            SCHEMA_RETRIEVER_IMPORTANCE,
-            SCHEMA_RETRIEVER_DOC)
+            ExtendedConfigKey.builder(SCHEMA_RETRIEVER_CONFIG)
+                .type(SCHEMA_RETRIEVER_TYPE)
+                .defaultValue(SCHEMA_RETRIEVER_DEFAULT)
+                .validator(new ConfigDef.NonNullValidator())
+                .importance(SCHEMA_RETRIEVER_IMPORTANCE)
+                .documentation(SCHEMA_RETRIEVER_DOC)
+                .build())
         .define(KEYFILE_CONFIG, KEYFILE_TYPE, KEYFILE_DEFAULT, KEYFILE_IMPORTANCE, KEYFILE_DOC)
         .define(
             KEY_SOURCE_CONFIG,
@@ -1576,6 +1600,125 @@ public class BigQuerySinkConfig extends AbstractConfig {
    */
   public boolean useMessageTime() {
     return getBoolean(BigQuerySinkConfig.BIGQUERY_MESSAGE_TIME_PARTITIONING_CONFIG);
+  }
+
+  /**
+   * Determines if tables should be autocreated.
+   *
+   * @return {@code true} if tables should be auto created.
+   */
+  public boolean autoCreateTables() {
+    return getBoolean(BigQuerySinkConfig.TABLE_CREATE_CONFIG);
+  }
+
+  /**
+   * Determine if Storage API should be used.
+   *
+   * @return {@code true} if Storage API should be used.
+   */
+  public boolean useStorageApi() {
+    return getBoolean(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG);
+  }
+
+  /**
+   * Determine if Storage API should be used in batch mode.
+   *
+   * @return {@code true} if Storage API should be used in batch mode.
+   */
+  public boolean useStorageApiBatchMode() {
+    return useStorageApi() && enableBatchMode();
+  }
+
+  /**
+   * Determine if batch mode should be used.
+   *
+   * @return {@code true} if batch mode should be used.
+   */
+  public boolean enableBatchMode() {
+    return getBoolean(BigQuerySinkConfig.ENABLE_BATCH_MODE_CONFIG);
+  }
+
+  /**
+   * Determine if upsert or delete processing is enabled.
+   *
+   * @return {@code true} upsert or delete processing is enabled and storage API is not.
+   */
+  public boolean upsertDelete() {
+    return !useStorageApi() && (upsertEnabled() || deleteEnabled());
+  }
+
+  /**
+   * Determine if upsert is enabled.
+   *
+   * @return {@code true} upsert is enabled.
+   */
+  public boolean upsertEnabled() {
+    return getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG);
+  }
+
+  /**
+   * Determine if delete is enabled.
+   *
+   * @return {@code true} delete is enabled.
+   */
+  public boolean deleteEnabled() {
+    return getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG);
+  }
+
+  /**
+   * Gets the maximum number of retries for a retryable failed big query operation.
+   *
+   * @return the maximum number of retries for a retryable failed big query operation.
+   */
+  public int maxRetries() {
+    return getInt(BigQuerySinkConfig.BIGQUERY_RETRY_CONFIG);
+  }
+
+  /**
+   * Gets the delay between retries for a retryable failed big query operation.
+   *
+   * @return the delay between retries for a retryable failed big query operation.
+   */
+  public Duration retryDelay() {
+    return Duration.ofMillis(getLong(BigQuerySinkConfig.BIGQUERY_RETRY_WAIT_CONFIG));
+  }
+
+  /**
+   * Determines if new Big query fields are allowed to be added to the table.
+   *
+   * @return {@code true} if new Big query fields are allowed to be added to the table.
+   */
+  public boolean allowNewFields() {
+    return getBoolean(BigQuerySinkConfig.ALLOW_NEW_BIGQUERY_FIELDS_CONFIG);
+  }
+
+  /**
+   * Determines if new the schema definitions for a field may be relaxed. For example, converted
+   * from required to optional field.
+   *
+   * @return {@code true} if new the schema definitions for a field may be relaxed.
+   */
+  public boolean allowFieldRelaxation() {
+    return getBoolean(BigQuerySinkConfig.ALLOW_BIGQUERY_REQUIRED_FIELD_RELAXATION_CONFIG);
+  }
+
+  /**
+   * Determines if schema unionization is allowed.
+   *
+   * @return {@code true} if schema unionization is allowed.
+   */
+  public boolean allowSchemaUnionization() {
+    return getBoolean(BigQuerySinkConfig.ALLOW_SCHEMA_UNIONIZATION_CONFIG);
+  }
+
+  /**
+   * Gets the maximum thread pool size.  If the configuration is -1 then Integer.MAX_VALUE is returned.
+   *
+   * @return the maximum thread pool size.
+   */
+  public int maxPoolSize() {
+    int configValue = getInt(BigQuerySinkTaskConfig.THREAD_POOL_SIZE_CONFIG);
+    return configValue == -1 ? Integer.MAX_VALUE : configValue;
   }
 
   /**

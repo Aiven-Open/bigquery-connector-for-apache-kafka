@@ -39,9 +39,9 @@ import com.wepay.kafka.connect.bigquery.config.BigQuerySinkTaskConfig;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryErrorResponses;
 import com.wepay.kafka.connect.bigquery.exception.ExpectedInterruptException;
+import com.wepay.kafka.connect.bigquery.threads.KcbqThreadPoolExecutor;
 import com.wepay.kafka.connect.bigquery.utils.SleepUtils;
 import com.wepay.kafka.connect.bigquery.utils.Time;
-import com.wepay.kafka.connect.bigquery.write.batch.KcbqThreadPoolExecutor;
 import com.wepay.kafka.connect.bigquery.write.batch.MergeBatches;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -186,7 +186,9 @@ public class MergeQueries {
     executor.execute(
         () -> {
           try {
+            logger.info("Starting merge flush {}", batchNumber);
             mergeFlush(intermediateTable, destinationTable, batchNumber);
+            logger.info("Completed merge flush {}", batchNumber);
           } catch (InterruptedException e) {
             throw new ExpectedInterruptException(
                 String.format(
