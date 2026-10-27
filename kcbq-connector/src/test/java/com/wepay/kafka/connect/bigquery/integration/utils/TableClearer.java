@@ -27,12 +27,14 @@ import static com.wepay.kafka.connect.bigquery.utils.TableNameUtils.table;
 
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.TableId;
+import com.google.cloud.bigquery.storage.v1.TableName;
 import com.wepay.kafka.connect.bigquery.utils.FieldNameSanitizer;
 import java.util.Arrays;
 import java.util.Collection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+@Deprecated
 public class TableClearer {
   private static final Logger logger = LoggerFactory.getLogger(TableClearer.class);
 
@@ -43,7 +45,10 @@ public class TableClearer {
    * @param bigQuery The BigQuery client to use when sending table deletion requests.
    * @param dataset The dataset that the to-be-cleared tables belong to.
    * @param tables The tables to clear.
+   * @deprecated use {@link
+   *     com.wepay.kafka.connect.bigquery.integration.BaseConnectorIT#delete(BigQuery, TableName)} .
    */
+  @Deprecated
   public static void clearTables(BigQuery bigQuery, String dataset, Collection<String> tables) {
     for (String tableName : tables) {
       TableId table = TableId.of(dataset, FieldNameSanitizer.sanitizeName(tableName));
@@ -62,7 +67,10 @@ public class TableClearer {
    * @param bigQuery The BigQuery client to use when sending table deletion requests.
    * @param dataset The dataset that the to-be-cleared tables belong to.
    * @param tables The tables to clear.
+   * @deprecated use {@link
+   *     com.wepay.kafka.connect.bigquery.integration.BaseConnectorIT#delete(BigQuery, TableName)} .
    */
+  @Deprecated
   public static void clearTables(BigQuery bigQuery, String dataset, String... tables) {
     clearTables(bigQuery, dataset, Arrays.asList(tables));
   }

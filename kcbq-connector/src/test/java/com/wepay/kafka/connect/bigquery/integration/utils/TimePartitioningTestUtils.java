@@ -29,6 +29,7 @@ import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.QueryJobConfiguration;
 import com.google.cloud.bigquery.TableResult;
 import com.google.cloud.bigquery.TimePartitioning;
+import com.google.cloud.bigquery.storage.v1.TableName;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -113,6 +114,17 @@ public class TimePartitioningTestUtils {
     return testStartTime + (shiftAmount * partitionDelta);
   }
 
+  /**
+   * @deprecated use {@link #assertPartitionContainsData(BigQuery, TableName, TimePartitioning.Type,
+   *     long)}
+   * @param bigQuery
+   * @param dataset
+   * @param table
+   * @param type
+   * @param timestampMillis
+   * @throws InterruptedException
+   */
+  @Deprecated
   public static void assertPartitionContainsData(
       BigQuery bigQuery,
       String dataset,
@@ -124,6 +136,20 @@ public class TimePartitioningTestUtils {
         String.format(
             "SELECT * FROM `%s`.`%s` WHERE _PARTITIONTIME = TIMESTAMP_TRUNC(TIMESTAMP_MILLIS(%d), %s)",
             dataset, table, timestampMillis, type.name());
+    TableResult tableResult = bigQuery.query(QueryJobConfiguration.of(query));
+
+    assertTrue(
+        tableResult.getValues().iterator().hasNext(),
+        "Expected records in partition for timestamp: " + timestampMillis);
+  }
+
+  public static void assertPartitionContainsData(
+      BigQuery bigQuery, TableName tableName, TimePartitioning.Type type, long timestampMillis)
+      throws InterruptedException {
+    String query =
+        String.format(
+            "SELECT * FROM `%s`.`%s` WHERE _PARTITIONTIME = TIMESTAMP_TRUNC(TIMESTAMP_MILLIS(%d), %s)",
+            tableName.getDataset(), tableName.getTable(), timestampMillis, type.name());
     TableResult tableResult = bigQuery.query(QueryJobConfiguration.of(query));
 
     assertTrue(

@@ -32,16 +32,11 @@ public class StorageWriteApiBatchBigQuerySinkConnectorIT
     extends StorageWriteApiBigQuerySinkConnectorIT {
 
   @Override
-  protected Map<String, String> configs(String topic) {
-    Map<String, String> result = super.configs(topic);
+  protected Map<String, String> configs() {
+    Map<String, String> result = super.configs();
     result.put(BigQuerySinkConfig.ENABLE_BATCH_MODE_CONFIG, "true");
     result.put(BigQuerySinkConfig.COMMIT_INTERVAL_SEC_CONFIG, "15");
     return result;
-  }
-
-  @Override
-  protected String topic(String basename) {
-    return super.topic(basename + "-batch-mode");
   }
 
   @Override

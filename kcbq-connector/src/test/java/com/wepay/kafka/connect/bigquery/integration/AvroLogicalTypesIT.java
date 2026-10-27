@@ -26,6 +26,7 @@ package com.wepay.kafka.connect.bigquery.integration;
 import static io.confluent.kafka.serializers.AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG;
 import static org.apache.kafka.connect.runtime.ConnectorConfig.KEY_CONVERTER_CLASS_CONFIG;
 import static org.apache.kafka.connect.runtime.ConnectorConfig.VALUE_CONVERTER_CLASS_CONFIG;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
@@ -34,9 +35,9 @@ import com.google.cloud.bigquery.Field;
 import com.google.cloud.bigquery.LegacySQLTypeName;
 import com.google.cloud.bigquery.Schema;
 import com.google.cloud.bigquery.Table;
+import com.google.cloud.bigquery.storage.v1.TableName;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.integration.utils.SchemaRegistryTestUtils;
-import com.wepay.kafka.connect.bigquery.integration.utils.TableClearer;
 import com.wepay.kafka.connect.bigquery.retrieve.IdentitySchemaRetriever;
 import io.confluent.connect.avro.AvroConverter;
 import java.util.ArrayList;
@@ -48,7 +49,9 @@ import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.runtime.ConnectorConfig;
 import org.apache.kafka.connect.runtime.SinkConnectorConfig;
 import org.apache.kafka.connect.storage.Converter;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -63,9 +66,8 @@ import org.junit.jupiter.api.Test;
  * com.wepay.kafka.connect.bigquery.convert.logicaltype.AvroLogicalConverters}.
  */
 @Tag("integration")
-public class AvroLogicalTypesIT extends BaseConnectorIT {
+class AvroLogicalTypesIT extends BaseConnectorIT {
 
-  private static final String CONNECTOR_NAME = "bigquery-avro-logical-types-connector";
   private static final int TASKS_MAX = 1;
 
   // 2017-03-01 22:20:38.808123 UTC
@@ -84,12 +86,21 @@ public class AvroLogicalTypesIT extends BaseConnectorIT {
   private org.apache.kafka.connect.data.Schema keySchema;
   private org.apache.kafka.connect.data.Schema valueSchema;
 
-  @BeforeEach
-  public void setup() throws Exception {
+  @BeforeAll
+  static void beforeAll() {
     startConnect();
+  }
+
+  @AfterAll
+  static void afterAll() {
+    stopConnect();
+  }
+
+  @BeforeEach
+  void setup() throws Exception {
     bigQuery = newBigQuery();
 
-    schemaRegistry = new SchemaRegistryTestUtils(connect.kafka().bootstrapServers());
+    schemaRegistry = new SchemaRegistryTestUtils(bootstrapServers());
     schemaRegistry.start();
 
     keySchema =
@@ -125,33 +136,30 @@ public class AvroLogicalTypesIT extends BaseConnectorIT {
   }
 
   @AfterEach
-  public void cleanup() throws Exception {
-    connect.deleteConnector(CONNECTOR_NAME);
+  void cleanup() throws Exception {
+    assertCluster().deleteConnector(connectorName());
     if (schemaRegistry != null) {
       schemaRegistry.stop();
     }
-    stopConnect();
+    delete(bigQuery, tableName());
   }
 
   @Test
-  public void testAvroLogicalTypesLandWithCorrectBigQueryTypes() throws Exception {
-    final String topic = suffixedTableOrTopic("avro-logical-types");
-    final String table = sanitizedTable(topic);
+  void testAvroLogicalTypesLandWithCorrectBigQueryTypes() throws Exception {
 
-    connect.kafka().createTopic(topic, TASKS_MAX);
-    TableClearer.clearTables(bigQuery, dataset(), table);
+    final String topic = topicName();
 
-    connect.configureConnector(CONNECTOR_NAME, connectorProps(topic));
-    waitForConnectorToStart(CONNECTOR_NAME, TASKS_MAX);
+    assertCluster().kafka().createTopic(topic, TASKS_MAX);
+
+    assertCluster().configureConnector(connectorName(), connectorProps(topic));
+    waitForConnectorToStart(connectorName(), TASKS_MAX);
 
     produceRecord(topic, 1L);
 
     waitForCommittedRecords(
-        CONNECTOR_NAME, Collections.singleton(topic), 1, TASKS_MAX, COMMIT_MAX_DURATION_MS);
+        connectorName(), Collections.singleton(topic), 1, TASKS_MAX, COMMIT_MAX_DURATION_MS);
 
-    // Verify BigQuery column types — the core assertion:
-    // before this change these would all be INTEGER (plain INT64 fallback)
-    Schema bqSchema = getBigQuerySchema(table);
+    Schema bqSchema = getBigQuerySchema(tableName());
     assertFieldType(bqSchema, "ts_micros", LegacySQLTypeName.TIMESTAMP);
     assertFieldType(bqSchema, "ts_nanos", LegacySQLTypeName.TIMESTAMP);
     assertFieldType(bqSchema, "local_ts_millis", LegacySQLTypeName.DATETIME);
@@ -160,7 +168,7 @@ public class AvroLogicalTypesIT extends BaseConnectorIT {
     assertFieldType(bqSchema, "time_micros", LegacySQLTypeName.TIME);
 
     // Verify actual values
-    List<List<Object>> rows = readAllRows(bigQuery, table, "ts_micros");
+    List<List<Object>> rows = readAllRows(bigQuery, tableName(), "ts_micros");
     assertEquals(1, rows.size());
     List<Object> row = rows.get(0);
 
@@ -197,19 +205,19 @@ public class AvroLogicalTypesIT extends BaseConnectorIT {
     schemaRegistry.produceRecordsWithKey(keyConverter, valueConverter, records, topic);
   }
 
-  private Schema getBigQuerySchema(String tableName) {
-    Table table = bigQuery.getTable(dataset(), tableName);
-    assertNotNull(table, "BigQuery table '" + tableName + "' was not created");
+  private Schema getBigQuerySchema(TableName tableName) {
+    Table table = bigQuery.getTable(tableName.getDataset(), tableName.getTable());
+    assertThat(table).describedAs("BigQuery table '" + tableName + "' was not created").isNotNull();
     return table.getDefinition().getSchema();
   }
 
   private void assertFieldType(Schema schema, String fieldName, LegacySQLTypeName expectedType) {
     Field field = schema.getFields().get(fieldName);
     assertNotNull(field, "Expected field '" + fieldName + "' not found in BigQuery schema");
-    assertEquals(
-        expectedType,
-        field.getType(),
-        "Field '" + fieldName + "' should be " + expectedType + " but was " + field.getType());
+    assertThat(field.getType())
+        .describedAs(
+            "Field '" + fieldName + "' should be " + expectedType + " but was " + field.getType())
+        .isEqualTo(expectedType);
   }
 
   private java.util.Map<String, String> connectorProps(String topic) {
