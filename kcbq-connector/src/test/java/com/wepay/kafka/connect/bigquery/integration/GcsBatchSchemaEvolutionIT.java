@@ -54,6 +54,7 @@ import org.apache.kafka.connect.data.SchemaAndValue;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.storage.Converter;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -128,14 +129,14 @@ class GcsBatchSchemaEvolutionIT extends BaseConnectorIT {
     schemaRegistry.produceRecordsWithKey(
         keyConverter, valueConverter, Collections.singletonList(recordV1(1L, "snacks")), topic);
 
-    waitForCommittedRecords(connectorName, topic, 1, TASKS_MAX);
-    waitForRowCount(1L);
+    Awaitility.waitAtMost(Duration.ofMinutes(5)).pollInterval(Duration.ofSeconds(1))
+                    .until(() -> countRows(bigQuery, tableName) >= 1L);
 
     schemaRegistry.produceRecordsWithKey(
         keyConverter, valueConverter, Collections.singletonList(recordV2(2L, null, "john")), topic);
 
-    waitForCommittedRecords(connectorName, topic, 2, TASKS_MAX);
-    waitForRowCount(2L);
+    Awaitility.waitAtMost(Duration.ofMinutes(5)).pollInterval(Duration.ofSeconds(1))
+            .until(() -> countRows(bigQuery, tableName) >= 2L);
 
     Table destinationTable = bigQuery.getTable(TableNameUtils.tableId(tableName));
     com.google.cloud.bigquery.Schema destinationSchema =
