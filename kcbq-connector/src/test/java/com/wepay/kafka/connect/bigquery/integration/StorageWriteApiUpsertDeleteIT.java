@@ -155,11 +155,6 @@ class StorageWriteApiUpsertDeleteIT extends BaseConnectorIT {
       // present in the table at the end of the test
       String kafkaKey = key(keyConverter, topic, i / 2);
       String kafkaValue = value(valueConverter, topic, i, false);
-      //      logger.debug(
-      //          "Sending message with key '{}' and value '{}' to topic '{}'",
-      //          kafkaKey,
-      //          kafkaValue,
-      //          topic);
       assertCluster().kafka().produce(topic, kafkaKey, kafkaValue);
     }
 
@@ -237,19 +232,8 @@ class StorageWriteApiUpsertDeleteIT extends BaseConnectorIT {
       // Every fourth record will be a tombstone, so every record pair with an odd-numbered key will
       // be dropped
       String kafkaValue = value(valueConverter, topic, i, i % 4 == 3);
-      //      logger.debug(
-      //          "Sending message with key '{}' and value '{}' to topic '{}'",
-      //          kafkaKey,
-      //          kafkaValue,
-      //          topic);
       assertCluster().kafka().produce(topic, kafkaKey, kafkaValue);
     }
-    //
-    //    // wait for tasks to write to BigQuery and commit offsets for their records
-    //    waitForCommittedRecords(connectorName(), topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
-
-    // Alter table to set max_staleness to 0 so that CDC changes are immediately visible
-    // alterTable(tableName, "SET OPTIONS(max_staleness = INTERVAL 0 MINUTE)");
 
     List<List<Object>> expectedRows =
         LongStream.range(0, NUM_RECORDS_PRODUCED)

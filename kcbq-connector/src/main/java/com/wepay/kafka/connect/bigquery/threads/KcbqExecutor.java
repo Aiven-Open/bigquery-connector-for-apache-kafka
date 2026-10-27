@@ -27,6 +27,7 @@ import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
 import java.util.List;
 import java.util.Optional;
 
+/** Common methods for all Executors */
 public interface KcbqExecutor {
 
   /**
