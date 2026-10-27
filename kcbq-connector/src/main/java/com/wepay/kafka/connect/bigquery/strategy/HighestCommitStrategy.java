@@ -52,9 +52,9 @@ import org.slf4j.LoggerFactory;
  */
 public class HighestCommitStrategy implements CommitStrategy {
 
-    private static final Logger logger = LoggerFactory.getLogger(HighestCommitStrategy.class);
+  private static final Logger logger = LoggerFactory.getLogger(HighestCommitStrategy.class);
 
-    private static final Predicate<StreamStateContainer> CAN_COMMIT =
+  private static final Predicate<StreamStateContainer> CAN_COMMIT =
       streamStateContainer -> streamStateContainer.stateIs(StreamState.COMMITTED);
 
   /** The map of KafkaRecordKeys to Trackers */
@@ -142,7 +142,7 @@ public class HighestCommitStrategy implements CommitStrategy {
 
   @Override
   public boolean cleanCommitStrategy() {
-      logger.debug("Cleaning commit map.");
+    logger.debug("Cleaning commit map.");
     Map.Entry<KafkaRecordKey, StreamStateContainer> entry = commitMap.firstEntry();
     while (entry != null) {
       if (entry.getValue().stateIs(StreamState.INACTIVE)) {

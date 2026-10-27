@@ -28,10 +28,8 @@ import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkTaskConfig.BIG
 import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkTaskConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG;
 import static org.apache.kafka.connect.runtime.ConnectorConfig.KEY_CONVERTER_CLASS_CONFIG;
 import static org.apache.kafka.connect.runtime.ConnectorConfig.VALUE_CONVERTER_CLASS_CONFIG;
-import static org.apache.kafka.test.TestUtils.waitForCondition;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.StandardTableDefinition;
@@ -42,13 +40,10 @@ import com.wepay.kafka.connect.bigquery.integration.utils.TestCaseLogger;
 import com.wepay.kafka.connect.bigquery.integration.utils.TimePartitioningTestUtils;
 import com.wepay.kafka.connect.bigquery.retrieve.IdentitySchemaRetriever;
 import com.wepay.kafka.connect.bigquery.utils.TableNameUtils;
-
 import java.time.Duration;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 import org.apache.kafka.connect.json.JsonConverter;
 import org.apache.kafka.connect.json.JsonConverterConfig;
@@ -171,10 +166,13 @@ class TimePartitioningIT extends BaseConnectorIT {
 
     TableName tableName = tableName();
 
-    Awaitility.waitAtMost(Duration.ofMinutes(5)).pollInterval(Duration.ofMinutes(1))
-            .untilAsserted(() -> assertThat(readAllRows(bigQuery, tableName, "i").size())
+    Awaitility.waitAtMost(Duration.ofMinutes(5))
+        .pollInterval(Duration.ofMinutes(1))
+        .untilAsserted(
+            () ->
+                assertThat(readAllRows(bigQuery, tableName, "i").size())
                     .as("Not enough records written")
-                    .isGreaterThanOrEqualTo((int)NUM_RECORDS_PRODUCED));
+                    .isGreaterThanOrEqualTo((int) NUM_RECORDS_PRODUCED));
 
     // Ensure that the table was created with the expected time partitioning type
     StandardTableDefinition tableDefinition =

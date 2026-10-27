@@ -1712,7 +1712,8 @@ public class BigQuerySinkConfig extends AbstractConfig {
   }
 
   /**
-   * Gets the maximum thread pool size.  If the configuration is -1 then Integer.MAX_VALUE is returned.
+   * Gets the maximum thread pool size. If the configuration is -1 then Integer.MAX_VALUE is
+   * returned.
    *
    * @return the maximum thread pool size.
    */

@@ -39,12 +39,10 @@ import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.integration.utils.SchemaRegistryTestUtils;
 import com.wepay.kafka.connect.bigquery.retrieve.IdentitySchemaRetriever;
 import io.confluent.connect.avro.AvroConverter;
-
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-
 import org.apache.kafka.connect.data.SchemaAndValue;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
@@ -161,9 +159,15 @@ class AvroLogicalTypesIT extends BaseConnectorIT {
 
     TableName tableName = tableName();
 
-    Awaitility.waitAtMost(Duration.ofMinutes(5)).pollInterval(Duration.ofSeconds(30)).untilAsserted( () -> assertThat(bigQuery.getTable(tableName.getDataset(), tableName.getTable()))
-            .describedAs("BigQuery table '" + tableName + "' was not created").isNotNull());
-    Schema bqSchema = bigQuery.getTable(tableName.getDataset(), tableName.getTable()).getDefinition().getSchema();
+    Awaitility.waitAtMost(Duration.ofMinutes(5))
+        .pollInterval(Duration.ofSeconds(30))
+        .untilAsserted(
+            () ->
+                assertThat(bigQuery.getTable(tableName.getDataset(), tableName.getTable()))
+                    .describedAs("BigQuery table '" + tableName + "' was not created")
+                    .isNotNull());
+    Schema bqSchema =
+        bigQuery.getTable(tableName.getDataset(), tableName.getTable()).getDefinition().getSchema();
     assertThat(bqSchema).isNotNull();
     assertFieldType(bqSchema, "ts_micros", LegacySQLTypeName.TIMESTAMP);
     assertFieldType(bqSchema, "ts_nanos", LegacySQLTypeName.TIMESTAMP);
@@ -173,7 +177,9 @@ class AvroLogicalTypesIT extends BaseConnectorIT {
     assertFieldType(bqSchema, "time_micros", LegacySQLTypeName.TIME);
 
     List<List<Object>> rows = new ArrayList<>();
-    Awaitility.waitAtMost(Duration.ofMinutes(5)).pollInterval(Duration.ofSeconds(1)).until(() -> rows.addAll(readAllRows(bigQuery, tableName(), "ts_micros")));
+    Awaitility.waitAtMost(Duration.ofMinutes(5))
+        .pollInterval(Duration.ofSeconds(1))
+        .until(() -> rows.addAll(readAllRows(bigQuery, tableName(), "ts_micros")));
     assertThat(rows).hasSize(1);
     List<Object> row = rows.get(0);
 
