@@ -39,6 +39,7 @@ import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.BigQueryException;
 import com.google.cloud.bigquery.Field;
 import com.google.cloud.bigquery.Field.Mode;
+import com.google.cloud.bigquery.FieldList;
 import com.google.cloud.bigquery.LegacySQLTypeName;
 import com.google.cloud.bigquery.StandardTableDefinition;
 import com.google.cloud.bigquery.Table;
@@ -1607,6 +1608,64 @@ public class SchemaManagerTest {
         recordField.getSubFields().stream()
             .anyMatch(f -> SchemaManager.KAFKA_DATA_PUT_ATTEMPT_ID_FIELD_NAME.equals(f.getName()));
     assertFalse(found, "putAttemptId subfield should not be present when flag is disabled");
+  }
+
+  /**
+   * Tests the case where the existing schema contains fields that the records do not have.
+   */
+  @Test
+  public void testUpdateWithSmallerSchema() {
+    com.google.cloud.bigquery.Schema existingSchema = com.google.cloud.bigquery.Schema.of(
+            Field.newBuilder("f1", LegacySQLTypeName.BOOLEAN).setMode(Field.Mode.REQUIRED).build(),
+            Field.newBuilder("f2", LegacySQLTypeName.INTEGER).setMode(Field.Mode.NULLABLE).build()
+    );
+
+    Schema incomingSchema = SchemaBuilder.struct().field("f1", Schema.BOOLEAN_SCHEMA).build();
+    List<SinkRecord> incomingSinkRecords = ImmutableList.of(recordWithValueSchema(incomingSchema));
+    TableId tableId = mock(TableId.class);
+    Table table = tableWithSchema(existingSchema);
+    when(mockBigQuery.getTable(tableId)).thenReturn(table);
+
+    BigQuerySchemaConverter converter = new BigQuerySchemaConverter(false, true);
+    SchemaManager underTest = createSchemaManager(true, false, false, true, converter);
+
+   SchemaManager.SchemaAndPrimaryKeyColumns schemaAndPrimaryKeyColumns = underTest.getAndValidateProposedSchema(tableId, incomingSinkRecords);
+    assertNotNull(schemaAndPrimaryKeyColumns.schema().getFields().get("f2"));
+  }
+
+  /**
+   * Tests the case where the existing schema contains fields that the records do not have.
+   */
+  @Test
+  public void testUpdateWithSmallerSchemaWithRecords() {
+    List<Field> existing = List.of(
+            Field.newBuilder("x1", LegacySQLTypeName.BOOLEAN).setMode(Field.Mode.REQUIRED).build(),
+            Field.newBuilder("x2", LegacySQLTypeName.INTEGER).setMode(Field.Mode.NULLABLE).build()
+    );
+
+    com.google.cloud.bigquery.Schema existingSchema = com.google.cloud.bigquery.Schema.of(
+            Field.newBuilder("f1", LegacySQLTypeName.BOOLEAN).setMode(Field.Mode.REQUIRED).build(),
+            Field.newBuilder("f2", LegacySQLTypeName.INTEGER).setMode(Field.Mode.NULLABLE).build(),
+            Field.newBuilder("f3", LegacySQLTypeName.RECORD, FieldList.of(existing)).build()
+    );
+
+    Schema incomingSchema = SchemaBuilder.struct()
+            .field("f1", Schema.BOOLEAN_SCHEMA)
+            .field("f3", SchemaBuilder.struct().field("x2", Schema.INT32_SCHEMA).build())
+            .build();
+    List<SinkRecord> incomingSinkRecords = ImmutableList.of(recordWithValueSchema(incomingSchema));
+    TableId tableId = mock(TableId.class);
+    Table table = tableWithSchema(existingSchema);
+    when(mockBigQuery.getTable(tableId)).thenReturn(table);
+
+    BigQuerySchemaConverter converter = new BigQuerySchemaConverter(false, true);
+    SchemaManager underTest = createSchemaManager(true, false, false, true, converter);
+
+    SchemaManager.SchemaAndPrimaryKeyColumns schemaAndPrimaryKeyColumns = underTest.getAndValidateProposedSchema(tableId, incomingSinkRecords);
+    assertNotNull(schemaAndPrimaryKeyColumns.schema().getFields().get("f2"));
+    assertNotNull(schemaAndPrimaryKeyColumns.schema().getFields().get("f3"));
+    assertNotNull(schemaAndPrimaryKeyColumns.schema().getFields().get("f3").getSubFields().get("x1"));
+
   }
 
   class TestingSchemaConverter implements SchemaConverter<com.google.cloud.bigquery.Schema> {
