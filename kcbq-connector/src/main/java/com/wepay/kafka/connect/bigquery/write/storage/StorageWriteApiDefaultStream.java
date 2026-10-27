@@ -126,6 +126,31 @@ public class StorageWriteApiDefaultStream extends StorageWriteApiBase {
         });
   }
 
+  private JsonStreamWriter createStream(String tableName, PartitionedTableId table, List<ConvertedRecord> rows) {
+
+      StorageWriteApiRetryHandler retryHandler =
+              new StorageWriteApiRetryHandler(
+                      table.getBaseTableId(), getSinkRecords(rows), retry, retryWait, time);
+      do {
+        try {
+          return jsonWriterFactory.create(tableName);
+        } catch (Exception e) {
+          String baseErrorMessage =
+                  String.format(
+                          "Failed to create Default stream writer on table %s due to %s",
+                          tableName, e.getMessage());
+          retryHandler.setMostRecentException(
+                  new BigQueryStorageWriteApiConnectException(baseErrorMessage, e));
+          if (shouldHandleTableCreation(e.getMessage())) {
+            retryHandler.attemptTableOperation(schemaManager::createTable);
+          } else if (isNonRetriable(e)) {
+            throw retryHandler.getMostRecentException();
+          }
+          logger.warn(baseErrorMessage + " Retry attempt {}", retryHandler.getAttempt());
+        }
+        retryHandler.maybeRetry("create default stream on table " + tableName);
+      } while (true);
+  }
   /**
    * Open a default stream on table if not already present
    *
@@ -136,32 +161,32 @@ public class StorageWriteApiDefaultStream extends StorageWriteApiBase {
   @VisibleForTesting
   JsonStreamWriter getDefaultStream(PartitionedTableId table, List<ConvertedRecord> rows) {
     String tableName = TableNameUtils.tableName(table.getFullTableId()).toString();
-    return tableToStream.computeIfAbsent(
-        tableName,
-        t -> {
-          StorageWriteApiRetryHandler retryHandler =
-              new StorageWriteApiRetryHandler(
-                  table.getBaseTableId(), getSinkRecords(rows), retry, retryWait, time);
-          do {
-            try {
-              return jsonWriterFactory.create(tableName);
-            } catch (Exception e) {
-              String baseErrorMessage =
-                  String.format(
-                      "Failed to create Default stream writer on table %s due to %s",
-                      tableName, e.getMessage());
-              retryHandler.setMostRecentException(
-                  new BigQueryStorageWriteApiConnectException(baseErrorMessage, e));
-              if (shouldHandleTableCreation(e.getMessage())) {
-                retryHandler.attemptTableOperation(schemaManager::createTable);
-              } else if (isNonRetriable(e)) {
-                throw retryHandler.getMostRecentException();
-              }
-              logger.warn(baseErrorMessage + " Retry attempt {}", retryHandler.getAttempt());
-            }
-            retryHandler.maybeRetry("create default stream on table " + tableName);
-          } while (true);
-        });
+    return tableToStream.computeIfAbsent(tableName, t -> createStream(t, table, rows));
+//        t -> {
+//          StorageWriteApiRetryHandler retryHandler =
+//              new StorageWriteApiRetryHandler(
+//                  table.getBaseTableId(), getSinkRecords(rows), retry, retryWait, time);
+//          do {
+//            try {
+//              return jsonWriterFactory.create(tableName);
+//            } catch (Exception e) {
+//              String baseErrorMessage =
+//                  String.format(
+//                      "Failed to create Default stream writer on table %s due to %s",
+//                      tableName, e.getMessage());
+//              retryHandler.setMostRecentException(
+//                  new BigQueryStorageWriteApiConnectException(baseErrorMessage, e));
+//              if (shouldHandleTableCreation(e.getMessage())) {
+//                retryHandler.attemptTableOperation(schemaManager::createTable);
+//              } else if (isNonRetriable(e)) {
+//                throw retryHandler.getMostRecentException();
+//              }
+//              logger.warn(baseErrorMessage + " Retry attempt {}", retryHandler.getAttempt());
+//            }
+//            retryHandler.maybeRetry("create default stream on table " + tableName);
+//          } while (true);
+//        }
+//        );
   }
 
   @Override

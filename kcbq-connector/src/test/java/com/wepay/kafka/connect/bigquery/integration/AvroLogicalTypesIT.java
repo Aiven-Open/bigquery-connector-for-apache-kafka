@@ -34,16 +34,16 @@ import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.Field;
 import com.google.cloud.bigquery.LegacySQLTypeName;
 import com.google.cloud.bigquery.Schema;
-import com.google.cloud.bigquery.Table;
 import com.google.cloud.bigquery.storage.v1.TableName;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.integration.utils.SchemaRegistryTestUtils;
 import com.wepay.kafka.connect.bigquery.retrieve.IdentitySchemaRetriever;
 import io.confluent.connect.avro.AvroConverter;
+
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 import org.apache.kafka.connect.data.SchemaAndValue;
 import org.apache.kafka.connect.data.SchemaBuilder;
@@ -51,6 +51,7 @@ import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.runtime.ConnectorConfig;
 import org.apache.kafka.connect.runtime.SinkConnectorConfig;
 import org.apache.kafka.connect.storage.Converter;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -158,12 +159,12 @@ class AvroLogicalTypesIT extends BaseConnectorIT {
 
     produceRecord(topic, 1L);
 
-//    waitForCommittedRecords(
-//        connectorName(), Collections.singleton(topic), 1, TASKS_MAX, TimeUnit.MINUTES.toMillis(2));
-//
-//          //  COMMIT_MAX_DURATION_MS);
+    TableName tableName = tableName();
 
-    Schema bqSchema = getBigQuerySchema(tableName());
+    Awaitility.waitAtMost(Duration.ofMinutes(5)).pollInterval(Duration.ofSeconds(30)).untilAsserted( () -> assertThat(bigQuery.getTable(tableName.getDataset(), tableName.getTable()))
+            .describedAs("BigQuery table '" + tableName + "' was not created").isNotNull());
+    Schema bqSchema = bigQuery.getTable(tableName.getDataset(), tableName.getTable()).getDefinition().getSchema();
+    assertThat(bqSchema).isNotNull();
     assertFieldType(bqSchema, "ts_micros", LegacySQLTypeName.TIMESTAMP);
     assertFieldType(bqSchema, "ts_nanos", LegacySQLTypeName.TIMESTAMP);
     assertFieldType(bqSchema, "local_ts_millis", LegacySQLTypeName.DATETIME);
@@ -171,9 +172,9 @@ class AvroLogicalTypesIT extends BaseConnectorIT {
     assertFieldType(bqSchema, "local_ts_nanos", LegacySQLTypeName.DATETIME);
     assertFieldType(bqSchema, "time_micros", LegacySQLTypeName.TIME);
 
-    // Verify actual values
-    List<List<Object>> rows = readAllRows(bigQuery, tableName(), "ts_micros");
-    assertEquals(1, rows.size());
+    List<List<Object>> rows = new ArrayList<>();
+    Awaitility.waitAtMost(Duration.ofMinutes(5)).pollInterval(Duration.ofSeconds(1)).until(() -> rows.addAll(readAllRows(bigQuery, tableName(), "ts_micros")));
+    assertThat(rows).hasSize(1);
     List<Object> row = rows.get(0);
 
     // TIMESTAMP fields: getTimestampValue() returns epoch microseconds
@@ -207,12 +208,6 @@ class AvroLogicalTypesIT extends BaseConnectorIT {
     records.add(record);
 
     schemaRegistry.produceRecordsWithKey(keyConverter, valueConverter, records, topic);
-  }
-
-  private Schema getBigQuerySchema(TableName tableName) {
-    Table table = bigQuery.getTable(tableName.getDataset(), tableName.getTable());
-    assertThat(table).describedAs("BigQuery table '" + tableName + "' was not created").isNotNull();
-    return table.getDefinition().getSchema();
   }
 
   private void assertFieldType(Schema schema, String fieldName, LegacySQLTypeName expectedType) {
