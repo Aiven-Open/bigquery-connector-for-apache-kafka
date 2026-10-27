@@ -38,7 +38,6 @@ import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.Bucket;
 import com.google.cloud.storage.StorageException;
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.util.concurrent.AtomicDouble;
 import com.google.re2j.Matcher;
 import com.google.re2j.Pattern;
 import com.wepay.kafka.connect.bigquery.write.row.GcsToBqWriter;

@@ -44,10 +44,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Scanner;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerConfig;
@@ -186,7 +182,6 @@ class BigQuerySinkConnectorIT extends BaseConnectorIT {
         ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, assertCluster().kafka().bootstrapServers());
     return producerProps;
   }
-
 
   @ParameterizedTest(name = "{index} {0}")
   @MethodSource("testArguments")
