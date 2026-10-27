@@ -129,14 +129,16 @@ class GcsBatchSchemaEvolutionIT extends BaseConnectorIT {
     schemaRegistry.produceRecordsWithKey(
         keyConverter, valueConverter, Collections.singletonList(recordV1(1L, "snacks")), topic);
 
-    Awaitility.waitAtMost(Duration.ofMinutes(5)).pollInterval(Duration.ofSeconds(1))
-                    .until(() -> countRows(bigQuery, tableName) >= 1L);
+    Awaitility.waitAtMost(Duration.ofMinutes(5))
+        .pollInterval(Duration.ofSeconds(1))
+        .until(() -> countRows(bigQuery, tableName) >= 1L);
 
     schemaRegistry.produceRecordsWithKey(
         keyConverter, valueConverter, Collections.singletonList(recordV2(2L, null, "john")), topic);
 
-    Awaitility.waitAtMost(Duration.ofMinutes(5)).pollInterval(Duration.ofSeconds(1))
-            .until(() -> countRows(bigQuery, tableName) >= 2L);
+    Awaitility.waitAtMost(Duration.ofMinutes(5))
+        .pollInterval(Duration.ofSeconds(1))
+        .until(() -> countRows(bigQuery, tableName) >= 2L);
 
     Table destinationTable = bigQuery.getTable(TableNameUtils.tableId(tableName));
     com.google.cloud.bigquery.Schema destinationSchema =

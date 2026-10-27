@@ -179,30 +179,6 @@ public class BigQuerySinkTask extends SinkTask {
     this.commitStrategyFactory = commitStrategyFactory;
   }
 
-//  @Override
-//  public void flush(Map<TopicPartition, OffsetAndMetadata> offsets) {
-//    // this method is no longer used.
-//    if (upsertDelete) {
-//      throw new ConnectException(
-//          "This connector cannot perform upsert/delete on older versions of "
-//              + "the Connect framework; please upgrade to version 0.10.2.0 or later");
-//    } else if (useStorageApi && useStorageApiBatchMode) {
-//      throw new ConnectException(
-//          "This connector cannot use batch mode for the Storage Write API "
-//              + "on older versions of the Connect framework; please upgrade to version 0.10.2.0 or later");
-//    }
-//
-//    // Return immediately here since the executor will already be shutdown
-//    if (stopped) {
-//      // Still have to check for errors in order to prevent offsets being committed for records that
-//      // we've failed to write
-//      executor.maybeThrowEncounteredError();
-//      return;
-//    }
-//
-//    topicPartitionManager.resumeAll();
-//  }
-
   @Override
   public Map<TopicPartition, OffsetAndMetadata> preCommit(
       Map<TopicPartition, OffsetAndMetadata> offsets) {
@@ -467,7 +443,6 @@ public class BigQuerySinkTask extends SinkTask {
     open(partitions);
   }
 
-
   @Override
   public void close(Collection<TopicPartition> partitions) {
     logger.debug("Unassigned partitions: {}", partitions);
@@ -685,9 +660,9 @@ public class BigQuerySinkTask extends SinkTask {
     int intervalSec = config.getInt(BigQuerySinkConfig.BATCH_LOAD_INTERVAL_SEC_CONFIG);
     scheduledExecutor.scheduleAtFixedRate(
         new NamedRunnable(loadRunnable, "GCS Loader"), 0, intervalSec, TimeUnit.SECONDS);
-    scheduledExecutor.execute( () -> logger.warn("Schedule executor running"));
+    scheduledExecutor.execute(() -> logger.warn("Schedule executor running"));
     scheduledExecutor.scheduleAtFixedRate(
-            () -> logger.warn("Scheduled schedule executor running"), 0, intervalSec, TimeUnit.SECONDS);
+        () -> logger.warn("Scheduled schedule executor running"), 0, intervalSec, TimeUnit.SECONDS);
   }
 
   private void maybeStartMergeFlushTask() {

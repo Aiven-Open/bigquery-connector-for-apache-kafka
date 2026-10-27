@@ -63,7 +63,9 @@ public class BigQueryStorageWriteApiConnectException extends ConnectException {
 
   private static String formatRowErrors(String tableName, Map<Integer, String> errors) {
     StringBuilder builder = new StringBuilder();
-    builder.append(String.format("Insertion failed at table %s for following %s rows: ", tableName, errors.size()));
+    builder.append(
+        String.format(
+            "Insertion failed at table %s for following %s rows: ", tableName, errors.size()));
     for (Map.Entry<Integer, String> error : errors.entrySet()) {
       builder.append(
           String.format(

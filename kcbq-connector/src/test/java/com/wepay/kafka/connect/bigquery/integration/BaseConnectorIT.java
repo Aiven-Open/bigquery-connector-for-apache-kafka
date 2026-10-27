@@ -363,7 +363,12 @@ abstract class BaseConnectorIT {
       String connector, Collection<String> topics, long numRecords, int numTasks, long timeoutMs)
       throws InterruptedException {
     waitForCommittedRecords(
-        connector, topics, numRecords, numTasks, timeoutMs, Math.max(DEFAULT_POLL_INTERVAL_MS, OFFSET_COMMIT_INTERVAL_MS / 2));
+        connector,
+        topics,
+        numRecords,
+        numTasks,
+        timeoutMs,
+        Math.max(DEFAULT_POLL_INTERVAL_MS, OFFSET_COMMIT_INTERVAL_MS / 2));
   }
 
   /**

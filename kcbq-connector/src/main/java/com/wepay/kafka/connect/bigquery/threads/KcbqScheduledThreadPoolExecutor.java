@@ -25,21 +25,17 @@ package com.wepay.kafka.connect.bigquery.threads;
 
 import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
 import com.wepay.kafka.connect.bigquery.exception.ExpectedInterruptException;
-
-import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.Callable;
 import java.util.concurrent.FutureTask;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** A scheduled thread pool. Only one thread at a time is supported.  This pool should be used to schedule tasks that do not take too long.
- * As one long running task may block others.
+/**
+ * A scheduled thread pool. Only one thread at a time is supported. This pool should be used to
+ * schedule tasks that do not take too long. As one long running task may block others.
  */
 public class KcbqScheduledThreadPoolExecutor extends ScheduledThreadPoolExecutor
     implements KcbqExecutor {
@@ -110,7 +106,10 @@ public class KcbqScheduledThreadPoolExecutor extends ScheduledThreadPoolExecutor
   public String status() {
     return String.format(
         "ScheduledThreadPool pool:%s active:%s queue:%s task:%s completed:%s",
-        getPoolSize(), getActiveCount(), getQueue().size(), getTaskCount(), getCompletedTaskCount());
+        getPoolSize(),
+        getActiveCount(),
+        getQueue().size(),
+        getTaskCount(),
+        getCompletedTaskCount());
   }
 }
-

@@ -25,10 +25,8 @@ package com.wepay.kafka.connect.bigquery.threads;
 
 import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
 import com.wepay.kafka.connect.bigquery.exception.ExpectedInterruptException;
-import com.wepay.kafka.connect.bigquery.write.batch.CountDownRunnable;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -50,13 +48,15 @@ public class KcbqThreadPoolExecutor extends ThreadPoolExecutor implements KcbqEx
 
   /**
    * Construct an executor with the maximum pool size or 5 whichever is larger.
+   *
    * @param maxPoolSize The maximum pools size should be 5 or greater.
    */
   public KcbqThreadPoolExecutor(int maxPoolSize) {
-    // Since queue is unbounded the maximum number of threads that will be created is the corePoolSize
+    // Since queue is unbounded the maximum number of threads that will be created is the
+    // corePoolSize
     super(
-            Math.max(maxPoolSize, 5),
-            Math.max(maxPoolSize, 5),
+        Math.max(maxPoolSize, 5),
+        Math.max(maxPoolSize, 5),
         10,
         TimeUnit.SECONDS,
         new LinkedBlockingQueue<>(),
@@ -69,7 +69,11 @@ public class KcbqThreadPoolExecutor extends ThreadPoolExecutor implements KcbqEx
   public String status() {
     return String.format(
         "ThreadPool pool:%s active:%s queue:%s task:%s completed:%s",
-        getPoolSize(), getActiveCount(), getQueue().size(), getTaskCount(), getCompletedTaskCount());
+        getPoolSize(),
+        getActiveCount(),
+        getQueue().size(),
+        getTaskCount(),
+        getCompletedTaskCount());
   }
 
   @Override
