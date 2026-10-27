@@ -68,7 +68,19 @@ public interface CommitStrategy {
    */
   boolean cleanCommitStrategy();
 
+  /**
+   * Begins tracking the specified {@code TopicPartition}s.
+   *
+   * @param partitions the {@code TopicPartition}s to begin tracking.
+   */
   void registerPartitions(Collection<TopicPartition> partitions);
 
+  /**
+   * Stops tracking the specified {@code TopicPartition}. Any {@link StreamStateContainer}s that
+   * contain the queued records for the specified {@code TopicPartition} should be aborted and not
+   * reported.
+   *
+   * @param partitions the {@code TopicPartition} to stop tracking.
+   */
   void unregisterPartitions(Collection<TopicPartition> partitions);
 }

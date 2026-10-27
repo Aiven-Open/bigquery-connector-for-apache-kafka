@@ -553,8 +553,6 @@ public class BigQuerySinkTaskTest {
 
     CountDownLatch executedMerges = new CountDownLatch(2);
     CountDownLatch executedBatchClears = new CountDownLatch(2);
-    //    AtomicInteger executedMerges = new AtomicInteger();
-    //    AtomicInteger executedBatchClears = new AtomicInteger();
 
     when(bigQuery.query(any(QueryJobConfiguration.class)))
         .then(
@@ -605,23 +603,8 @@ public class BigQuerySinkTaskTest {
             spoofSinkRecord(
                 topic, key, "4761", null, null, TimestampType.NO_TIMESTAMP_TYPE, null)));
 
-    // pollUntilResults(Duration.ofMinutes(30), testTask, map -> map.size() == 4);
-
-    //    Awaitility.waitAtMost(Duration.ofSeconds(5)).pollDelay(Duration.ofSeconds(1)).until(() ->
-    // {
-    //      results.putAll(testTask.preCommit(Collections.emptyMap()));
-    //      return results.keySet().contains(tp);
-    //    });
-    // assertThat(results.get(tp).offset()).isEqualTo(sinkRecord.originalKafkaOffset());
-
     assertTrue(executedMerges.await(5, TimeUnit.SECONDS), "Merge queries should be executed");
     assertTrue(executedBatchClears.await(1, TimeUnit.SECONDS), "Batch clears should be executed");
-
-    //    Awaitility.waitAtMost(Duration.ofMinutes(5)).pollDelay(Duration.ofSeconds(1)).until(() ->
-    // executedMerges.get() >= 2);
-    //    Awaitility.waitAtMost(Duration.ofSeconds(5)).pollDelay(Duration.ofSeconds(1)).until(() ->
-    // executedBatchClears.get() >= 2);
-
   }
 
   // Throw an exception on the first put, and assert the Exception will be exposed in subsequent
@@ -860,9 +843,6 @@ public class BigQuerySinkTaskTest {
     testTask.put(Collections.singletonList(spoofSinkRecord(topic)));
 
     DataPolling.pollUntilResults(testTask, map -> !map.isEmpty());
-    //    Awaitility.waitAtMost(Duration.ofSeconds(5)).pollDelay(Duration.ofSeconds(1))
-    //            .untilAsserted( () ->
-    // assertThat(testTask.preCommit(Collections.emptyMap())).isNotEmpty());
 
     verify(bigQuery, times(3)).insertAll(any(InsertAllRequest.class));
   }
