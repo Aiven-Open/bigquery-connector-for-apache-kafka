@@ -51,7 +51,6 @@ import com.wepay.kafka.connect.bigquery.utils.TableNameUtils;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -459,8 +458,13 @@ public class SchemaManager {
       }
       proposedSchema = convertRecordSchema(recordToConvert);
       if (existingSchema != null) {
-        FieldList synchronizedFields = synchronizeFields(existingSchema.schema().getFields(), proposedSchema.schema().getFields());
-        proposedSchema = new SchemaAndPrimaryKeyColumns(com.google.cloud.bigquery.Schema.of(synchronizedFields), proposedSchema.primaryKeyColumns());
+        FieldList synchronizedFields =
+            synchronizeFields(
+                existingSchema.schema().getFields(), proposedSchema.schema().getFields());
+        proposedSchema =
+            new SchemaAndPrimaryKeyColumns(
+                com.google.cloud.bigquery.Schema.of(synchronizedFields),
+                proposedSchema.primaryKeyColumns());
         validateSchemaChange(existingSchema.schema(), proposedSchema.schema());
         if (allowBqRequiredFieldRelaxation) {
           proposedSchema =
@@ -479,7 +483,9 @@ public class SchemaManager {
     existingFields.forEach(field -> mergedFields.put(field.getName(), field));
 
     for (Field proposedField : proposedFields) {
-      mergedFields.put(proposedField.getName(), merged(mergedFields.get(proposedField.getName()), proposedField));
+      mergedFields.put(
+          proposedField.getName(),
+          merged(mergedFields.get(proposedField.getName()), proposedField));
     }
     return FieldList.of(mergedFields.values());
   }
@@ -508,24 +514,24 @@ public class SchemaManager {
     if (existingField.getType().equals(proposedField.getType())) {
       if (getMode(existingField).equals(getMode(proposedField))) {
         if (existingField.getType() == LegacySQLTypeName.RECORD) {
-          FieldList mergedList = synchronizeFields(existingField.getSubFields(), proposedField.getSubFields());
-          return builder.setType(LegacySQLTypeName.RECORD, mergedList)
-                 .build();
+          FieldList mergedList =
+              synchronizeFields(existingField.getSubFields(), proposedField.getSubFields());
+          return builder.setType(LegacySQLTypeName.RECORD, mergedList).build();
         }
         return existingField;
       } else {
         builder.setMode(mergedMode(existingField.getMode(), proposedField.getMode()));
         if (existingField.getType() == LegacySQLTypeName.RECORD) {
-          FieldList mergedList = synchronizeFields(existingField.getSubFields(), proposedField.getSubFields());
+          FieldList mergedList =
+              synchronizeFields(existingField.getSubFields(), proposedField.getSubFields());
           return builder.setType(LegacySQLTypeName.RECORD, mergedList).build();
         }
         return builder.build();
       }
     }
     throw new BigQueryConnectException(
-            String.format("Failed to merge '%s' into '%s'", proposedField, existingField));
+        String.format("Failed to merge '%s' into '%s'", proposedField, existingField));
   }
-
 
   /**
    * Returns a list of BigQuery schemas of the specified table and the sink records
