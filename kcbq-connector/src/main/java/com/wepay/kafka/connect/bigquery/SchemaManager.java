@@ -30,6 +30,7 @@ import com.google.cloud.bigquery.BigQueryException;
 import com.google.cloud.bigquery.Clustering;
 import com.google.cloud.bigquery.Field;
 import com.google.cloud.bigquery.Field.Mode;
+import com.google.cloud.bigquery.FieldList;
 import com.google.cloud.bigquery.LegacySQLTypeName;
 import com.google.cloud.bigquery.PrimaryKey;
 import com.google.cloud.bigquery.StandardTableDefinition;
@@ -439,10 +440,10 @@ public class SchemaManager {
 
   @VisibleForTesting
   SchemaAndPrimaryKeyColumns getAndValidateProposedSchema(TableId table, List<SinkRecord> records) {
-    SchemaAndPrimaryKeyColumns result;
+    SchemaAndPrimaryKeyColumns proposedSchema;
     if (allowSchemaUnionization) {
       List<SchemaAndPrimaryKeyColumns> bigQuerySchemas = getSchemasList(table, records);
-      result = getUnionizedSchema(bigQuerySchemas);
+      proposedSchema = getUnionizedSchema(bigQuerySchemas);
     } else {
       SchemaAndPrimaryKeyColumns existingSchema = readTableSchema(table);
       SinkRecord recordToConvert = getRecordToConvert(records);
@@ -455,18 +456,126 @@ public class SchemaManager {
         logger.debug(errorMessage + " Will fall back to existing schema.");
         return existingSchema;
       }
-      result = convertRecordSchema(recordToConvert);
+      proposedSchema = convertRecordSchema(recordToConvert);
       if (existingSchema != null) {
-        validateSchemaChange(existingSchema.schema(), result.schema());
+        FieldList synchronizedFields =
+            synchronizeFields(
+                existingSchema.schema().getFields(), proposedSchema.schema().getFields());
+        proposedSchema =
+            new SchemaAndPrimaryKeyColumns(
+                com.google.cloud.bigquery.Schema.of(synchronizedFields),
+                proposedSchema.primaryKeyColumns());
+        validateSchemaChange(existingSchema.schema(), proposedSchema.schema());
         if (allowBqRequiredFieldRelaxation) {
-          result =
+          proposedSchema =
               new SchemaAndPrimaryKeyColumns(
-                  relaxFieldsWhereNecessary(existingSchema.schema(), result.schema()),
-                  result.primaryKeyColumns());
+                  relaxFieldsWhereNecessary(existingSchema.schema(), proposedSchema.schema()),
+                  proposedSchema.primaryKeyColumns());
         }
       }
     }
-    return result;
+    return proposedSchema;
+  }
+
+  /**
+   * Merges and synchronizes an existing and proposed field list. The resulting FieldList will be in
+   * the order of the existingFields (if any) with new fields from proposedFields appended. Fields
+   * that exist in both lists are merged using {@link #merged(Field, Field)}.
+   *
+   * @param existingFields the existing FieldList, not null.
+   * @param proposedFields the proposed FieldList, not null.
+   * @return a FieldList containing all the existing fields and any additional fields from the
+   *     proposed list.
+   */
+  private FieldList synchronizeFields(FieldList existingFields, FieldList proposedFields) {
+
+    Map<String, Field> mergedFields = new LinkedHashMap<>();
+    existingFields.forEach(field -> mergedFields.put(field.getName(), field));
+
+    for (Field proposedField : proposedFields) {
+      mergedFields.put(
+          proposedField.getName(),
+          merged(mergedFields.get(proposedField.getName()), proposedField));
+    }
+    return FieldList.of(mergedFields.values());
+  }
+
+  /**
+   * Calculates the least restrictive mode.
+   *
+   * @param existingMode the existing mode from a schema.
+   * @param proposedMode the proposed mode from a new schema.
+   * @return a mode that is least restrictive.
+   */
+  private Mode mergedMode(Mode existingMode, Mode proposedMode) {
+    return switch (getMode(existingMode)) {
+      case NULLABLE -> Mode.NULLABLE;
+      case REPEATED -> getMode(proposedMode) == Mode.NULLABLE ? Mode.NULLABLE : Mode.REPEATED;
+      case REQUIRED -> getMode(proposedMode);
+    };
+  }
+
+  /**
+   * Returns the mode of the field, or {@link Mode#NULLABLE} if the mode is @{code null}.
+   *
+   * @param field the field to check.
+   * @return the mode of the field, or {@link Mode#NULLABLE} if the field mode value is @{code
+   *     null}.
+   */
+  private Mode getMode(Field field) {
+    return field.getMode() == null ? Mode.NULLABLE : field.getMode();
+  }
+
+  /**
+   * Returns the mode, or {@link Mode#NULLABLE} if the mode parameter is @{code null}.
+   *
+   * @param mode the mode to check.
+   * @return the mode parameter or {@link Mode#NULLABLE} if the mode parameter is @{code null}.
+   */
+  private Mode getMode(Mode mode) {
+    return mode == null ? Mode.NULLABLE : mode;
+  }
+
+  /**
+   * Merges to field definitions. If the existing field is null the proposed field is returned.
+   * Otherwise, the fields must be of the same type. If they are not of the same type an exception
+   * is thrown. If the fields are also of the same mode then and not a {@link
+   * LegacySQLTypeName#RECORD} type the existing field is returned. If the fields are of a RECORD
+   * type the subfields are checked using the {@link #synchronizeFields} method. If the fields are
+   * of different modes then {@link #mergedMode(Mode, Mode)} is called to determine the mode that
+   * should be used, and, as noted above, if the mode is a {@link LegacySQLTypeName#RECORD} type
+   * then the subfields are checked using the {@link #synchronizeFields} method.
+   *
+   * @param existingField the existing field (may be null).
+   * @param proposedField the proposed field (may not be null).
+   * @return a Field that is the merging of the existing and proposed field.
+   * @throws BigQueryConnectException if the fields can not me merged.
+   */
+  private Field merged(Field existingField, Field proposedField) {
+    if (existingField == null) {
+      return proposedField;
+    }
+    Field.Builder builder = existingField.toBuilder();
+    if (existingField.getType().equals(proposedField.getType())) {
+      if (getMode(existingField).equals(getMode(proposedField))) {
+        if (existingField.getType() == LegacySQLTypeName.RECORD) {
+          FieldList mergedList =
+              synchronizeFields(existingField.getSubFields(), proposedField.getSubFields());
+          return builder.setType(LegacySQLTypeName.RECORD, mergedList).build();
+        }
+        return existingField;
+      } else {
+        builder.setMode(mergedMode(existingField.getMode(), proposedField.getMode()));
+        if (existingField.getType() == LegacySQLTypeName.RECORD) {
+          FieldList mergedList =
+              synchronizeFields(existingField.getSubFields(), proposedField.getSubFields());
+          return builder.setType(LegacySQLTypeName.RECORD, mergedList).build();
+        }
+        return builder.build();
+      }
+    }
+    throw new BigQueryConnectException(
+        String.format("Failed to merge '%s' into '%s'", proposedField, existingField));
   }
 
   /**
