@@ -560,10 +560,8 @@ public class BigQuerySinkTaskTest {
               String query = invocation.getArgument(0, QueryJobConfiguration.class).getQuery();
               if (query.startsWith("MERGE")) {
                 executedMerges.countDown();
-                //                executedMerges.incrementAndGet();
               } else if (query.startsWith("DELETE")) {
                 executedBatchClears.countDown();
-                //                executedBatchClears.incrementAndGet();
               }
               return null;
             });
