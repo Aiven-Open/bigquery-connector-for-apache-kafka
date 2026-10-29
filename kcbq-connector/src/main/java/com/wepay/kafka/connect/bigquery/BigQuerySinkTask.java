@@ -156,7 +156,7 @@ public class BigQuerySinkTask extends SinkTask {
    * For testing purposes only; will never be called by the Kafka Connect framework.
    *
    * @param bigQuery {@link BigQuery} to use for testing (likely a mock)
-   * @param storage {@link Storage} to use for testing (likely a mock)
+   * @param storage {@link Storage} to use for testing (likely a mock)Mapped Diagnostic Context
    * @param schemaManager {@link SchemaManager} to use for testing (likely a mock)
    * @param time {@link Time} used to wait during backoff periods; should be mocked for testing
    * @see BigQuerySinkTask#BigQuerySinkTask()

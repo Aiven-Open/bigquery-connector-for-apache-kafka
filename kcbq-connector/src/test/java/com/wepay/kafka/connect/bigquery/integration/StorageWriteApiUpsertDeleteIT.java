@@ -158,13 +158,6 @@ class StorageWriteApiUpsertDeleteIT extends BaseConnectorIT {
       assertCluster().kafka().produce(topic, kafkaKey, kafkaValue);
     }
 
-    //    // wait for tasks to write to BigQuery and commit offsets for their records
-    //    waitForCommittedRecords(connectorName(), topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
-
-    // Alter table to set max_staleness to 0 so that CDC changes are immediately visible
-    // alterTable(tableName, "SET OPTIONS(max_staleness = INTERVAL 0 MINUTE)");
-
-    //    List<List<Object>> allRows = readAllRows(bigQuery, tableName, "k1");
     List<List<Object>> expectedRows =
         LongStream.range(0, NUM_RECORDS_PRODUCED / 2)
             .mapToObj(
@@ -173,10 +166,15 @@ class StorageWriteApiUpsertDeleteIT extends BaseConnectorIT {
                         "another string", (i - 1) % 3 == 0, (i * 2 + 1) / 0.69, i))
             .collect(Collectors.toList());
 
+    // Wait until table is created
     Awaitility.waitAtMost(Duration.ofMinutes(4))
         .pollInterval(Duration.ofSeconds(1))
         .until(() -> bigQuery.getTable(tableName.getDataset(), tableName.getTable()) != null);
+
+    // Alter table to set max_staleness to 0 so that CDC changes are immediately visible
     alterTable(tableName, "SET OPTIONS(max_staleness = INTERVAL 0 MINUTE)");
+
+    // wait for the entire table to be populated
     Awaitility.waitAtMost(Duration.ofMinutes(5))
         .pollInterval(Duration.ofSeconds(1))
         .untilAsserted(

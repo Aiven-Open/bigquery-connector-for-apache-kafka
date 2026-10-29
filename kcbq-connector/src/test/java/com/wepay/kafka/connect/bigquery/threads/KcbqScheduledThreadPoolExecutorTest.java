@@ -130,8 +130,8 @@ class KcbqScheduledThreadPoolExecutorTest {
     executor.shutdown();
 
     String result = writer.toString();
-    // we should have execution 9 for both executors but because of potential load issues we will
-    // only check for 8
+    // we should have 4 executions for ex1 and 9 for ex2, but because of potential load issues we
+    // will only check for 8
     assertThat(result)
         .contains("ex1 - execution 4")
         .contains("ex2 - execution 9")

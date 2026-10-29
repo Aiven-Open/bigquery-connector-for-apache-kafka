@@ -27,6 +27,11 @@ import java.util.Map;
 import java.util.concurrent.ThreadFactory;
 import org.slf4j.MDC;
 
+/**
+ * A thread factory that sets the Mapped Diagnostic Context (MDC) that can be used by SLF4J.
+ *
+ * @see <a href="https://logback.qos.ch/manual/mdc.html">Mapped Diagnostic Context</a>
+ */
 public class MdcContextThreadFactory implements ThreadFactory {
 
   private final Map<String, String> mdcContext;
