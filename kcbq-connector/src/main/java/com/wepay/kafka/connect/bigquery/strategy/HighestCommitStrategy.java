@@ -22,7 +22,6 @@ package com.wepay.kafka.connect.bigquery.strategy;
 import com.google.common.annotations.VisibleForTesting;
 import com.wepay.kafka.connect.bigquery.write.storage.StreamState;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -55,18 +54,21 @@ public class HighestCommitStrategy implements CommitStrategy {
   private static final Logger logger = LoggerFactory.getLogger(HighestCommitStrategy.class);
 
   private static final Predicate<StreamStateContainer> CAN_COMMIT =
-      streamStateContainer -> streamStateContainer.stateIs(StreamState.COMMITTED);
+      streamStateContainer ->
+          streamStateContainer.stateIs(StreamState.COMMITTED)
+              || streamStateContainer.stateIs(StreamState.INACTIVE);
 
   /** The map of KafkaRecordKeys to Trackers */
   @VisibleForTesting final ConcurrentSkipListMap<KafkaRecordKey, StreamStateContainer> commitMap;
 
-  private final ConcurrentSkipListMap<TopicPartition, Set<StreamStateContainer>> partitions;
+  //  private final ConcurrentSkipListMap<TopicPartition, Set<StreamStateContainer>> partitions;
 
   public HighestCommitStrategy() {
     commitMap = new ConcurrentSkipListMap<>();
-    partitions =
-        new ConcurrentSkipListMap<>(
-            Comparator.comparing(TopicPartition::topic).thenComparing(TopicPartition::partition));
+    //    partitions =
+    //        new ConcurrentSkipListMap<>(
+    //
+    // Comparator.comparing(TopicPartition::topic).thenComparing(TopicPartition::partition));
   }
 
   @Override
@@ -76,15 +78,15 @@ public class HighestCommitStrategy implements CommitStrategy {
         .forEach(
             key -> {
               commitMap.put(key, streamStateContainer);
-              partitions.compute(
-                  key.getTopicPartition(),
-                  (k, v) -> {
-                    if (v == null) {
-                      v = new HashSet<>();
-                    }
-                    v.add(streamStateContainer);
-                    return v;
-                  });
+              //              partitions.compute(
+              //                  key.getTopicPartition(),
+              //                  (k, v) -> {
+              //                    if (v == null) {
+              //                      v = new HashSet<>();
+              //                    }
+              //                    v.add(streamStateContainer);
+              //                    return v;
+              //                  });
             });
   }
 
@@ -125,39 +127,25 @@ public class HighestCommitStrategy implements CommitStrategy {
       Map<TopicPartition, OffsetAndMetadata> currentOffsets) {
     // get the set of committed containers.
     Map<TopicPartition, OffsetAndMetadata> result = new HashMap<>();
-    /* if there is a committed state container for each partition, find the highestCommittableKey for that partition. */
-    partitions.entrySet().stream()
-        .filter(entry -> entry.getValue().stream().anyMatch(CAN_COMMIT))
-        .map(Map.Entry::getKey)
-        .forEach(
-            topicPartition -> {
-              KafkaRecordKey highestCommittableKey =
-                  getHighestCommittableKey(createSubMap(KafkaRecordKey.maxKey(topicPartition)));
-              if (highestCommittableKey != null) {
-                result.put(topicPartition, highestCommittableKey.getOffsetAndMetadata());
-              }
-            });
+    // find the highest committed offset for each partition.
+    KafkaRecordKey endKey = commitMap.isEmpty() ? null : commitMap.lastKey();
+    while (endKey != null) {
+      if (CAN_COMMIT.test(commitMap.get(endKey))) {
+        result.put(endKey.getTopicPartition(), endKey.getOffsetAndMetadata());
+        createSubMap(endKey).clear();
+      }
+      endKey = commitMap.lowerKey(endKey);
+    }
     return result;
   }
 
   @Override
   public boolean cleanCommitStrategy() {
-    logger.debug("Cleaning commit map.");
-    Map.Entry<KafkaRecordKey, StreamStateContainer> entry = commitMap.firstEntry();
-    while (entry != null) {
-      if (entry.getValue().stateIs(StreamState.INACTIVE)) {
-        commitMap.remove(entry.getKey());
-      }
-      entry = commitMap.higherEntry(entry.getKey());
-    }
-    return true;
+    return false;
   }
 
   @Override
-  public void registerPartitions(Collection<TopicPartition> partitions) {
-    partitions.forEach(
-        topicPartition -> this.partitions.computeIfAbsent(topicPartition, k -> new HashSet<>()));
-  }
+  public void registerPartitions(Collection<TopicPartition> partitions) {}
 
   @Override
   public void unregisterPartitions(Collection<TopicPartition> partitions) {
