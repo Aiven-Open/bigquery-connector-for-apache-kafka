@@ -560,10 +560,8 @@ public class BigQuerySinkTaskTest {
               String query = invocation.getArgument(0, QueryJobConfiguration.class).getQuery();
               if (query.startsWith("MERGE")) {
                 executedMerges.countDown();
-                //                executedMerges.incrementAndGet();
               } else if (query.startsWith("DELETE")) {
                 executedBatchClears.countDown();
-                //                executedBatchClears.incrementAndGet();
               }
               return null;
             });
@@ -792,10 +790,7 @@ public class BigQuerySinkTaskTest {
     testTask.start(properties);
     testTask.put(Collections.singletonList(spoofSinkRecord(topic)));
 
-    DataPolling.pollUntilResults(testTask, map -> !map.isEmpty());
-    //    Awaitility.waitAtMost(Duration.ofSeconds(5)).pollDelay(Duration.ofSeconds(1))
-    //            .untilAsserted( () ->
-    // assertThat(testTask.preCommit(Collections.emptyMap())).isNotEmpty());
+    DataPolling.pollUntilResults(testTask, DataPolling.SOME_DATA);
     verify(bigQuery, times(4)).insertAll(any(InsertAllRequest.class));
   }
 

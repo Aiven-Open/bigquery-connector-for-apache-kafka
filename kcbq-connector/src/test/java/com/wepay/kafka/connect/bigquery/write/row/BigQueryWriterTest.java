@@ -305,7 +305,6 @@ public class BigQueryWriterTest {
         Collections.singletonList(spoofSinkRecord(topic, 0, 0, "some_field", "some_value")));
 
     DataPolling.pollUntilException(testTask, BigQueryConnectException.class);
-    // assertThrows(BigQueryConnectException.class, () -> testTask.flush(Collections.emptyMap()));
   }
 
   @Test
@@ -414,10 +413,6 @@ public class BigQueryWriterTest {
     testTask.start(properties);
     testTask.put(sinkRecordList);
     Exception expectedEx = DataPolling.pollUntilException(testTask, BigQueryConnectException.class);
-
-    //    Exception expectedEx =
-    //        assertThrows(BigQueryConnectException.class, () ->
-    // testTask.flush(Collections.emptyMap()));
     assertTrue(expectedEx.getCause().getMessage().contains("test_topic"));
   }
 
