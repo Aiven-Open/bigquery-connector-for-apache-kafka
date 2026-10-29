@@ -22,11 +22,8 @@ package com.wepay.kafka.connect.bigquery.strategy;
 import com.google.common.annotations.VisibleForTesting;
 import com.wepay.kafka.connect.bigquery.write.storage.StreamState;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentNavigableMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.function.Predicate;
@@ -53,8 +50,11 @@ public class HighestUnblockedCommitStrategy implements CommitStrategy {
   private static final Logger logger =
       LoggerFactory.getLogger(HighestUnblockedCommitStrategy.class);
 
+  /** Committed records and inactive (completed delivery) records are candidates for commit. */
   private static final Predicate<StreamStateContainer> CAN_COMMIT =
-      streamStateContainer -> streamStateContainer.stateIs(StreamState.COMMITTED);
+      streamStateContainer ->
+          streamStateContainer.stateIs(StreamState.COMMITTED)
+              || streamStateContainer.stateIs(StreamState.INACTIVE);
 
   private static final Predicate<StreamStateContainer> CAN_REMOVE =
       streamStateContainer -> streamStateContainer.stateIs(StreamState.INACTIVE);
@@ -62,13 +62,14 @@ public class HighestUnblockedCommitStrategy implements CommitStrategy {
   /** The map of KafkaRecordKeys to Trackers */
   @VisibleForTesting final ConcurrentSkipListMap<KafkaRecordKey, StreamStateContainer> commitMap;
 
-  private final ConcurrentSkipListMap<TopicPartition, Set<StreamStateContainer>> partitions;
+  //  private final ConcurrentSkipListMap<TopicPartition, Set<StreamStateContainer>> partitions;
 
   public HighestUnblockedCommitStrategy() {
     commitMap = new ConcurrentSkipListMap<>();
-    partitions =
-        new ConcurrentSkipListMap<>(
-            Comparator.comparing(TopicPartition::topic).thenComparing(TopicPartition::partition));
+    //    partitions =
+    //        new ConcurrentSkipListMap<>(
+    //
+    // Comparator.comparing(TopicPartition::topic).thenComparing(TopicPartition::partition));
   }
 
   @Override
@@ -78,29 +79,31 @@ public class HighestUnblockedCommitStrategy implements CommitStrategy {
         .forEach(
             key -> {
               commitMap.put(key, streamStateContainer);
-              partitions.compute(
-                  key.getTopicPartition(),
-                  (k, v) -> {
-                    if (v == null) {
-                      v = new HashSet<>();
-                    }
-                    v.add(streamStateContainer);
-                    return v;
-                  });
+              //              partitions.compute(
+              //                  key.getTopicPartition(),
+              //                  (k, v) -> {
+              //                    if (v == null) {
+              //                      v = new HashSet<>();
+              //                    }
+              //                    v.add(streamStateContainer);
+              //                    return v;
+              //                  });
             });
   }
 
   /**
-   * Create a sub map of the commitMap that is in the range 0 to key.offset in for the topic and
-   * partition specified by the key.
+   * Create a sub map of the commitMap that is in the range 0 to Long.MAX_VALUE in for the topic and
+   * partition specified.
    *
-   * @param key the KafkaRecordKey that is the upper limit for proposed committable records.
+   * @param topicPartition the topicPartition to extract.
    * @return the sub map of the commitMap that is in the range 0 to key.offset in for the topic and
    *     partition specified.
    */
   @VisibleForTesting
-  ConcurrentNavigableMap<KafkaRecordKey, StreamStateContainer> createSubMap(KafkaRecordKey key) {
-    return commitMap.subMap(KafkaRecordKey.minKey(key.topic(), key.partition()), true, key, true);
+  ConcurrentNavigableMap<KafkaRecordKey, StreamStateContainer> createSubMap(
+      TopicPartition topicPartition) {
+    return commitMap.subMap(
+        KafkaRecordKey.minKey(topicPartition), true, KafkaRecordKey.maxKey(topicPartition), true);
   }
 
   /**
@@ -113,24 +116,12 @@ public class HighestUnblockedCommitStrategy implements CommitStrategy {
   private KafkaRecordKey getHighestCommittableKey(
       ConcurrentNavigableMap<KafkaRecordKey, StreamStateContainer> subMap) {
     KafkaRecordKey highestCommitableKey = null;
-    boolean sawBreak = false;
     for (Map.Entry<KafkaRecordKey, StreamStateContainer> entry : subMap.entrySet()) {
-      if (entry.getValue().stateIs(StreamState.COMMITTED)) {
+      if (CAN_COMMIT.test(entry.getValue())) {
         subMap.remove(entry.getKey());
-        if (!sawBreak) {
-          highestCommitableKey = entry.getKey();
-        }
-      } else if (entry.getValue().stateIs(StreamState.INACTIVE)) {
-        // inactive should already have been removed, but just in case.
-        subMap.remove(entry.getKey());
-        partitions.computeIfPresent(
-            entry.getKey().getTopicPartition(),
-            (k, v) -> {
-              v.remove(entry.getValue());
-              return v;
-            });
+        highestCommitableKey = entry.getKey();
       } else {
-        sawBreak = true;
+        return highestCommitableKey;
       }
     }
     return highestCommitableKey;
@@ -141,66 +132,62 @@ public class HighestUnblockedCommitStrategy implements CommitStrategy {
       Map<TopicPartition, OffsetAndMetadata> currentOffsets) {
     // get the set of committed containers.
     Map<TopicPartition, OffsetAndMetadata> result = new HashMap<>();
-    partitions.entrySet().stream()
-        .filter(entry -> entry.getValue().stream().anyMatch(CAN_COMMIT))
-        .map(Map.Entry::getKey)
-        .forEach(
-            topicPartition -> {
-              KafkaRecordKey highestCommittableKey =
-                  getHighestCommittableKey(createSubMap(KafkaRecordKey.maxKey(topicPartition)));
-              if (highestCommittableKey != null) {
-                result.put(topicPartition, highestCommittableKey.getOffsetAndMetadata());
-              }
-            });
+    KafkaRecordKey startKey = commitMap.firstKey();
+    KafkaRecordKey endKey = null;
+    KafkaRecordKey highestCommittableKey = null;
+    while (startKey != null) {
+      endKey = KafkaRecordKey.maxKey(startKey.topic(), startKey.partition());
+      highestCommittableKey = getHighestCommittableKey(createSubMap(endKey.getTopicPartition()));
+      if (highestCommittableKey != null) {
+        result.put(
+            highestCommittableKey.getTopicPartition(),
+            highestCommittableKey.getOffsetAndMetadata());
+      }
+      startKey = commitMap.higherKey(endKey);
+    }
     return result;
   }
 
   @Override
   public boolean cleanCommitStrategy() {
-    logger.debug("Cleaning commit map: {} records", commitMap.size());
-    int removedRecords = 0;
-    Map.Entry<KafkaRecordKey, StreamStateContainer> entry = commitMap.firstEntry();
-    while (entry != null) {
-      if (entry.getValue().stateIs(StreamState.INACTIVE)) {
-        commitMap.remove(entry.getKey());
-        removedRecords++;
-      }
-      entry = commitMap.higherEntry(entry.getKey());
-    }
-    logger.debug("Cleaned commit map: {} records, removed {}", commitMap.size(), removedRecords);
-
-    logger.debug("Cleaning commit partitions");
-    partitions.values().forEach(x -> x.removeIf(CAN_REMOVE));
-    return true;
+    //    logger.debug("Cleaning commit map: {} records", commitMap.size());
+    //    int removedRecords = 0;
+    //    Map.Entry<KafkaRecordKey, StreamStateContainer> entry = commitMap.firstEntry();
+    //    while (entry != null) {
+    //      if (CAN_REMOVE.test(entry.getValue())) {
+    //        commitMap.remove(entry.getKey());
+    //        removedRecords++;
+    //      }
+    //      entry = commitMap.higherEntry(entry.getKey());
+    //    }
+    //    logger.debug("Cleaned commit map: {} records, removed {}", commitMap.size(),
+    // removedRecords);
+    //
+    //    logger.debug("Cleaning commit partitions");
+    //    partitions.values().forEach(x -> x.removeIf(CAN_REMOVE));
+    return false;
   }
 
   @Override
   public void registerPartitions(Collection<TopicPartition> partitions) {
-    partitions.forEach(
-        topicPartition -> this.partitions.computeIfAbsent(topicPartition, k -> new HashSet<>()));
-    if (logger.isDebugEnabled()) {
-      logger.debug("Registered partition count: {}", this.partitions.size());
-    }
+    //    partitions.forEach(
+    //        topicPartition -> this.partitions.computeIfAbsent(topicPartition, k -> new
+    // HashSet<>()));
+    //    if (logger.isDebugEnabled()) {
+    //      logger.debug("Registered partition count: {}", this.partitions.size());
+    //    }
   }
 
   @Override
   public void unregisterPartitions(Collection<TopicPartition> partitions) {
     // have to stop writing to any open streams for the partition and abort the write.
-    final Set<StreamStateContainer> containers = new HashSet<>();
     for (TopicPartition topicPartition : partitions) {
-      // figure out how to report records commited but not reported to Kafka
-      Map<KafkaRecordKey, StreamStateContainer> subMap =
-          createSubMap(KafkaRecordKey.maxKey(topicPartition));
-      subMap.forEach(
-          (k, v) -> {
-            if (containers.add(v)) {
-              v.abort();
-            }
-          });
+      Map<KafkaRecordKey, StreamStateContainer> subMap = createSubMap(topicPartition);
+      subMap.values().stream().distinct().forEach(StreamStateContainer::abort);
       subMap.clear();
     }
     if (logger.isDebugEnabled()) {
-      logger.debug("Registered partition count: {}", this.partitions.size());
+      logger.debug("Registered partition count: {}", partitions.size());
     }
   }
 }
