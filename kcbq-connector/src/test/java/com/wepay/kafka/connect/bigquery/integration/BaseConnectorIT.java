@@ -733,18 +733,19 @@ abstract class BaseConnectorIT {
     return pfx.isEmpty() ? defaultSuffix : pfx + "_" + defaultSuffix;
   }
 
-
   /**
    * Execute an alter table command
+   *
    * @param bigQuery the BigQuery instance holding the table
    * @param tableName the name of the table to alter.
    * @param alteration the alteration to make.
    * @throws InterruptedException on error
    */
-  protected void alterTable(BigQuery bigQuery, TableName tableName, String alteration) throws InterruptedException {
+  protected void alterTable(BigQuery bigQuery, TableName tableName, String alteration)
+      throws InterruptedException {
     bigQuery.query(
-            com.google.cloud.bigquery.QueryJobConfiguration.of(
-                    String.format(
-                            "ALTER TABLE %s.%s %s", tableName.getDataset(), tableName.getTable(), alteration)));
+        com.google.cloud.bigquery.QueryJobConfiguration.of(
+            String.format(
+                "ALTER TABLE %s.%s %s", tableName.getDataset(), tableName.getTable(), alteration)));
   }
 }
