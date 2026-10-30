@@ -526,18 +526,19 @@ class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
         TimePartitioning.Type.DAY,
         valueConverter);
 
+
     // Wait until table is created
     Awaitility.waitAtMost(Duration.ofMinutes(4))
-        .pollInterval(Duration.ofSeconds(1))
-        .until(() -> bigQuery.getTable(tableName.getDataset(), tableName.getTable()) != null);
+            .pollInterval(Duration.ofSeconds(1))
+            .until(() -> bigQuery.getTable(tableName.getDataset(), tableName.getTable()) != null);
 
     // Alter table to set max_staleness to 0 so that CDC changes are immediately visible
     alterTable(bigQuery, tableName, "SET OPTIONS(max_staleness = INTERVAL 0 MINUTE)");
 
     // verify records are present.
     Awaitility.waitAtMost(Duration.ofMinutes(5))
-        .pollInterval(Duration.ofSeconds(1))
-        .until(() -> countRows(bigQuery, tableName) >= NUM_RECORDS_PRODUCED);
+            .pollInterval(Duration.ofSeconds(1))
+            .until(() -> countRows(bigQuery, tableName) >= NUM_RECORDS_PRODUCED);
 
     for (int i = -1; i < 2; i++) {
       long partitionTime =
@@ -651,8 +652,6 @@ class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
   @Test
   @Tag("slow")
   void testAvroHighThroughput() throws InterruptedException {
-    assumeTrue(
-        !isBatchMode(), "Disabled because the number of items returned can exceed the expected");
     // pre-create the table
     createPerformanceTestingTable(tableName);
 
