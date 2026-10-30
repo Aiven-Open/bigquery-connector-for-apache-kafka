@@ -167,8 +167,7 @@ class TimePartitioningIT extends BaseConnectorIT {
     TableName tableName = tableName();
 
     // wait until the one row for each record produced appears, this is the minimum number required
-    // for any
-    // test to succeed.
+    // for any test to succeed.
     Awaitility.waitAtMost(Duration.ofMinutes(5))
         .pollInterval(Duration.ofMinutes(1))
         .untilAsserted(
