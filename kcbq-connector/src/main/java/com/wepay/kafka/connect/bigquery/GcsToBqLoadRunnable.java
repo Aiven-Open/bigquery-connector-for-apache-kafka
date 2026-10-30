@@ -319,7 +319,6 @@ public class GcsToBqLoadRunnable implements Runnable {
       logger.debug("No active jobs to check. Skipping check jobs.");
       return;
     }
-
     logger.debug("Checking {} active jobs", activeJobs.size());
 
     Iterator<Map.Entry<Job, List<BlobId>>> jobIterator = activeJobs.entrySet().iterator();
