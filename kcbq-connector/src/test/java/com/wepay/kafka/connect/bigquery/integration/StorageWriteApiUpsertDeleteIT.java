@@ -172,7 +172,7 @@ class StorageWriteApiUpsertDeleteIT extends BaseConnectorIT {
         .until(() -> bigQuery.getTable(tableName.getDataset(), tableName.getTable()) != null);
 
     // Alter table to set max_staleness to 0 so that CDC changes are immediately visible
-    alterTable(tableName, "SET OPTIONS(max_staleness = INTERVAL 0 MINUTE)");
+    alterTable(bigQuery, tableName, "SET OPTIONS(max_staleness = INTERVAL 0 MINUTE)");
 
     // wait for the entire table to be populated
     Awaitility.waitAtMost(Duration.ofMinutes(5))
@@ -181,13 +181,6 @@ class StorageWriteApiUpsertDeleteIT extends BaseConnectorIT {
             () ->
                 assertThat(readAllRows(bigQuery, tableName, "k1"))
                     .containsExactlyElementsOf(expectedRows));
-  }
-
-  private void alterTable(TableName tableName, String alteration) throws InterruptedException {
-    bigQuery.query(
-        com.google.cloud.bigquery.QueryJobConfiguration.of(
-            String.format(
-                "ALTER TABLE %s.%s %s", tableName.getDataset(), tableName.getTable(), alteration)));
   }
 
   @Test
@@ -244,7 +237,7 @@ class StorageWriteApiUpsertDeleteIT extends BaseConnectorIT {
     Awaitility.waitAtMost(Duration.ofMinutes(4))
         .pollInterval(Duration.ofSeconds(1))
         .until(() -> bigQuery.getTable(tableName.getDataset(), tableName.getTable()) != null);
-    alterTable(tableName, "SET OPTIONS(max_staleness = INTERVAL 0 MINUTE)");
+    alterTable(bigQuery, tableName, "SET OPTIONS(max_staleness = INTERVAL 0 MINUTE)");
     Awaitility.waitAtMost(Duration.ofMinutes(5))
         .pollInterval(Duration.ofSeconds(1))
         .untilAsserted(
@@ -347,7 +340,7 @@ class StorageWriteApiUpsertDeleteIT extends BaseConnectorIT {
     Awaitility.waitAtMost(Duration.ofMinutes(4))
         .pollInterval(Duration.ofSeconds(1))
         .until(() -> bigQuery.getTable(tableName.getDataset(), tableName.getTable()) != null);
-    alterTable(tableName, "SET OPTIONS(max_staleness = INTERVAL 0 MINUTE)");
+    alterTable(bigQuery, tableName, "SET OPTIONS(max_staleness = INTERVAL 0 MINUTE)");
     // Wait for the entire run to be complete.
     Awaitility.waitAtMost(Duration.ofMinutes(5))
         .pollInterval(Duration.ofSeconds(1))

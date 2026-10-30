@@ -51,6 +51,7 @@ import io.debezium.time.Date;
 import io.debezium.time.Time;
 import io.debezium.time.Timestamp;
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -75,6 +76,7 @@ import org.apache.kafka.connect.runtime.SinkConnectorConfig;
 import org.apache.kafka.connect.sink.SinkTask;
 import org.apache.kafka.connect.storage.Converter;
 import org.apache.kafka.test.TestUtils;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -280,15 +282,19 @@ class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
     // produce records
     produceAvroRecords();
 
-    // wait for tasks to write to BigQuery and commit offsets for their records
-    waitForCommittedRecords(
-        connectorName,
-        Collections.singleton(topic),
-        NUM_RECORDS_PRODUCED,
-        TASKS_MAX,
-        COMMIT_MAX_DURATION_MS);
+    // Wait until table is created
+    Awaitility.waitAtMost(Duration.ofMinutes(4))
+            .pollInterval(Duration.ofSeconds(1))
+            .until(() -> bigQuery.getTable(tableName.getDataset(), tableName.getTable()) != null);
+
+    // Alter table to set max_staleness to 0 so that CDC changes are immediately visible
+    alterTable(bigQuery, tableName, "SET OPTIONS(max_staleness = INTERVAL 0 MINUTE)");
 
     // verify records are present.
+    Awaitility.waitAtMost(Duration.ofMinutes(5))
+            .pollInterval(Duration.ofSeconds(1))
+            .until(() -> countRows(bigQuery, tableName) >= NUM_RECORDS_PRODUCED);
+
     List<List<Object>> testRows;
     try {
       testRows = readAllRows(bigQuery, tableName, "f3");
@@ -330,9 +336,20 @@ class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
     produceAvroRecords();
 
     // wait for tasks to write to BigQuery and commit offsets for their records
-    waitForCommittedRecords(connectorName, topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
+    // waitForCommittedRecords(connectorName, topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
+    // Wait until table is created
+    Awaitility.waitAtMost(Duration.ofMinutes(4))
+            .pollInterval(Duration.ofSeconds(1))
+            .until(() -> bigQuery.getTable(tableName.getDataset(), tableName.getTable()) != null);
+
+    // Alter table to set max_staleness to 0 so that CDC changes are immediately visible
+    alterTable(bigQuery, tableName, "SET OPTIONS(max_staleness = INTERVAL 0 MINUTE)");
 
     // verify records are present.
+    Awaitility.waitAtMost(Duration.ofMinutes(5))
+            .pollInterval(Duration.ofSeconds(1))
+            .until(() -> countRows(bigQuery, tableName) >= NUM_RECORDS_PRODUCED);
+
     List<List<Object>> testRows;
     try {
       testRows = readAllRows(bigQuery, tableName, "f3");
@@ -509,7 +526,19 @@ class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
         TimePartitioning.Type.DAY,
         valueConverter);
 
-    waitForCommittedRecords(connectorName, topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
+
+    // Wait until table is created
+    Awaitility.waitAtMost(Duration.ofMinutes(4))
+            .pollInterval(Duration.ofSeconds(1))
+            .until(() -> bigQuery.getTable(tableName.getDataset(), tableName.getTable()) != null);
+
+    // Alter table to set max_staleness to 0 so that CDC changes are immediately visible
+    alterTable(bigQuery, tableName, "SET OPTIONS(max_staleness = INTERVAL 0 MINUTE)");
+
+    // verify records are present.
+    Awaitility.waitAtMost(Duration.ofMinutes(5))
+            .pollInterval(Duration.ofSeconds(1))
+            .until(() -> countRows(bigQuery, tableName) >= NUM_RECORDS_PRODUCED);
 
     for (int i = -1; i < 2; i++) {
       long partitionTime =
