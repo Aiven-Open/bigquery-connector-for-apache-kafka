@@ -186,7 +186,7 @@ public class MergeQueries {
     executor.execute(
         () -> {
           try {
-            logger.info("Starting merge flush {}", batchNumber);
+            logger.debug("Starting merge flush {}", batchNumber);
             mergeFlush(intermediateTable, destinationTable, batchNumber);
             logger.info("Completed merge flush {}", batchNumber);
           } catch (InterruptedException e) {
