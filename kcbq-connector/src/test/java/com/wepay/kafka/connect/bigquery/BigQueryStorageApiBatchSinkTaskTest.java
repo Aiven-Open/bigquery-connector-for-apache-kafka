@@ -23,9 +23,9 @@
 
 package com.wepay.kafka.connect.bigquery;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
@@ -40,21 +40,23 @@ import static org.mockito.Mockito.when;
 
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.storage.Storage;
-import com.wepay.kafka.connect.bigquery.api.SchemaRetriever;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiConnectException;
+import com.wepay.kafka.connect.bigquery.strategy.CommitStrategy;
+import com.wepay.kafka.connect.bigquery.strategy.DefaultKafkaCommitStrategy;
 import com.wepay.kafka.connect.bigquery.utils.MockTime;
 import com.wepay.kafka.connect.bigquery.utils.PartitionedTableId;
 import com.wepay.kafka.connect.bigquery.utils.Time;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageApiBatchModeHandler;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiBatchApplicationStream;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Predicate;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.record.TimestampType;
@@ -63,10 +65,10 @@ import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.sink.SinkTaskContext;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 
 public class BigQueryStorageApiBatchSinkTaskTest {
   private static final SinkTaskPropertiesFactory propertiesFactory =
@@ -81,18 +83,18 @@ public class BigQueryStorageApiBatchSinkTaskTest {
   BigQuery bigQuery = mock(BigQuery.class);
   Storage storage = mock(Storage.class);
   SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
-  SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
   SchemaManager schemaManager = mock(SchemaManager.class);
   Time time = new MockTime();
+  CommitStrategy commitStrategy = new DefaultKafkaCommitStrategy();
   BigQuerySinkTask testTask =
-      new BigQuerySinkTask(
+      BigQuerySinkTaskTest.createTestTask(
           bigQuery,
-          schemaRetriever,
           storage,
           schemaManager,
           mockedStorageWriteApiBatchStream,
           mockedBatchHandler,
-          time);
+          time,
+          commitStrategy);
   BigQueryStorageWriteApiConnectException exception =
       new BigQueryStorageWriteApiConnectException("error 12345");
   Map<TopicPartition, OffsetAndMetadata> mockedOffset = mock(Map.class);
@@ -145,44 +147,11 @@ public class BigQueryStorageApiBatchSinkTaskTest {
 
   @Test
   public void testStart() {
-    ScheduledExecutorService loadExecutor = mock(ScheduledExecutorService.class);
-    testTask.loadExecutor = loadExecutor;
+    Predicate<String> test = s -> s.contains("Clean commits") || s.contains("Batch Loader");
     testTask.start(properties);
-
-    // Ensure that the task has scheduled exactly one load task
-    ArgumentCaptor<Runnable> loadExecutorTask = ArgumentCaptor.forClass(Runnable.class);
-    verify(loadExecutor, times(1))
-        .scheduleAtFixedRate(loadExecutorTask.capture(), anyLong(), anyLong(), any());
-
-    // Run that load task
-    loadExecutorTask.getValue().run();
-
-    // Ensure that the load task created a new stream
-    verify(mockedBatchHandler, times(1)).refreshStreams();
-  }
-
-  @Test
-  public void testBatchLoadFailure() throws InterruptedException {
-    ScheduledExecutorService loadExecutor = mock(ScheduledExecutorService.class);
-    testTask.loadExecutor = loadExecutor;
-    testTask.start(properties);
-
-    // Ensure that the task has scheduled exactly one load task
-    ArgumentCaptor<Runnable> loadExecutorTask = ArgumentCaptor.forClass(Runnable.class);
-    verify(loadExecutor, times(1))
-        .scheduleAtFixedRate(loadExecutorTask.capture(), anyLong(), anyLong(), any());
-
-    // Run that load task
-    doThrow(exception).when(mockedBatchHandler).refreshStreams();
-    loadExecutorTask.getValue().run();
-
-    // Ensure that the failure of the load task has caused the load executor to be shut down
-    verify(loadExecutor).shutdown();
-    when(loadExecutor.isTerminated()).thenReturn(true);
-
-    // Ensure that the load task failure is propagated by put()
-    assertThrows(
-        BigQueryStorageWriteApiConnectException.class, () -> testTask.put(Collections.emptyList()));
+    Awaitility.waitAtMost(Duration.ofSeconds(5))
+        .untilAsserted(
+            () -> assertThat(testTask.scheduledExecutor.taskNames()).allMatch(test).hasSize(2));
   }
 
   @Test

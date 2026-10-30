@@ -28,9 +28,8 @@ import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkTaskConfig.BIG
 import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkTaskConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG;
 import static org.apache.kafka.connect.runtime.ConnectorConfig.KEY_CONVERTER_CLASS_CONFIG;
 import static org.apache.kafka.connect.runtime.ConnectorConfig.VALUE_CONVERTER_CLASS_CONFIG;
-import static org.apache.kafka.test.TestUtils.waitForCondition;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.StandardTableDefinition;
@@ -41,16 +40,16 @@ import com.wepay.kafka.connect.bigquery.integration.utils.TestCaseLogger;
 import com.wepay.kafka.connect.bigquery.integration.utils.TimePartitioningTestUtils;
 import com.wepay.kafka.connect.bigquery.retrieve.IdentitySchemaRetriever;
 import com.wepay.kafka.connect.bigquery.utils.TableNameUtils;
+import java.time.Duration;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 import org.apache.kafka.connect.json.JsonConverter;
 import org.apache.kafka.connect.json.JsonConverterConfig;
 import org.apache.kafka.connect.runtime.SinkConnectorConfig;
 import org.apache.kafka.connect.storage.Converter;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -75,14 +74,13 @@ class TimePartitioningIT extends BaseConnectorIT {
   private BigQuery bigQuery;
 
   public static Stream<Arguments> testArguments() {
-    int testCase = 0;
     return Stream.of(
-        Arguments.of(TimePartitioning.Type.HOUR, false, false, testCase++),
-        Arguments.of(TimePartitioning.Type.DAY, true, true, testCase++),
-        Arguments.of(TimePartitioning.Type.DAY, true, false, testCase++),
-        Arguments.of(TimePartitioning.Type.DAY, false, false, testCase++),
-        Arguments.of(TimePartitioning.Type.MONTH, false, false, testCase++),
-        Arguments.of(TimePartitioning.Type.YEAR, false, false, testCase));
+        Arguments.of(TimePartitioning.Type.HOUR, false, false),
+        Arguments.of(TimePartitioning.Type.DAY, true, true),
+        Arguments.of(TimePartitioning.Type.DAY, true, false),
+        Arguments.of(TimePartitioning.Type.DAY, false, false),
+        Arguments.of(TimePartitioning.Type.MONTH, false, false),
+        Arguments.of(TimePartitioning.Type.YEAR, false, false));
   }
 
   @BeforeAll
@@ -130,8 +128,7 @@ class TimePartitioningIT extends BaseConnectorIT {
   void testTimePartitioning(
       TimePartitioning.Type partitioningType,
       boolean usePartitionDecorator,
-      boolean messageTimePartitioning,
-      int testCase)
+      boolean messageTimePartitioning)
       throws Throwable {
     final long testStartTime = System.currentTimeMillis();
 
@@ -167,35 +164,23 @@ class TimePartitioningIT extends BaseConnectorIT {
         partitioningType,
         valueConverter);
 
-    // wait for tasks to write to BigQuery and commit offsets for their records
-    waitForCommittedRecords(connectorName(), topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
-
     TableName tableName = tableName();
 
-    // Might fail to read from the table for a little bit; keep retrying until it's available
-    waitForCondition(
-        () -> {
-          try {
-            readAllRows(bigQuery, tableName, "i");
-            return true;
-          } catch (RuntimeException e) {
-            logger.debug("Failed to read rows from table {}", tableName, e);
-            return false;
-          }
-        },
-        TimeUnit.MINUTES.toMillis(5),
-        "Could not read from table to verify data after connector committed offsets for the expected number of records");
-
-    List<List<Object>> allRows = readAllRows(bigQuery, tableName, "i");
-    // Just check to make sure we sent the expected number of rows to the table. There can be
-    // duplication so the check is at least there are NUM_RECORDS_PRODUCED
-    assertTrue(NUM_RECORDS_PRODUCED <= allRows.size());
+    // wait until the one row for each record produced appears, this is the minimum number required
+    // for any test to succeed.
+    Awaitility.waitAtMost(Duration.ofMinutes(5))
+        .pollInterval(Duration.ofMinutes(1))
+        .untilAsserted(
+            () ->
+                assertThat(readAllRows(bigQuery, tableName, "i").size())
+                    .as("Not enough records written")
+                    .isGreaterThanOrEqualTo((int) NUM_RECORDS_PRODUCED));
 
     // Ensure that the table was created with the expected time partitioning type
     StandardTableDefinition tableDefinition =
         bigQuery.getTable(TableNameUtils.tableId(tableName)).getDefinition();
     Optional<TimePartitioning.Type> actualPartitioningType =
-        Optional.ofNullable((tableDefinition).getTimePartitioning()).map(TimePartitioning::getType);
+        Optional.ofNullable(tableDefinition.getTimePartitioning()).map(TimePartitioning::getType);
     assertEquals(Optional.of(partitioningType), actualPartitioningType);
 
     // Verify that at least one record landed in each of the targeted partitions

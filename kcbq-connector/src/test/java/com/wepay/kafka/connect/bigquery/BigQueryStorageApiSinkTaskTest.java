@@ -38,15 +38,17 @@ import static org.mockito.Mockito.verify;
 
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.storage.Storage;
-import com.wepay.kafka.connect.bigquery.api.SchemaRetriever;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiConnectException;
+import com.wepay.kafka.connect.bigquery.strategy.CommitStrategy;
+import com.wepay.kafka.connect.bigquery.strategy.HighestUnblockedCommitStrategy;
 import com.wepay.kafka.connect.bigquery.utils.MockTime;
 import com.wepay.kafka.connect.bigquery.utils.PartitionedTableId;
 import com.wepay.kafka.connect.bigquery.utils.Time;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageApiBatchModeHandler;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiDefaultStream;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.RejectedExecutionException;
@@ -57,6 +59,7 @@ import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.sink.SinkTaskContext;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -67,31 +70,32 @@ public class BigQueryStorageApiSinkTaskTest {
   private final AtomicLong spoofedRecordOffset = new AtomicLong();
   private final StorageWriteApiDefaultStream mockedStorageWriteApiDefaultStream =
       mock(StorageWriteApiDefaultStream.class, CALLS_REAL_METHODS);
-  ;
+
   Map<String, String> properties;
   BigQuery bigQuery = mock(BigQuery.class);
 
   Storage storage = mock(Storage.class);
   SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
-  SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
   SchemaManager schemaManager = mock(SchemaManager.class);
   Time time = new MockTime();
+  CommitStrategy commitStrategy = new HighestUnblockedCommitStrategy();
   StorageApiBatchModeHandler storageApiBatchHandler = mock(StorageApiBatchModeHandler.class);
   BigQuerySinkTask testTask =
-      new BigQuerySinkTask(
+      BigQuerySinkTaskTest.createTestTask(
           bigQuery,
-          schemaRetriever,
           storage,
           schemaManager,
           mockedStorageWriteApiDefaultStream,
           storageApiBatchHandler,
-          time);
+          time,
+          commitStrategy);
 
   @BeforeEach
   public void setUp() {
     spoofedRecordOffset.set(0);
     properties = propertiesFactory.getProperties();
 
+    properties.put(BigQuerySinkConfig.COMMIT_INTERVAL_SEC_CONFIG, "15");
     properties.put(BigQuerySinkConfig.TOPICS_CONFIG, topic);
     properties.put(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, "true");
     properties.put(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG, "scratch");
@@ -109,10 +113,13 @@ public class BigQueryStorageApiSinkTaskTest {
   @Test
   public void testPut() {
     testTask.put(Collections.singletonList(spoofSinkRecord()));
-    testTask.flush(Collections.emptyMap());
-
-    verify(mockedStorageWriteApiDefaultStream, times(1))
-        .initializeAndWriteRecords(any(PartitionedTableId.class), anyList(), eq(DEFAULT));
+    Awaitility.waitAtMost(Duration.ofSeconds(5))
+        .untilAsserted(
+            () -> {
+              System.out.println(testTask.scheduledExecutor.status());
+              verify(mockedStorageWriteApiDefaultStream, times(1))
+                  .initializeAndWriteRecords(any(PartitionedTableId.class), anyList(), eq(DEFAULT));
+            });
   }
 
   @Test
