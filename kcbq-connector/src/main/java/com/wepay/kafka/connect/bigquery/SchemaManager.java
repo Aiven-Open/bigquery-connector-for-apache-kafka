@@ -30,6 +30,7 @@ import com.google.cloud.bigquery.BigQueryException;
 import com.google.cloud.bigquery.Clustering;
 import com.google.cloud.bigquery.Field;
 import com.google.cloud.bigquery.Field.Mode;
+import com.google.cloud.bigquery.FieldList;
 import com.google.cloud.bigquery.LegacySQLTypeName;
 import com.google.cloud.bigquery.PrimaryKey;
 import com.google.cloud.bigquery.StandardTableDefinition;
@@ -48,7 +49,6 @@ import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
 import com.wepay.kafka.connect.bigquery.utils.FieldNameSanitizer;
 import com.wepay.kafka.connect.bigquery.utils.TableNameUtils;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -514,10 +514,14 @@ public class SchemaManager {
    * @return a SchemaAndPrimaryKeyColumns instance.
    */
   private SchemaAndPrimaryKeyColumns convertRecordSchema(SinkRecord record) {
-    Schema kafkaValueSchema = schemaRetriever.retrieveValueSchema(record);
     Schema kafkaKeySchema =
         kafkaKeyFieldName.isPresent() ? schemaRetriever.retrieveKeySchema(record) : null;
-    return getBigQuerySchema(kafkaKeySchema, kafkaValueSchema);
+    com.google.cloud.bigquery.Schema valueSchema =
+        schemaConverter.convertSchema(schemaRetriever.retrieveValueSchema(record));
+
+    return intermediateTables
+        ? getIntermediateSchema(valueSchema, kafkaKeySchema)
+        : getRegularSchema(valueSchema, kafkaKeySchema);
   }
 
   /**
@@ -811,16 +815,20 @@ public class SchemaManager {
     return tableInfoBuilder.build();
   }
 
-  private SchemaAndPrimaryKeyColumns getBigQuerySchema(
-      Schema kafkaKeySchema, Schema kafkaValueSchema) {
-    com.google.cloud.bigquery.Schema valueSchema = schemaConverter.convertSchema(kafkaValueSchema);
-
-    return intermediateTables
-        ? getIntermediateSchema(valueSchema, kafkaKeySchema)
-        : getRegularSchema(valueSchema, kafkaKeySchema);
+  private FieldList createFieldList(com.google.cloud.bigquery.Schema valueSchema) {
+    List<Field> valueFields = new ArrayList<>(valueSchema.getFields());
+    if (kafkaDataFieldName.isPresent()) {
+      String dataFieldName =
+          sanitizeFieldNames
+              ? FieldNameSanitizer.sanitizeName(kafkaDataFieldName.get())
+              : kafkaDataFieldName.get();
+      valueFields.add(buildKafkaDataField(dataFieldName));
+    }
+    return FieldList.of(valueFields);
   }
 
-  private SchemaAndPrimaryKeyColumns getIntermediateSchema(
+  @VisibleForTesting
+  SchemaAndPrimaryKeyColumns getIntermediateSchema(
       com.google.cloud.bigquery.Schema valueSchema, Schema kafkaKeySchema) {
     if (kafkaKeySchema == null) {
       throw new BigQueryConnectException(
@@ -831,58 +839,46 @@ public class SchemaManager {
 
     List<Field> fields = new ArrayList<>();
 
-    List<Field> valueFields = new ArrayList<>(valueSchema.getFields());
-    if (kafkaDataFieldName.isPresent()) {
-      String dataFieldName =
-          sanitizeFieldNames
-              ? FieldNameSanitizer.sanitizeName(kafkaDataFieldName.get())
-              : kafkaDataFieldName.get();
-      Field kafkaDataField = buildKafkaDataField(dataFieldName);
-      valueFields.add(kafkaDataField);
-    }
-
-    // Wrap the sink record value (and possibly also its Kafka data) in a struct in order to support
-    // deletes
-    Field wrappedValueField =
+    // add value schema and possibly adding the kafka key schema (if defined) in a struct in order
+    // to support deletes
+    fields.add(
         Field.newBuilder(
                 MergeQueries.INTERMEDIATE_TABLE_VALUE_FIELD_NAME,
                 LegacySQLTypeName.RECORD,
-                valueFields.toArray(new Field[0]))
+                createFieldList(valueSchema))
             .setMode(Field.Mode.NULLABLE)
-            .build();
-    fields.add(wrappedValueField);
+            .build());
 
-    com.google.cloud.bigquery.Schema keySchema = schemaConverter.convertSchema(kafkaKeySchema);
-    Field kafkaKeyField =
+    // add key schema
+    fields.add(
         Field.newBuilder(
                 MergeQueries.INTERMEDIATE_TABLE_KEY_FIELD_NAME,
                 LegacySQLTypeName.RECORD,
-                keySchema.getFields())
+                schemaConverter.convertSchema(kafkaKeySchema).getFields())
             .setMode(Field.Mode.REQUIRED)
-            .build();
-    fields.add(kafkaKeyField);
+            .build());
 
-    Field iterationField =
+    // add the intermediate table iteration field
+    fields.add(
         Field.newBuilder(
                 MergeQueries.INTERMEDIATE_TABLE_ITERATION_FIELD_NAME, LegacySQLTypeName.INTEGER)
             .setMode(Field.Mode.REQUIRED)
-            .build();
-    fields.add(iterationField);
+            .build());
 
-    Field partitionTimeField =
+    // add the partition time field
+    fields.add(
         Field.newBuilder(
                 MergeQueries.INTERMEDIATE_TABLE_PARTITION_TIME_FIELD_NAME,
                 LegacySQLTypeName.TIMESTAMP)
             .setMode(Field.Mode.NULLABLE)
-            .build();
-    fields.add(partitionTimeField);
+            .build());
 
-    Field batchNumberField =
+    // add th batch number field
+    fields.add(
         Field.newBuilder(
                 MergeQueries.INTERMEDIATE_TABLE_BATCH_NUMBER_FIELD, LegacySQLTypeName.INTEGER)
             .setMode(Field.Mode.REQUIRED)
-            .build();
-    fields.add(batchNumberField);
+            .build());
 
     return new SchemaAndPrimaryKeyColumns(
         com.google.cloud.bigquery.Schema.of(fields), Collections.emptyList());
@@ -961,21 +957,20 @@ public class SchemaManager {
    */
   @VisibleForTesting
   Field buildKafkaDataField(String kafkaDataFieldName) {
-    Field topicField =
-        com.google.cloud.bigquery.Field.of(KAFKA_DATA_TOPIC_FIELD_NAME, LegacySQLTypeName.STRING);
-    Field partitionField =
+    List<Field> subFields = new ArrayList<>();
+    subFields.add(
+        com.google.cloud.bigquery.Field.of(KAFKA_DATA_TOPIC_FIELD_NAME, LegacySQLTypeName.STRING));
+    subFields.add(
         com.google.cloud.bigquery.Field.of(
-            KAFKA_DATA_PARTITION_FIELD_NAME, LegacySQLTypeName.INTEGER);
-    Field offsetField =
-        com.google.cloud.bigquery.Field.of(KAFKA_DATA_OFFSET_FIELD_NAME, LegacySQLTypeName.INTEGER);
-    Field insertTimeField =
+            KAFKA_DATA_PARTITION_FIELD_NAME, LegacySQLTypeName.INTEGER));
+    subFields.add(
+        com.google.cloud.bigquery.Field.of(
+            KAFKA_DATA_OFFSET_FIELD_NAME, LegacySQLTypeName.INTEGER));
+    subFields.add(
         com.google.cloud.bigquery.Field.newBuilder(
                 KAFKA_DATA_INSERT_TIME_FIELD_NAME, LegacySQLTypeName.TIMESTAMP)
             .setMode(com.google.cloud.bigquery.Field.Mode.NULLABLE)
-            .build();
-
-    List<Field> subFields =
-        new ArrayList<>(Arrays.asList(topicField, partitionField, offsetField, insertTimeField));
+            .build());
 
     if (config.trackPutAttempts()) {
       subFields.add(

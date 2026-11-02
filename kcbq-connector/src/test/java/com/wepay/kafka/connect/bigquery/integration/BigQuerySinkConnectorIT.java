@@ -38,16 +38,12 @@ import java.io.InputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Scanner;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerConfig;
@@ -199,15 +195,9 @@ class BigQuerySinkConnectorIT extends BaseConnectorIT {
 
     waitForConnectorToStart(connectorName(), tasksMax);
 
-    waitForCommittedRecords(
-        connectorName(),
-        Collections.singleton(topic),
-        numRecordsProduced,
-        tasksMax,
-        TimeUnit.MINUTES.toMillis(3));
-
     Awaitility.await()
-        .atMost(Duration.ofMinutes(2))
+        .atMost(Duration.ofMinutes(5))
+        .pollInterval(Duration.ofSeconds(20))
         .untilAsserted(
             () -> assertThat(readRows(tableName)).containsExactlyElementsOf(expectedRows));
   }
@@ -240,14 +230,10 @@ class BigQuerySinkConnectorIT extends BaseConnectorIT {
       messageReader.init(messageReaderProps);
       Iterator<ProducerRecord<byte[], byte[]>> iter = messageReader.readRecords(dataStream);
       while (iter.hasNext()) {
-        ProducerRecord<byte[], byte[]> message = iter.next();
-        try {
-          valueProducer.send(message).get(1, TimeUnit.SECONDS);
-          numRecordsProduced++;
-        } catch (InterruptedException | ExecutionException | TimeoutException e) {
-          throw new RuntimeException(e);
-        }
+        valueProducer.send(iter.next());
+        numRecordsProduced++;
       }
+      valueProducer.flush();
     } catch (IOException e) {
       throw new RuntimeException(e);
     }

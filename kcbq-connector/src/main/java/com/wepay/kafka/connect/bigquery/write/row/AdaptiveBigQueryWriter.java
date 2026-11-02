@@ -66,8 +66,6 @@ public class AdaptiveBigQueryWriter extends BigQueryWriter {
   /**
    * @param bigQuery Used to send write requests to BigQuery.
    * @param schemaManager Used to update BigQuery tables.
-   * @param retry How many retries to make in the event of a 500/503 error.
-   * @param retryWait How long to wait in between retries.
    * @param autoCreateTables Whether tables should be automatically created
    * @param errantRecordHandler Used to handle errant records
    * @param time used to wait during backoff periods
@@ -76,13 +74,11 @@ public class AdaptiveBigQueryWriter extends BigQueryWriter {
   public AdaptiveBigQueryWriter(
       BigQuery bigQuery,
       SchemaManager schemaManager,
-      int retry,
-      long retryWait,
       boolean autoCreateTables,
       ErrantRecordHandler errantRecordHandler,
       Time time,
       BigQuerySinkConfig config) {
-    super(retry, retryWait, errantRecordHandler, time, config);
+    super(errantRecordHandler, time, config);
     this.bigQuery = bigQuery;
     this.schemaManager = schemaManager;
     this.autoCreateTables = autoCreateTables;

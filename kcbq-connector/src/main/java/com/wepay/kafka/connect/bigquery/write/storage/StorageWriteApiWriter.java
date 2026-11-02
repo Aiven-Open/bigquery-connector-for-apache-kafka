@@ -111,6 +111,11 @@ public class StorageWriteApiWriter implements Runnable {
     }
   }
 
+  @Override
+  public String toString() {
+    return "StorageWriteApi Writer " + streamName + " on " + table;
+  }
+
   public static class Builder implements TableWriterBuilder {
     private final List<ConvertedRecord> records = new ArrayList<>();
     private final SinkRecordConverter recordConverter;

@@ -23,19 +23,19 @@ import static org.apache.kafka.clients.consumer.ConsumerConfig.MAX_POLL_RECORDS_
 import static org.apache.kafka.connect.runtime.ConnectorConfig.CONNECTOR_CLIENT_CONSUMER_OVERRIDES_PREFIX;
 import static org.apache.kafka.connect.runtime.ConnectorConfig.KEY_CONVERTER_CLASS_CONFIG;
 import static org.apache.kafka.connect.runtime.ConnectorConfig.VALUE_CONVERTER_CLASS_CONFIG;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.storage.v1.TableName;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.retrieve.IdentitySchemaRetriever;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -47,7 +47,7 @@ import org.apache.kafka.connect.json.JsonConverterConfig;
 import org.apache.kafka.connect.runtime.ConnectorConfig;
 import org.apache.kafka.connect.runtime.SinkConnectorConfig;
 import org.apache.kafka.connect.storage.Converter;
-import org.apache.kafka.test.TestUtils;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -155,21 +155,9 @@ class StorageWriteApiUpsertDeleteIT extends BaseConnectorIT {
       // present in the table at the end of the test
       String kafkaKey = key(keyConverter, topic, i / 2);
       String kafkaValue = value(valueConverter, topic, i, false);
-      logger.debug(
-          "Sending message with key '{}' and value '{}' to topic '{}'",
-          kafkaKey,
-          kafkaValue,
-          topic);
       assertCluster().kafka().produce(topic, kafkaKey, kafkaValue);
     }
 
-    // wait for tasks to write to BigQuery and commit offsets for their records
-    waitForCommittedRecords(connectorName(), topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
-
-    // Alter table to set max_staleness to 0 so that CDC changes are immediately visible
-    alterTable(tableName, "SET OPTIONS(max_staleness = INTERVAL 0 MINUTE)");
-
-    List<List<Object>> allRows = readAllRows(bigQuery, tableName, "k1");
     List<List<Object>> expectedRows =
         LongStream.range(0, NUM_RECORDS_PRODUCED / 2)
             .mapToObj(
@@ -177,14 +165,22 @@ class StorageWriteApiUpsertDeleteIT extends BaseConnectorIT {
                     Arrays.<Object>asList(
                         "another string", (i - 1) % 3 == 0, (i * 2 + 1) / 0.69, i))
             .collect(Collectors.toList());
-    assertEquals(expectedRows, allRows);
-  }
 
-  private void alterTable(TableName tableName, String alteration) throws InterruptedException {
-    bigQuery.query(
-        com.google.cloud.bigquery.QueryJobConfiguration.of(
-            String.format(
-                "ALTER TABLE %s.%s %s", tableName.getDataset(), tableName.getTable(), alteration)));
+    // Wait until table is created
+    Awaitility.waitAtMost(Duration.ofMinutes(4))
+        .pollInterval(Duration.ofSeconds(1))
+        .until(() -> bigQuery.getTable(tableName.getDataset(), tableName.getTable()) != null);
+
+    // Alter table to set max_staleness to 0 so that CDC changes are immediately visible
+    alterTable(bigQuery, tableName, "SET OPTIONS(max_staleness = INTERVAL 0 MINUTE)");
+
+    // wait for the entire table to be populated
+    Awaitility.waitAtMost(Duration.ofMinutes(5))
+        .pollInterval(Duration.ofSeconds(1))
+        .untilAsserted(
+            () ->
+                assertThat(readAllRows(bigQuery, tableName, "k1"))
+                    .containsExactlyElementsOf(expectedRows));
   }
 
   @Test
@@ -227,29 +223,27 @@ class StorageWriteApiUpsertDeleteIT extends BaseConnectorIT {
       // Every fourth record will be a tombstone, so every record pair with an odd-numbered key will
       // be dropped
       String kafkaValue = value(valueConverter, topic, i, i % 4 == 3);
-      logger.debug(
-          "Sending message with key '{}' and value '{}' to topic '{}'",
-          kafkaKey,
-          kafkaValue,
-          topic);
       assertCluster().kafka().produce(topic, kafkaKey, kafkaValue);
     }
 
-    // wait for tasks to write to BigQuery and commit offsets for their records
-    waitForCommittedRecords(connectorName(), topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
-
-    // Alter table to set max_staleness to 0 so that CDC changes are immediately visible
-    alterTable(tableName, "SET OPTIONS(max_staleness = INTERVAL 0 MINUTE)");
-
-    // Since we have multiple rows per key, order by key and the f3 field (which should be
-    // monotonically increasing in insertion order)
-    List<List<Object>> allRows = readAllRows(bigQuery, tableName, "k1, f3");
     List<List<Object>> expectedRows =
         LongStream.range(0, NUM_RECORDS_PRODUCED)
             .filter(i -> i % 4 == 1)
             .mapToObj(i -> Arrays.<Object>asList("another string", i % 3 == 0, i / 0.69, i * 2 / 4))
             .collect(Collectors.toList());
-    assertEquals(expectedRows, allRows);
+
+    // Since we have multiple rows per key, order by key and the f3 field (which should be
+    // monotonically increasing in insertion order)
+    Awaitility.waitAtMost(Duration.ofMinutes(4))
+        .pollInterval(Duration.ofSeconds(1))
+        .until(() -> bigQuery.getTable(tableName.getDataset(), tableName.getTable()) != null);
+    alterTable(bigQuery, tableName, "SET OPTIONS(max_staleness = INTERVAL 0 MINUTE)");
+    Awaitility.waitAtMost(Duration.ofMinutes(5))
+        .pollInterval(Duration.ofSeconds(1))
+        .untilAsserted(
+            () ->
+                assertThat(readAllRows(bigQuery, tableName, "k1, f3"))
+                    .containsExactlyElementsOf(expectedRows));
   }
 
   private void produceHighThroughputRecords(
@@ -273,16 +267,32 @@ class StorageWriteApiUpsertDeleteIT extends BaseConnectorIT {
 
   @Test
   @Tag("slow")
-  void testUpsertDeleteHighThroughput() throws Throwable {
+  void testUpsertDeleteHighLoad() throws InterruptedException {
+    upsertDeleteBigDataTest(1);
+  }
+
+  @Test
+  @Tag("slow")
+  void testUpsertDeleteHighThroughput() throws InterruptedException {
+    upsertDeleteBigDataTest(10);
+  }
+
+  /**
+   * Runs 1 million records in 10 partitions using the specified number of tasks
+   *
+   * @param tasksMax the number of tasks.
+   * @throws InterruptedException on error.
+   */
+  void upsertDeleteBigDataTest(final int tasksMax) throws InterruptedException {
     final long numRecords = 1_000_000L;
     final int numPartitions = 10;
-    final int tasksMax = 1;
+    final long expectedRecordCount = 250_000L;
+
+    final TableName tableName = tableName();
 
     // create topic in Kafka
     final String topic = topicName();
     assertCluster().kafka().createTopic(topic, numPartitions);
-
-    final TableName tableName = tableName();
 
     // Instantiate the converters we'll use to send records to the connector
     Converter keyConverter = converter(true);
@@ -326,33 +336,21 @@ class StorageWriteApiUpsertDeleteIT extends BaseConnectorIT {
     // wait for tasks to spin up
     waitForConnectorToStart(connectorName(), tasksMax);
 
-    // wait for tasks to write to BigQuery and commit offsets for their records
-    waitForCommittedRecords(
-        connectorName(),
-        Collections.singleton(topic),
-        numRecords,
-        tasksMax,
-        TimeUnit.MINUTES.toMillis(10),
-        TimeUnit.SECONDS.toMillis(10));
+    // wait for table to be created and then set staleness so we can get accurate query results
+    Awaitility.waitAtMost(Duration.ofMinutes(4))
+        .pollInterval(Duration.ofSeconds(1))
+        .until(() -> bigQuery.getTable(tableName.getDataset(), tableName.getTable()) != null);
+    alterTable(bigQuery, tableName, "SET OPTIONS(max_staleness = INTERVAL 0 MINUTE)");
+    // Wait for the entire run to be complete.
+    Awaitility.waitAtMost(Duration.ofMinutes(5))
+        .pollInterval(Duration.ofSeconds(1))
+        .until(
+            () -> {
+              long count = countRows(bigQuery, tableName);
+              logger.info("record count {}", count);
+              return count >= expectedRecordCount;
+            });
 
-    long time = System.currentTimeMillis() - start;
-    logger.info(
-        "All records have been read and committed by the connector; "
-            + "total time from start to finish: {} seconds",
-        time / 1000.0);
-
-    final AtomicLong numRows = new AtomicLong();
-    TestUtils.waitForCondition(
-        () -> {
-          numRows.set(countRows(bigQuery, tableName));
-          return numRows.get() >= numRecords;
-        },
-        TimeUnit.MINUTES.toMillis(10),
-        TimeUnit.SECONDS.toMillis(10),
-        () ->
-            "Table should contain " + numRecords + " rows, but has " + numRows.get() + " instead");
-    // Since we have multiple rows per key, order by key and the f3 field (which should be
-    // monotonically increasing in insertion order)
     List<List<Object>> allRows = readAllRows(bigQuery, tableName, "k1, f3");
     List<List<Object>> expectedRows =
         LongStream.range(0, numRecords)
@@ -388,9 +386,9 @@ class StorageWriteApiUpsertDeleteIT extends BaseConnectorIT {
     final Schema schema =
         SchemaBuilder.struct()
             .optional()
-            .field("f1", Schema.STRING_SCHEMA)
-            .field("f2", Schema.BOOLEAN_SCHEMA)
-            .field("f3", Schema.FLOAT64_SCHEMA)
+            .field("f1", Schema.OPTIONAL_STRING_SCHEMA)
+            .field("f2", Schema.OPTIONAL_BOOLEAN_SCHEMA)
+            .field("f3", Schema.OPTIONAL_FLOAT64_SCHEMA)
             .build();
 
     if (tombstone) {

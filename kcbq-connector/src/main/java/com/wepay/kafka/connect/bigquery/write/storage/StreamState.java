@@ -25,9 +25,14 @@ package com.wepay.kafka.connect.bigquery.write.storage;
 
 /** Enums for Stream states */
 public enum StreamState {
+  /** Instance of stream or container for stream was created */
   CREATED,
+  /** Data is being appended to the stream */
   APPEND,
+  /** All data is written to the stream or container */
   FINALISED,
+  /** All data has been written to the backend */
   COMMITTED,
+  /** The instance of stream or container for stream may be released for garbage collection */
   INACTIVE
 }

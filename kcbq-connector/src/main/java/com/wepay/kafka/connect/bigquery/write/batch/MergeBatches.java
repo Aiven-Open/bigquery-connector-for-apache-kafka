@@ -336,7 +336,7 @@ public class MergeBatches {
   /**
    * Record a successful merge flush of all of the rows for the given batch in the intermediate
    * table, alert any waiting merge flushes that are predicated on the completion of this merge
-   * flush, and marke the offsets for all of those rows as safe to commit.
+   * flush, and mark the offsets for all of those rows as safe to commit.
    *
    * @param intermediateTable the source of the merge flush
    * @param batchNumber the batch for the merge flush

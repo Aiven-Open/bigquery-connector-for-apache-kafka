@@ -23,6 +23,12 @@
 
 package com.wepay.kafka.connect.bigquery;
 
+import static com.wepay.kafka.connect.bigquery.SchemaManager.KAFKA_DATA_INSERT_TIME_FIELD_NAME;
+import static com.wepay.kafka.connect.bigquery.SchemaManager.KAFKA_DATA_OFFSET_FIELD_NAME;
+import static com.wepay.kafka.connect.bigquery.SchemaManager.KAFKA_DATA_PARTITION_FIELD_NAME;
+import static com.wepay.kafka.connect.bigquery.SchemaManager.KAFKA_DATA_PUT_ATTEMPT_ID_FIELD_NAME;
+import static com.wepay.kafka.connect.bigquery.SchemaManager.KAFKA_DATA_TOPIC_FIELD_NAME;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -39,6 +45,7 @@ import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.BigQueryException;
 import com.google.cloud.bigquery.Field;
 import com.google.cloud.bigquery.Field.Mode;
+import com.google.cloud.bigquery.FieldList;
 import com.google.cloud.bigquery.LegacySQLTypeName;
 import com.google.cloud.bigquery.StandardTableDefinition;
 import com.google.cloud.bigquery.Table;
@@ -62,20 +69,24 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.stubbing.OngoingStubbing;
 
-public class SchemaManagerTest {
+class SchemaManagerTest {
 
-  private String testTableName = "testTable";
-  private String testDatasetName = "testDataset";
-  private String testDoc = "test doc";
-  private TableId tableId = TableId.of(testDatasetName, testTableName);
+  private final String testTableName = "testTable";
+  private final String testDatasetName = "testDataset";
+  private final String testDoc = "test doc";
+  private final TableId tableId = TableId.of(testDatasetName, testTableName);
 
   private SchemaRetriever mockSchemaRetriever;
   private SchemaConverter<com.google.cloud.bigquery.Schema> mockSchemaConverter;
@@ -85,7 +96,7 @@ public class SchemaManagerTest {
   private SchemaManager.SchemaAndPrimaryKeyColumns fakeSchemaAndColumns;
 
   @BeforeEach
-  public void before() {
+  void before() {
     mockSchemaRetriever = mock(SchemaRetriever.class);
     mockSchemaConverter =
         (SchemaConverter<com.google.cloud.bigquery.Schema>) mock(SchemaConverter.class);
@@ -98,7 +109,7 @@ public class SchemaManagerTest {
   }
 
   @Test
-  public void testBQTableDescription() {
+  void testBQTableDescription() {
     SchemaManagerTestConfig sinkConfig =
         createConfig(
             Map.of(
@@ -134,7 +145,7 @@ public class SchemaManagerTest {
   }
 
   @Test
-  public void testTimestampPartitionSet() {
+  void testTimestampPartitionSet() {
     Optional<String> testField = Optional.of("testField");
     BigQuerySinkConfig sinkConfig = createConfig(new HashMap<>());
     SchemaManager schemaManager =
@@ -180,7 +191,7 @@ public class SchemaManagerTest {
   }
 
   @Test
-  public void testAlternativeTimestampPartitionType() {
+  void testAlternativeTimestampPartitionType() {
     BigQuerySinkConfig sinkConfig = createConfig(new HashMap<>());
     SchemaManager schemaManager =
         new SchemaManager(
@@ -216,7 +227,7 @@ public class SchemaManagerTest {
   }
 
   @Test
-  public void testNoTimestampPartitionType() {
+  void testNoTimestampPartitionType() {
     BigQuerySinkConfig sinkConfig = createConfig(new HashMap<>());
     SchemaManager schemaManager =
         new SchemaManager(
@@ -251,7 +262,7 @@ public class SchemaManagerTest {
   }
 
   @Test
-  public void testUpdateTimestampPartitionNull() {
+  void testUpdateTimestampPartitionNull() {
     Optional<String> testField = Optional.of("testField");
     BigQuerySinkConfig sinkConfig = createConfig(new HashMap<>());
     SchemaManager schemaManager =
@@ -288,7 +299,7 @@ public class SchemaManagerTest {
   }
 
   @Test
-  public void testUpdateTimestampPartitionNotSet() {
+  void testUpdateTimestampPartitionNotSet() {
     Optional<String> testField = Optional.of("testField");
     BigQuerySinkConfig sinkConfig = createConfig(new HashMap<>());
     SchemaManager schemaManager =
@@ -355,7 +366,7 @@ public class SchemaManagerTest {
   }
 
   @Test
-  public void testPartitionExpirationSetWithoutFieldName() {
+  void testPartitionExpirationSetWithoutFieldName() {
     Optional<Long> testExpirationMs = Optional.of(86400000L);
     BigQuerySinkConfig sinkConfig = createConfig(new HashMap<>());
     SchemaManager schemaManager =
@@ -397,7 +408,7 @@ public class SchemaManagerTest {
   }
 
   @Test
-  public void testPartitionExpirationSetWithFieldName() {
+  void testPartitionExpirationSetWithFieldName() {
     Optional<Long> testExpirationMs = Optional.of(86400000L);
     Optional<String> testField = Optional.of("testField");
     BigQuerySinkConfig sinkConfig = createConfig(new HashMap<>());
@@ -441,7 +452,7 @@ public class SchemaManagerTest {
   }
 
   @Test
-  public void testClusteringPartitionSet() {
+  void testClusteringPartitionSet() {
     Optional<String> timestampPartitionFieldName = Optional.of("testField");
     Optional<List<String>> testField = Optional.of(Arrays.asList("column1", "column2"));
     BigQuerySinkConfig sinkConfig = createConfig(new HashMap<>());
@@ -482,7 +493,7 @@ public class SchemaManagerTest {
   }
 
   @Test
-  public void testUpdateClusteringPartitionNull() {
+  void testUpdateClusteringPartitionNull() {
     Optional<String> timestampPartitionFieldName = Optional.of("testField");
     Optional<List<String>> testField = Optional.of(Arrays.asList("column1", "column2"));
     BigQuerySinkConfig sinkConfig = createConfig(new HashMap<>());
@@ -519,7 +530,7 @@ public class SchemaManagerTest {
   }
 
   @Test
-  public void testUpdateClusteringPartitionNotSet() {
+  void testUpdateClusteringPartitionNotSet() {
     Optional<String> timestampPartitionFieldName = Optional.of("testField");
     Optional<List<String>> testField = Optional.of(Arrays.asList("column1", "column2"));
     BigQuerySinkConfig sinkConfig = createConfig(new HashMap<>());
@@ -585,7 +596,7 @@ public class SchemaManagerTest {
   }
 
   @Test
-  public void testSuccessfulUpdateWithOnlyRelaxedFields() {
+  void testSuccessfulUpdateWithOnlyRelaxedFields() {
     com.google.cloud.bigquery.Schema existingSchema =
         com.google.cloud.bigquery.Schema.of(
             Field.newBuilder("f1", LegacySQLTypeName.BOOLEAN).setMode(Field.Mode.REQUIRED).build());
@@ -600,7 +611,7 @@ public class SchemaManagerTest {
   }
 
   @Test
-  public void testDisallowedUpdateWithOnlyRelaxedFields() {
+  void testDisallowedUpdateWithOnlyRelaxedFields() {
     com.google.cloud.bigquery.Schema existingSchema =
         com.google.cloud.bigquery.Schema.of(
             Field.newBuilder("f1", LegacySQLTypeName.BOOLEAN).setMode(Field.Mode.REQUIRED).build());
@@ -617,7 +628,7 @@ public class SchemaManagerTest {
   }
 
   @Test
-  public void testSuccessfulUpdateWithOnlyNewFields() {
+  void testSuccessfulUpdateWithOnlyNewFields() {
     com.google.cloud.bigquery.Schema existingSchema =
         com.google.cloud.bigquery.Schema.of(
             Field.newBuilder("f1", LegacySQLTypeName.BOOLEAN).setMode(Field.Mode.REQUIRED).build());
@@ -633,7 +644,7 @@ public class SchemaManagerTest {
   }
 
   @Test
-  public void testDisallowedUpdateWithOnlyNewFields() {
+  void testDisallowedUpdateWithOnlyNewFields() {
     com.google.cloud.bigquery.Schema existingSchema =
         com.google.cloud.bigquery.Schema.of(
             Field.newBuilder("f1", LegacySQLTypeName.BOOLEAN).setMode(Field.Mode.REQUIRED).build());
@@ -652,7 +663,7 @@ public class SchemaManagerTest {
   }
 
   @Test
-  public void testDisallowedUpdateWithOnlyNewRequiredFields() {
+  void testDisallowedUpdateWithOnlyNewRequiredFields() {
     com.google.cloud.bigquery.Schema existingSchema =
         com.google.cloud.bigquery.Schema.of(
             Field.newBuilder("f1", LegacySQLTypeName.BOOLEAN).setMode(Field.Mode.REQUIRED).build());
@@ -671,7 +682,7 @@ public class SchemaManagerTest {
   }
 
   @Test
-  public void testSuccessfulUpdateWithNewAndRelaxedFields() {
+  void testSuccessfulUpdateWithNewAndRelaxedFields() {
     com.google.cloud.bigquery.Schema existingSchema =
         com.google.cloud.bigquery.Schema.of(
             Field.newBuilder("f1", LegacySQLTypeName.BOOLEAN).setMode(Field.Mode.REQUIRED).build());
@@ -698,7 +709,7 @@ public class SchemaManagerTest {
   }
 
   @Test
-  public void testSuccessfulUnionizedUpdateWithNewAndRelaxedFields() {
+  void testSuccessfulUnionizedUpdateWithNewAndRelaxedFields() {
     com.google.cloud.bigquery.Schema existingSchema =
         com.google.cloud.bigquery.Schema.of(
             Field.newBuilder("f1", LegacySQLTypeName.BOOLEAN).setMode(Field.Mode.REQUIRED).build());
@@ -718,7 +729,7 @@ public class SchemaManagerTest {
   }
 
   @Test
-  public void testSuccessfulUnionizedUpdateWithNewRepeatedField() {
+  void testSuccessfulUnionizedUpdateWithNewRepeatedField() {
     com.google.cloud.bigquery.Schema reducedSchema =
         com.google.cloud.bigquery.Schema.of(
             Field.newBuilder("f1", LegacySQLTypeName.BOOLEAN).setMode(Field.Mode.REQUIRED).build());
@@ -742,7 +753,7 @@ public class SchemaManagerTest {
   }
 
   @Test
-  public void testSuccessfulUpdateWithNewRepeatedField() {
+  void testSuccessfulUpdateWithNewRepeatedField() {
     com.google.cloud.bigquery.Schema existingSchema =
         com.google.cloud.bigquery.Schema.of(
             Field.newBuilder("f1", LegacySQLTypeName.BOOLEAN).setMode(Field.Mode.REQUIRED).build());
@@ -763,7 +774,7 @@ public class SchemaManagerTest {
   }
 
   @Test
-  public void testDisallowedUnionizedUpdateWithNewField() {
+  void testDisallowedUnionizedUpdateWithNewField() {
     com.google.cloud.bigquery.Schema existingSchema =
         com.google.cloud.bigquery.Schema.of(
             Field.newBuilder("f1", LegacySQLTypeName.BOOLEAN).setMode(Field.Mode.REQUIRED).build());
@@ -782,7 +793,7 @@ public class SchemaManagerTest {
   }
 
   @Test
-  public void testDisallowedUnionizedUpdateWithRelaxedField() {
+  void testDisallowedUnionizedUpdateWithRelaxedField() {
     com.google.cloud.bigquery.Schema existingSchema =
         com.google.cloud.bigquery.Schema.of(
             Field.newBuilder("f1", LegacySQLTypeName.BOOLEAN).setMode(Field.Mode.REQUIRED).build());
@@ -800,7 +811,7 @@ public class SchemaManagerTest {
   }
 
   @Test
-  public void testUnionizedUpdateWithMultipleSchemas() {
+  void testUnionizedUpdateWithMultipleSchemas() {
     com.google.cloud.bigquery.Schema existingSchema =
         com.google.cloud.bigquery.Schema.of(
             Field.newBuilder("f1", LegacySQLTypeName.BOOLEAN).setMode(Field.Mode.REQUIRED).build());
@@ -829,7 +840,7 @@ public class SchemaManagerTest {
   }
 
   @Test
-  public void FieldsWithUnspecifiedModeShouldNotCauseNpe() {
+  void FieldsWithUnspecifiedModeShouldNotCauseNpe() {
     com.google.cloud.bigquery.Schema existingSchema =
         com.google.cloud.bigquery.Schema.of(
             Field.newBuilder("f1", LegacySQLTypeName.BOOLEAN).build());
@@ -850,7 +861,7 @@ public class SchemaManagerTest {
   }
 
   @Test
-  public void testFieldNamesSanitizedNoExistingSchema() {
+  void testFieldNamesSanitizedNoExistingSchema() {
     BigQuerySchemaConverter converter = new BigQuerySchemaConverter(false, true);
 
     Schema kafkaSchema =
@@ -873,7 +884,7 @@ public class SchemaManagerTest {
   }
 
   @Test
-  public void testFieldNameSanitizedNewFields() {
+  void testFieldNameSanitizedNewFields() {
     BigQuerySchemaConverter converter = new BigQuerySchemaConverter(false, true);
     com.google.cloud.bigquery.Schema existingSchema =
         com.google.cloud.bigquery.Schema.of(
@@ -926,7 +937,7 @@ public class SchemaManagerTest {
   }
 
   @Test
-  public void testFieldNamesSanitizedFieldRelaxation() {
+  void testFieldNamesSanitizedFieldRelaxation() {
     BigQuerySchemaConverter converter = new BigQuerySchemaConverter(false, true);
     com.google.cloud.bigquery.Schema existingSchema =
         com.google.cloud.bigquery.Schema.of(
@@ -947,7 +958,7 @@ public class SchemaManagerTest {
   }
 
   @Test
-  public void testUpdateWithOnlyTombstoneRecordsAndExistingSchema() {
+  void testUpdateWithOnlyTombstoneRecordsAndExistingSchema() {
     com.google.cloud.bigquery.Schema existingSchema =
         com.google.cloud.bigquery.Schema.of(
             Field.newBuilder("f1", LegacySQLTypeName.BOOLEAN).setMode(Field.Mode.REQUIRED).build());
@@ -964,7 +975,7 @@ public class SchemaManagerTest {
   }
 
   @Test
-  public void testUpdateWithOnlyTombstoneRecordsNoExistingSchema() {
+  void testUpdateWithOnlyTombstoneRecordsNoExistingSchema() {
     SchemaManager schemaManager = createSchemaManager(true, false, false);
     List<SinkRecord> incomingSinkRecords = Collections.nCopies(2, recordWithValueSchema(null));
     assertThrows(
@@ -975,7 +986,7 @@ public class SchemaManagerTest {
   }
 
   @Test
-  public void testUpdateWithRegularAndTombstoneRecords() {
+  void testUpdateWithRegularAndTombstoneRecords() {
     com.google.cloud.bigquery.Schema existingSchema =
         com.google.cloud.bigquery.Schema.of(
             Field.newBuilder("f1", LegacySQLTypeName.BOOLEAN).setMode(Field.Mode.REQUIRED).build());
@@ -999,7 +1010,7 @@ public class SchemaManagerTest {
   }
 
   @Test
-  public void testGetUnionizedTableDescriptionFromTombstoneRecord() {
+  void testGetUnionizedTableDescriptionFromTombstoneRecord() {
     SchemaManager schemaManager = createSchemaManager(false, true, true);
     SinkRecord tombstone = recordWithValueSchema(null);
     List<SinkRecord> incomingSinkRecords = ImmutableList.of(tombstone);
@@ -1007,7 +1018,7 @@ public class SchemaManagerTest {
   }
 
   @Test
-  public void testGetUnionizedTableDescriptionFromRegularAndNullRecords() {
+  void testGetUnionizedTableDescriptionFromRegularAndNullRecords() {
     SchemaManager schemaManager = createSchemaManager(false, true, true).forIntermediateTables();
     List<SinkRecord> incomingSinkRecords =
         ImmutableList.of(recordWithValueSchema(mockKafkaSchema), recordWithValueSchema(null));
@@ -1184,7 +1195,7 @@ public class SchemaManagerTest {
   }
 
   @Test
-  public void testUnionizeSchemaNoNestedOrRepeatedRecords() {
+  void testUnionizeSchemaNoNestedOrRepeatedRecords() {
     com.google.cloud.bigquery.Schema s1 =
         com.google.cloud.bigquery.Schema.of(
             Field.of(LegacySQLTypeName.BYTES.name(), LegacySQLTypeName.BYTES),
@@ -1203,7 +1214,7 @@ public class SchemaManagerTest {
   }
 
   @Test
-  public void testUnionizeSchemaWithNestedRecords() {
+  void testUnionizeSchemaWithNestedRecords() {
     com.google.cloud.bigquery.Schema s1 =
         com.google.cloud.bigquery.Schema.of(
             Field.of(
@@ -1229,7 +1240,7 @@ public class SchemaManagerTest {
   }
 
   @Test
-  public void testUnionizeSchemaWithNestedAndRepeatedFields() {
+  void testUnionizeSchemaWithNestedAndRepeatedFields() {
     com.google.cloud.bigquery.Schema s1 =
         com.google.cloud.bigquery.Schema.of(
             Field.of(
@@ -1275,7 +1286,7 @@ public class SchemaManagerTest {
   }
 
   @Test
-  public void testUnionizeSchemaNestedRelax() {
+  void testUnionizeSchemaNestedRelax() {
     com.google.cloud.bigquery.Schema s1 =
         com.google.cloud.bigquery.Schema.of(
             Field.of(
@@ -1296,7 +1307,7 @@ public class SchemaManagerTest {
   }
 
   @Test
-  public void testUnionizeSchemaCaseInsensitive() {
+  void testUnionizeSchemaCaseInsensitive() {
     com.google.cloud.bigquery.Schema s1 =
         com.google.cloud.bigquery.Schema.of(
             Field.of(
@@ -1317,7 +1328,7 @@ public class SchemaManagerTest {
   }
 
   @Test
-  public void testFieldNameSanitizedOnCreateTable() {
+  void testFieldNameSanitizedOnCreateTable() {
     Schema embeddedStructWithInvalidFieldName =
         SchemaBuilder.struct().field("embedded-invalid", Schema.INT32_SCHEMA).build();
     Schema schemaWithInvalidFieldNames =
@@ -1350,7 +1361,7 @@ public class SchemaManagerTest {
   }
 
   @Test
-  public void testConcurrentUpdateReconciled() {
+  void testConcurrentUpdateReconciled() {
     com.google.cloud.bigquery.Schema existingSchema =
         com.google.cloud.bigquery.Schema.of(
             Field.newBuilder("f1", LegacySQLTypeName.BOOLEAN).setMode(Field.Mode.NULLABLE).build());
@@ -1384,7 +1395,7 @@ public class SchemaManagerTest {
   }
 
   @Test
-  public void testConcurrentUpdateRetrySucceeds() {
+  void testConcurrentUpdateRetrySucceeds() {
     com.google.cloud.bigquery.Schema existingSchema =
         com.google.cloud.bigquery.Schema.of(
             Field.newBuilder("f1", LegacySQLTypeName.BOOLEAN).setMode(Field.Mode.NULLABLE).build());
@@ -1417,7 +1428,7 @@ public class SchemaManagerTest {
   }
 
   @Test
-  public void testConcurrentUpdateRetryFails() {
+  void testConcurrentUpdateRetryFails() {
     com.google.cloud.bigquery.Schema existingSchema =
         com.google.cloud.bigquery.Schema.of(
             Field.newBuilder("f1", LegacySQLTypeName.BOOLEAN).setMode(Field.Mode.NULLABLE).build());
@@ -1448,7 +1459,7 @@ public class SchemaManagerTest {
   }
 
   @Test
-  public void testConcurrentUpdateDisabledRethrowsBigQueryException() {
+  void testConcurrentUpdateDisabledRethrowsBigQueryException() {
     com.google.cloud.bigquery.Schema existingSchema =
         com.google.cloud.bigquery.Schema.of(
             Field.newBuilder("f1", LegacySQLTypeName.BOOLEAN).setMode(Field.Mode.NULLABLE).build());
@@ -1499,7 +1510,7 @@ public class SchemaManagerTest {
   }
 
   @Test
-  public void testBuildKafkaDataField() {
+  void testBuildKafkaDataField() {
     BigQuerySinkConfig sinkConfig = createConfig(new HashMap<>());
     SchemaManager underTest =
         new SchemaManager(
@@ -1521,15 +1532,11 @@ public class SchemaManagerTest {
             1,
             sinkConfig);
 
-    Field topicField =
-        Field.of(SchemaManager.KAFKA_DATA_TOPIC_FIELD_NAME, LegacySQLTypeName.STRING);
-    Field partitionField =
-        Field.of(SchemaManager.KAFKA_DATA_PARTITION_FIELD_NAME, LegacySQLTypeName.INTEGER);
-    Field offsetField =
-        Field.of(SchemaManager.KAFKA_DATA_OFFSET_FIELD_NAME, LegacySQLTypeName.INTEGER);
+    Field topicField = Field.of(KAFKA_DATA_TOPIC_FIELD_NAME, LegacySQLTypeName.STRING);
+    Field partitionField = Field.of(KAFKA_DATA_PARTITION_FIELD_NAME, LegacySQLTypeName.INTEGER);
+    Field offsetField = Field.of(KAFKA_DATA_OFFSET_FIELD_NAME, LegacySQLTypeName.INTEGER);
     Field insertTimeField =
-        Field.newBuilder(
-                SchemaManager.KAFKA_DATA_INSERT_TIME_FIELD_NAME, LegacySQLTypeName.TIMESTAMP)
+        Field.newBuilder(KAFKA_DATA_INSERT_TIME_FIELD_NAME, LegacySQLTypeName.TIMESTAMP)
             .setMode(Field.Mode.NULLABLE)
             .build();
 
@@ -1548,7 +1555,7 @@ public class SchemaManagerTest {
   }
 
   @Test
-  public void testBuildKafkaDataField_flagEnabled_includesPutAttemptIdSubfield() {
+  void testBuildKafkaDataField_flagEnabled_includesPutAttemptIdSubfield() {
     BigQuerySinkConfig sinkConfig =
         createConfig(
             Map.of(
@@ -1568,7 +1575,7 @@ public class SchemaManagerTest {
         recordField.getSubFields().stream()
             .anyMatch(
                 f ->
-                    SchemaManager.KAFKA_DATA_PUT_ATTEMPT_ID_FIELD_NAME.equals(f.getName())
+                    KAFKA_DATA_PUT_ATTEMPT_ID_FIELD_NAME.equals(f.getName())
                         && LegacySQLTypeName.STRING.equals(f.getType())
                         && Field.Mode.NULLABLE.equals(f.getMode()));
     assertTrue(
@@ -1576,7 +1583,7 @@ public class SchemaManagerTest {
   }
 
   @Test
-  public void testBuildKafkaDataField_flagDisabled_excludesPutAttemptIdSubfield() {
+  void testBuildKafkaDataField_flagDisabled_excludesPutAttemptIdSubfield() {
     SchemaManagerTestConfig sinkConfig =
         createConfig(Map.of(BigQuerySinkConfig.TRACK_PUT_ATTEMPTS_CONFIG, "false"));
     sinkConfig.schemaConverter = mockSchemaConverter;
@@ -1605,18 +1612,161 @@ public class SchemaManagerTest {
 
     boolean found =
         recordField.getSubFields().stream()
-            .anyMatch(f -> SchemaManager.KAFKA_DATA_PUT_ATTEMPT_ID_FIELD_NAME.equals(f.getName()));
+            .anyMatch(f -> KAFKA_DATA_PUT_ATTEMPT_ID_FIELD_NAME.equals(f.getName()));
     assertFalse(found, "putAttemptId subfield should not be present when flag is disabled");
   }
 
-  class TestingSchemaConverter implements SchemaConverter<com.google.cloud.bigquery.Schema> {
+  @ParameterizedTest(name = "{index} {0}")
+  @MethodSource("intermediateSchemaData")
+  void getIntermediateSchema(
+      String name,
+      Schema kafkaKeySchema,
+      com.google.cloud.bigquery.Schema valueSchema,
+      Map<String, String> configValues) {
+    Map<String, String> props =
+        new HashMap<>(
+            Map.of(
+                BigQuerySinkConfig.SCHEMA_RETRIEVER_CONFIG,
+                IdentitySchemaRetriever.class.getName(),
+                BigQuerySinkConfig.TIME_PARTITIONING_TYPE_CONFIG,
+                TimePartitioning.Type.DAY.toString(),
+                BigQuerySinkConfig.MEDIATE_CONCURRENT_SCHEMA_UPDATES_CONFIG,
+                "false",
+                BigQuerySinkConfig.CONCURRENT_SCHEMA_UPDATE_RETRY_WAIT_MS_CONFIG,
+                "0",
+                BigQuerySinkConfig.CONCURRENT_SCHEMA_UPDATE_MAX_RETRIES_CONFIG,
+                "1"));
+    props.putAll(configValues);
+    SchemaManagerTestConfig sinkConfig = createConfig(props);
 
-    static com.google.cloud.bigquery.Schema result;
+    sinkConfig.schemaConverter = new BigQuerySchemaConverter(false, false);
 
-    @Override
-    public com.google.cloud.bigquery.Schema convertSchema(Schema schema) {
-      return result;
+    SchemaManager schemaManager = new SchemaManager(sinkConfig, mockBigQuery);
+
+    Optional<String> kafakDataFieldName =
+        Optional.ofNullable(props.get(BigQuerySinkConfig.KAFKA_DATA_FIELD_NAME_CONFIG));
+
+    SchemaManager.SchemaAndPrimaryKeyColumns schemaAndKey =
+        schemaManager.getIntermediateSchema(valueSchema, kafkaKeySchema);
+
+    FieldList fields = schemaAndKey.schema().getFields();
+    assertThat(fields).hasSize(5);
+    assertThat(fields.stream().map(Field::getName).toList())
+        .containsExactly(
+            MergeQueries.INTERMEDIATE_TABLE_VALUE_FIELD_NAME,
+            MergeQueries.INTERMEDIATE_TABLE_KEY_FIELD_NAME,
+            MergeQueries.INTERMEDIATE_TABLE_ITERATION_FIELD_NAME,
+            MergeQueries.INTERMEDIATE_TABLE_PARTITION_TIME_FIELD_NAME,
+            MergeQueries.INTERMEDIATE_TABLE_BATCH_NUMBER_FIELD);
+    Field field = fields.get(MergeQueries.INTERMEDIATE_TABLE_VALUE_FIELD_NAME);
+    List<String> expected =
+        new ArrayList<>(valueSchema.getFields().stream().map(Field::getName).toList());
+    kafakDataFieldName.ifPresent(expected::add);
+    assertThat(field.getSubFields().stream().map(Field::getName).toList())
+        .containsExactlyElementsOf(expected);
+    if (kafakDataFieldName.isPresent()) {
+      field = field.getSubFields().get(kafakDataFieldName.get());
+      expected =
+          new ArrayList<>(
+              List.of(
+                  KAFKA_DATA_TOPIC_FIELD_NAME,
+                  KAFKA_DATA_PARTITION_FIELD_NAME,
+                  KAFKA_DATA_OFFSET_FIELD_NAME,
+                  KAFKA_DATA_INSERT_TIME_FIELD_NAME));
+      if (StringUtils.defaultIfEmpty(
+              configValues.get(BigQuerySinkConfig.TRACK_PUT_ATTEMPTS_CONFIG), "false")
+          .equals("true")) {
+        expected.add(KAFKA_DATA_PUT_ATTEMPT_ID_FIELD_NAME);
+      }
+      assertThat(field.getSubFields().stream().map(Field::getName).toList())
+          .containsExactlyElementsOf(expected);
     }
+
+    field = fields.get(MergeQueries.INTERMEDIATE_TABLE_KEY_FIELD_NAME);
+    expected =
+        kafkaKeySchema.fields().stream().map(org.apache.kafka.connect.data.Field::name).toList();
+    assertThat(field.getSubFields().stream().map(Field::getName).toList())
+        .containsExactlyElementsOf(expected);
+  }
+
+  static List<Arguments> intermediateSchemaData() {
+    List<Arguments> result = new ArrayList<>();
+    Schema keySchema = SchemaBuilder.struct().field("k1", Schema.STRING_SCHEMA).build();
+    Schema multiKey =
+        SchemaBuilder.struct()
+            .field("k1", Schema.STRING_SCHEMA)
+            .field("k2", Schema.INT32_SCHEMA)
+            .build();
+
+    com.google.cloud.bigquery.Schema valueSchema =
+        com.google.cloud.bigquery.Schema.of(
+            Field.newBuilder("f1", LegacySQLTypeName.BOOLEAN).setMode(Field.Mode.NULLABLE).build());
+    com.google.cloud.bigquery.Schema multiValue =
+        com.google.cloud.bigquery.Schema.of(
+            Field.newBuilder("f1", LegacySQLTypeName.BOOLEAN).setMode(Field.Mode.NULLABLE).build(),
+            Field.newBuilder("f2", LegacySQLTypeName.FLOAT).setMode(Field.Mode.NULLABLE).build());
+
+    Map<String, String> config =
+        Map.of(
+            BigQuerySinkConfig.KAFKA_KEY_FIELD_NAME_CONFIG,
+            "kafkaKey",
+            BigQuerySinkConfig.KAFKA_DATA_FIELD_NAME_CONFIG,
+            "kafkaData");
+
+    result.add(Arguments.of("simple key and value", keySchema, valueSchema, config));
+
+    result.add(Arguments.of("multi segment key", multiKey, valueSchema, config));
+
+    result.add(Arguments.of("multi segment value", keySchema, multiValue, config));
+
+    config =
+        Map.of(
+            BigQuerySinkConfig.TRACK_PUT_ATTEMPTS_CONFIG,
+            "true",
+            BigQuerySinkConfig.KAFKA_KEY_FIELD_NAME_CONFIG,
+            "kafkaKey",
+            BigQuerySinkConfig.KAFKA_DATA_FIELD_NAME_CONFIG,
+            "kafkaData");
+    result.add(Arguments.of("track put attempts", keySchema, valueSchema, config));
+    return result;
+  }
+
+  @Test
+  void cachedSchemaTest() {
+    Map<String, String> props =
+        new HashMap<>(
+            Map.of(
+                BigQuerySinkConfig.SCHEMA_RETRIEVER_CONFIG,
+                IdentitySchemaRetriever.class.getName(),
+                BigQuerySinkConfig.TIME_PARTITIONING_TYPE_CONFIG,
+                TimePartitioning.Type.DAY.toString(),
+                BigQuerySinkConfig.MEDIATE_CONCURRENT_SCHEMA_UPDATES_CONFIG,
+                "false",
+                BigQuerySinkConfig.CONCURRENT_SCHEMA_UPDATE_RETRY_WAIT_MS_CONFIG,
+                "0",
+                BigQuerySinkConfig.CONCURRENT_SCHEMA_UPDATE_MAX_RETRIES_CONFIG,
+                "1"));
+
+    SchemaManagerTestConfig sinkConfig = createConfig(props);
+
+    sinkConfig.schemaConverter = new BigQuerySchemaConverter(false, false);
+
+    SchemaManager schemaManager = new SchemaManager(sinkConfig, mockBigQuery);
+    TableId tableId = TableId.of("dataset", "table");
+    assertThat(schemaManager.cachedSchema(tableId)).isNull();
+
+    schemaManager.createTable(
+        tableId,
+        List.of(
+            new SinkRecord(
+                "topic",
+                1,
+                Schema.STRING_SCHEMA,
+                "key",
+                SchemaBuilder.struct().field("k1", Schema.STRING_SCHEMA).build(),
+                "value",
+                1L)));
+    assertThat(schemaManager.cachedSchema(tableId)).isNotNull();
   }
 
   static class SchemaManagerTestConfig extends BigQuerySinkConfig {

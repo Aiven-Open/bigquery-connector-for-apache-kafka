@@ -107,7 +107,7 @@ public class StorageWriteApiBatchApplicationStreamTest {
   Exceptions.AppendSerializtionError badRecordsException =
       new Exceptions.AppendSerializtionError(3, "INVALID_ARGUMENT", "DEFAULT", errorMapping);
   String malformedExceptionMessage =
-      "Insertion failed at table t1 for following rows:"
+      "Insertion failed at table t1 for following 1 rows:"
           + " \n [row index 0] (Failure reason : f0 field is unknown) ";
   SchemaManager mockedSchemaManager = mock(SchemaManager.class);
   AppendRowsResponse badResponse =
