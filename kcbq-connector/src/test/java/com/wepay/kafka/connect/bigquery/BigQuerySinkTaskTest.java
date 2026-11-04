@@ -526,6 +526,8 @@ public class BigQuerySinkTaskTest {
 
     SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
     SchemaManager schemaManager = mock(SchemaManager.class);
+    SchemaManager intermediateSchemaManager = mock(SchemaManager.class);
+    when(schemaManager.forIntermediateTables()).thenReturn(intermediateSchemaManager);
     Field keyField = Field.of(key, LegacySQLTypeName.STRING);
     Field valueField = Field.of(value, LegacySQLTypeName.STRING);
     com.google.cloud.bigquery.Schema intermediateSchema =
