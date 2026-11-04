@@ -1609,6 +1609,161 @@ public class SchemaManagerTest {
     assertFalse(found, "putAttemptId subfield should not be present when flag is disabled");
   }
 
+  // ---- syncDescriptions tests ----
+
+  @Test
+  public void testSyncDescriptionsNoOpWhenFlagDisabled() {
+    SchemaManager schemaManager = createSchemaManager(false, false, false);
+
+    schemaManager.syncDescriptions(tableId, Collections.emptyList());
+
+    verify(mockBigQuery, times(0)).getTable(any(TableId.class));
+    verify(mockBigQuery, times(0)).update(any(TableInfo.class));
+  }
+
+  @Test
+  public void testSyncDescriptionsNoOpWhenTableNotFound() {
+    SchemaManagerTestConfig config =
+        createConfig(
+            Map.of(
+                BigQuerySinkConfig.ALLOW_BIGQUERY_FIELD_DESCRIPTION_UPDATES_CONFIG,
+                "true",
+                BigQuerySinkConfig.SCHEMA_RETRIEVER_CONFIG,
+                IdentitySchemaRetriever.class.getName()));
+    config.schemaConverter = mockSchemaConverter;
+    SchemaManager schemaManager = new SchemaManager(config, mockBigQuery);
+
+    when(mockBigQuery.getTable(tableId)).thenReturn(null);
+
+    schemaManager.syncDescriptions(
+        tableId, Collections.singletonList(recordWithValueSchema(mockKafkaSchema)));
+
+    verify(mockBigQuery, times(0)).update(any(TableInfo.class));
+  }
+
+  @Test
+  public void testSyncDescriptionsUpdatesDescriptionWhenChanged() {
+    SchemaManagerTestConfig config =
+        createConfig(
+            Map.of(
+                BigQuerySinkConfig.ALLOW_BIGQUERY_FIELD_DESCRIPTION_UPDATES_CONFIG,
+                "true",
+                BigQuerySinkConfig.SCHEMA_RETRIEVER_CONFIG,
+                IdentitySchemaRetriever.class.getName()));
+    config.schemaConverter = mockSchemaConverter;
+    SchemaManager schemaManager = new SchemaManager(config, mockBigQuery);
+
+    com.google.cloud.bigquery.Schema existingSchema =
+        com.google.cloud.bigquery.Schema.of(
+            Field.newBuilder("f1", LegacySQLTypeName.STRING).setMode(Mode.REQUIRED).build());
+    com.google.cloud.bigquery.Schema proposedSchema =
+        com.google.cloud.bigquery.Schema.of(
+            Field.newBuilder("f1", LegacySQLTypeName.STRING)
+                .setMode(Mode.REQUIRED)
+                .setDescription("A string field")
+                .build());
+
+    Table existingTable = tableWithSchema(existingSchema);
+    when(mockBigQuery.getTable(tableId)).thenReturn(existingTable);
+    when(mockSchemaConverter.convertSchema(mockKafkaSchema)).thenReturn(proposedSchema);
+
+    schemaManager.syncDescriptions(
+        tableId, Collections.singletonList(recordWithValueSchema(mockKafkaSchema)));
+
+    ArgumentCaptor<TableInfo> tableInfoCaptor = ArgumentCaptor.forClass(TableInfo.class);
+    verify(mockBigQuery, times(1)).update(tableInfoCaptor.capture());
+
+    com.google.cloud.bigquery.Schema updatedSchema =
+        tableInfoCaptor.getValue().getDefinition().getSchema();
+    assertEquals(
+        "A string field",
+        updatedSchema.getFields().get(0).getDescription(),
+        "Field description should be updated to proposed value");
+    assertEquals(
+        LegacySQLTypeName.STRING,
+        updatedSchema.getFields().get(0).getType(),
+        "Field type should remain unchanged");
+    assertEquals(
+        Mode.REQUIRED,
+        updatedSchema.getFields().get(0).getMode(),
+        "Field mode should remain unchanged");
+  }
+
+  @Test
+  public void testSyncDescriptionsNoOpWhenDescriptionsUnchanged() {
+    SchemaManagerTestConfig config =
+        createConfig(
+            Map.of(
+                BigQuerySinkConfig.ALLOW_BIGQUERY_FIELD_DESCRIPTION_UPDATES_CONFIG,
+                "true",
+                BigQuerySinkConfig.SCHEMA_RETRIEVER_CONFIG,
+                IdentitySchemaRetriever.class.getName()));
+    config.schemaConverter = mockSchemaConverter;
+    SchemaManager schemaManager = new SchemaManager(config, mockBigQuery);
+
+    com.google.cloud.bigquery.Schema schema =
+        com.google.cloud.bigquery.Schema.of(
+            Field.newBuilder("f1", LegacySQLTypeName.STRING)
+                .setMode(Mode.REQUIRED)
+                .setDescription("A string field")
+                .build());
+
+    Table existingTable = tableWithSchema(schema);
+    when(mockBigQuery.getTable(tableId)).thenReturn(existingTable);
+    when(mockSchemaConverter.convertSchema(mockKafkaSchema)).thenReturn(schema);
+
+    schemaManager.syncDescriptions(
+        tableId, Collections.singletonList(recordWithValueSchema(mockKafkaSchema)));
+
+    verify(mockBigQuery, times(0)).update(any(TableInfo.class));
+  }
+
+  @Test
+  public void testSyncDescriptionsHandlesNestedRecordFields() {
+    SchemaManagerTestConfig config =
+        createConfig(
+            Map.of(
+                BigQuerySinkConfig.ALLOW_BIGQUERY_FIELD_DESCRIPTION_UPDATES_CONFIG,
+                "true",
+                BigQuerySinkConfig.SCHEMA_RETRIEVER_CONFIG,
+                IdentitySchemaRetriever.class.getName()));
+    config.schemaConverter = mockSchemaConverter;
+    SchemaManager schemaManager = new SchemaManager(config, mockBigQuery);
+
+    com.google.cloud.bigquery.Schema existingSchema =
+        com.google.cloud.bigquery.Schema.of(
+            Field.newBuilder(
+                    "rec",
+                    LegacySQLTypeName.RECORD,
+                    Field.newBuilder("subf1", LegacySQLTypeName.STRING).build())
+                .build());
+    com.google.cloud.bigquery.Schema proposedSchema =
+        com.google.cloud.bigquery.Schema.of(
+            Field.newBuilder(
+                    "rec",
+                    LegacySQLTypeName.RECORD,
+                    Field.newBuilder("subf1", LegacySQLTypeName.STRING)
+                        .setDescription("Sub field description")
+                        .build())
+                .build());
+
+    Table existingTable = tableWithSchema(existingSchema);
+    when(mockBigQuery.getTable(tableId)).thenReturn(existingTable);
+    when(mockSchemaConverter.convertSchema(mockKafkaSchema)).thenReturn(proposedSchema);
+
+    schemaManager.syncDescriptions(
+        tableId, Collections.singletonList(recordWithValueSchema(mockKafkaSchema)));
+
+    ArgumentCaptor<TableInfo> tableInfoCaptor = ArgumentCaptor.forClass(TableInfo.class);
+    verify(mockBigQuery, times(1)).update(tableInfoCaptor.capture());
+
+    Field updatedRecord = tableInfoCaptor.getValue().getDefinition().getSchema().getFields().get(0);
+    assertEquals(
+        "Sub field description",
+        updatedRecord.getSubFields().get(0).getDescription(),
+        "Nested sub-field description should be updated");
+  }
+
   class TestingSchemaConverter implements SchemaConverter<com.google.cloud.bigquery.Schema> {
 
     static com.google.cloud.bigquery.Schema result;

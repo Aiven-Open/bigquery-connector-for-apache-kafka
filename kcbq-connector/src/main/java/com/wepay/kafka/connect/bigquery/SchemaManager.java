@@ -53,6 +53,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -79,6 +80,7 @@ public class SchemaManager {
   private final BigQuery bigQuery;
   private final boolean allowNewBqFields;
   private final boolean allowBqRequiredFieldRelaxation;
+  private final boolean allowBqFieldDescriptionUpdates;
   private final boolean allowSchemaUnionization;
   private final boolean sanitizeFieldNames;
   private final Optional<String> kafkaKeyFieldName;
@@ -126,6 +128,8 @@ public class SchemaManager {
     allowNewBqFields = config.getBoolean(BigQuerySinkConfig.ALLOW_NEW_BIGQUERY_FIELDS_CONFIG);
     allowBqRequiredFieldRelaxation =
         config.getBoolean(BigQuerySinkConfig.ALLOW_BIGQUERY_REQUIRED_FIELD_RELAXATION_CONFIG);
+    allowBqFieldDescriptionUpdates =
+        config.getBoolean(BigQuerySinkConfig.ALLOW_BIGQUERY_FIELD_DESCRIPTION_UPDATES_CONFIG);
     allowSchemaUnionization =
         config.getBoolean(BigQuerySinkConfig.ALLOW_SCHEMA_UNIONIZATION_CONFIG);
     schemaRetriever = config.getSchemaRetriever();
@@ -194,6 +198,8 @@ public class SchemaManager {
     this.bigQuery = bigQuery;
     this.allowNewBqFields = allowNewBqFields;
     this.allowBqRequiredFieldRelaxation = allowBqRequiredFieldRelaxation;
+    this.allowBqFieldDescriptionUpdates =
+        config.getBoolean(BigQuerySinkConfig.ALLOW_BIGQUERY_FIELD_DESCRIPTION_UPDATES_CONFIG);
     this.allowSchemaUnionization = allowSchemaUnionization;
     this.sanitizeFieldNames = sanitizeFieldNames;
     this.kafkaKeyFieldName = kafkaKeyFieldName;
@@ -331,6 +337,128 @@ public class SchemaManager {
             "Skipping update of {} since current schema should be compatible", table(table));
       }
     }
+  }
+
+  /**
+   * Proactively syncs BigQuery column descriptions with the Kafka Connect schema field doc()
+   * values. Only descriptions are updated; structural changes (types, modes, new fields) are never
+   * made by this method. This is a no-op when {@code allowBigQueryFieldDescriptionUpdates} is
+   * false.
+   *
+   * @param table The BigQuery table whose field descriptions to synchronize.
+   * @param records The sink records used to derive the desired field descriptions.
+   */
+  public void syncDescriptions(TableId table, List<SinkRecord> records) {
+    if (!allowBqFieldDescriptionUpdates) {
+      return;
+    }
+    synchronized (lock(tableUpdateLocks, table)) {
+      if (!schemaCache.containsKey(table)) {
+        SchemaAndPrimaryKeyColumns cached = readTableSchema(table);
+        if (cached == null) {
+          // Table does not exist yet; nothing to sync.
+          return;
+        }
+        schemaCache.put(table, cached);
+      }
+
+      SinkRecord recordToConvert = getRecordToConvert(records);
+      if (recordToConvert == null) {
+        return;
+      }
+      com.google.cloud.bigquery.Schema proposedSchema =
+          convertRecordSchema(recordToConvert).schema();
+      SchemaAndPrimaryKeyColumns existing = schemaCache.get(table);
+
+      com.google.cloud.bigquery.Schema updatedSchema =
+          applyDescriptions(existing.schema(), proposedSchema);
+      if (updatedSchema == null) {
+        logger.debug(
+            "Skipping description sync for {} since no descriptions changed", table(table));
+        return;
+      }
+
+      SchemaAndPrimaryKeyColumns updated =
+          new SchemaAndPrimaryKeyColumns(updatedSchema, existing.primaryKeyColumns());
+      String tableDescription = getUnionizedTableDescription(records);
+      TableInfo tableInfo = constructTableInfo(table, updated, tableDescription, false);
+      logger.info("Syncing field descriptions on {} with schema {}", table(table), updatedSchema);
+      bigQuery.update(tableInfo);
+      schemaCache.put(table, SchemaAndPrimaryKeyColumns.of(tableInfo));
+    }
+  }
+
+  /**
+   * Applies field descriptions from {@code proposed} onto the structure of {@code existing},
+   * handling nested RECORD fields recursively. Returns a new schema with updated descriptions if
+   * any description changed, or {@code null} if no descriptions differ.
+   */
+  private com.google.cloud.bigquery.Schema applyDescriptions(
+      com.google.cloud.bigquery.Schema existing, com.google.cloud.bigquery.Schema proposed) {
+    List<Field> updatedFields = new ArrayList<>();
+    boolean anyChanged = false;
+
+    // Build a lookup of proposed fields by lowercase name for case-insensitive matching.
+    Map<String, Field> proposedByName = new LinkedHashMap<>();
+    for (Field f : proposed.getFields()) {
+      proposedByName.put(f.getName().toLowerCase(), f);
+    }
+
+    for (Field existingField : existing.getFields()) {
+      Field proposedField = proposedByName.get(existingField.getName().toLowerCase());
+      Field updatedField = applyFieldDescription(existingField, proposedField);
+      if (updatedField != existingField) {
+        anyChanged = true;
+      }
+      updatedFields.add(updatedField);
+    }
+
+    return anyChanged ? com.google.cloud.bigquery.Schema.of(updatedFields) : null;
+  }
+
+  /**
+   * Returns an updated {@link Field} whose description (and sub-field descriptions for RECORD
+   * types) are taken from {@code proposed}, while type and mode remain unchanged. Returns the
+   * original {@code existing} instance if nothing changed.
+   */
+  private Field applyFieldDescription(Field existing, Field proposed) {
+    if (proposed == null) {
+      return existing;
+    }
+
+    // Recurse into sub-fields for RECORD types.
+    Field.Builder builder = existing.toBuilder();
+    boolean changed = false;
+
+    if (LegacySQLTypeName.RECORD.equals(existing.getType()) && existing.getSubFields() != null) {
+      List<Field> updatedSubs = new ArrayList<>();
+      Map<String, Field> proposedSubs = new LinkedHashMap<>();
+      if (proposed.getSubFields() != null) {
+        for (Field sf : proposed.getSubFields()) {
+          proposedSubs.put(sf.getName().toLowerCase(), sf);
+        }
+      }
+      for (Field subField : existing.getSubFields()) {
+        Field updatedSub =
+            applyFieldDescription(subField, proposedSubs.get(subField.getName().toLowerCase()));
+        if (updatedSub != subField) {
+          changed = true;
+        }
+        updatedSubs.add(updatedSub);
+      }
+      if (changed) {
+        builder.setType(LegacySQLTypeName.RECORD, updatedSubs.toArray(new Field[0]));
+      }
+    }
+
+    String existingDesc = existing.getDescription();
+    String proposedDesc = proposed.getDescription();
+    if (!Objects.equals(existingDesc, proposedDesc)) {
+      builder.setDescription(proposedDesc);
+      changed = true;
+    }
+
+    return changed ? builder.build() : existing;
   }
 
   private void handleConcurrentSchemaUpdateFailure(
