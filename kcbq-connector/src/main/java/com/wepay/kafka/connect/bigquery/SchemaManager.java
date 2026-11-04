@@ -306,10 +306,15 @@ public class SchemaManager {
    */
   public void updateSchema(TableId table, List<SinkRecord> records) {
     synchronized (lock(tableUpdateLocks, table)) {
-      TableInfo tableInfo = getTableInfo(table, records, false);
+      // Read the existing schema before computing the proposed one so that preservePolicyTags,
+      // called inside getTableInfo, can copy policy tags from existing BQ fields.
       if (!schemaCache.containsKey(table)) {
-        schemaCache.put(table, readTableSchema(table));
+        SchemaAndPrimaryKeyColumns existing = readTableSchema(table);
+        if (existing != null) {
+          schemaCache.put(table, existing);
+        }
       }
+      TableInfo tableInfo = getTableInfo(table, records, false);
 
       if (!schemaCache.get(table).schema().equals(tableInfo.getDefinition().getSchema())) {
         logger.info(
@@ -433,6 +438,18 @@ public class SchemaManager {
     } catch (BigQueryConnectException exception) {
       throw new BigQueryConnectException(
           "Failed to unionize schemas of records for the table " + table, exception);
+    }
+    if (!createSchema) {
+      // When updating an existing table, carry over any policy tags already set on BQ columns.
+      // The schema converter has no knowledge of policy tags, so without this step a connector
+      // schema update would silently drop tags that were applied via the BQ console, DLP, or IaC.
+      SchemaAndPrimaryKeyColumns existing = schemaCache.get(table);
+      if (existing != null && existing.schema() != null) {
+        proposedSchema =
+            new SchemaAndPrimaryKeyColumns(
+                preservePolicyTags(existing.schema(), proposedSchema.schema()),
+                proposedSchema.primaryKeyColumns());
+      }
     }
     return constructTableInfo(table, proposedSchema, tableDescription, createSchema);
   }
@@ -693,6 +710,52 @@ public class SchemaManager {
       }
     }
     return com.google.cloud.bigquery.Schema.of(newSchemaFields);
+  }
+
+  /**
+   * Returns a copy of {@code proposedSchema} where each field that already exists in {@code
+   * existingSchema} has its BigQuery policy tags carried over from the existing field. Types and
+   * modes are never altered. Fields present only in {@code proposedSchema} (newly added columns)
+   * are left without policy tags. RECORD sub-fields are handled recursively using case-insensitive
+   * name matching, consistent with the rest of this class.
+   *
+   * <p>This preserves policy tags that were applied via the BigQuery console, Data Catalog, DLP, or
+   * IaC tools across connector-driven schema updates, which would otherwise silently drop them.
+   */
+  @VisibleForTesting
+  com.google.cloud.bigquery.Schema preservePolicyTags(
+      com.google.cloud.bigquery.Schema existingSchema,
+      com.google.cloud.bigquery.Schema proposedSchema) {
+    Map<String, Field> existingFields = schemaFields(existingSchema);
+    List<Field> result = new ArrayList<>();
+    for (Field proposedField : proposedSchema.getFields()) {
+      Field existingField = existingFields.get(proposedField.getName().toLowerCase());
+      result.add(
+          existingField == null
+              ? proposedField
+              : preserveFieldPolicyTags(existingField, proposedField));
+    }
+    return com.google.cloud.bigquery.Schema.of(result);
+  }
+
+  private Field preserveFieldPolicyTags(Field existingField, Field proposedField) {
+    Field.Builder builder = proposedField.toBuilder();
+    if (existingField.getPolicyTags() != null) {
+      builder.setPolicyTags(existingField.getPolicyTags());
+    }
+    if (proposedField.getType() == LegacySQLTypeName.RECORD
+        && proposedField.getSubFields() != null
+        && existingField.getSubFields() != null) {
+      Map<String, Field> existingSubFields = subFields(existingField);
+      List<Field> updatedSubFields = new ArrayList<>();
+      for (Field proposedSub : proposedField.getSubFields()) {
+        Field existingSub = existingSubFields.get(proposedSub.getName().toLowerCase());
+        updatedSubFields.add(
+            existingSub == null ? proposedSub : preserveFieldPolicyTags(existingSub, proposedSub));
+      }
+      builder.setType(LegacySQLTypeName.RECORD, updatedSubFields.toArray(new Field[0]));
+    }
+    return builder.build();
   }
 
   /**

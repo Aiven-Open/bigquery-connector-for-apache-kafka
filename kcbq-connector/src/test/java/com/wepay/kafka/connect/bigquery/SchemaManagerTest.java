@@ -40,6 +40,7 @@ import com.google.cloud.bigquery.BigQueryException;
 import com.google.cloud.bigquery.Field;
 import com.google.cloud.bigquery.Field.Mode;
 import com.google.cloud.bigquery.LegacySQLTypeName;
+import com.google.cloud.bigquery.PolicyTags;
 import com.google.cloud.bigquery.StandardTableDefinition;
 import com.google.cloud.bigquery.Table;
 import com.google.cloud.bigquery.TableDefinition;
@@ -1496,6 +1497,165 @@ public class SchemaManagerTest {
       com.google.cloud.bigquery.Schema schema2) {
     SchemaManager sm = createSchemaManager(true, true, true);
     assertEquals(expected, sm.unionizeSchemas(schema1, schema2));
+  }
+
+  // ---------------------------------------------------------------------------
+  // preservePolicyTags tests
+  // ---------------------------------------------------------------------------
+
+  @Test
+  public void testPreservePolicyTags_flatSchema_copiesTags() {
+    PolicyTags tag =
+        PolicyTags.newBuilder()
+            .setNames(Collections.singletonList("projects/p/locations/us/taxo/t/policyTags/123"))
+            .build();
+    com.google.cloud.bigquery.Schema existing =
+        com.google.cloud.bigquery.Schema.of(
+            Field.newBuilder("email", LegacySQLTypeName.STRING)
+                .setMode(Field.Mode.NULLABLE)
+                .setPolicyTags(tag)
+                .build(),
+            Field.newBuilder("age", LegacySQLTypeName.INTEGER)
+                .setMode(Field.Mode.NULLABLE)
+                .build());
+    com.google.cloud.bigquery.Schema proposed =
+        com.google.cloud.bigquery.Schema.of(
+            Field.newBuilder("email", LegacySQLTypeName.STRING)
+                .setMode(Field.Mode.NULLABLE)
+                .build(),
+            Field.newBuilder("age", LegacySQLTypeName.INTEGER)
+                .setMode(Field.Mode.NULLABLE)
+                .build());
+
+    SchemaManager sm = createSchemaManager(false, false, false);
+    com.google.cloud.bigquery.Schema result = sm.preservePolicyTags(existing, proposed);
+
+    assertEquals(tag, result.getFields().get("email").getPolicyTags());
+    assertNull(result.getFields().get("age").getPolicyTags());
+  }
+
+  @Test
+  public void testPreservePolicyTags_noExistingTags_noChange() {
+    com.google.cloud.bigquery.Schema existing =
+        com.google.cloud.bigquery.Schema.of(
+            Field.newBuilder("name", LegacySQLTypeName.STRING)
+                .setMode(Field.Mode.NULLABLE)
+                .build());
+    com.google.cloud.bigquery.Schema proposed =
+        com.google.cloud.bigquery.Schema.of(
+            Field.newBuilder("name", LegacySQLTypeName.STRING)
+                .setMode(Field.Mode.NULLABLE)
+                .build());
+
+    SchemaManager sm = createSchemaManager(false, false, false);
+    com.google.cloud.bigquery.Schema result = sm.preservePolicyTags(existing, proposed);
+
+    assertNull(result.getFields().get("name").getPolicyTags());
+  }
+
+  @Test
+  public void testPreservePolicyTags_newFieldInProposed_noTagsAdded() {
+    PolicyTags tag =
+        PolicyTags.newBuilder()
+            .setNames(Collections.singletonList("projects/p/locations/us/taxo/t/policyTags/456"))
+            .build();
+    com.google.cloud.bigquery.Schema existing =
+        com.google.cloud.bigquery.Schema.of(
+            Field.newBuilder("existing_col", LegacySQLTypeName.STRING)
+                .setMode(Field.Mode.NULLABLE)
+                .setPolicyTags(tag)
+                .build());
+    com.google.cloud.bigquery.Schema proposed =
+        com.google.cloud.bigquery.Schema.of(
+            Field.newBuilder("existing_col", LegacySQLTypeName.STRING)
+                .setMode(Field.Mode.NULLABLE)
+                .build(),
+            Field.newBuilder("new_col", LegacySQLTypeName.INTEGER)
+                .setMode(Field.Mode.NULLABLE)
+                .build());
+
+    SchemaManager sm = createSchemaManager(true, false, false);
+    com.google.cloud.bigquery.Schema result = sm.preservePolicyTags(existing, proposed);
+
+    assertEquals(tag, result.getFields().get("existing_col").getPolicyTags());
+    assertNull(result.getFields().get("new_col").getPolicyTags());
+  }
+
+  @Test
+  public void testPreservePolicyTags_nestedRecord_copiesSubFieldTags() {
+    PolicyTags tag =
+        PolicyTags.newBuilder()
+            .setNames(Collections.singletonList("projects/p/locations/us/taxo/t/policyTags/789"))
+            .build();
+    Field existingSubField =
+        Field.newBuilder("ssn", LegacySQLTypeName.STRING)
+            .setMode(Field.Mode.NULLABLE)
+            .setPolicyTags(tag)
+            .build();
+    Field existingRecord =
+        Field.newBuilder("pii", LegacySQLTypeName.RECORD, existingSubField)
+            .setMode(Field.Mode.NULLABLE)
+            .build();
+    com.google.cloud.bigquery.Schema existing = com.google.cloud.bigquery.Schema.of(existingRecord);
+
+    Field proposedSubField =
+        Field.newBuilder("ssn", LegacySQLTypeName.STRING).setMode(Field.Mode.NULLABLE).build();
+    Field proposedRecord =
+        Field.newBuilder("pii", LegacySQLTypeName.RECORD, proposedSubField)
+            .setMode(Field.Mode.NULLABLE)
+            .build();
+    com.google.cloud.bigquery.Schema proposed = com.google.cloud.bigquery.Schema.of(proposedRecord);
+
+    SchemaManager sm = createSchemaManager(false, false, false);
+    com.google.cloud.bigquery.Schema result = sm.preservePolicyTags(existing, proposed);
+
+    Field resultRecord = result.getFields().get("pii");
+    assertNotNull(resultRecord);
+    Field resultSsn = resultRecord.getSubFields().get("ssn");
+    assertNotNull(resultSsn);
+    assertEquals(tag, resultSsn.getPolicyTags());
+  }
+
+  @Test
+  public void testUpdateSchema_preservesPolicyTagsOnUpdate() {
+    PolicyTags tag =
+        PolicyTags.newBuilder()
+            .setNames(Collections.singletonList("projects/p/locations/us/taxo/t/policyTags/999"))
+            .build();
+    com.google.cloud.bigquery.Schema existingBqSchema =
+        com.google.cloud.bigquery.Schema.of(
+            Field.newBuilder("f1", LegacySQLTypeName.BOOLEAN)
+                .setMode(Field.Mode.NULLABLE)
+                .setPolicyTags(tag)
+                .build());
+    com.google.cloud.bigquery.Schema proposedFromKafka =
+        com.google.cloud.bigquery.Schema.of(
+            Field.newBuilder("f1", LegacySQLTypeName.BOOLEAN).setMode(Field.Mode.NULLABLE).build(),
+            Field.newBuilder("f2", LegacySQLTypeName.STRING).setMode(Field.Mode.NULLABLE).build());
+
+    Table existingTable = tableWithSchema(existingBqSchema);
+
+    when(mockSchemaConverter.convertSchema(mockKafkaSchema)).thenReturn(proposedFromKafka);
+    when(mockBigQuery.getTable(tableId))
+        .thenReturn(existingTable) // updateSchema cache population (now before getTableInfo)
+        .thenReturn(existingTable); // getAndValidateProposedSchema
+
+    ArgumentCaptor<TableInfo> tableInfoCaptor = ArgumentCaptor.forClass(TableInfo.class);
+    when(mockBigQuery.update(tableInfoCaptor.capture())).thenReturn(mock(Table.class));
+
+    SchemaManager schemaManager = createSchemaManager(true, false, false);
+    List<SinkRecord> records = Collections.singletonList(recordWithValueSchema(mockKafkaSchema));
+    schemaManager.updateSchema(tableId, records);
+
+    com.google.cloud.bigquery.Schema updatedSchema =
+        tableInfoCaptor.getValue().getDefinition().getSchema();
+    assertEquals(
+        tag,
+        updatedSchema.getFields().get("f1").getPolicyTags(),
+        "Policy tag on f1 should be preserved after schema update");
+    assertNull(
+        updatedSchema.getFields().get("f2").getPolicyTags(),
+        "New field f2 should not have any policy tags");
   }
 
   @Test
