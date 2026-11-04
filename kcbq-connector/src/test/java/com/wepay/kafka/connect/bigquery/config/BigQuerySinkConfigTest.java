@@ -269,6 +269,54 @@ public class BigQuerySinkConfigTest {
   }
 
   @Test
+  public void testTableLabels_emptyString_returnsEmptyMap() {
+    Map<String, String> configProperties = propertiesFactory.getProperties();
+    configProperties.put(BigQuerySinkConfig.BIGQUERY_TABLE_LABELS_CONFIG, "");
+    BigQuerySinkConfig config = new BigQuerySinkConfig(configProperties);
+    assertTrue(config.getTableLabels().isEmpty());
+  }
+
+  @Test
+  public void testTableLabels_validKeyValuePairs_parsed() {
+    Map<String, String> configProperties = propertiesFactory.getProperties();
+    configProperties.put(BigQuerySinkConfig.BIGQUERY_TABLE_LABELS_CONFIG, "env=prod,team=data");
+    BigQuerySinkConfig config = new BigQuerySinkConfig(configProperties);
+    Map<String, String> labels = config.getTableLabels();
+    assertEquals(2, labels.size());
+    assertEquals("prod", labels.get("env"));
+    assertEquals("data", labels.get("team"));
+  }
+
+  @Test
+  public void testTableLabels_invalidFormat_missingEquals_throwsConfigException() {
+    Map<String, String> badConfigProperties = propertiesFactory.getProperties();
+    badConfigProperties.put(BigQuerySinkConfig.BIGQUERY_TABLE_LABELS_CONFIG, "env");
+    assertThrows(ConfigException.class, () -> new BigQuerySinkConfig(badConfigProperties));
+  }
+
+  @Test
+  public void testTableLabels_invalidKey_uppercaseLetter_throwsConfigException() {
+    Map<String, String> badConfigProperties = propertiesFactory.getProperties();
+    badConfigProperties.put(BigQuerySinkConfig.BIGQUERY_TABLE_LABELS_CONFIG, "ENV=prod");
+    assertThrows(ConfigException.class, () -> new BigQuerySinkConfig(badConfigProperties));
+  }
+
+  @Test
+  public void testTableLabels_invalidKey_startsWithDigit_throwsConfigException() {
+    Map<String, String> badConfigProperties = propertiesFactory.getProperties();
+    badConfigProperties.put(BigQuerySinkConfig.BIGQUERY_TABLE_LABELS_CONFIG, "1env=prod");
+    assertThrows(ConfigException.class, () -> new BigQuerySinkConfig(badConfigProperties));
+  }
+
+  @Test
+  public void testTableLabels_emptyValue_accepted() {
+    Map<String, String> configProperties = propertiesFactory.getProperties();
+    configProperties.put(BigQuerySinkConfig.BIGQUERY_TABLE_LABELS_CONFIG, "managed=");
+    BigQuerySinkConfig config = new BigQuerySinkConfig(configProperties);
+    assertEquals("", config.getTableLabels().get("managed"));
+  }
+
+  @Test
   public void testInvalidMaxRetries() {
     Map<String, String> badConfigProperties = propertiesFactory.getProperties();
 

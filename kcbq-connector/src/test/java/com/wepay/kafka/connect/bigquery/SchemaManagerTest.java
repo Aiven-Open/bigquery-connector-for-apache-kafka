@@ -1609,6 +1609,67 @@ public class SchemaManagerTest {
     assertFalse(found, "putAttemptId subfield should not be present when flag is disabled");
   }
 
+  @Test
+  public void testConstructTableInfo_noLabels_tableInfoHasNoLabels() {
+    SchemaManagerTestConfig sinkConfig = createConfig(new HashMap<>());
+    sinkConfig.schemaConverter = mockSchemaConverter;
+    SchemaManager schemaManager = new SchemaManager(sinkConfig, mockBigQuery);
+
+    TableInfo tableInfo =
+        schemaManager.constructTableInfo(tableId, fakeSchemaAndColumns, testDoc, true);
+
+    assertTrue(
+        tableInfo.getLabels() == null || tableInfo.getLabels().isEmpty(),
+        "Expected no labels when bigQueryTableLabels is not set");
+  }
+
+  @Test
+  public void testConstructTableInfo_labelsConfigured_labelsAppliedToTable() {
+    SchemaManagerTestConfig sinkConfig =
+        createConfig(Map.of(BigQuerySinkConfig.BIGQUERY_TABLE_LABELS_CONFIG, "env=prod,team=data"));
+    sinkConfig.schemaConverter = mockSchemaConverter;
+    SchemaManager schemaManager = new SchemaManager(sinkConfig, mockBigQuery);
+
+    TableInfo tableInfo =
+        schemaManager.constructTableInfo(tableId, fakeSchemaAndColumns, testDoc, true);
+
+    assertNotNull(tableInfo.getLabels(), "Labels should not be null");
+    assertEquals("prod", tableInfo.getLabels().get("env"));
+    assertEquals("data", tableInfo.getLabels().get("team"));
+    assertEquals(2, tableInfo.getLabels().size());
+  }
+
+  @Test
+  public void testConstructTableInfo_intermediateTables_labelsNotApplied() {
+    SchemaManagerTestConfig sinkConfig =
+        createConfig(Map.of(BigQuerySinkConfig.BIGQUERY_TABLE_LABELS_CONFIG, "env=prod"));
+    sinkConfig.schemaConverter = mockSchemaConverter;
+    // forIntermediateTables() creates a SchemaManager with intermediateTables=true
+    SchemaManager schemaManager =
+        new SchemaManager(sinkConfig, mockBigQuery).forIntermediateTables();
+
+    TableInfo tableInfo =
+        schemaManager.constructTableInfo(tableId, fakeSchemaAndColumns, null, true);
+
+    assertTrue(
+        tableInfo.getLabels() == null || tableInfo.getLabels().isEmpty(),
+        "Labels should not be set on intermediate tables");
+  }
+
+  @Test
+  public void testConstructTableInfo_singleLabelWithEmptyValue_accepted() {
+    SchemaManagerTestConfig sinkConfig =
+        createConfig(Map.of(BigQuerySinkConfig.BIGQUERY_TABLE_LABELS_CONFIG, "managed="));
+    sinkConfig.schemaConverter = mockSchemaConverter;
+    SchemaManager schemaManager = new SchemaManager(sinkConfig, mockBigQuery);
+
+    TableInfo tableInfo =
+        schemaManager.constructTableInfo(tableId, fakeSchemaAndColumns, testDoc, true);
+
+    assertNotNull(tableInfo.getLabels());
+    assertEquals("", tableInfo.getLabels().get("managed"));
+  }
+
   class TestingSchemaConverter implements SchemaConverter<com.google.cloud.bigquery.Schema> {
 
     static com.google.cloud.bigquery.Schema result;
