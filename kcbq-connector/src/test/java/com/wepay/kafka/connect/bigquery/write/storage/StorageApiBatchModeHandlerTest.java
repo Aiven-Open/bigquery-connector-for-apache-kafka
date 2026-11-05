@@ -58,9 +58,8 @@ public class StorageApiBatchModeHandlerTest {
     when(mockedConfig.getBoolean(BigQuerySinkTaskConfig.SANITIZE_TOPICS_CONFIG)).thenReturn(false);
     when(mockedConfig.getList(BigQuerySinkTaskConfig.TOPICS_CONFIG))
         .thenReturn(Arrays.asList("topic1", "topic2"));
-    when(mockedStreamApi.maybeCreateStream(any(), any())).thenReturn(true);
     when(mockedStreamApi.updateOffsetsOnStream(any(), any())).thenReturn("s1_app_stream");
-    when(mockedStreamApi.getCommitableOffsets()).thenReturn(offsetInfo);
+    when(mockedStreamApi.getCommittableOffsets()).thenReturn(offsetInfo);
   }
 
   @Test
@@ -81,6 +80,6 @@ public class StorageApiBatchModeHandlerTest {
   @Test
   public void testGetCommitableOffsets() {
     batchModeHandler.getCommitableOffsets();
-    verify(mockedStreamApi, times(1)).getCommitableOffsets();
+    verify(mockedStreamApi, times(1)).getCommittableOffsets();
   }
 }

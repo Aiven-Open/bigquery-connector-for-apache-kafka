@@ -27,6 +27,9 @@ import com.google.api.core.ApiFuture;
 import com.google.cloud.bigquery.storage.v1.AppendRowsResponse;
 import com.google.protobuf.Descriptors;
 import java.io.IOException;
+import java.util.Optional;
+
+import com.wepay.kafka.connect.bigquery.strategy.StreamStateContainer;
 import org.json.JSONArray;
 
 public interface StreamWriter {
@@ -53,4 +56,12 @@ public interface StreamWriter {
   void onSuccess();
 
   String streamName();
+
+  /**
+   * Get the StreamStateContainer if there is one.
+   * @return an Optional StreamStateContainer or an empty options if there is none.
+   */
+  default Optional<StreamStateContainer> getStreamStateContainer() {
+    return Optional.empty();
+  }
 }

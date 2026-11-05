@@ -41,6 +41,7 @@ import com.wepay.kafka.connect.bigquery.ErrantRecordHandler;
 import com.wepay.kafka.connect.bigquery.SchemaManager;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkTaskConfig;
+import com.wepay.kafka.connect.bigquery.strategy.TestingCommitStrategy;
 import com.wepay.kafka.connect.bigquery.utils.PartitionedTableId;
 import com.wepay.kafka.connect.bigquery.utils.SinkRecordConverter;
 import de.huxhorn.sulky.ulid.ULID;
@@ -122,7 +123,8 @@ class StorageWriteApiBaseTest {
             errantRecordHandler,
             schemaManager,
             attemptSchemaUpdate,
-            config) {
+            config,
+                new TestingCommitStrategy()) {
 
           @Override
           public void preShutdown() {}

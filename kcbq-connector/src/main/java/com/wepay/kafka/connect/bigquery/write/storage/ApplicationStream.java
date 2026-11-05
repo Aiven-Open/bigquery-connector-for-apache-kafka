@@ -38,6 +38,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+
+import com.wepay.kafka.connect.bigquery.strategy.StreamStateContainer;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.slf4j.Logger;
@@ -48,7 +51,7 @@ import org.slf4j.LoggerFactory;
  * calling application are called as Application streams Uses stream writer methods from:
  * https://cloud.google.com/java/docs/reference/google-cloud-bigquerystorage/latest/com.google.cloud.bigquery.storage.v1
  */
-public class ApplicationStream {
+public class ApplicationStream implements StreamStateContainer {
 
   private static final Logger logger = LoggerFactory.getLogger(ApplicationStream.class);
   private final String tableName;
@@ -68,7 +71,7 @@ public class ApplicationStream {
 
   private final AtomicLong totalRowsSent;
   private final JsonStreamWriterFactory jsonWriterFactory;
-  private StreamState currentState = null;
+  private final AtomicReference<StreamState> currentState;
   private WriteStream stream = null;
   private JsonStreamWriter jsonWriter = null;
   private final List<String> committableStreams;
@@ -86,7 +89,7 @@ public class ApplicationStream {
     this.committableStreams = new ArrayList<>();
     this.jsonWriterFactory = jsonWriterFactory;
     generateStream();
-    currentState = StreamState.CREATED;
+    currentState = new AtomicReference<>(StreamState.CREATED);
     logger.debug("New Application stream {} created", getStreamName());
   }
 
@@ -138,9 +141,7 @@ public class ApplicationStream {
    */
   public int increaseMaxCalls() {
     int count = this.maxCalls.incrementAndGet();
-    if (currentState == StreamState.CREATED) {
-      currentState = StreamState.APPEND;
-    }
+    currentState.compareAndSet(StreamState.CREATED, StreamState.APPEND);
     return count;
   }
 
@@ -159,7 +160,7 @@ public class ApplicationStream {
    *     Please note inactive is different which means the stream has completed it lifecycle
    */
   public boolean canTransitionToNonActive() {
-    return currentState != StreamState.CREATED;
+    return currentState.get() != StreamState.CREATED;
   }
 
   /**
@@ -195,12 +196,21 @@ public class ApplicationStream {
   }
 
   public boolean canBeCommitted() {
-    return currentState == StreamState.APPEND;
+    return currentState.get() == StreamState.APPEND;
   }
 
   /** Finalises the stream */
-  public void finalise() {
-    if (currentState == StreamState.APPEND) {
+  public synchronized void finalise() {
+    finalise(currentState.get());
+  }
+
+  /**
+   * Finalises the stream if the initial state is APPEND.
+   * @param initial the initial state
+   * @return
+   */
+  private StreamState finalise(StreamState initial) {
+    if (initial == StreamState.APPEND) {
       long rowsWritten = 0;
       for (String stream : committableStreams) {
         rowsWritten += client.finalizeWriteStream(stream).getRowCount();
@@ -211,7 +221,7 @@ public class ApplicationStream {
           rowsWritten,
           getStreamCount(),
           getStreamName());
-      currentState = StreamState.FINALISED;
+      return StreamState.FINALISED;
     } else {
       throw new BigQueryStorageWriteApiConnectException(
           "Stream could not be finalised as current state "
@@ -221,8 +231,17 @@ public class ApplicationStream {
   }
 
   /** Commits the finalised stream */
-  public void commit() {
-    if (currentState == StreamState.FINALISED) {
+  public synchronized void commit() {
+    commit(currentState.get());
+  }
+
+  /**
+   * Commits the stream if the initial state  is already FINALISED
+   * @param initial the intial state
+   * @return the committed state;
+   */
+  private StreamState commit(StreamState initial) {
+    if (initial == StreamState.FINALISED) {
       BatchCommitWriteStreamsRequest commitRequest =
           BatchCommitWriteStreamsRequest.newBuilder()
               .setParent(tableName)
@@ -245,7 +264,7 @@ public class ApplicationStream {
           getStreamCount(),
           getStreamName(),
           commitResponse.getCommitTime());
-      currentState = StreamState.COMMITTED;
+      return StreamState.COMMITTED;
     } else {
       throw new BigQueryStorageWriteApiConnectException(
           "Stream could not be committed as current state "
@@ -260,7 +279,7 @@ public class ApplicationStream {
    * @return true if this stream is committed else false;
    */
   public boolean isReadyForOffsetCommit() {
-    return currentState == StreamState.COMMITTED;
+    return currentState.get() == StreamState.COMMITTED;
   }
 
   /**
@@ -268,7 +287,7 @@ public class ApplicationStream {
    * inactive
    */
   public void markInactive() {
-    currentState = StreamState.INACTIVE;
+    currentState.set(StreamState.INACTIVE);
     this.jsonWriter.close();
     logger.debug("Closing writer on stream {} ", getStreamName());
   }
@@ -293,7 +312,7 @@ public class ApplicationStream {
   }
 
   public boolean isInactive() {
-    return currentState == StreamState.INACTIVE;
+    return currentState.get() == StreamState.INACTIVE;
   }
 
   private void resetStream() {
@@ -316,10 +335,37 @@ public class ApplicationStream {
   }
 
   public StreamState getCurrentState() {
-    return this.currentState;
+    return currentState.get();
   }
 
   private int getStreamCount() {
     return committableStreams.size();
+  }
+
+
+  @Override
+  public boolean stateIs(StreamState state) {
+    return currentState.get() == state;
+  }
+
+  @Override
+  public synchronized void abort() {
+    markInactive();
+  }
+
+  public synchronized void attemptCommit() {
+    if (areAllExpectedCallsCompleted()) {
+      if (!canBeCommitted()) {
+        logger.trace(
+                "Stream {} with state {} is not committable", getStreamName(), currentState);
+        return;
+      }
+
+      logger.trace("Stream {} has written all assigned offsets.", getStreamName());
+
+      currentState.getAndUpdate(this::finalise);
+      currentState.getAndUpdate(this::commit);
+      logger.trace("Stream {} is now committed.", getStreamName());
+    }
   }
 }

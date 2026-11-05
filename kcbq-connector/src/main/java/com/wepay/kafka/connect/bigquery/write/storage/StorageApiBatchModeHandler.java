@@ -69,6 +69,6 @@ public class StorageApiBatchModeHandler {
    */
   public Map<TopicPartition, OffsetAndMetadata> getCommitableOffsets() {
     logger.trace("Getting list of committable offsets for batch mode");
-    return this.streamApi.getCommitableOffsets();
+    return this.streamApi.getCommittableOffsets();
   }
 }
