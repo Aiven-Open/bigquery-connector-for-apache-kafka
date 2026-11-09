@@ -23,6 +23,11 @@
 
 package com.wepay.kafka.connect.bigquery.integration;
 
+import static io.confluent.kafka.serializers.AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG;
+import static org.apache.kafka.clients.consumer.ConsumerConfig.FETCH_MAX_BYTES_CONFIG;
+import static org.apache.kafka.clients.consumer.ConsumerConfig.MAX_PARTITION_FETCH_BYTES_CONFIG;
+import static org.apache.kafka.clients.consumer.ConsumerConfig.MAX_POLL_RECORDS_CONFIG;
+import static org.apache.kafka.connect.runtime.ConnectorConfig.CONNECTOR_CLIENT_CONSUMER_OVERRIDES_PREFIX;
 import static org.apache.kafka.connect.runtime.ConnectorConfig.KEY_CONVERTER_CLASS_CONFIG;
 import static org.apache.kafka.connect.runtime.ConnectorConfig.VALUE_CONVERTER_CLASS_CONFIG;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -30,28 +35,41 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.BigQueryException;
 import com.google.cloud.bigquery.Field;
+import com.google.cloud.bigquery.FieldValueList;
 import com.google.cloud.bigquery.PrimaryKey;
+import com.google.cloud.bigquery.QueryJobConfiguration;
+import com.google.cloud.bigquery.QueryParameterValue;
 import com.google.cloud.bigquery.StandardSQLTypeName;
 import com.google.cloud.bigquery.StandardTableDefinition;
 import com.google.cloud.bigquery.TableConstraints;
 import com.google.cloud.bigquery.TableId;
 import com.google.cloud.bigquery.TableInfo;
+import com.google.cloud.bigquery.TableResult;
 import com.google.cloud.bigquery.storage.v1.TableName;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
+import com.wepay.kafka.connect.bigquery.integration.utils.SchemaRegistryTestUtils;
 import com.wepay.kafka.connect.bigquery.retrieve.IdentitySchemaRetriever;
 import com.wepay.kafka.connect.bigquery.utils.TableNameUtils;
+import io.confluent.connect.avro.AvroConverter;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import org.apache.kafka.connect.data.Schema;
+import org.apache.kafka.connect.data.SchemaAndValue;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.json.JsonConverter;
 import org.apache.kafka.connect.json.JsonConverterConfig;
+import org.apache.kafka.connect.runtime.ConnectorConfig;
 import org.apache.kafka.connect.runtime.SinkConnectorConfig;
 import org.apache.kafka.connect.storage.Converter;
+import org.apache.kafka.test.TestUtils;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -88,6 +106,11 @@ class StorageWriteApiCdcBigQuerySinkConnectorIT extends BaseConnectorIT {
 
   @AfterEach
   void close() {
+    try {
+      assertCluster().deleteConnector(connectorName());
+    } catch (Exception e) {
+      logger.debug("Ignoring failure to delete connector {} during cleanup", connectorName(), e);
+    }
     if (bigQuery != null) {
       delete(bigQuery, tableName());
     }
@@ -414,5 +437,216 @@ class StorageWriteApiCdcBigQuerySinkConnectorIT extends BaseConnectorIT {
     final Struct struct = new Struct(schema).put("k1", id1).put("k2", id2);
 
     return new String(converter.fromConnectData(topic, schema, struct));
+  }
+
+  @Test
+  void testAvroHighThroughput() throws Exception {
+    final String topic = topicName();
+    final TableName tableName = tableName();
+    final String connectorName = connectorName();
+
+    final int tasksMax = 10;
+    final long insertCount = 8_000_000L;
+    final long updateCount = 1_000_000L;
+    final long deleteCount = 1_000_000L;
+    final long numRecords = insertCount + updateCount + deleteCount;
+    final long expectedRows = insertCount - deleteCount;
+    final int valueSize = 100;
+    final int produceBatchSize = 200_000;
+
+    // Pre-create destination table with primary key 'k1' and max_staleness = 0
+    createTableWithPrimaryKey(tableName, "k1");
+
+    // Create 10-partition topic
+    assertCluster().kafka().createTopic(topic, tasksMax);
+
+    SchemaRegistryTestUtils schemaRegistry =
+        new SchemaRegistryTestUtils(assertCluster().kafka().bootstrapServers());
+    schemaRegistry.start();
+    try {
+      String schemaRegistryUrl = schemaRegistry.schemaRegistryUrl();
+
+      Converter avroKeyConverter = new AvroConverter();
+      Converter avroValueConverter = new AvroConverter();
+      avroKeyConverter.configure(
+          Collections.singletonMap(SCHEMA_REGISTRY_URL_CONFIG, schemaRegistryUrl), true);
+      avroValueConverter.configure(
+          Collections.singletonMap(SCHEMA_REGISTRY_URL_CONFIG, schemaRegistryUrl), false);
+
+      Schema avroKeySchema = SchemaBuilder.struct().field("k1", Schema.INT64_SCHEMA).build();
+      Schema avroValueSchema =
+          SchemaBuilder.struct().optional().field("f1", Schema.STRING_SCHEMA).build();
+
+      String initialPayload = String.join("", Collections.nCopies(valueSize, "A"));
+      String updatedPayload = String.join("", Collections.nCopies(valueSize, "B"));
+      SchemaAndValue initialValue =
+          new SchemaAndValue(
+              avroValueSchema, new Struct(avroValueSchema).put("f1", initialPayload));
+      SchemaAndValue updatedValue =
+          new SchemaAndValue(
+              avroValueSchema, new Struct(avroValueSchema).put("f1", updatedPayload));
+
+      // 1. Produce 8M inserts (k1 = 0 .. 7,999,999)
+      produceAvroCdcRecordsInBatches(
+          schemaRegistry,
+          avroKeyConverter,
+          avroValueConverter,
+          topic,
+          avroKeySchema,
+          0L,
+          insertCount,
+          initialValue,
+          produceBatchSize);
+
+      // 2. Produce 1M updates (k1 = 0 .. 999,999)
+      produceAvroCdcRecordsInBatches(
+          schemaRegistry,
+          avroKeyConverter,
+          avroValueConverter,
+          topic,
+          avroKeySchema,
+          0L,
+          updateCount,
+          updatedValue,
+          produceBatchSize);
+
+      // 3. Produce 1M tombstone deletes (k1 = 1,000,000 .. 1,999,999)
+      produceAvroCdcRecordsInBatches(
+          schemaRegistry,
+          avroKeyConverter,
+          avroValueConverter,
+          topic,
+          avroKeySchema,
+          updateCount,
+          deleteCount,
+          null,
+          produceBatchSize);
+
+      Map<String, String> props = baseConnectorProps(tasksMax);
+      props.put(SinkConnectorConfig.TOPICS_CONFIG, topic);
+      props.put(BigQuerySinkConfig.SANITIZE_TOPICS_CONFIG, "true");
+      props.put(
+          BigQuerySinkConfig.SCHEMA_RETRIEVER_CONFIG, IdentitySchemaRetriever.class.getName());
+      props.put(BigQuerySinkConfig.TABLE_CREATE_CONFIG, "false");
+      props.put(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG, "false");
+
+      // Enable native Storage Write API CDC
+      props.put(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, "true");
+      props.put(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG, "true");
+      props.put(BigQuerySinkConfig.DELETE_ENABLED_CONFIG, "true");
+
+      props.put(KEY_CONVERTER_CLASS_CONFIG, AvroConverter.class.getName());
+      props.put(
+          ConnectorConfig.KEY_CONVERTER_CLASS_CONFIG + "." + SCHEMA_REGISTRY_URL_CONFIG,
+          schemaRegistryUrl);
+      props.put(VALUE_CONVERTER_CLASS_CONFIG, AvroConverter.class.getName());
+      props.put(
+          ConnectorConfig.VALUE_CONVERTER_CLASS_CONFIG + "." + SCHEMA_REGISTRY_URL_CONFIG,
+          schemaRegistryUrl);
+
+      // The Storage Write API allows for 10MB per write; fetch ~9MB per poll so JSON expansion
+      // exercises multi-batch splitting across concurrent tasks.
+      props.put(
+          CONNECTOR_CLIENT_CONSUMER_OVERRIDES_PREFIX + FETCH_MAX_BYTES_CONFIG,
+          Integer.toString(9 * 1024 * 1024));
+      props.put(
+          CONNECTOR_CLIENT_CONSUMER_OVERRIDES_PREFIX + MAX_PARTITION_FETCH_BYTES_CONFIG,
+          Integer.toString(Integer.MAX_VALUE));
+      props.put(
+          CONNECTOR_CLIENT_CONSUMER_OVERRIDES_PREFIX + MAX_POLL_RECORDS_CONFIG,
+          Long.toString(numRecords));
+
+      assertCluster().configureConnector(connectorName, props);
+      waitForConnectorToStart(connectorName, tasksMax);
+
+      waitForCommittedRecords(
+          connectorName,
+          Collections.singleton(topic),
+          numRecords,
+          tasksMax,
+          TimeUnit.MINUTES.toMillis(15),
+          TimeUnit.SECONDS.toMillis(10));
+
+      final AtomicLong numRows = new AtomicLong();
+      TestUtils.waitForCondition(
+          () -> {
+            numRows.set(countRows(bigQuery, tableName));
+            return numRows.get() == expectedRows;
+          },
+          TimeUnit.MINUTES.toMillis(10),
+          TimeUnit.SECONDS.toMillis(10),
+          () ->
+              "Table should contain "
+                  + expectedRows
+                  + " merged rows, but has "
+                  + numRows.get()
+                  + " instead");
+
+      // Give the system an extra minute to ensure no delayed or duplicate rows appear.
+      Thread.sleep(TimeUnit.MINUTES.toMillis(1));
+      numRows.set(countRows(bigQuery, tableName));
+      assertEquals(
+          expectedRows,
+          numRows.get(),
+          () ->
+              "Table should contain "
+                  + expectedRows
+                  + " merged rows after settle period, but has "
+                  + numRows.get()
+                  + " instead");
+
+      String breakdownSql =
+          String.format(
+              "SELECT COUNT(DISTINCT k1), "
+                  + "COUNTIF(k1 < @updateEnd AND f1 = @updatedPayload), "
+                  + "COUNTIF(k1 >= @updateEnd AND k1 < @deleteEnd), "
+                  + "COUNTIF(k1 >= @deleteEnd AND f1 = @initialPayload) "
+                  + "FROM `%s`.`%s`",
+              tableName.getDataset(), tableName.getTable());
+      TableResult breakdownResult =
+          bigQuery.query(
+              QueryJobConfiguration.newBuilder(breakdownSql)
+                  .addNamedParameter("updateEnd", QueryParameterValue.int64(updateCount))
+                  .addNamedParameter(
+                      "deleteEnd", QueryParameterValue.int64(updateCount + deleteCount))
+                  .addNamedParameter("updatedPayload", QueryParameterValue.string(updatedPayload))
+                  .addNamedParameter("initialPayload", QueryParameterValue.string(initialPayload))
+                  .build());
+      FieldValueList breakdownRow = breakdownResult.iterateAll().iterator().next();
+      assertEquals(expectedRows, breakdownRow.get(0).getLongValue(), "Distinct key count mismatch");
+      assertEquals(updateCount, breakdownRow.get(1).getLongValue(), "Updated row count mismatch");
+      assertEquals(0L, breakdownRow.get(2).getLongValue(), "Deleted rows should not be present");
+      assertEquals(
+          insertCount - updateCount - deleteCount,
+          breakdownRow.get(3).getLongValue(),
+          "Unmodified inserted row count mismatch");
+    } finally {
+      schemaRegistry.stop();
+    }
+  }
+
+  private void produceAvroCdcRecordsInBatches(
+      SchemaRegistryTestUtils schemaRegistry,
+      Converter keyConverter,
+      Converter valueConverter,
+      String topic,
+      Schema keySchema,
+      long startKey,
+      long totalRecords,
+      SchemaAndValue valueSchemaAndValue,
+      int batchSize) {
+    long produced = 0;
+    while (produced < totalRecords) {
+      int currentBatchSize = (int) Math.min(batchSize, totalRecords - produced);
+      List<List<SchemaAndValue>> batch = new ArrayList<>(currentBatchSize);
+      for (int i = 0; i < currentBatchSize; i++) {
+        long keyId = startKey + produced + i;
+        SchemaAndValue keySchemaAndValue =
+            new SchemaAndValue(keySchema, new Struct(keySchema).put("k1", keyId));
+        batch.add(Arrays.asList(keySchemaAndValue, valueSchemaAndValue));
+      }
+      schemaRegistry.produceRecordsWithKey(keyConverter, valueConverter, batch, topic);
+      produced += currentBatchSize;
+    }
   }
 }

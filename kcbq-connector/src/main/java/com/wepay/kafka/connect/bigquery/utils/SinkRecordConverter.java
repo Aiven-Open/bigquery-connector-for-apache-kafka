@@ -297,7 +297,7 @@ public final class SinkRecordConverter {
     // 4. Set the CDC metadata columns
     String changeType = CDC_CHANGE_TYPE_UPSERT;
     if (record.value() == null) {
-      logger.debug(
+      logger.trace(
           "Tombstone record (null value) detected for key {} at offset {}",
           record.key(),
           record.kafkaOffset());
