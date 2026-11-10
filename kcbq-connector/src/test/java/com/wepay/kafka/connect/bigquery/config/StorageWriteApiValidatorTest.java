@@ -24,11 +24,8 @@
 package com.wepay.kafka.connect.bigquery.config;
 
 import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG;
-import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.DELETE_ENABLED_CONFIG;
 import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.ENABLE_BATCH_CONFIG;
 import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.ENABLE_BATCH_MODE_CONFIG;
-import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.UPSERT_ENABLED_CONFIG;
-import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG;
 import static com.wepay.kafka.connect.bigquery.config.StorageWriteApiValidator.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
@@ -44,7 +41,7 @@ public class StorageWriteApiValidatorTest {
   public void testNoStorageWriteApiEnabled() {
     BigQuerySinkConfig config = mock(BigQuerySinkConfig.class);
 
-    when(config.getBoolean(USE_STORAGE_WRITE_API_CONFIG)).thenReturn(false);
+    when(config.useStorageWriteApi()).thenReturn(false);
 
     assertEquals(Optional.empty(), new StorageWriteApiValidator().doValidate(config));
   }
@@ -53,9 +50,7 @@ public class StorageWriteApiValidatorTest {
   public void testNoLegacyModesEnabled() {
     BigQuerySinkConfig config = mock(BigQuerySinkConfig.class);
 
-    when(config.getBoolean(USE_STORAGE_WRITE_API_CONFIG)).thenReturn(true);
-    when(config.getBoolean(UPSERT_ENABLED_CONFIG)).thenReturn(false);
-    when(config.getBoolean(DELETE_ENABLED_CONFIG)).thenReturn(false);
+    when(config.useStorageWriteApi()).thenReturn(true);
     when(config.getList(ENABLE_BATCH_CONFIG)).thenReturn(Collections.emptyList());
 
     assertEquals(Optional.empty(), new StorageWriteApiValidator().doValidate(config));
@@ -65,9 +60,7 @@ public class StorageWriteApiValidatorTest {
   public void testUpsertAndStorageWriteApiEnabled() {
     BigQuerySinkConfig config = mock(BigQuerySinkConfig.class);
 
-    when(config.getBoolean(USE_STORAGE_WRITE_API_CONFIG)).thenReturn(true);
-    when(config.getBoolean(UPSERT_ENABLED_CONFIG)).thenReturn(true);
-    when(config.getBoolean(DELETE_ENABLED_CONFIG)).thenReturn(false);
+    when(config.useStorageWriteApi()).thenReturn(true);
     when(config.getList(ENABLE_BATCH_CONFIG)).thenReturn(Collections.emptyList());
 
     assertEquals(Optional.empty(), new StorageWriteApiValidator().doValidate(config));
@@ -77,9 +70,7 @@ public class StorageWriteApiValidatorTest {
   public void testDeleteAndStorageWriteApiEnabled() {
     BigQuerySinkConfig config = mock(BigQuerySinkConfig.class);
 
-    when(config.getBoolean(USE_STORAGE_WRITE_API_CONFIG)).thenReturn(true);
-    when(config.getBoolean(UPSERT_ENABLED_CONFIG)).thenReturn(false);
-    when(config.getBoolean(DELETE_ENABLED_CONFIG)).thenReturn(true);
+    when(config.useStorageWriteApi()).thenReturn(true);
     when(config.getList(ENABLE_BATCH_CONFIG)).thenReturn(Collections.emptyList());
 
     assertEquals(Optional.empty(), new StorageWriteApiValidator().doValidate(config));
@@ -89,9 +80,7 @@ public class StorageWriteApiValidatorTest {
   public void testLegacyBatchModeEnabled() {
     BigQuerySinkConfig config = mock(BigQuerySinkConfig.class);
 
-    when(config.getBoolean(USE_STORAGE_WRITE_API_CONFIG)).thenReturn(true);
-    when(config.getBoolean(UPSERT_ENABLED_CONFIG)).thenReturn(false);
-    when(config.getBoolean(DELETE_ENABLED_CONFIG)).thenReturn(false);
+    when(config.useStorageWriteApi()).thenReturn(true);
     when(config.getList(ENABLE_BATCH_CONFIG)).thenReturn(Collections.singletonList("abc"));
 
     assertEquals(
@@ -103,7 +92,7 @@ public class StorageWriteApiValidatorTest {
   public void testPartitionDecoratorAndBatchLoadExplicitlyEnabled() {
     BigQuerySinkConfig config = mock(BigQuerySinkConfig.class);
 
-    when(config.getBoolean(USE_STORAGE_WRITE_API_CONFIG)).thenReturn(true);
+    when(config.useStorageWriteApi()).thenReturn(true);
     when(config.getBoolean(ENABLE_BATCH_MODE_CONFIG)).thenReturn(true);
     when(config.getBoolean(BIGQUERY_PARTITION_DECORATOR_CONFIG)).thenReturn(true);
     // User explicitly requested partition decorator syntax
@@ -119,7 +108,7 @@ public class StorageWriteApiValidatorTest {
   public void testBatchLoadEnabledAndPartitionDecoratorImplicitlyEnabled() {
     BigQuerySinkConfig config = mock(BigQuerySinkConfig.class);
 
-    when(config.getBoolean(USE_STORAGE_WRITE_API_CONFIG)).thenReturn(true);
+    when(config.useStorageWriteApi()).thenReturn(true);
     when(config.getBoolean(BIGQUERY_PARTITION_DECORATOR_CONFIG)).thenReturn(true);
     // User didn't explicitly ask for partition decorator syntax
     when(config.originals()).thenReturn(Collections.emptyMap());
@@ -131,7 +120,7 @@ public class StorageWriteApiValidatorTest {
   public void testNewBatchModeEnabledWithoutNewApi() {
     BigQuerySinkConfig config = mock(BigQuerySinkConfig.class);
 
-    when(config.getBoolean(USE_STORAGE_WRITE_API_CONFIG)).thenReturn(false);
+    when(config.useStorageWriteApi()).thenReturn(false);
     when(config.getBoolean(ENABLE_BATCH_MODE_CONFIG)).thenReturn(true);
 
     assertEquals(
@@ -143,7 +132,7 @@ public class StorageWriteApiValidatorTest {
   public void testNewBatchModeEnabledWithNewApi() {
     BigQuerySinkConfig config = mock(BigQuerySinkConfig.class);
 
-    when(config.getBoolean(USE_STORAGE_WRITE_API_CONFIG)).thenReturn(true);
+    when(config.useStorageWriteApi()).thenReturn(true);
     when(config.getBoolean(ENABLE_BATCH_MODE_CONFIG)).thenReturn(true);
 
     assertEquals(
@@ -155,7 +144,7 @@ public class StorageWriteApiValidatorTest {
   public void testBothLegacyAndNewBatchEnabledOldApi() {
     BigQuerySinkConfig config = mock(BigQuerySinkConfig.class);
 
-    when(config.getBoolean(USE_STORAGE_WRITE_API_CONFIG)).thenReturn(false);
+    when(config.useStorageWriteApi()).thenReturn(false);
     when(config.getBoolean(ENABLE_BATCH_MODE_CONFIG)).thenReturn(true);
     when(config.getList(ENABLE_BATCH_CONFIG)).thenReturn(Collections.singletonList("abc"));
 
@@ -168,7 +157,7 @@ public class StorageWriteApiValidatorTest {
   public void testBothLegacyAndNewBatchEnabledNewApi() {
     BigQuerySinkConfig config = mock(BigQuerySinkConfig.class);
 
-    when(config.getBoolean(USE_STORAGE_WRITE_API_CONFIG)).thenReturn(true);
+    when(config.useStorageWriteApi()).thenReturn(true);
     when(config.getBoolean(ENABLE_BATCH_MODE_CONFIG)).thenReturn(true);
     when(config.getList(ENABLE_BATCH_CONFIG)).thenReturn(Collections.singletonList("abc"));
 

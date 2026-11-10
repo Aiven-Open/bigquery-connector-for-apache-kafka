@@ -443,23 +443,20 @@ public class BigQuerySinkConfigTest {
   void testIsCdcEnabledConfig() {
     Map<String, String> configProperties = propertiesFactory.getProperties();
     BigQuerySinkConfig config = new BigQuerySinkConfig(configProperties);
-    assertFalse(config.isCdcConfigured());
     assertFalse(config.isCdcEnabled());
+    assertFalse(config.useStorageWriteApi());
     assertFalse(config.isUpsertDeleteEnabled());
     assertFalse(config.isUpsertEnabled());
     assertFalse(config.isDeleteEnabled());
 
     configProperties.put(BigQuerySinkConfig.IS_CDC_ENABLED_CONFIG, "true");
     config = new BigQuerySinkConfig(configProperties);
-    assertTrue(config.isCdcConfigured());
-    assertFalse(config.isCdcEnabled()); // Requires useStorageWriteApi
+    assertTrue(config.isCdcEnabled());
+    assertTrue(config.useStorageWriteApi());
     assertTrue(config.isUpsertDeleteEnabled());
     assertTrue(config.isUpsertEnabled());
     assertTrue(config.isDeleteEnabled());
-
-    configProperties.put(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, "true");
-    config = new BigQuerySinkConfig(configProperties);
-    assertTrue(config.isCdcEnabled());
+    assertEquals(Optional.of(""), config.getKafkaKeyFieldName());
   }
 
   @Test
@@ -467,23 +464,20 @@ public class BigQuerySinkConfigTest {
     Map<String, String> configProperties = propertiesFactory.getProperties();
     configProperties.put(BigQuerySinkConfig.CONFIG_PRESET_CONFIG, "debezium_cdc");
     BigQuerySinkConfig config = new BigQuerySinkConfig(configProperties);
-    assertTrue(config.isCdcConfigured());
-    assertFalse(config.isCdcEnabled()); // Requires useStorageWriteApi
+    assertTrue(config.isCdcEnabled());
+    assertTrue(config.useStorageWriteApi());
     assertTrue(config.isUpsertDeleteEnabled());
     assertTrue(config.isUpsertEnabled());
     assertTrue(config.isDeleteEnabled());
-
-    configProperties.put(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, "true");
-    config = new BigQuerySinkConfig(configProperties);
-    assertTrue(config.isCdcEnabled());
+    assertEquals(Optional.of(""), config.getKafkaKeyFieldName());
   }
 
   @Test
-  void testKafkaKeyFieldWithIsCdcEnabledAndStorageWriteApi() {
+  void testKafkaKeyFieldWithIsCdcEnabledImpliesStorageWriteApi() {
     Map<String, String> configProperties = propertiesFactory.getProperties();
+    configProperties.remove(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG);
     configProperties.put(BigQuerySinkConfig.KAFKA_KEY_FIELD_NAME_CONFIG, "KeyField");
     configProperties.put(BigQuerySinkConfig.IS_CDC_ENABLED_CONFIG, "true");
-    configProperties.put(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, "true");
 
     BigQuerySinkConfig config = new BigQuerySinkConfig(configProperties);
     Map<String, ConfigValue> errors = errorMap(config.validate());
@@ -495,11 +489,11 @@ public class BigQuerySinkConfigTest {
   }
 
   @Test
-  void testKafkaKeyFieldWithConfigPresetAndStorageWriteApi() {
+  void testKafkaKeyFieldWithConfigPresetImpliesStorageWriteApi() {
     Map<String, String> configProperties = propertiesFactory.getProperties();
+    configProperties.remove(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG);
     configProperties.put(BigQuerySinkConfig.KAFKA_KEY_FIELD_NAME_CONFIG, "KeyField");
     configProperties.put(BigQuerySinkConfig.CONFIG_PRESET_CONFIG, "debezium_cdc");
-    configProperties.put(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, "true");
 
     BigQuerySinkConfig config = new BigQuerySinkConfig(configProperties);
     Map<String, ConfigValue> errors = errorMap(config.validate());

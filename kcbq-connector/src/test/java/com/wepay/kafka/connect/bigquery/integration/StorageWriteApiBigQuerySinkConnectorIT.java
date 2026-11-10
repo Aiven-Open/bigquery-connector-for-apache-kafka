@@ -921,7 +921,7 @@ class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
 
     result.put(BigQuerySinkConfig.KAFKA_KEY_FIELD_NAME_CONFIG, KAFKA_FIELD_NAME);
 
-    result.put(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, "true");
+    result.put("useStorageWriteApi", "true");
 
     return result;
   }

@@ -179,10 +179,10 @@ class StorageWriteApiCdcBigQuerySinkConnectorIT extends BaseConnectorIT {
     props.put(BigQuerySinkConfig.TABLE_CREATE_CONFIG, "false"); // We pre-created it
     props.put(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG, "false");
 
-    // Enable native CDC modes
-    props.put(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, "true");
-    props.put(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG, "true");
-    props.put(BigQuerySinkConfig.DELETE_ENABLED_CONFIG, "true");
+    // Enable native CDC via isCdcEnabled alone (implicitly enabling Storage Write API, upsert, and
+    // delete)
+    props.remove("useStorageWriteApi");
+    props.put("isCdcEnabled", "true");
 
     props.put(KEY_CONVERTER_CLASS_CONFIG, JsonConverter.class.getName());
     props.put(VALUE_CONVERTER_CLASS_CONFIG, JsonConverter.class.getName());
@@ -274,10 +274,10 @@ class StorageWriteApiCdcBigQuerySinkConnectorIT extends BaseConnectorIT {
     props.put(BigQuerySinkConfig.TABLE_CREATE_CONFIG, "false");
     props.put(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG, "false");
 
-    // Enable native CDC modes
-    props.put(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, "true");
-    props.put(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG, "true");
-    props.put(BigQuerySinkConfig.DELETE_ENABLED_CONFIG, "true");
+    // Enable native CDC via isCdcEnabled alone (implicitly enabling Storage Write API, upsert, and
+    // delete)
+    props.remove("useStorageWriteApi");
+    props.put("isCdcEnabled", "true");
 
     props.put(KEY_CONVERTER_CLASS_CONFIG, JsonConverter.class.getName());
     props.put(VALUE_CONVERTER_CLASS_CONFIG, JsonConverter.class.getName());
@@ -363,9 +363,9 @@ class StorageWriteApiCdcBigQuerySinkConnectorIT extends BaseConnectorIT {
     props.put(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG, "false");
 
     // Enable native CDC modes, but DISABLE delete
-    props.put(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, "true");
-    props.put(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG, "true");
-    props.put(BigQuerySinkConfig.DELETE_ENABLED_CONFIG, "false"); // DISABLE DELETE
+    props.put("useStorageWriteApi", "true");
+    props.put("upsertEnabled", "true");
+    props.put("deleteEnabled", "false"); // DISABLE DELETE
 
     props.put(KEY_CONVERTER_CLASS_CONFIG, JsonConverter.class.getName());
     props.put(VALUE_CONVERTER_CLASS_CONFIG, JsonConverter.class.getName());
@@ -531,9 +531,9 @@ class StorageWriteApiCdcBigQuerySinkConnectorIT extends BaseConnectorIT {
       props.put(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG, "false");
 
       // Enable native Storage Write API CDC
-      props.put(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, "true");
-      props.put(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG, "true");
-      props.put(BigQuerySinkConfig.DELETE_ENABLED_CONFIG, "true");
+      props.put("useStorageWriteApi", "true");
+      props.put("upsertEnabled", "true");
+      props.put("deleteEnabled", "true");
 
       props.put(KEY_CONVERTER_CLASS_CONFIG, AvroConverter.class.getName());
       props.put(

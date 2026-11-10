@@ -1644,9 +1644,9 @@ public class SchemaManagerTest {
     SchemaManagerTestConfig config =
         createConfig(
             Map.of(
-                BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG,
+                "useStorageWriteApi",
                 "true",
-                BigQuerySinkConfig.UPSERT_ENABLED_CONFIG,
+                "upsertEnabled",
                 "true",
                 BigQuerySinkConfig.TABLE_MAX_STALENESS_CONFIG,
                 Integer.toString(maxStalenessSeconds)));
@@ -1693,9 +1693,9 @@ public class SchemaManagerTest {
     SchemaManagerTestConfig config =
         createConfig(
             Map.of(
-                BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG,
+                "useStorageWriteApi",
                 "true",
-                BigQuerySinkConfig.IS_CDC_ENABLED_CONFIG,
+                "isCdcEnabled",
                 "true",
                 BigQuerySinkConfig.TABLE_MAX_STALENESS_CONFIG,
                 Integer.toString(maxStalenessSeconds)));
@@ -1722,9 +1722,9 @@ public class SchemaManagerTest {
     SchemaManagerTestConfig config =
         createConfig(
             Map.of(
-                BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG,
+                "useStorageWriteApi",
                 "true",
-                BigQuerySinkConfig.UPSERT_ENABLED_CONFIG,
+                "upsertEnabled",
                 "true",
                 BigQuerySinkConfig.CONCURRENT_SCHEMA_UPDATE_MAX_RETRIES_CONFIG,
                 "2",
@@ -1761,9 +1761,9 @@ public class SchemaManagerTest {
     SchemaManagerTestConfig config =
         createConfig(
             Map.of(
-                BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG,
+                "useStorageWriteApi",
                 "true",
-                BigQuerySinkConfig.UPSERT_ENABLED_CONFIG,
+                "upsertEnabled",
                 "true",
                 BigQuerySinkConfig.CONCURRENT_SCHEMA_UPDATE_MAX_RETRIES_CONFIG,
                 "2",
@@ -1804,9 +1804,9 @@ public class SchemaManagerTest {
     SchemaManagerTestConfig config =
         createConfig(
             Map.of(
-                BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG,
+                "useStorageWriteApi",
                 "true",
-                BigQuerySinkConfig.UPSERT_ENABLED_CONFIG,
+                "upsertEnabled",
                 "true",
                 BigQuerySinkConfig.CONCURRENT_SCHEMA_UPDATE_MAX_RETRIES_CONFIG,
                 "1",
@@ -1840,13 +1840,13 @@ public class SchemaManagerTest {
     SchemaManagerTestConfig config =
         createConfig(
             Map.of(
-                BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG,
+                "useStorageWriteApi",
                 "true",
-                BigQuerySinkConfig.UPSERT_ENABLED_CONFIG,
+                "upsertEnabled",
                 "false",
-                BigQuerySinkConfig.DELETE_ENABLED_CONFIG,
+                "deleteEnabled",
                 "false",
-                BigQuerySinkConfig.IS_CDC_ENABLED_CONFIG,
+                "isCdcEnabled",
                 "false",
                 BigQuerySinkConfig.TABLE_MAX_STALENESS_CONFIG,
                 "60"));
@@ -1875,8 +1875,8 @@ public class SchemaManagerTest {
     SchemaManagerTestConfig config =
         createConfig(
             Map.of(
-                BigQuerySinkConfig.UPSERT_ENABLED_CONFIG, "true",
-                BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, "true"));
+                "upsertEnabled", "true",
+                "useStorageWriteApi", "true"));
     config.schemaConverter = mockSchemaConverter;
     SchemaManager schemaManager = new SchemaManager(config, mockBigQuery);
 
@@ -1898,8 +1898,8 @@ public class SchemaManagerTest {
     SchemaManagerTestConfig config =
         createConfig(
             Map.of(
-                BigQuerySinkConfig.UPSERT_ENABLED_CONFIG, "false",
-                BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, "true"));
+                "upsertEnabled", "false",
+                "useStorageWriteApi", "true"));
     config.schemaConverter = mockSchemaConverter;
     SchemaManager schemaManager = new SchemaManager(config, mockBigQuery);
 

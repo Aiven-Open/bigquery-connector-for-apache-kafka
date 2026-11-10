@@ -105,10 +105,10 @@ class StorageWriteApiUpsertDeleteIT extends BaseConnectorIT {
         Long.toString(Math.max(1, NUM_RECORDS_PRODUCED / 10)));
 
     if (upsert) {
-      result.put(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG, "true");
+      result.put("upsertEnabled", "true");
     }
     if (delete) {
-      result.put(BigQuerySinkConfig.DELETE_ENABLED_CONFIG, "true");
+      result.put("deleteEnabled", "true");
     }
 
     result.put(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG, "false");
@@ -129,7 +129,7 @@ class StorageWriteApiUpsertDeleteIT extends BaseConnectorIT {
 
     // setup props for the sink connector
     Map<String, String> props = baseConnectorProps(TASKS_MAX);
-    props.put(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, "true");
+    props.put("useStorageWriteApi", "true");
     props.put(SinkConnectorConfig.TOPICS_CONFIG, topic);
 
     props.put(BigQuerySinkConfig.SANITIZE_TOPICS_CONFIG, "true");
@@ -198,7 +198,7 @@ class StorageWriteApiUpsertDeleteIT extends BaseConnectorIT {
 
     // setup props for the sink connector
     Map<String, String> props = baseConnectorProps(TASKS_MAX);
-    props.put(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, "true");
+    props.put("useStorageWriteApi", "true");
     props.put(SinkConnectorConfig.TOPICS_CONFIG, topic);
 
     props.put(BigQuerySinkConfig.SANITIZE_TOPICS_CONFIG, "true");
@@ -294,7 +294,7 @@ class StorageWriteApiUpsertDeleteIT extends BaseConnectorIT {
     // setup props for the sink connector
     // use a single task
     Map<String, String> props = baseConnectorProps(tasksMax);
-    props.put(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, "true");
+    props.put("useStorageWriteApi", "true");
     props.put(SinkConnectorConfig.TOPICS_CONFIG, topic);
     // Allow for at most 10,000 records per call to poll
     props.put(

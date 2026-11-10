@@ -80,7 +80,8 @@ public final class SinkRecordConverter {
     this.mergeRecordsThreshold = config.getMergeThreshold();
     this.useMessageTimeDatePartitioning = config.useMessageTime();
     this.usePartitionDecorator = config.appendPartitionDecorator();
-    this.isCdcEnabled = config.isCdcEnabled();
+    this.isCdcEnabled =
+        config.isCdcEnabled() || (config.useStorageWriteApi() && config.isUpsertDeleteEnabled());
   }
 
   /**
@@ -207,7 +208,7 @@ public final class SinkRecordConverter {
     // if delete is enabled and there is a null value then the record was deleted.  In other cases a
     // null value may be appropriate and the converter will determine if there are any issues.
     Map<String, Object> result =
-        config.getBoolean(config.DELETE_ENABLED_CONFIG) && record.value() == null
+        config.isDeleteEnabled() && record.value() == null
             ? new HashMap<>()
             : recordConverter.convertRecord(record, KafkaSchemaRecordType.VALUE);
 

@@ -158,7 +158,7 @@ public class GcpClientBuilderProjectTest {
     when(config.getKeySource()).thenReturn(GcpClientBuilder.KeySource.JSON);
     when(config.getKey()).thenReturn("unused");
     when(config.getBoolean(BigQuerySinkConfig.USE_CREDENTIALS_PROJECT_ID_CONFIG)).thenReturn(flag);
-    when(config.getBoolean(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG)).thenReturn(false);
+    when(config.useStorageWriteApi()).thenReturn(false);
     return config;
   }
 

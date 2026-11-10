@@ -45,21 +45,19 @@ public class ConfigDefBeanTests {
   public void testParents() {
     List<String> expected =
         Arrays.asList(
-            BigQuerySinkConfig.UPSERT_ENABLED_CONFIG,
-            BigQuerySinkConfig.DELETE_ENABLED_CONFIG,
-            BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG,
+            "upsertEnabled",
+            "deleteEnabled",
+            "useStorageWriteApi",
             BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG);
     List<ConfigKeyBean> parents = underTest.parents();
     Collections.sort(expected);
     assertEquals(
         expected, parents.stream().map(ConfigKeyBean::getName).collect(Collectors.toList()));
 
-    parents = underTest.parents(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG);
+    parents = underTest.parents("useStorageWriteApi");
 
     assertEquals(2, parents.size());
-    expected =
-        Arrays.asList(
-            BigQuerySinkConfig.UPSERT_ENABLED_CONFIG, BigQuerySinkConfig.DELETE_ENABLED_CONFIG);
+    expected = Arrays.asList("upsertEnabled", "deleteEnabled");
     Collections.sort(expected);
     assertEquals(
         expected, parents.stream().map(ConfigKeyBean::getName).collect(Collectors.toList()));
@@ -71,7 +69,7 @@ public class ConfigDefBeanTests {
         Arrays.asList(
             BigQuerySinkConfig.MERGE_INTERVAL_MS_CONFIG,
             BigQuerySinkConfig.INTERMEDIATE_TABLE_SUFFIX_CONFIG,
-            BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG,
+            "useStorageWriteApi",
             BigQuerySinkConfig.ENABLE_BATCH_MODE_CONFIG,
             BigQuerySinkConfig.COMMIT_INTERVAL_SEC_CONFIG,
             BigQuerySinkConfig.KAFKA_KEY_FIELD_NAME_CONFIG);

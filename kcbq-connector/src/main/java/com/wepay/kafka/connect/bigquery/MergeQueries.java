@@ -90,8 +90,8 @@ public class MergeQueries {
                     new ConnectException(
                         "Kafka key field must be configured when upsert/delete is enabled")),
         config.getBoolean(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG),
-        config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG),
-        config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG),
+        config.isUpsertEnabled(),
+        config.isDeleteEnabled(),
         config.getInt(BigQuerySinkConfig.BIGQUERY_RETRY_CONFIG),
         config.getLong(BigQuerySinkConfig.BIGQUERY_RETRY_WAIT_CONFIG),
         mergeBatches,

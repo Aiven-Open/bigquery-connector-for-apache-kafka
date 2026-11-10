@@ -115,7 +115,7 @@ class GcpClientBuilderIT extends BaseConnectorIT {
    */
   private void testClients(GcpClientBuilder.KeySource keySource) throws Exception {
     Map<String, String> properties = connectorProps(keySource);
-    properties.put(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, "false");
+    properties.put("useStorageWriteApi", "false");
     BigQuerySinkConfig config = new BigQuerySinkConfig(properties);
 
     BigQuery bigQuery = new GcpClientBuilder.BigQueryBuilder().withConfig(config).build();

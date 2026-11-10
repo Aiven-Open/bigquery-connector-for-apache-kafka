@@ -155,7 +155,9 @@ public class SchemaManager {
         config.getInt(BigQuerySinkConfig.CONCURRENT_SCHEMA_UPDATE_MAX_RETRIES_CONFIG);
 
     tableMaxStaleness =
-        !intermediateTables && config.isCdcEnabled()
+        !intermediateTables
+                && (config.isCdcEnabled()
+                    || (config.useStorageWriteApi() && config.isUpsertDeleteEnabled()))
             ? config.getInt(BigQuerySinkConfig.TABLE_MAX_STALENESS_CONFIG)
             : null;
   }
@@ -227,7 +229,9 @@ public class SchemaManager {
     kafkaKeyAsPrimaryKey =
         config != null && config.isUpsertEnabled() && config.useStorageWriteApi();
     this.tableMaxStaleness =
-        config != null && config.isCdcEnabled()
+        config != null
+                && (config.isCdcEnabled()
+                    || (config.useStorageWriteApi() && config.isUpsertDeleteEnabled()))
             ? config.getInt(BigQuerySinkConfig.TABLE_MAX_STALENESS_CONFIG)
             : null;
   }

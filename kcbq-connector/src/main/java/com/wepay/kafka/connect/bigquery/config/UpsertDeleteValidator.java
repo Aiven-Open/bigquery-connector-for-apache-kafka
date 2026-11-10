@@ -115,7 +115,7 @@ public abstract class UpsertDeleteValidator extends MultiPropertyValidator<BigQu
 
     @Override
     protected boolean modeEnabled(BigQuerySinkConfig config) {
-      return config.getBoolean(UPSERT_ENABLED_CONFIG);
+      return config.isUpsertEnabled();
     }
   }
 
@@ -126,7 +126,7 @@ public abstract class UpsertDeleteValidator extends MultiPropertyValidator<BigQu
 
     @Override
     protected boolean modeEnabled(BigQuerySinkConfig config) {
-      return config.getBoolean(DELETE_ENABLED_CONFIG);
+      return config.isDeleteEnabled();
     }
   }
 }

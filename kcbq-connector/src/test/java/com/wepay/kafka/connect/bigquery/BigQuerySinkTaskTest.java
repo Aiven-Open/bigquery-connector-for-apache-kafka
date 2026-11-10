@@ -509,8 +509,8 @@ public class BigQuerySinkTaskTest {
 
     Map<String, String> properties = propertiesFactory.getProperties();
     properties.put(BigQuerySinkConfig.TOPICS_CONFIG, topic);
-    properties.put(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG, "true");
-    properties.put(BigQuerySinkConfig.DELETE_ENABLED_CONFIG, "true");
+    properties.put("upsertEnabled", "true");
+    properties.put("deleteEnabled", "true");
     properties.put(BigQuerySinkConfig.MERGE_INTERVAL_MS_CONFIG, "-1");
     properties.put(BigQuerySinkConfig.MERGE_RECORDS_THRESHOLD_CONFIG, "2");
     properties.put(BigQuerySinkConfig.KAFKA_KEY_FIELD_NAME_CONFIG, key);

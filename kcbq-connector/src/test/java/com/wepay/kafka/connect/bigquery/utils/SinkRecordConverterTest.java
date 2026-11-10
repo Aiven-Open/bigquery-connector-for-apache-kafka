@@ -109,13 +109,13 @@ public class SinkRecordConverterTest {
     when(config.getBoolean(BigQuerySinkConfig.SANITIZE_FIELD_NAME_CONFIG)).thenReturn(false);
     when(config.getKafkaKeyFieldName()).thenReturn(Optional.empty());
     when(config.getKafkaDataFieldName()).thenReturn(Optional.empty());
-    when(config.getBoolean(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG)).thenReturn(true);
+    when(config.useStorageWriteApi()).thenReturn(true);
   }
 
   @Test
   public void testCdcRowUpsert() {
-    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
-    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+    when(config.isDeleteEnabled()).thenReturn(true);
+    when(config.isUpsertEnabled()).thenReturn(true);
 
     SinkRecord record =
         new SinkRecord(
@@ -145,8 +145,8 @@ public class SinkRecordConverterTest {
 
   @Test
   public void testCdcRowUpsertDeterministicTimestampFallbackWhenNull() {
-    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
-    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+    when(config.isDeleteEnabled()).thenReturn(true);
+    when(config.isUpsertEnabled()).thenReturn(true);
 
     SinkRecord record =
         new SinkRecord(
@@ -171,8 +171,8 @@ public class SinkRecordConverterTest {
 
   @Test
   public void testCdcRowUpsertDeterministicTimestampFallbackWhenNegative() {
-    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
-    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+    when(config.isDeleteEnabled()).thenReturn(true);
+    when(config.isUpsertEnabled()).thenReturn(true);
 
     SinkRecord record =
         new SinkRecord(
@@ -197,8 +197,8 @@ public class SinkRecordConverterTest {
 
   @Test
   public void testCdcRowDelete() {
-    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
-    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+    when(config.isDeleteEnabled()).thenReturn(true);
+    when(config.isUpsertEnabled()).thenReturn(true);
 
     SinkRecord record =
         new SinkRecord(
@@ -229,8 +229,8 @@ public class SinkRecordConverterTest {
 
   @Test
   public void testCdcRowDeleteThrowsIfKeyNull() {
-    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
-    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+    when(config.isDeleteEnabled()).thenReturn(true);
+    when(config.isUpsertEnabled()).thenReturn(true);
 
     SinkRecord record =
         new SinkRecord(TOPIC, PARTITION, null, null, valueSchema, valueStruct, OFFSET);
@@ -266,8 +266,8 @@ public class SinkRecordConverterTest {
 
   @Test
   public void testCdcRowDeleteRewrite() {
-    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
-    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+    when(config.isDeleteEnabled()).thenReturn(true);
+    when(config.isUpsertEnabled()).thenReturn(true);
 
     Schema rewriteValueSchema =
         SchemaBuilder.struct()
@@ -307,8 +307,8 @@ public class SinkRecordConverterTest {
 
   @Test
   public void testCdcRowDeleteRewriteString() {
-    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
-    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+    when(config.isDeleteEnabled()).thenReturn(true);
+    when(config.isUpsertEnabled()).thenReturn(true);
 
     Schema rewriteValueSchema =
         SchemaBuilder.struct()
@@ -348,8 +348,8 @@ public class SinkRecordConverterTest {
 
   @Test
   public void testCdcRowStripsDeletedField() {
-    when(config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(true);
-    when(config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+    when(config.isDeleteEnabled()).thenReturn(true);
+    when(config.isUpsertEnabled()).thenReturn(true);
 
     Schema rewriteValueSchema =
         SchemaBuilder.struct()
