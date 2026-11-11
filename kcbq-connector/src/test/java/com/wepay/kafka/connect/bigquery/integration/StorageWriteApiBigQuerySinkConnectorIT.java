@@ -345,6 +345,83 @@ class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
   }
 
   @Test
+  void testAvroWithSchemaUpdateAfterWriterCreated() throws InterruptedException {
+    assertCluster().kafka().createTopic(topic, TASKS_MAX);
+
+    // The table must already match the first schema so the writers are created and used before
+    // the schema update happens; that is the case where a stale writer keeps rejecting appends.
+    try {
+      BigQueryTestUtils.createPartitionedTable(
+          bigQuery,
+          tableName,
+          com.google.cloud.bigquery.Schema.of(
+              Field.of("f1", StandardSQLTypeName.STRING),
+              Field.of("f2", StandardSQLTypeName.BOOL)));
+    } catch (BigQueryException ex) {
+      throw new ConnectException("Failed to create table: ", ex);
+    }
+
+    Map<String, String> props = configs();
+    props.remove(BigQuerySinkConfig.KAFKA_KEY_FIELD_NAME_CONFIG);
+    props.put(BigQuerySinkConfig.ALLOW_NEW_BIGQUERY_FIELDS_CONFIG, "true");
+
+    assertCluster().configureConnector(connectorName, props);
+    waitForConnectorToStart(connectorName, TASKS_MAX);
+    initialiseAvroConverters();
+
+    Schema initialSchema =
+        SchemaBuilder.struct()
+            .field("f1", Schema.STRING_SCHEMA)
+            .field("f2", Schema.BOOLEAN_SCHEMA)
+            .build();
+    produceAvroRecords(
+        NUM_RECORDS_PRODUCED,
+        keySchema,
+        initialSchema,
+        this::avroKey,
+        i -> new Struct(initialSchema).put("f1", "api" + i).put("f2", i % 2 == 0));
+    waitForCommittedRecords(
+        connectorName,
+        Collections.singleton(topic),
+        NUM_RECORDS_PRODUCED,
+        TASKS_MAX,
+        COMMIT_MAX_DURATION_MS);
+
+    Schema evolvedSchema =
+        SchemaBuilder.struct()
+            .field("f1", Schema.STRING_SCHEMA)
+            .field("f2", Schema.BOOLEAN_SCHEMA)
+            .field("f3", Schema.OPTIONAL_FLOAT64_SCHEMA)
+            .build();
+    produceAvroRecords(
+        NUM_RECORDS_PRODUCED,
+        keySchema,
+        evolvedSchema,
+        i -> avroKey(i + NUM_RECORDS_PRODUCED),
+        i ->
+            new Struct(evolvedSchema)
+                .put("f1", "api" + (i + NUM_RECORDS_PRODUCED))
+                .put("f2", i % 2 == 0)
+                .put("f3", i * 0.01));
+    // Without refreshing the writer, appends keep failing until the task restarts, so the second
+    // batch never commits within the timeout.
+    waitForCommittedRecords(
+        connectorName,
+        Collections.singleton(topic),
+        2 * NUM_RECORDS_PRODUCED,
+        TASKS_MAX,
+        COMMIT_MAX_DURATION_MS);
+
+    List<List<Object>> rows = readAllRows(bigQuery, tableName, "f1");
+    Set<Object> expectedF1 = new HashSet<>();
+    for (long i = 0; i < 2 * NUM_RECORDS_PRODUCED; i++) {
+      expectedF1.add("api" + i);
+    }
+    assertEquals(expectedF1, rows.stream().map(row -> row.get(0)).collect(Collectors.toSet()));
+    assertEquals(NUM_RECORDS_PRODUCED, rows.stream().filter(row -> row.get(2) != null).count());
+  }
+
+  @Test
   void testRecordWithUnknownFieldFails() throws InterruptedException {
     // create topic
     assertCluster().kafka().createTopic(topic, TASKS_MAX);
