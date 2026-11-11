@@ -36,6 +36,7 @@ import com.google.cloud.bigquery.StandardTableDefinition;
 import com.google.cloud.bigquery.TimePartitioning;
 import com.google.cloud.bigquery.storage.v1.TableName;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
+import com.wepay.kafka.connect.bigquery.integration.utils.BigQueryTestUtils;
 import com.wepay.kafka.connect.bigquery.integration.utils.TestCaseLogger;
 import com.wepay.kafka.connect.bigquery.integration.utils.TimePartitioningTestUtils;
 import com.wepay.kafka.connect.bigquery.retrieve.IdentitySchemaRetriever;
@@ -166,6 +167,15 @@ class TimePartitioningIT extends BaseConnectorIT {
 
     TableName tableName = tableName();
 
+    BigQueryTestUtils.waitForTableCreation(bigQuery, tableName);
+
+    // Ensure that the table was created with the expected time partitioning type
+    StandardTableDefinition tableDefinition =
+        bigQuery.getTable(TableNameUtils.tableId(tableName)).getDefinition();
+    Optional<TimePartitioning.Type> actualPartitioningType =
+        Optional.ofNullable(tableDefinition.getTimePartitioning()).map(TimePartitioning::getType);
+    assertEquals(Optional.of(partitioningType), actualPartitioningType);
+
     // wait until the one row for each record produced appears, this is the minimum number required
     // for any test to succeed.
     Awaitility.waitAtMost(Duration.ofMinutes(5))
@@ -175,13 +185,6 @@ class TimePartitioningIT extends BaseConnectorIT {
                 assertThat(readAllRows(bigQuery, tableName, "i").size())
                     .as("Not enough records written")
                     .isGreaterThanOrEqualTo((int) NUM_RECORDS_PRODUCED));
-
-    // Ensure that the table was created with the expected time partitioning type
-    StandardTableDefinition tableDefinition =
-        bigQuery.getTable(TableNameUtils.tableId(tableName)).getDefinition();
-    Optional<TimePartitioning.Type> actualPartitioningType =
-        Optional.ofNullable(tableDefinition.getTimePartitioning()).map(TimePartitioning::getType);
-    assertEquals(Optional.of(partitioningType), actualPartitioningType);
 
     // Verify that at least one record landed in each of the targeted partitions
     if (usePartitionDecorator && messageTimePartitioning) {

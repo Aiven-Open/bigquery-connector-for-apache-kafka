@@ -29,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.storage.v1.TableName;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
+import com.wepay.kafka.connect.bigquery.integration.utils.BigQueryTestUtils;
 import com.wepay.kafka.connect.bigquery.retrieve.IdentitySchemaRetriever;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -338,9 +339,7 @@ class StorageWriteApiUpsertDeleteIT extends BaseConnectorIT {
     waitForConnectorToStart(connectorName(), tasksMax);
 
     // wait for table to be created and then set staleness so we can get accurate query results
-    Awaitility.waitAtMost(Duration.ofMinutes(4))
-        .pollInterval(Duration.ofSeconds(1))
-        .until(() -> bigQuery.getTable(tableName.getDataset(), tableName.getTable()) != null);
+    BigQueryTestUtils.waitForTableCreation(bigQuery, tableName);
     alterTable(bigQuery, tableName, "SET OPTIONS(max_staleness = INTERVAL 0 MINUTE)");
 
     // Wait for the entire run to be complete.

@@ -115,4 +115,18 @@ public class BigQueryTestUtils {
       fail("Failed to create standard table {}", tableName, e);
     }
   }
+
+  /**
+   * Wait for a table to exist.
+   *
+   * @param bigQuery the BigQuery that was used to create the table.
+   * @param tableName the name of the table
+   */
+  public static void waitForTableCreation(BigQuery bigQuery, TableName tableName) {
+
+    // wait for table to be created and then set staleness so we can get accurate query results
+    Awaitility.waitAtMost(Duration.ofMinutes(4))
+        .pollInterval(Duration.ofSeconds(1))
+        .until(() -> bigQuery.getTable(tableName.getDataset(), tableName.getTable()) != null);
+  }
 }
