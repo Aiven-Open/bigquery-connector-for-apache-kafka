@@ -774,14 +774,24 @@ public class BigQuerySinkTask extends SinkTask {
     }
   }
 
+  /**
+   * Wraps a NeedsStreamState instance to conver it to a Runnable StreamStateContainer.
+   */
   class WrappedRunnable implements Runnable, StreamStateContainer {
     private final NeedsStreamState tableWriter;
     private StreamState streamState;
     private boolean aborted;
 
+    /**
+     * Constructor.
+     * @param tableWriter The table writer that needs to be wrapped.
+     * @param strategy the strategy that is being used.
+     */
     public WrappedRunnable(NeedsStreamState tableWriter, CommitStrategy strategy) {
       this.tableWriter = tableWriter;
+      // the state is FINALISED since we are getting ready to write to the backend
       streamState = StreamState.FINALISED;
+      // record the topic/partition offsets for the container.
       strategy.queue(tableWriter.records(), this);
     }
 
@@ -805,8 +815,10 @@ public class BigQuerySinkTask extends SinkTask {
 
         try {
           tableWriter.run();
+          // data was written to the backend so we are not committed
           streamState = StreamState.COMMITTED;
         } catch (RuntimeException e) {
+          // fatal errors in writing cause the executor to record the issue so that it will cause the task to fail.
           executor.logAndRecord(e);
         } finally {
           logger.debug("WrappedRunnable End {}", tableWriter.hashCode());

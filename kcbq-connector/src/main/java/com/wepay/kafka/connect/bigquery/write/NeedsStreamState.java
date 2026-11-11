@@ -20,7 +20,7 @@ package com.wepay.kafka.connect.bigquery.write;
 import java.util.stream.Stream;
 import org.apache.kafka.connect.sink.SinkRecord;
 
-/** A marker interface to make classes that need to be wrapped with the WrappedRunnable. */
+/** A marker interface to mark classes that need to be wrapped with the WrappedRunnable. */
 public interface NeedsStreamState extends Runnable {
   Stream<SinkRecord> records();
 }
