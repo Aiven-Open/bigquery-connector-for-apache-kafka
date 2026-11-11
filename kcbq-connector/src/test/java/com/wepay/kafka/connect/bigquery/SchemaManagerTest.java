@@ -23,6 +23,7 @@
 
 package com.wepay.kafka.connect.bigquery;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -71,6 +72,9 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.stubbing.OngoingStubbing;
 
 public class SchemaManagerTest {
+
+  // BigQuerySinkConfig.BIGQUERY_TABLE_LABELS_CONFIG is package-private
+  private static final String TABLE_LABELS_CONFIG = "bigQueryTableLabels";
 
   private String testTableName = "testTable";
   private String testDatasetName = "testDataset";
@@ -1618,31 +1622,26 @@ public class SchemaManagerTest {
     TableInfo tableInfo =
         schemaManager.constructTableInfo(tableId, fakeSchemaAndColumns, testDoc, true);
 
-    assertTrue(
-        tableInfo.getLabels() == null || tableInfo.getLabels().isEmpty(),
-        "Expected no labels when bigQueryTableLabels is not set");
+    assertThat(tableInfo.getLabels()).isNullOrEmpty();
   }
 
   @Test
   public void testConstructTableInfo_labelsConfigured_labelsAppliedToTable() {
     SchemaManagerTestConfig sinkConfig =
-        createConfig(Map.of(BigQuerySinkConfig.BIGQUERY_TABLE_LABELS_CONFIG, "env=prod,team=data"));
+        createConfig(Map.of(TABLE_LABELS_CONFIG, "env=prod,team=data"));
     sinkConfig.schemaConverter = mockSchemaConverter;
     SchemaManager schemaManager = new SchemaManager(sinkConfig, mockBigQuery);
 
     TableInfo tableInfo =
         schemaManager.constructTableInfo(tableId, fakeSchemaAndColumns, testDoc, true);
 
-    assertNotNull(tableInfo.getLabels(), "Labels should not be null");
-    assertEquals("prod", tableInfo.getLabels().get("env"));
-    assertEquals("data", tableInfo.getLabels().get("team"));
-    assertEquals(2, tableInfo.getLabels().size());
+    assertThat(tableInfo.getLabels())
+        .containsExactlyInAnyOrderEntriesOf(Map.of("env", "prod", "team", "data"));
   }
 
   @Test
   public void testConstructTableInfo_intermediateTables_labelsNotApplied() {
-    SchemaManagerTestConfig sinkConfig =
-        createConfig(Map.of(BigQuerySinkConfig.BIGQUERY_TABLE_LABELS_CONFIG, "env=prod"));
+    SchemaManagerTestConfig sinkConfig = createConfig(Map.of(TABLE_LABELS_CONFIG, "env=prod"));
     sinkConfig.schemaConverter = mockSchemaConverter;
     // forIntermediateTables() creates a SchemaManager with intermediateTables=true
     SchemaManager schemaManager =
@@ -1651,23 +1650,19 @@ public class SchemaManagerTest {
     TableInfo tableInfo =
         schemaManager.constructTableInfo(tableId, fakeSchemaAndColumns, null, true);
 
-    assertTrue(
-        tableInfo.getLabels() == null || tableInfo.getLabels().isEmpty(),
-        "Labels should not be set on intermediate tables");
+    assertThat(tableInfo.getLabels()).isNullOrEmpty();
   }
 
   @Test
   public void testConstructTableInfo_singleLabelWithEmptyValue_accepted() {
-    SchemaManagerTestConfig sinkConfig =
-        createConfig(Map.of(BigQuerySinkConfig.BIGQUERY_TABLE_LABELS_CONFIG, "managed="));
+    SchemaManagerTestConfig sinkConfig = createConfig(Map.of(TABLE_LABELS_CONFIG, "managed="));
     sinkConfig.schemaConverter = mockSchemaConverter;
     SchemaManager schemaManager = new SchemaManager(sinkConfig, mockBigQuery);
 
     TableInfo tableInfo =
         schemaManager.constructTableInfo(tableId, fakeSchemaAndColumns, testDoc, true);
 
-    assertNotNull(tableInfo.getLabels());
-    assertEquals("", tableInfo.getLabels().get("managed"));
+    assertThat(tableInfo.getLabels()).containsExactlyInAnyOrderEntriesOf(Map.of("managed", ""));
   }
 
   class TestingSchemaConverter implements SchemaConverter<com.google.cloud.bigquery.Schema> {

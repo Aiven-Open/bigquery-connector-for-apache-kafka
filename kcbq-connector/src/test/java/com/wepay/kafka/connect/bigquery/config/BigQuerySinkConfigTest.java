@@ -51,6 +51,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class BigQuerySinkConfigTest {
   private SinkPropertiesFactory propertiesFactory;
@@ -269,51 +270,108 @@ public class BigQuerySinkConfigTest {
   }
 
   @Test
-  public void testTableLabels_emptyString_returnsEmptyMap() {
+  public void testTableLabels_notSet_returnsEmptyMap() {
     Map<String, String> configProperties = propertiesFactory.getProperties();
-    configProperties.put(BigQuerySinkConfig.BIGQUERY_TABLE_LABELS_CONFIG, "");
+    configProperties.remove(BigQuerySinkConfig.BIGQUERY_TABLE_LABELS_CONFIG);
     BigQuerySinkConfig config = new BigQuerySinkConfig(configProperties);
-    assertTrue(config.getTableLabels().isEmpty());
+    assertThat(config.getTableLabels()).isEmpty();
   }
 
-  @Test
-  public void testTableLabels_validKeyValuePairs_parsed() {
+  @ParameterizedTest
+  @ValueSource(strings = {"", " ", ",", " , ,"})
+  public void testTableLabels_blank_returnsEmptyMap(String labels) {
     Map<String, String> configProperties = propertiesFactory.getProperties();
-    configProperties.put(BigQuerySinkConfig.BIGQUERY_TABLE_LABELS_CONFIG, "env=prod,team=data");
+    configProperties.put(BigQuerySinkConfig.BIGQUERY_TABLE_LABELS_CONFIG, labels);
     BigQuerySinkConfig config = new BigQuerySinkConfig(configProperties);
-    Map<String, String> labels = config.getTableLabels();
-    assertEquals(2, labels.size());
-    assertEquals("prod", labels.get("env"));
-    assertEquals("data", labels.get("team"));
+    assertThat(config.getTableLabels()).isEmpty();
+  }
+
+  @ParameterizedTest
+  @ValueSource(
+      strings = {
+        "env=prod,team=data",
+        "team=data,env=prod",
+        "env = prod, team= data ",
+        "team=data , env=prod",
+        "  env=prod,team=data  ",
+        "env=prod,team=data,",
+        ",env=prod,,team=data",
+        "\tenv=prod,\nteam\t=\tdata\n"
+      })
+  public void testTableLabels_equivalentFormats_parsedToSameLabels(String labels) {
+    Map<String, String> configProperties = propertiesFactory.getProperties();
+    configProperties.put(BigQuerySinkConfig.BIGQUERY_TABLE_LABELS_CONFIG, labels);
+    BigQuerySinkConfig config = new BigQuerySinkConfig(configProperties);
+    assertThat(config.getTableLabels())
+        .containsExactlyInAnyOrderEntriesOf(Map.of("env", "prod", "team", "data"));
   }
 
   @Test
-  public void testTableLabels_invalidFormat_missingEquals_throwsConfigException() {
-    Map<String, String> badConfigProperties = propertiesFactory.getProperties();
-    badConfigProperties.put(BigQuerySinkConfig.BIGQUERY_TABLE_LABELS_CONFIG, "env");
-    assertThrows(ConfigException.class, () -> new BigQuerySinkConfig(badConfigProperties));
-  }
-
-  @Test
-  public void testTableLabels_invalidKey_uppercaseLetter_throwsConfigException() {
-    Map<String, String> badConfigProperties = propertiesFactory.getProperties();
-    badConfigProperties.put(BigQuerySinkConfig.BIGQUERY_TABLE_LABELS_CONFIG, "ENV=prod");
-    assertThrows(ConfigException.class, () -> new BigQuerySinkConfig(badConfigProperties));
-  }
-
-  @Test
-  public void testTableLabels_invalidKey_startsWithDigit_throwsConfigException() {
-    Map<String, String> badConfigProperties = propertiesFactory.getProperties();
-    badConfigProperties.put(BigQuerySinkConfig.BIGQUERY_TABLE_LABELS_CONFIG, "1env=prod");
-    assertThrows(ConfigException.class, () -> new BigQuerySinkConfig(badConfigProperties));
+  public void testTableLabels_allAllowedCharactersAndLengths_accepted() {
+    String longestKey = "k" + "a".repeat(62);
+    String longestValue = "v".repeat(63);
+    Map<String, String> configProperties = propertiesFactory.getProperties();
+    configProperties.put(
+        BigQuerySinkConfig.BIGQUERY_TABLE_LABELS_CONFIG,
+        "managed-by=kafka-connect,cost_center=cc_123,a=1," + longestKey + "=" + longestValue);
+    BigQuerySinkConfig config = new BigQuerySinkConfig(configProperties);
+    assertThat(config.getTableLabels())
+        .containsExactlyInAnyOrderEntriesOf(
+            Map.of(
+                "managed-by",
+                "kafka-connect",
+                "cost_center",
+                "cc_123",
+                "a",
+                "1",
+                longestKey,
+                longestValue));
   }
 
   @Test
   public void testTableLabels_emptyValue_accepted() {
     Map<String, String> configProperties = propertiesFactory.getProperties();
-    configProperties.put(BigQuerySinkConfig.BIGQUERY_TABLE_LABELS_CONFIG, "managed=");
+    configProperties.put(BigQuerySinkConfig.BIGQUERY_TABLE_LABELS_CONFIG, "managed=,foo=bar");
     BigQuerySinkConfig config = new BigQuerySinkConfig(configProperties);
-    assertEquals("", config.getTableLabels().get("managed"));
+    assertThat(config.getTableLabels())
+        .containsExactlyInAnyOrderEntriesOf(Map.of("managed", "", "foo", "bar"));
+  }
+
+  @Test
+  public void testTableLabels_invalidPairs_allReportedInOneConfigException() {
+    String tooLongKey = "k" + "a".repeat(63);
+    String tooLongValue = "v".repeat(64);
+    Map<String, String> badConfigProperties = propertiesFactory.getProperties();
+    badConfigProperties.put(
+        BigQuerySinkConfig.BIGQUERY_TABLE_LABELS_CONFIG,
+        String.join(
+            ",",
+            "env",
+            "ENV=prod",
+            " 1env = prod ",
+            "=prod",
+            "team=Data",
+            "owner=a.b",
+            "ok=fine",
+            "ok=again",
+            tooLongKey + "=x",
+            "y=" + tooLongValue));
+
+    ConfigException e =
+        assertThrows(ConfigException.class, () -> new BigQuerySinkConfig(badConfigProperties));
+
+    assertThat(e.getMessage())
+        .contains("'env' is not a key=value pair.")
+        .contains("'ENV=prod' has an invalid key")
+        .contains("'1env = prod' has an invalid key")
+        .contains("'=prod' has no key.")
+        .contains("'team=Data' has an invalid value")
+        .contains("'owner=a.b' has an invalid value")
+        .contains("'ok=again' repeats the key 'ok'.")
+        .contains("'" + tooLongKey + "=x' has an invalid key")
+        .contains("'y=" + tooLongValue + "' has an invalid value")
+        // The message also echoes the raw config value, so match the quoted form of the pair
+        .doesNotContain("'ok=fine' ");
   }
 
   @Test
