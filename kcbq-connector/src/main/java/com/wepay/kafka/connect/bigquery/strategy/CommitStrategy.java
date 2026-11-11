@@ -31,18 +31,25 @@ public interface CommitStrategy {
 
   /**
    * Extracts the highest KafkaRecordKey for each topic/partition in the stream.
+   *
    * @param recordKeyStream the stream to extract highest values from.
-   * @return the stream of KafkaRecordKeys that are the highest values for each topic/partition in the input stream.
+   * @return the stream of KafkaRecordKeys that are the highest values for each topic/partition in
+   *     the input stream.
    */
   static Stream<KafkaRecordKey> extractHighKeys(Stream<KafkaRecordKey> recordKeyStream) {
     Map<TopicPartition, Long> keyMap = new HashMap<>();
-    recordKeyStream.forEach( key -> keyMap.compute(key.getTopicPartition(), (k,v) ->
-      (v == null) ? key.offset() : Math.max(v, key.offset())));
-    return keyMap.entrySet().stream().map(entry -> new KafkaRecordKey(entry.getKey(), entry.getValue()));
+    recordKeyStream.forEach(
+        key ->
+            keyMap.compute(
+                key.getTopicPartition(),
+                (k, v) -> (v == null) ? key.offset() : Math.max(v, key.offset())));
+    return keyMap.entrySet().stream()
+        .map(entry -> new KafkaRecordKey(entry.getKey(), entry.getValue()));
   }
 
   /**
    * Converts a stream of SinkRecords into an equivalent stream of KafkaRecordKeys.
+   *
    * @param sinkRecords the sink records to convert.
    * @return the stream of KafkaRecordKeys.
    */
