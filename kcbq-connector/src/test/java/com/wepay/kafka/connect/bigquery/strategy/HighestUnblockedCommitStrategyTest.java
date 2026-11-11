@@ -154,7 +154,7 @@ class HighestUnblockedCommitStrategyTest {
     assertThat(aTopic3.aborted).isFalse();
     assertThat(bTopic2.aborted).isFalse();
     assertThat(cTopic2.aborted).isFalse();
-    assertThat(underTest.commitMap).hasSize(15);
+    assertThat(underTest.commitMap).hasSize(5);
 
     underTest.unregisterPartitions(List.of(new TopicPartition("aTopic", 2)));
     assertThat(partitionCount()).isEqualTo(4);
@@ -163,7 +163,7 @@ class HighestUnblockedCommitStrategyTest {
     assertThat(aTopic3.aborted).isFalse();
     assertThat(bTopic2.aborted).isFalse();
     assertThat(cTopic2.aborted).isFalse();
-    assertThat(underTest.commitMap).hasSize(12);
+    assertThat(underTest.commitMap).hasSize(4);
 
     // test remove multiple including one with no records.
     underTest.unregisterPartitions(
@@ -177,7 +177,7 @@ class HighestUnblockedCommitStrategyTest {
     assertThat(aTopic3.aborted).isFalse();
     assertThat(bTopic2.aborted).isTrue();
     assertThat(cTopic2.aborted).isFalse();
-    assertThat(underTest.commitMap).hasSize(6);
+    assertThat(underTest.commitMap).hasSize(2);
   }
 
   record TestEntry(String topic, int partition, long offset)
