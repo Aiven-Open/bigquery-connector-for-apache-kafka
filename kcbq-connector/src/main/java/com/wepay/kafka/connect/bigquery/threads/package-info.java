@@ -16,6 +16,6 @@
 
        SPDX-License-Identifier: Apache-2.0
 */
-package com.wepay.kafka.connect.bigquery.threads;
 
 /** Contains the classes to create threads and track them. */
+package com.wepay.kafka.connect.bigquery.threads;

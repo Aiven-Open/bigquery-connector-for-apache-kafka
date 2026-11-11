@@ -16,7 +16,6 @@
 
        SPDX-License-Identifier: Apache-2.0
 */
-package com.wepay.kafka.connect.bigquery.strategy;
 
 /**
  * Contains the classes to track topic/partition/offset to rows in tables and ensure that the
@@ -41,3 +40,4 @@ package com.wepay.kafka.connect.bigquery.strategy;
  * <p>Different partitions should either be queued for write in different StreamStateContainers or
  * the container should be able to remove topic/partitions from the queued data.
  */
+package com.wepay.kafka.connect.bigquery.strategy;
