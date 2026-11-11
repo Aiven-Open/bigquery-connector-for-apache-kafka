@@ -32,7 +32,6 @@ import java.util.function.Predicate;
 import java.util.stream.Stream;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
-import org.apache.kafka.connect.sink.SinkRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -69,8 +68,9 @@ public class HighestCommitStrategy implements CommitStrategy {
 
   @Override
   public void queueKeys(
-          final Stream<KafkaRecordKey> keys, final StreamStateContainer streamStateContainer) {
-    CommitStrategy.extractHighKeys(keys).forEach(
+      final Stream<KafkaRecordKey> keys, final StreamStateContainer streamStateContainer) {
+    CommitStrategy.extractHighKeys(keys)
+        .forEach(
             key -> {
               commitMap.put(key, streamStateContainer);
             });

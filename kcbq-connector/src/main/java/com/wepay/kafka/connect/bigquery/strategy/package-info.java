@@ -19,23 +19,25 @@
 package com.wepay.kafka.connect.bigquery.strategy;
 
 /**
- * Contains the classes to track topic/partition/offset to rows in tables and ensure that the topic/partitions are not
- * committed too early.
+ * Contains the classes to track topic/partition/offset to rows in tables and ensure that the
+ * topic/partitions are not committed too early.
  *
- * The KafkaRecordKey tracks a single Topic/Partition/Offset.
+ * <p>The KafkaRecordKey tracks a single Topic/Partition/Offset.
  *
- * The CommitStrategy contains a map of KafkaRecordKeys to StreamStateContainers.  One key to one container.  A container
- * may be pointed to by multiple Keys.  CommitStrategy is responsible for determining which topci/partition/offset may be committed
- * when Kafka calls preCommit().  The commit strategy also has a method that is called by the timer thread to allows cleanup of
- * the internal state if necessary.
+ * <p>The CommitStrategy contains a map of KafkaRecordKeys to StreamStateContainers. One key to one
+ * container. A container may be pointed to by multiple Keys. CommitStrategy is responsible for
+ * determining which topci/partition/offset may be committed when Kafka calls preCommit(). The
+ * commit strategy also has a method that is called by the timer thread to allows cleanup of the
+ * internal state if necessary.
  *
- * StreamStateContainer is the class that tracks the status of a group of KafkaRecordKeys.  In general, Once the container reached the
- * COMMITTED state the CommitStrategy will report the highest offsets as commitable to Kafka.  The container also implements an
- * abort() method that will stop the container from writing the data to the storage, this is used when Kafka unassignes a partition.
+ * <p>StreamStateContainer is the class that tracks the status of a group of KafkaRecordKeys. In
+ * general, Once the container reached the COMMITTED state the CommitStrategy will report the
+ * highest offsets as commitable to Kafka. The container also implements an abort() method that will
+ * stop the container from writing the data to the storage, this is used when Kafka unassignes a
+ * partition.
  *
- * Suggestions:
+ * <p>Suggestions:
  *
- * Different partitions should either be queued for write in different StreamStateContainers or the container should be able to remove
- * topic/partitions from the queued data.
- *
+ * <p>Different partitions should either be queued for write in different StreamStateContainers or
+ * the container should be able to remove topic/partitions from the queued data.
  */

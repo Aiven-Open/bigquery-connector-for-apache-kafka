@@ -30,7 +30,6 @@ import java.util.function.Predicate;
 import java.util.stream.Stream;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
-import org.apache.kafka.connect.sink.SinkRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -56,7 +55,6 @@ public class HighestUnblockedCommitStrategy implements CommitStrategy {
           streamStateContainer.stateIs(StreamState.COMMITTED)
               || streamStateContainer.stateIs(StreamState.INACTIVE);
 
-
   /** The map of KafkaRecordKeys to Trackers */
   @VisibleForTesting final ConcurrentSkipListMap<KafkaRecordKey, StreamStateContainer> commitMap;
 
@@ -64,13 +62,13 @@ public class HighestUnblockedCommitStrategy implements CommitStrategy {
 
   public HighestUnblockedCommitStrategy() {
     commitMap = new ConcurrentSkipListMap<>();
-
   }
 
   @Override
   public void queueKeys(
-          final Stream<KafkaRecordKey> keys, final StreamStateContainer streamStateContainer) {
-    CommitStrategy.extractHighKeys(keys).forEach(
+      final Stream<KafkaRecordKey> keys, final StreamStateContainer streamStateContainer) {
+    CommitStrategy.extractHighKeys(keys)
+        .forEach(
             key -> {
               commitMap.put(key, streamStateContainer);
             });

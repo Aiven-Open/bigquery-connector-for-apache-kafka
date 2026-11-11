@@ -24,7 +24,6 @@ import java.util.Map;
 import java.util.stream.Stream;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
-import org.apache.kafka.connect.sink.SinkRecord;
 
 /**
  * A commit strategy that accepts whatever Kafka says it is going to commit. This is the default for

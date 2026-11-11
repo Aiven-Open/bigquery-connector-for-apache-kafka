@@ -18,7 +18,4 @@
 */
 package com.wepay.kafka.connect.bigquery.threads;
 
-/**
- * Contains the classes to create threads and track them.
- *
- */
+/** Contains the classes to create threads and track them. */

@@ -193,7 +193,8 @@ public class StorageWriteApiWriter implements Runnable {
     @Override
     public Runnable build() {
       String streamName = DEFAULT;
-      if (!records.isEmpty() && streamWriter instanceof StorageWriteApiBatchApplicationStream batchWriter) {
+      if (!records.isEmpty()
+          && streamWriter instanceof StorageWriteApiBatchApplicationStream batchWriter) {
         TableName tableName = TableNameUtils.tableName(table.getBaseTableId());
         streamName = batchModeHandler.updateOffsetsOnStream(tableName.toString(), records);
       }
