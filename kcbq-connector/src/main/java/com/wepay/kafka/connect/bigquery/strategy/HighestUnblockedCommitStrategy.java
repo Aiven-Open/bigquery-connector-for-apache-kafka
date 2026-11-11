@@ -115,18 +115,20 @@ public class HighestUnblockedCommitStrategy implements CommitStrategy {
       Map<TopicPartition, OffsetAndMetadata> currentOffsets) {
     // get the set of committed containers.
     Map<TopicPartition, OffsetAndMetadata> result = new HashMap<>();
-    KafkaRecordKey startKey = commitMap.firstKey();
-    KafkaRecordKey endKey = null;
-    KafkaRecordKey highestCommittableKey = null;
-    while (startKey != null) {
-      endKey = KafkaRecordKey.maxKey(startKey.topic(), startKey.partition());
-      highestCommittableKey = getHighestCommittableKey(createSubMap(endKey.getTopicPartition()));
-      if (highestCommittableKey != null) {
-        result.put(
-            highestCommittableKey.getTopicPartition(),
-            highestCommittableKey.getOffsetAndMetadata());
+    if (!commitMap.isEmpty()) {
+      KafkaRecordKey startKey = commitMap.firstKey();
+      KafkaRecordKey endKey = null;
+      KafkaRecordKey highestCommittableKey = null;
+      while (startKey != null) {
+        endKey = KafkaRecordKey.maxKey(startKey.topic(), startKey.partition());
+        highestCommittableKey = getHighestCommittableKey(createSubMap(endKey.getTopicPartition()));
+        if (highestCommittableKey != null) {
+          result.put(
+              highestCommittableKey.getTopicPartition(),
+              highestCommittableKey.getOffsetAndMetadata());
+        }
+        startKey = commitMap.higherKey(endKey);
       }
-      startKey = commitMap.higherKey(endKey);
     }
     return result;
   }

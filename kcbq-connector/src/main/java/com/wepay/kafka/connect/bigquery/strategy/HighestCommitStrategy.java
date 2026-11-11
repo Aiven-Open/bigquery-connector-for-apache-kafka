@@ -113,14 +113,16 @@ public class HighestCommitStrategy implements CommitStrategy {
       Map<TopicPartition, OffsetAndMetadata> currentOffsets) {
     // get the set of committed containers.
     Map<TopicPartition, OffsetAndMetadata> result = new HashMap<>();
-    // find the highest committed offset for each partition.
-    KafkaRecordKey endKey = commitMap.isEmpty() ? null : commitMap.lastKey();
-    while (endKey != null) {
-      if (CAN_COMMIT.test(commitMap.get(endKey))) {
-        result.put(endKey.getTopicPartition(), endKey.getOffsetAndMetadata());
-        createSubMap(endKey).clear();
+    if (!commitMap.isEmpty()) {
+      // find the highest committed offset for each partition.
+      KafkaRecordKey endKey = commitMap.isEmpty() ? null : commitMap.lastKey();
+      while (endKey != null) {
+        if (CAN_COMMIT.test(commitMap.get(endKey))) {
+          result.put(endKey.getTopicPartition(), endKey.getOffsetAndMetadata());
+          createSubMap(endKey).clear();
+        }
+        endKey = commitMap.lowerKey(endKey);
       }
-      endKey = commitMap.lowerKey(endKey);
     }
     return result;
   }
