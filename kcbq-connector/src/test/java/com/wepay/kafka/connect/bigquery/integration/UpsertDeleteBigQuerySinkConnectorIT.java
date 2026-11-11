@@ -32,6 +32,7 @@ import com.google.cloud.bigquery.storage.v1.TableName;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.retrieve.IdentitySchemaRetriever;
 import java.lang.reflect.Method;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -49,6 +50,7 @@ import org.apache.kafka.connect.json.JsonConverterConfig;
 import org.apache.kafka.connect.runtime.ConnectorConfig;
 import org.apache.kafka.connect.runtime.SinkConnectorConfig;
 import org.apache.kafka.connect.storage.Converter;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -323,7 +325,8 @@ class UpsertDeleteBigQuerySinkConnectorIT extends BaseConnectorIT {
   }
 
   @Test
-  @Disabled("Skipped during regular testing; comment-out annotation to run")
+  @Tag("slow")
+  //@Disabled("Skipped during regular testing; comment-out annotation to run")
   void testUpsertDeleteHighThroughput() throws Throwable {
     final long numRecords = 1_000_000L;
     final int numPartitions = 10;
@@ -389,6 +392,16 @@ class UpsertDeleteBigQuerySinkConnectorIT extends BaseConnectorIT {
 
     // wait for tasks to spin up
     waitForConnectorToStart(connectorName(), tasksMax);
+
+    // wait for tasks to write to BigQuery and commit offsets for their records
+    // waitForCommittedRecords(connectorName, topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
+    // Wait until table is created
+    Awaitility.waitAtMost(Duration.ofMinutes(4))
+            .pollInterval(Duration.ofSeconds(1))
+            .until(() -> bigQuery.getTable(tableName.getDataset(), tableName.getTable()) != null);
+
+    // Alter table to set max_staleness to 0 so that CDC changes are immediately visible
+    alterTable(bigQuery, tableName, "SET OPTIONS(max_staleness = INTERVAL 0 MINUTE)");
 
     // wait for tasks to write to BigQuery and commit offsets for their records
     waitForCommittedRecords(

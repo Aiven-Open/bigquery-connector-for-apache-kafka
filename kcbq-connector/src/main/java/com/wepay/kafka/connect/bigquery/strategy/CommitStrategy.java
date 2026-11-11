@@ -18,6 +18,7 @@
 package com.wepay.kafka.connect.bigquery.strategy;
 
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
@@ -28,6 +29,17 @@ import org.apache.kafka.connect.sink.SinkTask;
 /** Defines the commit strategy for the writers. */
 public interface CommitStrategy {
 
+  static Stream<KafkaRecordKey> extractHighKeys(Stream<KafkaRecordKey> recordKeyStream) {
+    Map<TopicPartition, Long> keyMap = new HashMap<>();
+    recordKeyStream.forEach( key -> keyMap.compute(key.getTopicPartition(), (k,v) ->
+      (v == null) ? key.offset() : Math.max(v, key.offset())));
+    return keyMap.entrySet().stream().map(entry -> new KafkaRecordKey(entry.getKey(), entry.getValue()));
+  }
+
+  static Stream<KafkaRecordKey> convertSinkRecord(Stream<SinkRecord> sinkRecords) {
+    return sinkRecords.map(KafkaRecordKey::new);
+  }
+
   /**
    * Associates the rows with the stream container. When the streamContainer indicates that it is
    * commited or inactive then the rows are committed and Kafka may commit them.
@@ -36,7 +48,7 @@ public interface CommitStrategy {
    * @param streamStateContainer the container that will write the rows.
    */
   default void queue(Collection<SinkRecord> rows, StreamStateContainer streamStateContainer) {
-    queue(rows.stream(), streamStateContainer);
+    queueKeys(convertSinkRecord(rows.stream()), streamStateContainer);
   }
 
   /**
@@ -46,7 +58,18 @@ public interface CommitStrategy {
    * @param rows the stream of rows to add to the queue of waiting rows.
    * @param streamStateContainer the container that will write the rows.
    */
-  void queue(Stream<SinkRecord> rows, StreamStateContainer streamStateContainer);
+  default void queue(Stream<SinkRecord> rows, StreamStateContainer streamStateContainer) {
+    queueKeys(convertSinkRecord(rows), streamStateContainer);
+  }
+
+  /**
+   * Associates the rows with the stream container. When the streamContainer indicates that it is
+   * commited or inactive then the rows are committed and Kafka may commit them.
+   *
+   * @param rows the stream of rows to add to the queue of waiting rows.
+   * @param streamStateContainer the container that will write the rows.
+   */
+  void queueKeys(Stream<KafkaRecordKey> rows, StreamStateContainer streamStateContainer);
 
   /**
    * Execute the equivalent of the {@link SinkTask#preCommit(Map)}.

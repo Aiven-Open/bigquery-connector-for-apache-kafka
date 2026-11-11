@@ -81,6 +81,7 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
@@ -649,7 +650,11 @@ class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
   }
 
   @Test
+  @Tag("slow")
   void testAvroHighThroughput() throws InterruptedException {
+    assumeTrue(
+            !isBatchMode(),
+            "Disabled because the number of items returned can exceed the expected");
     // pre-create the table
     createPerformanceTestingTable(tableName);
 

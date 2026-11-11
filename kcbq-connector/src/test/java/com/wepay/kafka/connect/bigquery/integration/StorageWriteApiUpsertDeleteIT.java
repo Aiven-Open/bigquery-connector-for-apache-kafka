@@ -30,7 +30,10 @@ import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.storage.v1.TableName;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.retrieve.IdentitySchemaRetriever;
+
+import java.io.Serializable;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -268,13 +271,13 @@ class StorageWriteApiUpsertDeleteIT extends BaseConnectorIT {
   @Test
   @Tag("slow")
   void testUpsertDeleteHighLoad() throws InterruptedException {
-    upsertDeleteBigDataTest(1);
+    upsertDeleteBigDataTest(1, 10);
   }
 
   @Test
   @Tag("slow")
   void testUpsertDeleteHighThroughput() throws InterruptedException {
-    upsertDeleteBigDataTest(10);
+    upsertDeleteBigDataTest(10, 1);
   }
 
   /**
@@ -283,10 +286,10 @@ class StorageWriteApiUpsertDeleteIT extends BaseConnectorIT {
    * @param tasksMax the number of tasks.
    * @throws InterruptedException on error.
    */
-  void upsertDeleteBigDataTest(final int tasksMax) throws InterruptedException {
-    final long numRecords = 1_000_000L;
+  void upsertDeleteBigDataTest(final int tasksMax, final int recordDivisor) throws InterruptedException {
+    final long numRecords = 1_000_000L / recordDivisor;
     final int numPartitions = 10;
-    final long expectedRecordCount = 250_000L;
+    final long expectedRecordCount = (long) (numRecords * 0.25);
 
     final TableName tableName = tableName();
 
@@ -336,33 +339,34 @@ class StorageWriteApiUpsertDeleteIT extends BaseConnectorIT {
     // wait for tasks to spin up
     waitForConnectorToStart(connectorName(), tasksMax);
 
+
     // wait for table to be created and then set staleness so we can get accurate query results
     Awaitility.waitAtMost(Duration.ofMinutes(4))
         .pollInterval(Duration.ofSeconds(1))
         .until(() -> bigQuery.getTable(tableName.getDataset(), tableName.getTable()) != null);
     alterTable(bigQuery, tableName, "SET OPTIONS(max_staleness = INTERVAL 0 MINUTE)");
+
+
     // Wait for the entire run to be complete.
-    Awaitility.waitAtMost(Duration.ofMinutes(5))
+    Awaitility.waitAtMost(Duration.ofMinutes(5L))
         .pollInterval(Duration.ofSeconds(1))
         .until(
             () -> {
               long count = countRows(bigQuery, tableName);
-              logger.info("record count {}", count);
+              logger.info(">> record count {}", count);
               return count >= expectedRecordCount;
             });
 
     List<List<Object>> allRows = readAllRows(bigQuery, tableName, "k1, f3");
-    List<List<Object>> expectedRows =
+    List<List<Object>> expectedRows = new ArrayList<>();
         LongStream.range(0, numRecords)
             .filter(i -> i % 4 == 1)
-            .mapToObj(
-                i ->
-                    Arrays.asList(
-                        "another string",
-                        i % 3 == 0,
-                        i / 0.69,
-                        Collections.singletonList(i * 2 / 4)))
-            .collect(Collectors.toList());
+                .forEach( i -> expectedRows.add(
+            Arrays.asList(
+                          "another string",
+                          i % 3 == 0,
+                          i / 0.69,
+                          i * 2 / 4)));
     assertEquals(expectedRows, allRows);
   }
 

@@ -65,28 +65,14 @@ public class HighestCommitStrategy implements CommitStrategy {
 
   public HighestCommitStrategy() {
     commitMap = new ConcurrentSkipListMap<>();
-    //    partitions =
-    //        new ConcurrentSkipListMap<>(
-    //
-    // Comparator.comparing(TopicPartition::topic).thenComparing(TopicPartition::partition));
   }
 
   @Override
-  public void queue(
-      final Stream<SinkRecord> rows, final StreamStateContainer streamStateContainer) {
-    rows.map(KafkaRecordKey::new)
-        .forEach(
+  public void queueKeys(
+          final Stream<KafkaRecordKey> keys, final StreamStateContainer streamStateContainer) {
+    CommitStrategy.extractHighKeys(keys).forEach(
             key -> {
               commitMap.put(key, streamStateContainer);
-              //              partitions.compute(
-              //                  key.getTopicPartition(),
-              //                  (k, v) -> {
-              //                    if (v == null) {
-              //                      v = new HashSet<>();
-              //                    }
-              //                    v.add(streamStateContainer);
-              //                    return v;
-              //                  });
             });
   }
 

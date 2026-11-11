@@ -39,7 +39,8 @@ public class DefaultKafkaCommitStrategy implements CommitStrategy {
 
   public DefaultKafkaCommitStrategy() {}
 
-  public void queue(Stream<SinkRecord> rows, StreamStateContainer streamStateContainer) {}
+  @Override
+  public void queueKeys(Stream<KafkaRecordKey> keys, StreamStateContainer streamStateContainer) {}
 
   @Override
   public Map<TopicPartition, OffsetAndMetadata> preCommit(

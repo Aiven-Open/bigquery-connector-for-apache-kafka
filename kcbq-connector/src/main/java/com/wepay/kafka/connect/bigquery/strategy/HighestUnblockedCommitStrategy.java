@@ -56,8 +56,6 @@ public class HighestUnblockedCommitStrategy implements CommitStrategy {
           streamStateContainer.stateIs(StreamState.COMMITTED)
               || streamStateContainer.stateIs(StreamState.INACTIVE);
 
-  private static final Predicate<StreamStateContainer> CAN_REMOVE =
-      streamStateContainer -> streamStateContainer.stateIs(StreamState.INACTIVE);
 
   /** The map of KafkaRecordKeys to Trackers */
   @VisibleForTesting final ConcurrentSkipListMap<KafkaRecordKey, StreamStateContainer> commitMap;
@@ -66,28 +64,15 @@ public class HighestUnblockedCommitStrategy implements CommitStrategy {
 
   public HighestUnblockedCommitStrategy() {
     commitMap = new ConcurrentSkipListMap<>();
-    //    partitions =
-    //        new ConcurrentSkipListMap<>(
-    //
-    // Comparator.comparing(TopicPartition::topic).thenComparing(TopicPartition::partition));
+
   }
 
   @Override
-  public void queue(
-      final Stream<SinkRecord> rows, final StreamStateContainer streamStateContainer) {
-    rows.map(KafkaRecordKey::new)
-        .forEach(
+  public void queueKeys(
+          final Stream<KafkaRecordKey> keys, final StreamStateContainer streamStateContainer) {
+    CommitStrategy.extractHighKeys(keys).forEach(
             key -> {
               commitMap.put(key, streamStateContainer);
-              //              partitions.compute(
-              //                  key.getTopicPartition(),
-              //                  (k, v) -> {
-              //                    if (v == null) {
-              //                      v = new HashSet<>();
-              //                    }
-              //                    v.add(streamStateContainer);
-              //                    return v;
-              //                  });
             });
   }
 
