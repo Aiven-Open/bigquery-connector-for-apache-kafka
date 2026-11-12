@@ -41,7 +41,8 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeParseException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.regex.Pattern;
+import org.apache.commons.codec.binary.Hex;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.common.record.TimestampType;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.header.Header;
@@ -55,12 +56,11 @@ import org.slf4j.LoggerFactory;
  */
 public final class SinkRecordConverter {
   private static final Logger logger = LoggerFactory.getLogger(SinkRecordConverter.class);
-  private static final char[] HEX_CHARS = "0123456789ABCDEF".toCharArray();
-  private static final Pattern POSTGRES_LSN_PATTERN =
-      Pattern.compile("^[0-9a-fA-F]{1,8}/[0-9a-fA-F]{1,8}$");
   private static final int CUSTOM_HEX_SEQUENCE_MIN_WIDTH = 64;
   private static final int CUSTOM_HEX_SEGMENT_WIDTH = 16;
   private static final int CUSTOM_HEX_MAX_SEGMENTS = 7;
+  private static final int CUSTOM_HEX_MAX_WIDTH =
+      CUSTOM_HEX_MAX_SEGMENTS * CUSTOM_HEX_SEGMENT_WIDTH;
 
   public static final String CDC_CHANGE_TYPE_FIELD = "_CHANGE_TYPE";
   public static final String CDC_CHANGE_SEQUENCE_NUMBER_FIELD = "_CHANGE_SEQUENCE_NUMBER";
@@ -456,27 +456,16 @@ public final class SinkRecordConverter {
   }
 
   private String hexEncodeCustomSequence(String strVal, long ts, SinkRecord record) {
-    byte[] bytes = strVal.getBytes(StandardCharsets.UTF_8);
-    StringBuilder hexBuilder = new StringBuilder(bytes.length * 2);
-    for (byte b : bytes) {
-      hexBuilder.append(HEX_CHARS[(b >> 4) & 0x0F]);
-      hexBuilder.append(HEX_CHARS[b & 0x0F]);
-    }
-    String hexStr = hexBuilder.toString();
-    int maxHexWidth = CUSTOM_HEX_MAX_SEGMENTS * CUSTOM_HEX_SEGMENT_WIDTH;
-    if (hexStr.length() > maxHexWidth) {
-      hexStr = hexStr.substring(0, maxHexWidth);
+    String hexStr = Hex.encodeHexString(strVal.getBytes(StandardCharsets.UTF_8), false);
+    if (hexStr.length() > CUSTOM_HEX_MAX_WIDTH) {
+      hexStr = hexStr.substring(0, CUSTOM_HEX_MAX_WIDTH);
     }
     int targetWidth = Math.max(CUSTOM_HEX_SEQUENCE_MIN_WIDTH, hexStr.length());
     int remainder = targetWidth % CUSTOM_HEX_SEGMENT_WIDTH;
     if (remainder != 0) {
       targetWidth += (CUSTOM_HEX_SEGMENT_WIDTH - remainder);
     }
-    StringBuilder padded = new StringBuilder(targetWidth);
-    for (int i = hexStr.length(); i < targetWidth; i++) {
-      padded.append('0');
-    }
-    padded.append(hexStr);
+    String padded = StringUtils.leftPad(hexStr, targetWidth, '0');
 
     int numSegments = targetWidth / CUSTOM_HEX_SEGMENT_WIDTH;
     StringBuilder customSegments = new StringBuilder(targetWidth + numSegments);
@@ -501,11 +490,20 @@ public final class SinkRecordConverter {
    * @return The 64-bit LSN value, or null if strVal is not a valid PostgreSQL LSN
    */
   private Long parsePostgreSqlLsn(String strVal) {
-    if (POSTGRES_LSN_PATTERN.matcher(strVal).matches()) {
-      int slashIdx = strVal.indexOf('/');
+    int len = strVal.length();
+    if (len < 3 || len > 17) {
+      return null;
+    }
+    int slashIdx = strVal.indexOf('/');
+    if (slashIdx > 0 && slashIdx <= 8 && slashIdx + 1 < len && len <= slashIdx + 9) {
+      char upperFirst = strVal.charAt(0);
+      char lowerFirst = strVal.charAt(slashIdx + 1);
+      if (upperFirst == '+' || upperFirst == '-' || lowerFirst == '+' || lowerFirst == '-') {
+        return null;
+      }
       try {
-        long upper = Long.parseLong(strVal.substring(0, slashIdx), 16);
-        long lower = Long.parseLong(strVal.substring(slashIdx + 1), 16);
+        long upper = Long.parseLong(strVal, 0, slashIdx, 16);
+        long lower = Long.parseLong(strVal, slashIdx + 1, len, 16);
         return (upper << 32) | (lower & 0xFFFFFFFFL);
       } catch (NumberFormatException ignored) {
         return null;

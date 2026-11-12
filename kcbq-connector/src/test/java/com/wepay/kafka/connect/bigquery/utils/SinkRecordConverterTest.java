@@ -762,6 +762,73 @@ public class SinkRecordConverterTest {
   }
 
   @Test
+  public void testCdcRowWithPostgresLsnBoundaries() {
+    when(config.isDeleteEnabled()).thenReturn(true);
+    when(config.isUpsertEnabled()).thenReturn(true);
+    when(config.getCdcChangeSequenceNumberField()).thenReturn(Optional.of("lsn"));
+
+    Schema lsnValueSchema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT64_SCHEMA)
+            .field("lsn", Schema.STRING_SCHEMA)
+            .build();
+    SinkRecordConverter converter = new SinkRecordConverter(config, null, null);
+
+    // 8-digit upper and 8-digit lower ("12345678/ABCDEF01" and max "FFFFFFFF/FFFFFFFF")
+    SinkRecord eightDigitRecord =
+        new SinkRecord(
+            TOPIC,
+            PARTITION,
+            keySchema,
+            keyStruct,
+            lsnValueSchema,
+            new Struct(lsnValueSchema).put("id", 123L).put("lsn", "FFFFFFFF/FFFFFFFF"),
+            OFFSET,
+            RECORD_TIMESTAMP,
+            org.apache.kafka.common.record.TimestampType.CREATE_TIME);
+    assertEquals(
+        String.format("FFFFFFFFFFFFFFFF/%016X/%016X/%08X", RECORD_TIMESTAMP, OFFSET, PARTITION),
+        converter.getCdcRow(eightDigitRecord).get("_CHANGE_SEQUENCE_NUMBER"));
+
+    // 1-digit upper and 1-digit lower ("1/a")
+    SinkRecord minDigitRecord =
+        new SinkRecord(
+            TOPIC,
+            PARTITION,
+            keySchema,
+            keyStruct,
+            lsnValueSchema,
+            new Struct(lsnValueSchema).put("id", 123L).put("lsn", "1/a"),
+            OFFSET,
+            RECORD_TIMESTAMP,
+            org.apache.kafka.common.record.TimestampType.CREATE_TIME);
+    assertEquals(
+        String.format(
+            "%016X/%016X/%016X/%08X", (1L << 32) | 0xAL, RECORD_TIMESTAMP, OFFSET, PARTITION),
+        converter.getCdcRow(minDigitRecord).get("_CHANGE_SEQUENCE_NUMBER"));
+
+    // Invalid LSNs (>8 hex chars on either side, missing side, or sign characters) fall back to
+    // 7-segment hex string encoding instead of 4-segment numeric LSN encoding
+    String[] invalidLsns =
+        new String[] {"123456789/1", "1/123456789", "/123", "123/", "+1/a", "1/-a"};
+    for (String invalid : invalidLsns) {
+      SinkRecord invalidRecord =
+          new SinkRecord(
+              TOPIC,
+              PARTITION,
+              keySchema,
+              keyStruct,
+              lsnValueSchema,
+              new Struct(lsnValueSchema).put("id", 123L).put("lsn", invalid),
+              OFFSET,
+              RECORD_TIMESTAMP,
+              org.apache.kafka.common.record.TimestampType.CREATE_TIME);
+      String seq = (String) converter.getCdcRow(invalidRecord).get("_CHANGE_SEQUENCE_NUMBER");
+      assertEquals(7, seq.split("/").length, "Expected fallback hex encoding for: " + invalid);
+    }
+  }
+
+  @Test
   public void testCdcRowWithLongCustomSeqStringNoTruncation() {
     when(config.isDeleteEnabled()).thenReturn(true);
     when(config.isUpsertEnabled()).thenReturn(true);
