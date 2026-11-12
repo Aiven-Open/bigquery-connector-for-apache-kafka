@@ -92,6 +92,7 @@ public class SchemaManager {
   private final ConcurrentMap<TableId, Object> tableUpdateLocks;
   private final boolean kafkaKeyAsPrimaryKey;
   private final ConcurrentMap<TableId, SchemaAndPrimaryKeyColumns> schemaCache;
+  private final Map<String, String> tableLabels;
   private final boolean mediateConcurrentSchemaUpdates;
   private final long concurrentSchemaUpdateRetryWaitMs;
   private final int concurrentSchemaUpdateMaxRetries;
@@ -145,6 +146,7 @@ public class SchemaManager {
         config.getLong(BigQuerySinkConfig.CONCURRENT_SCHEMA_UPDATE_RETRY_WAIT_MS_CONFIG);
     concurrentSchemaUpdateMaxRetries =
         config.getInt(BigQuerySinkConfig.CONCURRENT_SCHEMA_UPDATE_MAX_RETRIES_CONFIG);
+    tableLabels = config.getTableLabels();
   }
 
   /**
@@ -211,6 +213,7 @@ public class SchemaManager {
     this.tableUpdateLocks = new ConcurrentHashMap<>();
     this.schemaCache = new ConcurrentHashMap<>();
     kafkaKeyAsPrimaryKey = config.isUpsertEnabled() && config.useStorageWriteApi();
+    tableLabels = config.getTableLabels();
   }
 
   /**
@@ -806,6 +809,10 @@ public class SchemaManager {
       tableInfoBuilder.setDescription("Temporary table");
     } else if (tableDescription != null) {
       tableInfoBuilder.setDescription(tableDescription);
+    }
+
+    if (!intermediateTables && !tableLabels.isEmpty()) {
+      tableInfoBuilder.setLabels(tableLabels);
     }
 
     return tableInfoBuilder.build();

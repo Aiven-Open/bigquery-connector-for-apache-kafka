@@ -259,6 +259,21 @@ public class BigQuerySinkConfig extends AbstractConfig {
   public static final Boolean ENABLE_RETRIES_DEFAULT = true;
   public static final String IGNORE_UNKNOWN_FIELDS_CONFIG = "ignoreUnknownFields";
   public static final Boolean IGNORE_UNKNOWN_FIELDS_DEFAULT = false;
+  static final String BIGQUERY_TABLE_LABELS_CONFIG = "bigQueryTableLabels";
+  private static final String BIGQUERY_TABLE_LABELS_DEFAULT = "";
+  private static final ConfigDef.Type BIGQUERY_TABLE_LABELS_TYPE = ConfigDef.Type.STRING;
+  private static final ConfigDef.Importance BIGQUERY_TABLE_LABELS_IMPORTANCE =
+      ConfigDef.Importance.LOW;
+  private static final String BIGQUERY_TABLE_LABELS_DOC =
+      "Labels to apply to all BigQuery tables created or updated by this connector. "
+          + "Format: comma-separated key=value pairs, e.g. env=prod,team=data. "
+          + "Keys and values may contain only ASCII lowercase letters, numeric characters, "
+          + "underscores, and hyphens. Keys must start with a lowercase letter and be 1 to 63 "
+          + "characters long; values may be empty and can be at most 63 characters long. "
+          + "Each key may appear only once. "
+          + "Labels are merged into any labels already present on the table; "
+          + "existing labels not listed here are preserved. "
+          + "BigQuery allows at most 64 labels per table, including those already present.";
   private static final ConfigDef.Type TOPICS_TYPE = ConfigDef.Type.LIST;
   private static final ConfigDef.Importance TOPICS_IMPORTANCE = ConfigDef.Importance.HIGH;
   private static final String TOPICS_GROUP = "Common";
@@ -396,6 +411,31 @@ public class BigQuerySinkConfig extends AbstractConfig {
         @Override
         public String toString() {
           return "A list of comma separated values comprising topic:table pairs.";
+        }
+      };
+  private static final java.util.regex.Pattern BIGQUERY_LABEL_KEY_PATTERN =
+      java.util.regex.Pattern.compile("[a-z][a-z0-9_-]{0,62}");
+  private static final java.util.regex.Pattern BIGQUERY_LABEL_VALUE_PATTERN =
+      java.util.regex.Pattern.compile("[a-z0-9_-]{0,63}");
+  private static final ConfigDef.Validator BIGQUERY_TABLE_LABELS_VALIDATOR =
+      new ConfigDef.Validator() {
+        @Override
+        public void ensureValid(String name, Object value) {
+          String labelsString =
+              (String) ConfigDef.parseType(name, value, BIGQUERY_TABLE_LABELS_TYPE);
+          List<String> errors = new ArrayList<>();
+          parseTableLabels(labelsString, errors);
+          if (!errors.isEmpty()) {
+            throw new ConfigException(name, labelsString, String.join(" ", errors));
+          }
+        }
+
+        @Override
+        public String toString() {
+          return "A comma-separated list of key=value pairs. Keys and values may contain only"
+              + " lowercase letters, numeric characters, underscores, and hyphens. Keys must"
+              + " start with a lowercase letter and be 1 to 63 characters long. Values may be"
+              + " empty and can be at most 63 characters long. Each key may appear only once.";
         }
       };
   private static final ConfigDef.Type SANITIZE_FIELD_NAME_TYPE = ConfigDef.Type.BOOLEAN;
@@ -856,6 +896,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
     SinceInfo v2m8 = since.version("2.8.0").build().setVersionOnly();
     SinceInfo v2m10 = since.version("2.10.0").build().setVersionOnly();
     SinceInfo v2m15 = since.version("2.15.0").build().setVersionOnly();
+    SinceInfo v2m16 = since.version("2.16.0").build().setVersionOnly();
     return new ConfigDef()
         .define(
             TOPICS_CONFIG,
@@ -1289,6 +1330,15 @@ public class BigQuerySinkConfig extends AbstractConfig {
                 .importance(PRESERVE_KAFKA_TOPIC_PARTITION_OFFSET__IMPORTANCE)
                 .documentation(PRESERVE_KAFKA_TOPIC_PARTITION_OFFSET__DOC)
                 .since(v2m8)
+                .build())
+        .define(
+            ExtendedConfigKey.builder(BIGQUERY_TABLE_LABELS_CONFIG)
+                .type(BIGQUERY_TABLE_LABELS_TYPE)
+                .defaultValue(BIGQUERY_TABLE_LABELS_DEFAULT)
+                .validator(BIGQUERY_TABLE_LABELS_VALIDATOR)
+                .importance(BIGQUERY_TABLE_LABELS_IMPORTANCE)
+                .documentation(BIGQUERY_TABLE_LABELS_DOC)
+                .since(v2m16)
                 .build());
   }
 
@@ -1596,6 +1646,66 @@ public class BigQuerySinkConfig extends AbstractConfig {
 
   public Optional<Map<String, String>> getTopic2TableMap() {
     return Optional.ofNullable(parseTopic2TableMapConfig(getString(TOPIC2TABLE_MAP_CONFIG)));
+  }
+
+  /**
+   * Returns the table labels to apply to BigQuery tables created or updated by this connector.
+   * Returns an empty map when no labels are configured.
+   */
+  public Map<String, String> getTableLabels() {
+    // Parse errors are discarded: the validator has already rejected invalid values.
+    return Collections.unmodifiableMap(
+        parseTableLabels(getString(BIGQUERY_TABLE_LABELS_CONFIG), new ArrayList<>()));
+  }
+
+  /**
+   * Parses a comma-separated list of key=value label pairs. Whitespace around keys, values and
+   * separators is ignored, as are blank entries. Every problem found is added to {@code errors},
+   * quoting the offending pair, so that all of them can be reported at once.
+   */
+  private static Map<String, String> parseTableLabels(String labelsString, List<String> errors) {
+    Map<String, String> labels = new HashMap<>();
+    if (labelsString == null) {
+      return labels;
+    }
+    for (String entry : labelsString.split(",")) {
+      String pair = entry.trim();
+      if (pair.isEmpty()) {
+        continue;
+      }
+      String[] kv = pair.split("=", 2);
+      if (kv.length != 2) {
+        errors.add(String.format("'%s' is not a key=value pair.", pair));
+        continue;
+      }
+      String key = kv[0].trim();
+      String val = kv[1].trim();
+      if (key.isEmpty()) {
+        errors.add(String.format("'%s' has no key.", pair));
+      } else if (!BIGQUERY_LABEL_KEY_PATTERN.matcher(key).matches()) {
+        errors.add(
+            String.format(
+                "'%s' has an invalid key: keys must start with a lowercase letter, contain only"
+                    + " lowercase letters, numeric characters, underscores, and hyphens, and be"
+                    + " at most 63 characters long.",
+                pair));
+      }
+      if (!BIGQUERY_LABEL_VALUE_PATTERN.matcher(val).matches()) {
+        errors.add(
+            String.format(
+                "'%s' has an invalid value: values may contain only lowercase letters, numeric"
+                    + " characters, underscores, and hyphens, and be at most 63 characters long.",
+                pair));
+      }
+      String existing = labels.putIfAbsent(key, val);
+      if (existing != null) {
+        errors.add(
+            String.format(
+                "'%s' repeats the key '%s', which is already set to '%s'; the new value is '%s'.",
+                pair, key, existing, val));
+      }
+    }
+    return labels;
   }
 
   private Optional<TimePartitioning.Type> parseTimePartitioningType(String rawPartitioningType) {
