@@ -201,7 +201,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
   public static final long MERGE_RECORDS_THRESHOLD_DEFAULT = -1;
   public static final String THREAD_POOL_SIZE_CONFIG = "threadPoolSize";
   public static final Integer THREAD_POOL_SIZE_DEFAULT = 10;
-  public static final String QUEUE_SIZE_CONFIG = "queueSize";
+  static final String QUEUE_SIZE_CONFIG = "queueSize";
   // should this even have a default?
   public static final Long QUEUE_SIZE_DEFAULT = -1L;
   public static final String BIGQUERY_RETRY_CONFIG = "bigQueryRetry";
@@ -626,7 +626,20 @@ public class BigQuerySinkConfig extends AbstractConfig {
             if (txt.equals("-1")) {
               return;
             }
-            range.ensureValid(name, value);
+            // TODO at next major version change this to: range.ensureValid(name, value);
+            // beginning of block that TODO replaces
+            try {
+              long qsize = Long.parseLong(txt);
+              if (qsize < 5) {
+                logger.warn(
+                    "minimum queue size ({}) is now 5.  The requested size of {} and been changed to 5",
+                    QUEUE_SIZE_CONFIG,
+                    txt);
+              }
+            } catch (NumberFormatException e) {
+              throw new ConfigException(String.format("'%s' must be %s", name, toString()));
+            }
+            // end of block that TODO replaces
           }
           throw new ConfigException(String.format("'%s' must be %s", name, toString()));
         }
@@ -1553,6 +1566,15 @@ public class BigQuerySinkConfig extends AbstractConfig {
       value = "";
     }
     return Optional.ofNullable(value);
+  }
+
+  /** Gets the maximum queue size before pausing Kafka put() requests to empty queue. */
+  public long getQueueSize() {
+    long result = getLong(BigQuerySinkConfig.QUEUE_SIZE_CONFIG);
+    if (result >= 0 && result < 5) {
+      result = 5;
+    }
+    return result;
   }
 
   /**

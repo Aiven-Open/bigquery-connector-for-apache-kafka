@@ -350,7 +350,7 @@ public class BigQuerySinkTask extends SinkTask {
   // that it's safe to pause or resume partitions on the consumer.SinkRecordConverter(config,
   // mergeBatches, mergeQueries);
   private void checkQueueSize() {
-    long queueSoftLimit = config.getLong(BigQuerySinkConfig.QUEUE_SIZE_CONFIG);
+    long queueSoftLimit = config.getQueueSize();
     if (queueSoftLimit != -1) {
       int currentQueueSize = executor.getQueue().size();
       if (currentQueueSize > queueSoftLimit) {
@@ -660,9 +660,6 @@ public class BigQuerySinkTask extends SinkTask {
     int intervalSec = config.getInt(BigQuerySinkConfig.BATCH_LOAD_INTERVAL_SEC_CONFIG);
     scheduledExecutor.scheduleAtFixedRate(
         new NamedRunnable(loadRunnable, "GCS Loader"), 0, intervalSec, TimeUnit.SECONDS);
-    scheduledExecutor.execute(() -> logger.warn("Schedule executor running"));
-    scheduledExecutor.scheduleAtFixedRate(
-        () -> logger.warn("Scheduled schedule executor running"), 0, intervalSec, TimeUnit.SECONDS);
   }
 
   private void maybeStartMergeFlushTask() {
@@ -777,7 +774,7 @@ public class BigQuerySinkTask extends SinkTask {
   /** Wraps a NeedsStreamState instance to conver it to a Runnable StreamStateContainer. */
   class WrappedRunnable implements Runnable, StreamStateContainer {
     private final NeedsStreamState tableWriter;
-    private StreamState streamState;
+    private volatile StreamState streamState;
     private boolean aborted;
 
     /**
@@ -814,7 +811,7 @@ public class BigQuerySinkTask extends SinkTask {
 
         try {
           tableWriter.run();
-          // data was written to the backend so we are not committed
+          // data was written to the backend so make sure we are committed
           streamState = StreamState.COMMITTED;
         } catch (RuntimeException e) {
           // fatal errors in writing cause the executor to record the issue so that it will cause
