@@ -1689,8 +1689,6 @@ public class BigQuerySinkConfig extends AbstractConfig {
                     + " lowercase letters, numeric characters, underscores, and hyphens, and be"
                     + " at most 63 characters long.",
                 pair));
-      } else if (labels.containsKey(key)) {
-        errors.add(String.format("'%s' repeats the key '%s'.", pair, key));
       }
       if (!BIGQUERY_LABEL_VALUE_PATTERN.matcher(val).matches()) {
         errors.add(
@@ -1699,7 +1697,13 @@ public class BigQuerySinkConfig extends AbstractConfig {
                     + " characters, underscores, and hyphens, and be at most 63 characters long.",
                 pair));
       }
-      labels.putIfAbsent(key, val);
+      String existing = labels.putIfAbsent(key, val);
+      if (existing != null) {
+        errors.add(
+            String.format(
+                "'%s' repeats the key '%s', which is already set to '%s'; the new value is '%s'.",
+                pair, key, existing, val));
+      }
     }
     return labels;
   }

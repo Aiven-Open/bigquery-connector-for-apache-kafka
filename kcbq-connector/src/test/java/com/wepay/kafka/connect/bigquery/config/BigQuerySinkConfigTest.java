@@ -367,7 +367,9 @@ public class BigQuerySinkConfigTest {
         .contains("'=prod' has no key.")
         .contains("'team=Data' has an invalid value")
         .contains("'owner=a.b' has an invalid value")
-        .contains("'ok=again' repeats the key 'ok'.")
+        .contains(
+            "'ok=again' repeats the key 'ok', which is already set to 'fine'; the new value is"
+                + " 'again'.")
         .contains("'" + tooLongKey + "=x' has an invalid key")
         .contains("'y=" + tooLongValue + "' has an invalid value")
         // The message also echoes the raw config value, so match the quoted form of the pair
