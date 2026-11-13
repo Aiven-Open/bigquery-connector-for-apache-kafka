@@ -369,10 +369,12 @@ class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
     waitForConnectorToStart(connectorName, TASKS_MAX);
     initialiseAvroConverters();
 
+    // Fields stay optional so the proposed schema keeps them NULLABLE like the pre-created table;
+    // BigQuery rejects a schema update that tightens a column from NULLABLE to REQUIRED.
     Schema initialSchema =
         SchemaBuilder.struct()
-            .field("f1", Schema.STRING_SCHEMA)
-            .field("f2", Schema.BOOLEAN_SCHEMA)
+            .field("f1", Schema.OPTIONAL_STRING_SCHEMA)
+            .field("f2", Schema.OPTIONAL_BOOLEAN_SCHEMA)
             .build();
     produceAvroRecords(
         NUM_RECORDS_PRODUCED,
@@ -389,8 +391,8 @@ class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
 
     Schema evolvedSchema =
         SchemaBuilder.struct()
-            .field("f1", Schema.STRING_SCHEMA)
-            .field("f2", Schema.BOOLEAN_SCHEMA)
+            .field("f1", Schema.OPTIONAL_STRING_SCHEMA)
+            .field("f2", Schema.OPTIONAL_BOOLEAN_SCHEMA)
             .field("f3", Schema.OPTIONAL_FLOAT64_SCHEMA)
             .build();
     produceAvroRecords(
