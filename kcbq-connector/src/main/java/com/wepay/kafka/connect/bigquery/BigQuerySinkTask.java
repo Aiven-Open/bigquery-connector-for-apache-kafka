@@ -463,7 +463,7 @@ public class BigQuerySinkTask extends SinkTask {
     config = new BigQuerySinkTaskConfig(properties);
     populateLogicalConverterRegistry(config);
     autoCreateTables = config.autoCreateTables();
-    useStorageApi = config.useStorageApi();
+    useStorageApi = config.useStorageWriteApi();
     useStorageApiBatchMode = config.useStorageApiBatchMode();
     upsertDelete = config.upsertDelete();
 
