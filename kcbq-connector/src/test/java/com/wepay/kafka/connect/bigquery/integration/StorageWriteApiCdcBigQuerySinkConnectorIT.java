@@ -649,4 +649,89 @@ class StorageWriteApiCdcBigQuerySinkConnectorIT extends BaseConnectorIT {
       produced += currentBatchSize;
     }
   }
+
+  @Test
+  void testStorageWriteApiCdcCustomSequenceNumberField() throws Throwable {
+    final String topic = topicName();
+    final TableName tableName = tableName();
+    assertCluster().kafka().createTopic(topic, TASKS_MAX);
+
+    com.google.cloud.bigquery.Schema tableSchema =
+        com.google.cloud.bigquery.Schema.of(
+            Field.of("k1", StandardSQLTypeName.INT64),
+            Field.of("f1", StandardSQLTypeName.STRING),
+            Field.of("version_str", StandardSQLTypeName.STRING));
+    createTableWithPrimaryKey(tableName, tableSchema, "k1");
+
+    Map<String, String> props = baseConnectorProps(TASKS_MAX);
+    props.put(SinkConnectorConfig.TOPICS_CONFIG, topic);
+
+    props.put(BigQuerySinkConfig.SANITIZE_TOPICS_CONFIG, "true");
+    props.put(BigQuerySinkConfig.SCHEMA_RETRIEVER_CONFIG, IdentitySchemaRetriever.class.getName());
+    props.put(BigQuerySinkConfig.TABLE_CREATE_CONFIG, "false");
+    props.put(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG, "false");
+
+    props.remove("useStorageWriteApi");
+    props.put("isCdcEnabled", "true");
+    props.put("cdcChangeSequenceNumberField", "version_str");
+
+    props.put(KEY_CONVERTER_CLASS_CONFIG, JsonConverter.class.getName());
+    props.put(VALUE_CONVERTER_CLASS_CONFIG, JsonConverter.class.getName());
+
+    assertCluster().configureConnector(connectorName(), props);
+    waitForConnectorToStart(connectorName(), TASKS_MAX);
+
+    Converter keyConverter = converter(true);
+    Converter valueConverter = converter(false);
+
+    // 1. Produce record for key 1 with higher custom sequence ("ver_20")
+    assertCluster()
+        .kafka()
+        .produce(
+            topic,
+            key(keyConverter, topic, 1L),
+            valueWithVersion(valueConverter, topic, "latest value", "ver_20"));
+
+    // 2. Produce out-of-order record for key 1 with lower custom sequence ("ver_10") at a later
+    // offset/timestamp; BigQuery CDC must keep "latest value" because "ver_20" > "ver_10".
+    assertCluster()
+        .kafka()
+        .produce(
+            topic,
+            key(keyConverter, topic, 1L),
+            valueWithVersion(valueConverter, topic, "stale value", "ver_10"));
+
+    waitForCommittedRecords(connectorName(), topic, 2, TASKS_MAX);
+
+    org.apache.kafka.test.TestUtils.waitForCondition(
+        () -> {
+          try {
+            return readAllRows(bigQuery, tableName, "k1").size() == 1;
+          } catch (Exception e) {
+            return false;
+          }
+        },
+        60000,
+        "Timed out waiting for CDC table to merge and show 1 row");
+
+    List<List<Object>> allRows = readAllRows(bigQuery, tableName, "k1");
+    assertEquals(1, allRows.size());
+    assertEquals(1L, allRows.get(0).get(0));
+    assertEquals("latest value", allRows.get(0).get(1));
+    assertEquals("ver_20", allRows.get(0).get(2));
+  }
+
+  private String valueWithVersion(
+      Converter converter, String topic, String val, String versionStr) {
+    final Schema schema =
+        SchemaBuilder.struct()
+            .optional()
+            .field("f1", Schema.STRING_SCHEMA)
+            .field("version_str", Schema.STRING_SCHEMA)
+            .build();
+
+    final Struct struct = new Struct(schema).put("f1", val).put("version_str", versionStr);
+
+    return new String(converter.fromConnectData(topic, schema, struct));
+  }
 }
