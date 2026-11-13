@@ -51,7 +51,6 @@ import com.wepay.kafka.connect.bigquery.write.RecordBatches;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -73,7 +72,7 @@ public abstract class StorageWriteApiBase {
   /** If the stream name contains this text it is must end with the DEFAULT_STREAM_NAME_SUFFIX */
   private static final String DEFAULT_STREAM_NAME_TRIGGER = "/streams/";
 
-  /** The requried suffix for default streams. */
+  /** The required suffix for default streams. */
   private static final String DEFAULT_STREAM_NAME_SUFFIX = "/_default";
 
   protected static final String CHANGE_TYPE_PSEUDO_COLUMN =
@@ -259,10 +258,8 @@ public abstract class StorageWriteApiBase {
       while (!batch.isEmpty()) {
         try {
           writeBatch(writer, batch, retryHandler, tableName, recordConverter, ulidSupplier);
-          batch =
-              Collections
-                  .emptyList(); // Can't do batch.clear(); it'll mess with the batch tracking logic
-          // in RecordBatches
+          // Can't do batch.clear(); it'll mess with the batch tracking logic in RecordBatches
+          batch = Collections.emptyList();
         } catch (RetryException e) {
           retryHandler.maybeRetry("write to table " + tableName);
           if (e.getMessage() != null) {
@@ -504,8 +501,8 @@ public abstract class StorageWriteApiBase {
       }
       return schemaBuilder.build();
     } catch (Exception e) {
-      logger.warn("Failed to fetch schema for stream " + streamName, e);
-      return null;
+      logger.warn("Failed to fetch schema for stream {}: {}", streamName, e.getMessage());
+      throw e;
     }
   }
 
@@ -531,11 +528,7 @@ public abstract class StorageWriteApiBase {
           streamNameForSchema += DEFAULT_STREAM_NAME_SUFFIX;
         }
         TableSchema tableSchema = getTableSchemaWithPseudoColumns(streamNameForSchema);
-        if (tableSchema != null) {
-          builder = JsonStreamWriter.newBuilder(streamOrTableName, tableSchema, writeClient);
-        } else {
-          builder = JsonStreamWriter.newBuilder(streamOrTableName, writeClient);
-        }
+        builder = JsonStreamWriter.newBuilder(streamOrTableName, tableSchema, writeClient);
       } else {
         builder = JsonStreamWriter.newBuilder(streamOrTableName, writeClient);
       }
@@ -624,7 +617,7 @@ public abstract class StorageWriteApiBase {
    * @return Returns Map with key as Row index and value as the Row Error Message
    */
   protected Map<Integer, String> convertToMap(List<RowError> rowErrors) {
-    Map<Integer, String> errorMap = new HashMap<>();
+    Map<Integer, String> errorMap = new LinkedHashMap<>();
 
     rowErrors.forEach(rowError -> errorMap.put((int) rowError.getIndex(), rowError.getMessage()));
 
