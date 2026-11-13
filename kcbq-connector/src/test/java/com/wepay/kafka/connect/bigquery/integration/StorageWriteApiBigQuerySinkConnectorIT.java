@@ -382,12 +382,7 @@ class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
         initialSchema,
         this::avroKey,
         i -> new Struct(initialSchema).put("f1", "api" + i).put("f2", i % 2 == 0));
-    waitForCommittedRecords(
-        connectorName,
-        Collections.singleton(topic),
-        NUM_RECORDS_PRODUCED,
-        TASKS_MAX,
-        COMMIT_MAX_DURATION_MS);
+    waitForCommittedRecords(connectorName, topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
 
     Schema evolvedSchema =
         SchemaBuilder.struct()
@@ -407,12 +402,7 @@ class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
                 .put("f3", i * 0.01));
     // Without refreshing the writer, appends keep failing until the task restarts, so the second
     // batch never commits within the timeout.
-    waitForCommittedRecords(
-        connectorName,
-        Collections.singleton(topic),
-        2 * NUM_RECORDS_PRODUCED,
-        TASKS_MAX,
-        COMMIT_MAX_DURATION_MS);
+    waitForCommittedRecords(connectorName, topic, 2 * NUM_RECORDS_PRODUCED, TASKS_MAX);
 
     List<List<Object>> rows = readAllRows(bigQuery, tableName, "f1");
     Set<Object> expectedF1 = new HashSet<>();
