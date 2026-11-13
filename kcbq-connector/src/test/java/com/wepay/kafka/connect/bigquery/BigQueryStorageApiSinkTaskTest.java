@@ -93,7 +93,7 @@ public class BigQueryStorageApiSinkTaskTest {
     properties = propertiesFactory.getProperties();
 
     properties.put(BigQuerySinkConfig.TOPICS_CONFIG, topic);
-    properties.put(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, "true");
+    properties.put("useStorageWriteApi", "true");
     properties.put(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG, "scratch");
     spoofedRecordOffset.set(0);
 

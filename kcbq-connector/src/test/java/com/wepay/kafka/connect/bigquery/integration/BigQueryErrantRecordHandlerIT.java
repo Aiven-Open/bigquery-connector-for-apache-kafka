@@ -122,7 +122,7 @@ class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
     createTopicAndTable();
     Map<String, String> props = connectorAvroProps(topic, dlqTopic);
 
-    props.put(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, "true");
+    props.put("useStorageWriteApi", "true");
     // start a sink connector
     assertCluster().configureConnector(connectorName(), props);
 
@@ -149,7 +149,7 @@ class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
 
     createTopicAndTable();
     Map<String, String> props = connectorProps(topic, dlqTopic);
-    props.put(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, "true");
+    props.put("useStorageWriteApi", "true");
     // start a sink connector
     assertCluster().configureConnector(connectorName(), props);
 
@@ -182,7 +182,7 @@ class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
     props.put(KEY_CONVERTER_CLASS_CONFIG, StringConverter.class.getName());
     props.put("key.converter.schemas.enable", "false");
     props.put("value.converter.schemas.enable", "false");
-    props.put(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, "true");
+    props.put("useStorageWriteApi", "true");
     // start a sink connector
     assertCluster().configureConnector(connectorName(), props);
 
@@ -203,7 +203,7 @@ class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
 
     createTopicAndTable();
     Map<String, String> props = connectorAvroProps(topic, dlqTopic);
-    props.put(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, "true");
+    props.put("useStorageWriteApi", "true");
     props.put(BigQuerySinkConfig.ENABLE_BATCH_MODE_CONFIG, "true");
     // start a sink connector
     assertCluster().configureConnector(connectorName(), props);
@@ -229,7 +229,7 @@ class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
     final String dlqTopic = dlqTopic();
     createTopicAndTable();
     Map<String, String> props = connectorProps(topic, dlqTopic);
-    props.put(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, "true");
+    props.put("useStorageWriteApi", "true");
     props.put(BigQuerySinkConfig.ENABLE_BATCH_MODE_CONFIG, "true");
     // start a sink connector
     assertCluster().configureConnector(connectorName(), props);
@@ -261,7 +261,7 @@ class BigQueryErrantRecordHandlerIT extends BaseConnectorIT {
     props.put(KEY_CONVERTER_CLASS_CONFIG, StringConverter.class.getName());
     props.put("key.converter.schemas.enable", "false");
     props.put("value.converter.schemas.enable", "false");
-    props.put(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, "true");
+    props.put("useStorageWriteApi", "true");
     props.put(BigQuerySinkConfig.ENABLE_BATCH_MODE_CONFIG, "true");
     // start a sink connector
     assertCluster().configureConnector(connectorName(), props);

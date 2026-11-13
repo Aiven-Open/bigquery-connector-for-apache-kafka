@@ -178,7 +178,7 @@ public class StorageWriteApiWriter implements Runnable {
      * @return converted record as JSONObject
      */
     private JSONObject convertRecord(SinkRecord record) {
-      Map<String, Object> convertedRecord = recordConverter.getRegularRow(record);
+      Map<String, Object> convertedRecord = recordConverter.getRow(record);
       return StorageWriteApiBase.getJsonFromMap(convertedRecord);
     }
 

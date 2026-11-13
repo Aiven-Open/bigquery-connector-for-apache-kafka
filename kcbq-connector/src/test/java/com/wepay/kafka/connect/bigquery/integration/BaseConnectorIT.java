@@ -307,7 +307,7 @@ abstract class BaseConnectorIT {
     result.put(BigQuerySinkConfig.KEY_SOURCE_CONFIG, keySource());
 
     result.put(BigQuerySinkConfig.SANITIZE_TOPICS_CONFIG, "true");
-    result.put(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, "false");
+    result.put("useStorageWriteApi", "false");
     return result;
   }
 

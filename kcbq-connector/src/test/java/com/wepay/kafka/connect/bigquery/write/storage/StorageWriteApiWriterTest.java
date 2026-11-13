@@ -101,7 +101,7 @@ public class StorageWriteApiWriterTest {
                 "i_am_kafka_key",
                 BigQuerySinkConfig.SANITIZE_FIELD_NAME_CONFIG,
                 "true",
-                BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG,
+                "useStorageWriteApi",
                 "true",
                 BigQuerySinkConfig.CONVERT_DOUBLE_SPECIAL_VALUES_CONFIG,
                 "false"));
@@ -160,7 +160,7 @@ public class StorageWriteApiWriterTest {
     StorageWriteApiBase mockStreamWriter =
         Mockito.mock(StorageWriteApiBatchApplicationStream.class);
     BigQuerySinkTaskConfig mockedConfig = Mockito.mock(BigQuerySinkTaskConfig.class);
-    when(mockedConfig.getBoolean(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG)).thenReturn(true);
+    when(mockedConfig.useStorageWriteApi()).thenReturn(true);
     RecordConverter<Map<String, Object>> recordConverter =
         new BigQueryRecordConverter(false, false);
     when(mockedConfig.getRecordConverter()).thenReturn(recordConverter);
@@ -348,11 +348,16 @@ public class StorageWriteApiWriterTest {
   private BigQuerySinkTaskConfig buildTrackedConfig(boolean useWriteApi) {
     return createConfig(
         Map.of(
-            BigQuerySinkConfig.KAFKA_DATA_FIELD_NAME_CONFIG, "_kafka_data",
-            BigQuerySinkConfig.SANITIZE_FIELD_NAME_CONFIG, "false",
-            BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, "true",
-            BigQuerySinkConfig.CONVERT_DOUBLE_SPECIAL_VALUES_CONFIG, Boolean.toString(useWriteApi),
-            BigQuerySinkConfig.TRACK_PUT_ATTEMPTS_CONFIG, "true"));
+            BigQuerySinkConfig.KAFKA_DATA_FIELD_NAME_CONFIG,
+            "_kafka_data",
+            BigQuerySinkConfig.SANITIZE_FIELD_NAME_CONFIG,
+            "false",
+            "useStorageWriteApi",
+            "true",
+            BigQuerySinkConfig.CONVERT_DOUBLE_SPECIAL_VALUES_CONFIG,
+            Boolean.toString(useWriteApi),
+            BigQuerySinkConfig.TRACK_PUT_ATTEMPTS_CONFIG,
+            "true"));
   }
 
   private String extractPutAttemptId(JSONArray records) {

@@ -68,9 +68,9 @@ public class RecordTableResolverTest {
     when(mockConfig.getString(BigQuerySinkConfig.PROJECT_CONFIG)).thenReturn(PROJECT);
     when(mockConfig.getString(BigQuerySinkConfig.TOPICS_CONFIG)).thenReturn(TOPIC);
     when(mockConfig.getString(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG)).thenReturn(DATASET);
-    when(mockConfig.getBoolean(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG)).thenReturn(false);
-    when(mockConfig.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(false);
-    when(mockConfig.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG)).thenReturn(false);
+    when(mockConfig.useStorageWriteApi()).thenReturn(false);
+    when(mockConfig.isUpsertEnabled()).thenReturn(false);
+    when(mockConfig.isDeleteEnabled()).thenReturn(false);
     when(mockConfig.getBoolean(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG))
         .thenReturn(false);
     when(mockConfig.getBoolean(BigQuerySinkConfig.BIGQUERY_MESSAGE_TIME_PARTITIONING_CONFIG))
@@ -124,7 +124,7 @@ public class RecordTableResolverTest {
 
   @Test
   public void testUpsertDeleteResolvesIntermediateTable() {
-    when(mockConfig.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)).thenReturn(true);
+    when(mockConfig.isUpsertEnabled()).thenReturn(true);
 
     String intermediateTable = "intermediate_topic";
     TableId intermediateTableId = TableId.of(DATASET, intermediateTable);
@@ -142,7 +142,7 @@ public class RecordTableResolverTest {
     when(mockConfig.getBoolean(BigQuerySinkConfig.BIGQUERY_PARTITION_DECORATOR_CONFIG))
         .thenReturn(true);
     when(mockConfig.getBoolean(BigQuerySinkConfig.ENABLE_BATCH_MODE_CONFIG)).thenReturn(true);
-    when(mockConfig.getBoolean(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG)).thenReturn(true);
+    when(mockConfig.useStorageWriteApi()).thenReturn(true);
 
     mockTableWithPartitioning(null);
 

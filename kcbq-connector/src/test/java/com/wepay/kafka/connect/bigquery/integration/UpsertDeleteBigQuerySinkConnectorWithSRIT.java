@@ -141,10 +141,10 @@ class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
         schemaRegistryUrl);
 
     if (upsert) {
-      result.put(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG, "true");
+      result.put("upsertEnabled", "true");
     }
     if (delete) {
-      result.put(BigQuerySinkConfig.DELETE_ENABLED_CONFIG, "true");
+      result.put("deleteEnabled", "true");
     }
 
     // Hardcode merge flushes to just use number of records for now, as it's more deterministic and

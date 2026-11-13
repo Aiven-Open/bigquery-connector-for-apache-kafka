@@ -62,7 +62,7 @@ public class StorageWriteApiValidator extends MultiPropertyValidator<BigQuerySin
 
   @Override
   protected Optional<String> doValidate(BigQuerySinkConfig config) {
-    if (!config.getBoolean(USE_STORAGE_WRITE_API_CONFIG)) {
+    if (!config.useStorageWriteApi()) {
       if (config.getBoolean(ENABLE_BATCH_MODE_CONFIG)) {
         return Optional.of(newBatchNotSupportedError);
       }

@@ -434,13 +434,10 @@ public class BigQuerySinkTask extends SinkTask {
     populateLogicalConverterRegistry(config);
     autoCreateTables = config.getBoolean(BigQuerySinkConfig.TABLE_CREATE_CONFIG);
 
-    useStorageApi = config.getBoolean(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG);
+    useStorageApi = config.useStorageWriteApi();
     useStorageApiBatchMode =
         useStorageApi && config.getBoolean(BigQuerySinkConfig.ENABLE_BATCH_MODE_CONFIG);
-    upsertDelete =
-        !useStorageApi
-            && (config.getBoolean(BigQuerySinkConfig.UPSERT_ENABLED_CONFIG)
-                || config.getBoolean(BigQuerySinkConfig.DELETE_ENABLED_CONFIG));
+    upsertDelete = !useStorageApi && config.isUpsertDeleteEnabled();
 
     retry = config.getInt(BigQuerySinkConfig.BIGQUERY_RETRY_CONFIG);
     retryWait = config.getLong(BigQuerySinkConfig.BIGQUERY_RETRY_WAIT_CONFIG);

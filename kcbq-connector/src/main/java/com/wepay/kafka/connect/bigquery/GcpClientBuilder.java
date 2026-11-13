@@ -25,7 +25,6 @@ package com.wepay.kafka.connect.bigquery;
 
 import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.PROJECT_CONFIG;
 import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.USE_CREDENTIALS_PROJECT_ID_CONFIG;
-import static com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG;
 
 import com.google.api.gax.core.FixedCredentialsProvider;
 import com.google.api.gax.rpc.FixedHeaderProvider;
@@ -82,7 +81,7 @@ public abstract class GcpClientBuilder<ClientT> {
     return withProject(config.getString(PROJECT_CONFIG))
         .withKeySource(config.getKeySource())
         .withKey(config.getKey())
-        .withWriterApi(config.getBoolean(USE_STORAGE_WRITE_API_CONFIG))
+        .withWriterApi(config.useStorageWriteApi())
         .withProjectFromCreds(config.getBoolean(USE_CREDENTIALS_PROJECT_ID_CONFIG))
         .withUserAgent();
   }

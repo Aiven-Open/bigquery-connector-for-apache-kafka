@@ -115,7 +115,7 @@ class GcpClientBuilderIT extends BaseConnectorIT {
    */
   private void testClients(GcpClientBuilder.KeySource keySource) throws Exception {
     Map<String, String> properties = connectorProps(keySource);
-    properties.put(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG, "false");
+    properties.put("useStorageWriteApi", "false");
     BigQuerySinkConfig config = new BigQuerySinkConfig(properties);
 
     BigQuery bigQuery = new GcpClientBuilder.BigQueryBuilder().withConfig(config).build();
@@ -144,11 +144,15 @@ class GcpClientBuilderIT extends BaseConnectorIT {
 
   @Test
   void testFile() throws Exception {
+    org.junit.jupiter.api.Assumptions.assumeFalse(
+        keyFile().isEmpty(), "Skip if no keyfile provided");
     testClients(GcpClientBuilder.KeySource.FILE);
   }
 
   @Test
   void testJson() throws Exception {
+    org.junit.jupiter.api.Assumptions.assumeFalse(
+        keyFile().isEmpty(), "Skip if no keyfile provided");
     testClients(GcpClientBuilder.KeySource.JSON);
   }
 }
