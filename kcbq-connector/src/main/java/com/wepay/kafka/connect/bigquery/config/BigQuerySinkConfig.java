@@ -145,6 +145,9 @@ public class BigQuerySinkConfig extends AbstractConfig {
   public static final String ALLOW_BIGQUERY_REQUIRED_FIELD_RELAXATION_CONFIG =
       "allowBigQueryRequiredFieldRelaxation";
   public static final Boolean ALLOW_BIGQUERY_REQUIRED_FIELD_RELAXATION_DEFAULT = false;
+  public static final String ALLOW_BIGQUERY_FIELD_DESCRIPTION_UPDATES_CONFIG =
+      "allowBigQueryFieldDescriptionUpdates";
+  public static final Boolean ALLOW_BIGQUERY_FIELD_DESCRIPTION_UPDATES_DEFAULT = false;
   public static final String ALLOW_SCHEMA_UNIONIZATION_CONFIG = "allowSchemaUnionization";
   public static final Boolean ALLOW_SCHEMA_UNIONIZATION_DEFAULT = false;
   static final String UPSERT_ENABLED_CONFIG = "upsertEnabled";
@@ -502,6 +505,14 @@ public class BigQuerySinkConfig extends AbstractConfig {
       ConfigDef.Importance.MEDIUM;
   private static final String ALLOW_BIGQUERY_REQUIRED_FIELD_RELAXATION_DOC =
       "If true, fields in BigQuery Schema can be changed from REQUIRED to NULLABLE";
+  private static final ConfigDef.Type ALLOW_BIGQUERY_FIELD_DESCRIPTION_UPDATES_TYPE =
+      ConfigDef.Type.BOOLEAN;
+  private static final ConfigDef.Importance ALLOW_BIGQUERY_FIELD_DESCRIPTION_UPDATES_IMPORTANCE =
+      ConfigDef.Importance.MEDIUM;
+  private static final String ALLOW_BIGQUERY_FIELD_DESCRIPTION_UPDATES_DOC =
+      "If true, BigQuery column descriptions are updated when the corresponding Kafka Connect "
+          + "schema field doc() changes. Descriptions are synced proactively before each batch "
+          + "without waiting for an insert failure.";
   private static final ConfigDef.Type ALLOW_SCHEMA_UNIONIZATION_TYPE = ConfigDef.Type.BOOLEAN;
   private static final ConfigDef.Importance ALLOW_SCHEMA_UNIONIZATION_IMPORTANCE =
       ConfigDef.Importance.MEDIUM;
@@ -1043,6 +1054,14 @@ public class BigQuerySinkConfig extends AbstractConfig {
             ALLOW_BIGQUERY_REQUIRED_FIELD_RELAXATION_DEFAULT,
             ALLOW_BIGQUERY_REQUIRED_FIELD_RELAXATION_IMPORTANCE,
             ALLOW_BIGQUERY_REQUIRED_FIELD_RELAXATION_DOC)
+        .define(
+            ExtendedConfigKey.builder(ALLOW_BIGQUERY_FIELD_DESCRIPTION_UPDATES_CONFIG)
+                .type(ALLOW_BIGQUERY_FIELD_DESCRIPTION_UPDATES_TYPE)
+                .defaultValue(ALLOW_BIGQUERY_FIELD_DESCRIPTION_UPDATES_DEFAULT)
+                .importance(ALLOW_BIGQUERY_FIELD_DESCRIPTION_UPDATES_IMPORTANCE)
+                .documentation(ALLOW_BIGQUERY_FIELD_DESCRIPTION_UPDATES_DOC)
+                .since(v2m16)
+                .build())
         .define(
             ALLOW_SCHEMA_UNIONIZATION_CONFIG,
             ALLOW_SCHEMA_UNIONIZATION_TYPE,

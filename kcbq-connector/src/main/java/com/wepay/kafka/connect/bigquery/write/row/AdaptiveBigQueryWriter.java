@@ -129,6 +129,8 @@ public class AdaptiveBigQueryWriter extends BigQueryWriter {
     InsertAllResponse writeResponse = null;
     InsertAllRequest request = null;
 
+    schemaManager.syncDescriptions(tableId.getBaseTableId(), new ArrayList<>(rows.keySet()));
+
     try {
       request = createInsertAllRequest(tableId, rows.values());
       writeResponse = bigQuery.insertAll(request);
