@@ -67,11 +67,10 @@ public class HighestUnblockedCommitStrategy implements CommitStrategy {
   @Override
   public void queueKeys(
       final Stream<KafkaRecordKey> keys, final StreamStateContainer streamStateContainer) {
-    CommitStrategy.extractHighKeys(keys)
-        .forEach(
-            key -> {
-              commitMap.put(key, streamStateContainer);
-            });
+    keys.forEach(
+        key -> {
+          commitMap.put(key, streamStateContainer);
+        });
   }
 
   /**
