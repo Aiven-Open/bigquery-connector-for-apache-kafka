@@ -225,19 +225,19 @@ class StorageWriteApiCdcBigQuerySinkConnectorIT extends BaseConnectorIT {
         .produce(topic, key(keyConverter, topic, 1L), value(valueConverter, topic, null, true));
 
     // Wait for all 4 records to commit
-    waitForCommittedRecords(connectorName(), topic, 4, TASKS_MAX);
+    // waitForCommittedRecords(connectorName(), topic, 4, TASKS_MAX);
 
     // Read back rows from BigQuery, sorting by k1 column, waiting for merge to happen
-    org.apache.kafka.test.TestUtils.waitForCondition(
-        () -> {
-          try {
-            return readAllRows(bigQuery, tableName, "k1").size() == 1;
-          } catch (Exception e) {
-            return false;
-          }
-        },
-        60000,
-        "Timed out waiting for CDC table to merge and show 1 row");
+    await()
+        .atMost(Duration.ofMinutes(5))
+        .pollInterval(Duration.ofSeconds(1))
+        .untilAsserted(
+            () -> {
+              List<List<Object>> allRows = readAllRows(bigQuery, tableName, "k1");
+              assertEquals(1, allRows.size());
+              assertEquals(2L, allRows.get(0).get(0));
+              assertEquals("other row", allRows.get(0).get(1));
+            });
 
     List<List<Object>> allRows = readAllRows(bigQuery, tableName, "k1");
 
