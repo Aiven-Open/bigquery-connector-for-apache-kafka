@@ -1674,7 +1674,6 @@ class SchemaManagerTest {
         schemaAndPrimaryKeyColumns.schema().getFields().get("f3").getSubFields().get("x1"));
   }
 
-  class TestingSchemaConverter implements SchemaConverter<com.google.cloud.bigquery.Schema> {
   @ParameterizedTest(name = "{index} {0}")
   @MethodSource("intermediateSchemaData")
   void getIntermediateSchema(
