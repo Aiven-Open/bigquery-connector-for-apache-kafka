@@ -136,8 +136,7 @@ public class HighestUnblockedCommitStrategy implements CommitStrategy {
   }
 
   @Override
-  public void registerPartitions(Collection<TopicPartition> partitions) {
-  }
+  public void registerPartitions(Collection<TopicPartition> partitions) {}
 
   @Override
   public void unregisterPartitions(Collection<TopicPartition> partitions) {

@@ -313,20 +313,19 @@ class StorageWriteApiCdcBigQuerySinkConnectorIT extends BaseConnectorIT {
             compositeKey(keyConverter, topic, 1L, "a"),
             value(valueConverter, topic, null, true));
 
-
     // Read back rows from BigQuery, waiting for merge
     // The final result should contain only row 2, because key (1, "a") was updated then deleted.
     await()
-            .atMost(Duration.ofMinutes(5))
-            .pollInterval(Duration.ofSeconds(1))
-            .untilAsserted(
-                    () -> {
-                      List<List<Object>> allRows = readAllRows(bigQuery, tableName, "k1");
-                      assertEquals(1, allRows.size());
-                      assertEquals(2L, allRows.get(0).get(0)); // k1
-                      assertEquals("b", allRows.get(0).get(1)); // k2
-                      assertEquals("other row", allRows.get(0).get(2)); // f1
-                    });
+        .atMost(Duration.ofMinutes(5))
+        .pollInterval(Duration.ofSeconds(1))
+        .untilAsserted(
+            () -> {
+              List<List<Object>> allRows = readAllRows(bigQuery, tableName, "k1");
+              assertEquals(1, allRows.size());
+              assertEquals(2L, allRows.get(0).get(0)); // k1
+              assertEquals("b", allRows.get(0).get(1)); // k2
+              assertEquals("other row", allRows.get(0).get(2)); // f1
+            });
   }
 
   @Test

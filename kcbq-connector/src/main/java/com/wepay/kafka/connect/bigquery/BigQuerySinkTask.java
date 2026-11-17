@@ -194,8 +194,8 @@ public class BigQuerySinkTask extends SinkTask {
       result = commitStrategy.preCommit(offsets);
     }
     checkQueueSize();
-if(logger.isDebugEnabled()){
-    logger.debug("Committable Offsets: {}", result);
+    if (logger.isDebugEnabled()) {
+      logger.debug("Committable Offsets: {}", result);
     }
     return result;
   }
