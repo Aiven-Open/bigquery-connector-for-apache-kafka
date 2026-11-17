@@ -29,7 +29,10 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -62,13 +65,16 @@ import com.wepay.kafka.connect.bigquery.write.storage.StorageWriteApiDefaultStre
 import java.net.SocketTimeoutException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.record.TimestampType;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
@@ -82,6 +88,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 
 public class BigQuerySinkTaskTest {
   private static SinkTaskPropertiesFactory propertiesFactory;
@@ -605,6 +612,164 @@ public class BigQuerySinkTaskTest {
 
     assertTrue(executedMerges.await(5, TimeUnit.SECONDS), "Merge queries should be executed");
     assertTrue(executedBatchClears.await(1, TimeUnit.SECONDS), "Batch clears should be executed");
+  }
+
+  @Test
+  public void testQueueSizePausesAndResumesConsumer() throws InterruptedException {
+    final String topic = "test-topic";
+
+    Map<String, String> properties = propertiesFactory.getProperties();
+    properties.put(BigQuerySinkConfig.TOPICS_CONFIG, topic);
+    properties.put(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG, "scratch");
+    properties.put(BigQuerySinkConfig.QUEUE_SIZE_CONFIG, "2");
+    properties.put(BigQuerySinkConfig.THREAD_POOL_SIZE_CONFIG, "1");
+    initialize(properties);
+
+    BigQuery bigQuery = mock(BigQuery.class);
+    when(bigQuery.getTable(any(TableId.class))).thenReturn(mock(Table.class));
+
+    InsertAllResponse insertAllResponse = mock(InsertAllResponse.class);
+    when(insertAllResponse.hasErrors()).thenReturn(false);
+
+    // The semaphores allow insertAll calls and queue size to be precisely sequenced/controlled.
+    Semaphore allowInsert = new Semaphore(0);
+    Semaphore insertEntered = new Semaphore(0);
+    when(bigQuery.insertAll(any(InsertAllRequest.class)))
+        .thenAnswer(
+            invocation -> {
+              insertEntered.release();
+              allowInsert.acquire();
+              return insertAllResponse;
+            });
+
+    SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
+    TopicPartition tp0 = new TopicPartition(topic, 0);
+    TopicPartition tp1 = new TopicPartition(topic, 1);
+    // use LinkedHashSet to ensure deterministic parameter order to pause/resume for later asserts.
+    when(sinkTaskContext.assignment()).thenReturn(new LinkedHashSet<>(Arrays.asList(tp0, tp1)));
+
+    BigQuerySinkTask testTask =
+        new BigQuerySinkTask(
+            bigQuery,
+            mock(SchemaRetriever.class),
+            mock(Storage.class),
+            mock(SchemaManager.class),
+            mockedStorageWriteApiDefaultStream,
+            mockedBatchHandler,
+            time);
+
+    testTask.initialize(sinkTaskContext);
+    testTask.start(properties);
+
+    // One record per put(), so each record takes up its one queue slot.
+
+    InOrder inOrder = inOrder(sinkTaskContext);
+
+    // Make the one and only worker get stuck on an insertion.
+    testTask.put(Collections.singletonList(spoofSinkRecord(topic)));
+    insertEntered.acquire(); // worker's blocked on new insertAll; queue is empty after this line
+    inOrder.verify(sinkTaskContext).assignment();
+    inOrder.verify(sinkTaskContext).resume(tp0, tp1);
+    inOrder.verifyNoMoreInteractions(); // consumer not paused yet
+
+    // Fill the queue up to the limit configured by QUEUE_SIZE_CONFIG.
+    testTask.put(Collections.singletonList(spoofSinkRecord(topic)));
+    inOrder.verify(sinkTaskContext).assignment();
+    inOrder.verify(sinkTaskContext).resume(tp0, tp1);
+    testTask.put(Collections.singletonList(spoofSinkRecord(topic))); // queue now has 2 records
+    inOrder.verifyNoMoreInteractions(); // consumer not paused yet
+
+    // The next record will exceed the queue size, pausing the consumer. The Connect sink worker
+    // is asked to use a short consumer poll timeout, so we can quickly unpause the consumer once
+    // the queue sufficiently drains.
+    testTask.put(Collections.singletonList(spoofSinkRecord(topic))); // queue now has 3 records
+    inOrder.verify(sinkTaskContext).assignment();
+    inOrder.verify(sinkTaskContext).pause(tp0, tp1); // consumer is paused
+    inOrder.verify(sinkTaskContext).timeout(BigQuerySinkTask.PAUSED_POLL_TIMEOUT_MS);
+    inOrder.verifyNoMoreInteractions();
+
+    // Let the worker finish processing the first message from queue.  Queue size will now be back
+    // to 2, but it's not small enough to allow for resuming the consumer.
+    allowInsert.release();
+    insertEntered.acquire(); // worker's blocked on new insertAll; queue now has 2 records
+    testTask.put(Collections.emptyList()); // happens after the short poll timeout we just set
+    inOrder.verify(sinkTaskContext).timeout(BigQuerySinkTask.PAUSED_POLL_TIMEOUT_MS);
+    inOrder.verifyNoMoreInteractions(); // no new pause call, and not resumed yet
+
+    // Process another message: now the consumer will be resumed, since the queue is small enough.
+    allowInsert.release();
+    insertEntered.acquire(); // worker's blocked on new insertAll; queue has 1 record, <= limit/2
+    testTask.put(Collections.emptyList());
+    inOrder.verify(sinkTaskContext).resume(tp0, tp1); // consumer is resumed now
+    inOrder.verifyNoMoreInteractions();
+
+    // Let the remaining writes finish.
+    allowInsert.release(2);
+    testTask.flush(Collections.emptyMap());
+  }
+
+  @Test
+  public void testQueueSizeDisabledDoesNotPauseConsumer() throws Exception {
+    final String topic = "test-topic";
+
+    Map<String, String> properties = propertiesFactory.getProperties();
+    properties.put(BigQuerySinkConfig.TOPICS_CONFIG, topic);
+    properties.put(BigQuerySinkConfig.DEFAULT_DATASET_CONFIG, "scratch");
+    properties.put(BigQuerySinkConfig.QUEUE_SIZE_CONFIG, "-1"); // queue limit is disabled
+    properties.put(BigQuerySinkConfig.THREAD_POOL_SIZE_CONFIG, "1");
+    initialize(properties);
+
+    BigQuery bigQuery = mock(BigQuery.class);
+    when(bigQuery.getTable(any(TableId.class))).thenReturn(mock(Table.class));
+
+    InsertAllResponse insertAllResponse = mock(InsertAllResponse.class);
+    when(insertAllResponse.hasErrors()).thenReturn(false);
+
+    // The semaphores allow insertAll calls and queue size to be precisely sequenced/controlled.
+    Semaphore allowInsert = new Semaphore(0);
+    Semaphore insertEntered = new Semaphore(0);
+    when(bigQuery.insertAll(any(InsertAllRequest.class)))
+        .thenAnswer(
+            invocation -> {
+              insertEntered.release();
+              allowInsert.acquire();
+              return insertAllResponse;
+            });
+
+    SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
+    TopicPartition tp0 = new TopicPartition(topic, 0);
+    TopicPartition tp1 = new TopicPartition(topic, 1);
+    // use LinkedHashSet to ensure deterministic parameter order to pause/resume for later asserts.
+    when(sinkTaskContext.assignment()).thenReturn(new LinkedHashSet<>(Arrays.asList(tp0, tp1)));
+
+    BigQuerySinkTask testTask =
+        new BigQuerySinkTask(
+            bigQuery,
+            mock(SchemaRetriever.class),
+            mock(Storage.class),
+            mock(SchemaManager.class),
+            mockedStorageWriteApiDefaultStream,
+            mockedBatchHandler,
+            time);
+    testTask.initialize(sinkTaskContext);
+    testTask.start(properties);
+
+    // Make the one and only worker get stuck on an insertion.
+    testTask.put(Collections.singletonList(spoofSinkRecord(topic)));
+    insertEntered.acquire(); // worker's blocked on new insertAll; queue is empty after this line
+
+    // Nine more pile up behind the stuck writer, so the queue provably has several items in it.
+    for (int i = 0; i < 9; i++) {
+      testTask.put(Collections.singletonList(spoofSinkRecord(topic)));
+    }
+
+    // Verify we never tried pausing or resuming the consumer.
+    verify(sinkTaskContext, never()).pause(any(TopicPartition[].class));
+    verify(sinkTaskContext, never()).resume(any(TopicPartition[].class));
+    verify(sinkTaskContext, never()).timeout(anyLong());
+
+    allowInsert.release(100);
+    testTask.flush(Collections.emptyMap());
   }
 
   // Throw an exception on the first put, and assert the Exception will be exposed in subsequent
