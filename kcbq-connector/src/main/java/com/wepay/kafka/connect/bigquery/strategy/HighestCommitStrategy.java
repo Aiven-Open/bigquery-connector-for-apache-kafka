@@ -60,8 +60,6 @@ public class HighestCommitStrategy implements CommitStrategy {
   /** The map of KafkaRecordKeys to Trackers */
   @VisibleForTesting final ConcurrentSkipListMap<KafkaRecordKey, StreamStateContainer> commitMap;
 
-  //  private final ConcurrentSkipListMap<TopicPartition, Set<StreamStateContainer>> partitions;
-
   public HighestCommitStrategy() {
     commitMap = new ConcurrentSkipListMap<>();
   }
@@ -87,25 +85,6 @@ public class HighestCommitStrategy implements CommitStrategy {
   @VisibleForTesting
   ConcurrentNavigableMap<KafkaRecordKey, StreamStateContainer> createSubMap(KafkaRecordKey key) {
     return commitMap.subMap(KafkaRecordKey.minKey(key.topic(), key.partition()), true, key, true);
-  }
-
-  /**
-   * Go through the submap looking for the highest record we can commit. This process also removes
-   * any committed records from the map.
-   *
-   * @param subMap the map of records to be committed that are in the range (
-   * @return the highest CommittableKey.
-   */
-  private KafkaRecordKey getHighestCommittableKey(
-      ConcurrentNavigableMap<KafkaRecordKey, StreamStateContainer> subMap) {
-    KafkaRecordKey highestCommitableKey = null;
-    Map.Entry<KafkaRecordKey, StreamStateContainer> testEntry = subMap.lastEntry();
-    // backup until we either don't have a key or we reach the highest committed record
-    while (testEntry != null && !testEntry.getValue().stateIs(StreamState.COMMITTED)) {
-      testEntry = subMap.lowerEntry(testEntry.getKey());
-    }
-
-    return testEntry == null ? null : testEntry.getKey();
   }
 
   @Override

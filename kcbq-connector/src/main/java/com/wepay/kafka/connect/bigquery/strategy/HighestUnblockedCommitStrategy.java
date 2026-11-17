@@ -58,8 +58,6 @@ public class HighestUnblockedCommitStrategy implements CommitStrategy {
   /** The map of KafkaRecordKeys to Trackers */
   @VisibleForTesting final ConcurrentSkipListMap<KafkaRecordKey, StreamStateContainer> commitMap;
 
-  //  private final ConcurrentSkipListMap<TopicPartition, Set<StreamStateContainer>> partitions;
-
   public HighestUnblockedCommitStrategy() {
     commitMap = new ConcurrentSkipListMap<>();
   }
@@ -97,16 +95,16 @@ public class HighestUnblockedCommitStrategy implements CommitStrategy {
    */
   private KafkaRecordKey getHighestCommittableKey(
       ConcurrentNavigableMap<KafkaRecordKey, StreamStateContainer> subMap) {
-    KafkaRecordKey highestCommitableKey = null;
+    KafkaRecordKey highestCommittableKey = null;
     for (Map.Entry<KafkaRecordKey, StreamStateContainer> entry : subMap.entrySet()) {
       if (CAN_COMMIT.test(entry.getValue())) {
         subMap.remove(entry.getKey());
-        highestCommitableKey = entry.getKey();
+        highestCommittableKey = entry.getKey();
       } else {
-        return highestCommitableKey;
+        return highestCommittableKey;
       }
     }
-    return highestCommitableKey;
+    return highestCommittableKey;
   }
 
   @Override
@@ -134,32 +132,11 @@ public class HighestUnblockedCommitStrategy implements CommitStrategy {
 
   @Override
   public boolean cleanCommitStrategy() {
-    //    logger.debug("Cleaning commit map: {} records", commitMap.size());
-    //    int removedRecords = 0;
-    //    Map.Entry<KafkaRecordKey, StreamStateContainer> entry = commitMap.firstEntry();
-    //    while (entry != null) {
-    //      if (CAN_REMOVE.test(entry.getValue())) {
-    //        commitMap.remove(entry.getKey());
-    //        removedRecords++;
-    //      }
-    //      entry = commitMap.higherEntry(entry.getKey());
-    //    }
-    //    logger.debug("Cleaned commit map: {} records, removed {}", commitMap.size(),
-    // removedRecords);
-    //
-    //    logger.debug("Cleaning commit partitions");
-    //    partitions.values().forEach(x -> x.removeIf(CAN_REMOVE));
     return false;
   }
 
   @Override
   public void registerPartitions(Collection<TopicPartition> partitions) {
-    //    partitions.forEach(
-    //        topicPartition -> this.partitions.computeIfAbsent(topicPartition, k -> new
-    // HashSet<>()));
-    //    if (logger.isDebugEnabled()) {
-    //      logger.debug("Registered partition count: {}", this.partitions.size());
-    //    }
   }
 
   @Override

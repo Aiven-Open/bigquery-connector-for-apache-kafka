@@ -502,7 +502,7 @@ public abstract class StorageWriteApiBase {
       return schemaBuilder.build();
     } catch (Exception e) {
       logger.warn("Failed to fetch schema for stream {}: {}", streamName, e.getMessage());
-      throw e;
+      return null;
     }
   }
 
@@ -528,7 +528,11 @@ public abstract class StorageWriteApiBase {
           streamNameForSchema += DEFAULT_STREAM_NAME_SUFFIX;
         }
         TableSchema tableSchema = getTableSchemaWithPseudoColumns(streamNameForSchema);
-        builder = JsonStreamWriter.newBuilder(streamOrTableName, tableSchema, writeClient);
+        if (tableSchema != null) {
+          builder = JsonStreamWriter.newBuilder(streamOrTableName, tableSchema, writeClient);
+        } else {
+          builder = JsonStreamWriter.newBuilder(streamOrTableName, writeClient);
+        }
       } else {
         builder = JsonStreamWriter.newBuilder(streamOrTableName, writeClient);
       }

@@ -224,10 +224,14 @@ class StorageWriteApiCdcBigQuerySinkConnectorIT extends BaseConnectorIT {
         .kafka()
         .produce(topic, key(keyConverter, topic, 1L), value(valueConverter, topic, null, true));
 
-    // Wait for all 4 records to commit
-    // waitForCommittedRecords(connectorName(), topic, 4, TASKS_MAX);
-
-    // Read back rows from BigQuery, sorting by k1 column, waiting for merge to happen
+    // The final result should contain only row 2, because key 1 was updated then deleted.
+    // The query returns fields in order of table schema: k1, f1, _CHANGE_TYPE,
+    // _CHANGE_SEQUENCE_NUMBER
+    // Since BigQuery CDC merges base table with changes, it should return 1 row.
+    // Note: BQ CDC columns (_CHANGE_TYPE, _CHANGE_SEQUENCE_NUMBER) are system columns and we don't
+    // assert their exact values here if we only want the materialized state,
+    // but they will be returned by "SELECT *".
+    // We check the first two columns (k1 and f1).
     await()
         .atMost(Duration.ofMinutes(5))
         .pollInterval(Duration.ofSeconds(1))
@@ -238,20 +242,6 @@ class StorageWriteApiCdcBigQuerySinkConnectorIT extends BaseConnectorIT {
               assertEquals(2L, allRows.get(0).get(0));
               assertEquals("other row", allRows.get(0).get(1));
             });
-
-    List<List<Object>> allRows = readAllRows(bigQuery, tableName, "k1");
-
-    // The final result should contain only row 2, because key 1 was updated then deleted.
-    // The query returns fields in order of table schema: k1, f1, _CHANGE_TYPE,
-    // _CHANGE_SEQUENCE_NUMBER
-    // Since BigQuery CDC merges base table with changes, it should return 1 row.
-    // Note: BQ CDC columns (_CHANGE_TYPE, _CHANGE_SEQUENCE_NUMBER) are system columns and we don't
-    // assert their exact values here if we only want the materialized state,
-    // but they will be returned by "SELECT *".
-    // We check the first two columns (k1 and f1).
-    assertEquals(1, allRows.size());
-    assertEquals(2L, allRows.get(0).get(0)); // k1
-    assertEquals("other row", allRows.get(0).get(1)); // f1
   }
 
   @Test
@@ -323,28 +313,20 @@ class StorageWriteApiCdcBigQuerySinkConnectorIT extends BaseConnectorIT {
             compositeKey(keyConverter, topic, 1L, "a"),
             value(valueConverter, topic, null, true));
 
-    // Wait for all 4 records to be committed
-    // waitForCommittedRecords(connectorName(), topic, 4, TASKS_MAX);
 
     // Read back rows from BigQuery, waiting for merge
-    org.apache.kafka.test.TestUtils.waitForCondition(
-        () -> {
-          try {
-            return readAllRows(bigQuery, tableName, "k1").size() == 1;
-          } catch (Exception e) {
-            return false;
-          }
-        },
-        Duration.ofMinutes(5).toMillis(),
-        "Timed out waiting for CDC table to merge and show 1 row");
-
-    List<List<Object>> allRows = readAllRows(bigQuery, tableName, "k1");
-
     // The final result should contain only row 2, because key (1, "a") was updated then deleted.
-    assertEquals(1, allRows.size());
-    assertEquals(2L, allRows.get(0).get(0)); // k1
-    assertEquals("b", allRows.get(0).get(1)); // k2
-    assertEquals("other row", allRows.get(0).get(2)); // f1
+    await()
+            .atMost(Duration.ofMinutes(5))
+            .pollInterval(Duration.ofSeconds(1))
+            .untilAsserted(
+                    () -> {
+                      List<List<Object>> allRows = readAllRows(bigQuery, tableName, "k1");
+                      assertEquals(1, allRows.size());
+                      assertEquals(2L, allRows.get(0).get(0)); // k1
+                      assertEquals("b", allRows.get(0).get(1)); // k2
+                      assertEquals("other row", allRows.get(0).get(2)); // f1
+                    });
   }
 
   @Test
@@ -389,10 +371,6 @@ class StorageWriteApiCdcBigQuerySinkConnectorIT extends BaseConnectorIT {
 
     // 2. Produce tombstone for key 1 (should fail because delete is disabled)
     assertCluster().kafka().produce(topic, key(keyConverter, topic, 1L), null);
-    //
-    //    // Wait for all 2 records to be committed (skipped records still have their offsets
-    // committed)
-    //    wa
 
     // Read back rows from BigQuery. The row should still exist because delete was disabled.
     await()

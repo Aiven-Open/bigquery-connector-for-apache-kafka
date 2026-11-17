@@ -775,7 +775,7 @@ public class BigQuerySinkTask extends SinkTask {
   class WrappedRunnable implements Runnable, StreamStateContainer {
     private final NeedsStreamState tableWriter;
     private volatile StreamState streamState;
-    private boolean aborted;
+    private volatile boolean aborted;
 
     /**
      * Constructor.
