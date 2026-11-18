@@ -50,20 +50,16 @@ public class SimpleBigQueryWriter extends BigQueryWriter {
 
   /**
    * @param bigQuery The object used to send write requests to BigQuery.
-   * @param retry How many retries to make in the event of a 500/503 error.
-   * @param retryWait How long to wait in between retries.
    * @param errantRecordHandler Used to handle errant records
    * @param time used to wait during backoff periods
    * @param config Connector configurations
    */
   public SimpleBigQueryWriter(
       BigQuery bigQuery,
-      int retry,
-      long retryWait,
       ErrantRecordHandler errantRecordHandler,
       Time time,
       BigQuerySinkConfig config) {
-    super(retry, retryWait, errantRecordHandler, time, config);
+    super(errantRecordHandler, time, config);
     this.bigQuery = bigQuery;
   }
 

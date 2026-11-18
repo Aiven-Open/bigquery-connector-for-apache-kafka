@@ -55,10 +55,11 @@ import com.wepay.kafka.connect.bigquery.BigQuerySinkTask;
 import com.wepay.kafka.connect.bigquery.BigQuerySinkTaskTest;
 import com.wepay.kafka.connect.bigquery.SchemaManager;
 import com.wepay.kafka.connect.bigquery.SinkPropertiesFactory;
-import com.wepay.kafka.connect.bigquery.api.SchemaRetriever;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkTaskConfig;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
+import com.wepay.kafka.connect.bigquery.strategy.HighestCommitStrategy;
+import com.wepay.kafka.connect.bigquery.utils.DataPolling;
 import com.wepay.kafka.connect.bigquery.utils.GsonUtils;
 import com.wepay.kafka.connect.bigquery.utils.MockTime;
 import com.wepay.kafka.connect.bigquery.utils.Time;
@@ -119,23 +120,22 @@ public class GcsToBqWriterTest {
     Storage storage = mock(Storage.class);
     SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
 
-    SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
     SchemaManager schemaManager = mock(SchemaManager.class);
-
     BigQuerySinkTask testTask =
         BigQuerySinkTaskTest.createTestTask(
             bigQuery,
-            schemaRetriever,
             storage,
             schemaManager,
             mockedStorageWriteApiDefaultStream,
             mockedBatchHandler,
-            time);
+            time,
+            new HighestCommitStrategy());
     testTask.initialize(sinkTaskContext);
     testTask.start(properties);
     testTask.put(
         Collections.singletonList(spoofSinkRecord(topic, 0, 0, "some_field", "some_value")));
-    testTask.flush(Collections.emptyMap());
+
+    DataPolling.pollUntilResults(testTask, DataPolling.SOME_DATA);
 
     verify(storage, times(1)).create(any(BlobInfo.class), any(byte[].class));
   }
@@ -152,7 +152,6 @@ public class GcsToBqWriterTest {
     Storage storage = mock(Storage.class);
     SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
 
-    SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
     SchemaManager schemaManager = mock(SchemaManager.class);
 
     when(storage.create(any(BlobInfo.class), any(byte[].class)))
@@ -162,17 +161,18 @@ public class GcsToBqWriterTest {
     BigQuerySinkTask testTask =
         BigQuerySinkTaskTest.createTestTask(
             bigQuery,
-            schemaRetriever,
             storage,
             schemaManager,
             mockedStorageWriteApiDefaultStream,
             mockedBatchHandler,
-            time);
+            time,
+            new HighestCommitStrategy());
     testTask.initialize(sinkTaskContext);
     testTask.start(properties);
     testTask.put(
         Collections.singletonList(spoofSinkRecord(topic, 0, 0, "some_field", "some_value")));
-    testTask.flush(Collections.emptyMap());
+
+    DataPolling.pollUntilResults(testTask, DataPolling.SOME_DATA);
 
     verify(storage, times(2)).create(any(BlobInfo.class), any(byte[].class));
   }
@@ -189,7 +189,6 @@ public class GcsToBqWriterTest {
     Storage storage = mock(Storage.class);
     SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
 
-    SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
     SchemaManager schemaManager = mock(SchemaManager.class);
 
     when(storage.create(any(BlobInfo.class), any(byte[].class)))
@@ -198,18 +197,20 @@ public class GcsToBqWriterTest {
     BigQuerySinkTask testTask =
         BigQuerySinkTaskTest.createTestTask(
             bigQuery,
-            schemaRetriever,
             storage,
             schemaManager,
             mockedStorageWriteApiDefaultStream,
             mockedBatchHandler,
-            time);
+            time,
+            new HighestCommitStrategy());
     testTask.initialize(sinkTaskContext);
     testTask.start(properties);
+
     testTask.put(
         Collections.singletonList(spoofSinkRecord(topic, 0, 0, "some_field", "some_value")));
-    assertThrows(ConnectException.class, () -> testTask.flush(Collections.emptyMap()));
-    // Budget = 3 * 2000ms = 6000ms → 2 sleeps → 3 total attempts
+
+    DataPolling.pollUntilException(testTask, ConnectException.class);
+
     verify(storage, times(3)).create(any(BlobInfo.class), any(byte[].class));
   }
 

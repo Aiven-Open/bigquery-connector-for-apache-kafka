@@ -363,7 +363,12 @@ abstract class BaseConnectorIT {
       String connector, Collection<String> topics, long numRecords, int numTasks, long timeoutMs)
       throws InterruptedException {
     waitForCommittedRecords(
-        connector, topics, numRecords, numTasks, timeoutMs, DEFAULT_POLL_INTERVAL_MS);
+        connector,
+        topics,
+        numRecords,
+        numTasks,
+        timeoutMs,
+        Math.max(DEFAULT_POLL_INTERVAL_MS, OFFSET_COMMIT_INTERVAL_MS / 2));
   }
 
   /**
@@ -409,8 +414,6 @@ abstract class BaseConnectorIT {
                 totalCommittedRecords,
                 topics,
                 numRecords);
-            // Sleep here so as not to spam Kafka with list-offsets requests
-            Thread.sleep(OFFSET_COMMIT_INTERVAL_MS / 2);
             return false;
           }
         },
@@ -728,5 +731,21 @@ abstract class BaseConnectorIT {
   protected String tableSuffix() {
     String pfx = readEnvVar(TEST_NAMESPACE_ENV_VAR, "");
     return pfx.isEmpty() ? defaultSuffix : pfx + "_" + defaultSuffix;
+  }
+
+  /**
+   * Execute an alter table command
+   *
+   * @param bigQuery the BigQuery instance holding the table
+   * @param tableName the name of the table to alter.
+   * @param alteration the alteration to make.
+   * @throws InterruptedException on error
+   */
+  protected void alterTable(BigQuery bigQuery, TableName tableName, String alteration)
+      throws InterruptedException {
+    bigQuery.query(
+        com.google.cloud.bigquery.QueryJobConfiguration.of(
+            String.format(
+                "ALTER TABLE %s.%s %s", tableName.getDataset(), tableName.getTable(), alteration)));
   }
 }

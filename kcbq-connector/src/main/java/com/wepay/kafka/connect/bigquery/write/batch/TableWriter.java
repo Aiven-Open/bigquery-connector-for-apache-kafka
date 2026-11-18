@@ -31,6 +31,7 @@ import com.wepay.kafka.connect.bigquery.exception.BigQueryErrorResponses;
 import com.wepay.kafka.connect.bigquery.exception.ExpectedInterruptException;
 import com.wepay.kafka.connect.bigquery.utils.PartitionedTableId;
 import com.wepay.kafka.connect.bigquery.utils.SinkRecordConverter;
+import com.wepay.kafka.connect.bigquery.write.NeedsStreamState;
 import com.wepay.kafka.connect.bigquery.write.row.BigQueryWriter;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -42,12 +43,13 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** Simple Table Writer that attempts to write all the rows it is given at once. */
-public class TableWriter implements Runnable {
+public class TableWriter implements Runnable, NeedsStreamState {
 
   private static final Logger logger = LoggerFactory.getLogger(TableWriter.class);
 
@@ -125,6 +127,15 @@ public class TableWriter implements Runnable {
         || BigQueryErrorResponses.isTooManyRowsError(exception);
   }
 
+  /**
+   * Gets a Stream of the SinkRecord being processed by this table Writer.
+   *
+   * @return a Stream of the SinkRecord being processed by this table Writer.
+   */
+  public final Stream<SinkRecord> records() {
+    return rows.keySet().stream();
+  }
+
   @Override
   public void run() {
     int currentIndex = 0;
@@ -158,7 +169,8 @@ public class TableWriter implements Runnable {
             currentBatchSize = getNewBatchSize(currentBatchSize, err);
           } else {
             // Throw exception on write errors such as 403.
-            throw new BigQueryConnectException("Failed to write to table", err);
+            throw new BigQueryConnectException(
+                "Failed to write to table. " + err.getMessage(), err);
           }
         }
       }

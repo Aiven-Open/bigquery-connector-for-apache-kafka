@@ -49,7 +49,7 @@ public class BigQueryStorageWriteApiConnectExceptionTest {
   @Test
   public void testFormatAppendSerializationErrorBigQueryStorageWriteApi() {
     String expectedMessage =
-        "Insertion failed at table abc for following rows: \n "
+        "Insertion failed at table abc for following 2 rows: \n "
             + "[row index 0] (Failure reason : f1 is not valid) \n [row index 1] (Failure reason : f2 is not valid) ";
     Map<Integer, String> errors = new HashMap<>();
     errors.put(0, "f1 is not valid");

@@ -111,6 +111,11 @@ public class StorageWriteApiWriter implements Runnable {
     }
   }
 
+  @Override
+  public String toString() {
+    return "StorageWriteApi Writer " + streamName + " on " + table;
+  }
+
   public static class Builder implements TableWriterBuilder {
     private final List<ConvertedRecord> records = new ArrayList<>();
     private final SinkRecordConverter recordConverter;
@@ -188,7 +193,8 @@ public class StorageWriteApiWriter implements Runnable {
     @Override
     public Runnable build() {
       String streamName = DEFAULT;
-      if (records.size() > 0 && streamWriter instanceof StorageWriteApiBatchApplicationStream) {
+      if (!records.isEmpty()
+          && streamWriter instanceof StorageWriteApiBatchApplicationStream batchWriter) {
         TableName tableName = TableNameUtils.tableName(table.getBaseTableId());
         streamName = batchModeHandler.updateOffsetsOnStream(tableName.toString(), records);
       }

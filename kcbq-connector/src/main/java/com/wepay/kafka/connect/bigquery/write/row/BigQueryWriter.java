@@ -60,22 +60,14 @@ public abstract class BigQueryWriter {
   private final ErrantRecordHandler errantRecordHandler;
 
   /**
-   * @param retries the number of times to retry a request if BQ returns an internal service error
-   *     or a service unavailable error.
-   * @param retryWaitMs the amount of time to wait in between reattempting a request if BQ returns
-   *     an internal service error or a service unavailable error.
    * @param errantRecordHandler used to handle errant records
    * @param time used to wait during backoff periods
    * @param config connector configurations
    */
   public BigQueryWriter(
-      int retries,
-      long retryWaitMs,
-      ErrantRecordHandler errantRecordHandler,
-      Time time,
-      BigQuerySinkConfig config) {
-    this.retries = retries;
-    this.retryWaitMs = retryWaitMs;
+      ErrantRecordHandler errantRecordHandler, Time time, BigQuerySinkConfig config) {
+    this.retries = config.maxRetries();
+    this.retryWaitMs = config.retryDelay().toMillis();
     this.random = new Random();
     this.errantRecordHandler = errantRecordHandler;
     this.time = time;
@@ -163,7 +155,7 @@ public abstract class BigQueryWriter {
 
     Exception mostRecentException = null;
     Map<Long, List<BigQueryError>> failedRowsMap = null;
-
+    // TODO convert this to Backoff use
     int retryCount = 0;
     do {
       if (retryCount > 0) {

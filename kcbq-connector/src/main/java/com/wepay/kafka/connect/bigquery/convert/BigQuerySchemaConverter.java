@@ -36,7 +36,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.apache.kafka.connect.data.Schema;
 
 /**
@@ -119,9 +118,7 @@ public class BigQuerySchemaConverter implements SchemaConverter<com.google.cloud
             .filter(kafkaConnectField -> !DELETED_PSEUDO_COLUMN.equals(kafkaConnectField.name()))
             .flatMap(
                 kafkaConnectField ->
-                    convertField(kafkaConnectField.schema(), kafkaConnectField.name())
-                        .map(Stream::of)
-                        .orElse(Stream.empty()))
+                    convertField(kafkaConnectField.schema(), kafkaConnectField.name()).stream())
             .map(com.google.cloud.bigquery.Field.Builder::build)
             .collect(Collectors.toList());
 
@@ -220,9 +217,7 @@ public class BigQuerySchemaConverter implements SchemaConverter<com.google.cloud
             .filter(kafkaConnectField -> !DELETED_PSEUDO_COLUMN.equals(kafkaConnectField.name()))
             .flatMap(
                 kafkaConnectField ->
-                    convertField(kafkaConnectField.schema(), kafkaConnectField.name())
-                        .map(Stream::of)
-                        .orElse(Stream.empty()))
+                    convertField(kafkaConnectField.schema(), kafkaConnectField.name()).stream())
             .map(com.google.cloud.bigquery.Field.Builder::build)
             .collect(Collectors.toList());
     if (bigQueryRecordFields.isEmpty()) {

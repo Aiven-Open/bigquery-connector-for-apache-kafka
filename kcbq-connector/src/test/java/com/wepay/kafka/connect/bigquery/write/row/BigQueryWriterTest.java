@@ -25,7 +25,6 @@ package com.wepay.kafka.connect.bigquery.write.row;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -46,10 +45,12 @@ import com.wepay.kafka.connect.bigquery.BigQuerySinkTask;
 import com.wepay.kafka.connect.bigquery.BigQuerySinkTaskTest;
 import com.wepay.kafka.connect.bigquery.SchemaManager;
 import com.wepay.kafka.connect.bigquery.SinkPropertiesFactory;
-import com.wepay.kafka.connect.bigquery.api.SchemaRetriever;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkTaskConfig;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
+import com.wepay.kafka.connect.bigquery.strategy.CommitStrategy;
+import com.wepay.kafka.connect.bigquery.strategy.HighestCommitStrategy;
+import com.wepay.kafka.connect.bigquery.utils.DataPolling;
 import com.wepay.kafka.connect.bigquery.utils.MockTime;
 import com.wepay.kafka.connect.bigquery.utils.Time;
 import com.wepay.kafka.connect.bigquery.write.storage.StorageApiBatchModeHandler;
@@ -78,6 +79,8 @@ public class BigQueryWriterTest {
 
   private final Time time = new MockTime();
 
+  private final CommitStrategy commitStrategy = new HighestCommitStrategy();
+
   @BeforeAll
   public static void initializePropertiesFactory() {
     propertiesFactory = new SinkPropertiesFactory();
@@ -102,7 +105,6 @@ public class BigQueryWriterTest {
 
     SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
 
-    SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
     SchemaManager schemaManager = mock(SchemaManager.class);
 
     Storage storage = mock(Storage.class);
@@ -110,17 +112,17 @@ public class BigQueryWriterTest {
     BigQuerySinkTask testTask =
         BigQuerySinkTaskTest.createTestTask(
             bigQuery,
-            schemaRetriever,
             storage,
             schemaManager,
             mockedStorageWriteApiDefaultStream,
             mockedBatchHandler,
-            time);
+            time,
+            commitStrategy);
     testTask.initialize(sinkTaskContext);
     testTask.start(properties);
     testTask.put(
         Collections.singletonList(spoofSinkRecord(topic, 0, 0, "some_field", "some_value")));
-    testTask.flush(Collections.emptyMap());
+    DataPolling.pollUntilResults(testTask, DataPolling.SOME_DATA);
 
     verify(bigQuery, times(1)).insertAll(any(InsertAllRequest.class));
   }
@@ -149,23 +151,23 @@ public class BigQueryWriterTest {
     SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
 
     Storage storage = mock(Storage.class);
-    SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
     SchemaManager schemaManager = mock(SchemaManager.class);
 
     BigQuerySinkTask testTask =
         BigQuerySinkTaskTest.createTestTask(
             bigQuery,
-            schemaRetriever,
             storage,
             schemaManager,
             mockedStorageWriteApiDefaultStream,
             mockedBatchHandler,
-            time);
+            time,
+            commitStrategy);
     testTask.initialize(sinkTaskContext);
     testTask.start(properties);
     testTask.put(
         Collections.singletonList(spoofSinkRecord(topic, 0, 0, "some_field", "some_value")));
-    testTask.flush(Collections.emptyMap());
+
+    DataPolling.pollUntilResults(testTask, DataPolling.SOME_DATA);
 
     verify(schemaManager, times(1)).createTable(any(TableId.class), anyList());
     verify(bigQuery, times(2)).insertAll(any(InsertAllRequest.class));
@@ -197,23 +199,23 @@ public class BigQueryWriterTest {
     SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
 
     Storage storage = mock(Storage.class);
-    SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
     SchemaManager schemaManager = mock(SchemaManager.class);
 
     BigQuerySinkTask testTask =
         BigQuerySinkTaskTest.createTestTask(
             bigQuery,
-            schemaRetriever,
             storage,
             schemaManager,
             mockedStorageWriteApiDefaultStream,
             mockedBatchHandler,
-            time);
+            time,
+            commitStrategy);
     testTask.initialize(sinkTaskContext);
     testTask.start(properties);
     testTask.put(
         Collections.singletonList(spoofSinkRecord(topic, 0, 0, "some_field", "some_value")));
-    testTask.flush(Collections.emptyMap());
+
+    DataPolling.pollUntilResults(testTask, DataPolling.SOME_DATA);
 
     verify(bigQuery, times(2)).insertAll(any(InsertAllRequest.class));
     verify(schemaManager, times(0)).createTable(any(TableId.class), anyList());
@@ -243,23 +245,22 @@ public class BigQueryWriterTest {
     SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
 
     Storage storage = mock(Storage.class);
-    SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
     SchemaManager schemaManager = mock(SchemaManager.class);
 
     BigQuerySinkTask testTask =
         BigQuerySinkTaskTest.createTestTask(
             bigQuery,
-            schemaRetriever,
             storage,
             schemaManager,
             mockedStorageWriteApiDefaultStream,
             mockedBatchHandler,
-            time);
+            time,
+            commitStrategy);
     testTask.initialize(sinkTaskContext);
     testTask.start(properties);
     testTask.put(
         Collections.singletonList(spoofSinkRecord(topic, 0, 0, "some_field", "some_value")));
-    testTask.flush(Collections.emptyMap());
+    DataPolling.pollUntilResults(testTask, DataPolling.SOME_DATA);
 
     verify(bigQuery, times(2)).insertAll(any(InsertAllRequest.class));
   }
@@ -287,23 +288,23 @@ public class BigQueryWriterTest {
     SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
 
     Storage storage = mock(Storage.class);
-    SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
     SchemaManager schemaManager = mock(SchemaManager.class);
 
     BigQuerySinkTask testTask =
         BigQuerySinkTaskTest.createTestTask(
             bigQuery,
-            schemaRetriever,
             storage,
             schemaManager,
             mockedStorageWriteApiDefaultStream,
             mockedBatchHandler,
-            time);
+            time,
+            commitStrategy);
     testTask.initialize(sinkTaskContext);
     testTask.start(properties);
     testTask.put(
         Collections.singletonList(spoofSinkRecord(topic, 0, 0, "some_field", "some_value")));
-    assertThrows(BigQueryConnectException.class, () -> testTask.flush(Collections.emptyMap()));
+
+    DataPolling.pollUntilException(testTask, BigQueryConnectException.class);
   }
 
   @Test
@@ -338,23 +339,22 @@ public class BigQueryWriterTest {
 
     SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
 
-    SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
     SchemaManager schemaManager = mock(SchemaManager.class);
     Storage storage = mock(Storage.class);
 
     BigQuerySinkTask testTask =
         BigQuerySinkTaskTest.createTestTask(
             bigQuery,
-            schemaRetriever,
             storage,
             schemaManager,
             mockedStorageWriteApiDefaultStream,
             mockedBatchHandler,
-            time);
+            time,
+            commitStrategy);
     testTask.initialize(sinkTaskContext);
     testTask.start(properties);
     testTask.put(sinkRecordList);
-    testTask.flush(Collections.emptyMap());
+    DataPolling.pollUntilResults(testTask, DataPolling.SOME_DATA);
 
     ArgumentCaptor<InsertAllRequest> varArgs = ArgumentCaptor.forClass(InsertAllRequest.class);
     verify(bigQuery, times(2)).insertAll(varArgs.capture());
@@ -397,24 +397,22 @@ public class BigQueryWriterTest {
 
     SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
 
-    SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
     SchemaManager schemaManager = mock(SchemaManager.class);
     Storage storage = mock(Storage.class);
 
     BigQuerySinkTask testTask =
         BigQuerySinkTaskTest.createTestTask(
             bigQuery,
-            schemaRetriever,
             storage,
             schemaManager,
             mockedStorageWriteApiDefaultStream,
             mockedBatchHandler,
-            time);
+            time,
+            commitStrategy);
     testTask.initialize(sinkTaskContext);
     testTask.start(properties);
     testTask.put(sinkRecordList);
-    Exception expectedEx =
-        assertThrows(BigQueryConnectException.class, () -> testTask.flush(Collections.emptyMap()));
+    Exception expectedEx = DataPolling.pollUntilException(testTask, BigQueryConnectException.class);
     assertTrue(expectedEx.getCause().getMessage().contains("test_topic"));
   }
 
@@ -441,24 +439,24 @@ public class BigQueryWriterTest {
         .thenReturn(successResponse);
 
     SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
-    SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
     SchemaManager schemaManager = mock(SchemaManager.class);
     Storage storage = mock(Storage.class);
 
     BigQuerySinkTask testTask =
         BigQuerySinkTaskTest.createTestTask(
             bigQuery,
-            schemaRetriever,
             storage,
             schemaManager,
             mockedStorageWriteApiDefaultStream,
             mockedBatchHandler,
-            time);
+            time,
+            commitStrategy);
     testTask.initialize(sinkTaskContext);
     testTask.start(properties);
     testTask.put(
         Collections.singletonList(spoofSinkRecord(topic, 0, 0, "some_field", "some_value")));
-    testTask.flush(Collections.emptyMap());
+
+    DataPolling.pollUntilResults(testTask, DataPolling.SOME_DATA);
 
     ArgumentCaptor<InsertAllRequest> requestCaptor =
         ArgumentCaptor.forClass(InsertAllRequest.class);
@@ -502,24 +500,23 @@ public class BigQueryWriterTest {
         .thenReturn(successResponse);
 
     SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
-    SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
     SchemaManager schemaManager = mock(SchemaManager.class);
     Storage storage = mock(Storage.class);
 
     BigQuerySinkTask testTask =
         BigQuerySinkTaskTest.createTestTask(
             bigQuery,
-            schemaRetriever,
             storage,
             schemaManager,
             mockedStorageWriteApiDefaultStream,
             mockedBatchHandler,
-            time);
+            time,
+            commitStrategy);
     testTask.initialize(sinkTaskContext);
     testTask.start(properties);
     testTask.put(
         Collections.singletonList(spoofSinkRecord(topic, 0, 0, "some_field", "some_value")));
-    testTask.flush(Collections.emptyMap());
+    DataPolling.pollUntilResults(testTask, DataPolling.SOME_DATA);
 
     ArgumentCaptor<InsertAllRequest> requestCaptor =
         ArgumentCaptor.forClass(InsertAllRequest.class);
@@ -557,24 +554,24 @@ public class BigQueryWriterTest {
     when(bigQuery.insertAll(any(InsertAllRequest.class))).thenReturn(successResponse);
 
     SinkTaskContext sinkTaskContext = mock(SinkTaskContext.class);
-    SchemaRetriever schemaRetriever = mock(SchemaRetriever.class);
     SchemaManager schemaManager = mock(SchemaManager.class);
     Storage storage = mock(Storage.class);
 
     BigQuerySinkTask testTask =
         BigQuerySinkTaskTest.createTestTask(
             bigQuery,
-            schemaRetriever,
             storage,
             schemaManager,
             mockedStorageWriteApiDefaultStream,
             mockedBatchHandler,
-            time);
+            time,
+            commitStrategy);
     testTask.initialize(sinkTaskContext);
     testTask.start(properties);
     testTask.put(
         Collections.singletonList(spoofSinkRecord(topic, 0, 0, "some_field", "some_value")));
-    testTask.flush(Collections.emptyMap());
+
+    DataPolling.pollUntilResults(testTask, DataPolling.SOME_DATA);
 
     ArgumentCaptor<InsertAllRequest> requestCaptor =
         ArgumentCaptor.forClass(InsertAllRequest.class);
