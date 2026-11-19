@@ -29,17 +29,6 @@ import org.apache.kafka.connect.sink.SinkTask;
 /** Defines the commit strategy for the writers. */
 public interface CommitStrategy {
 
-  static Stream<KafkaRecordKey> extractHighKeys(Stream<KafkaRecordKey> recordKeyStream) {
-    Map<TopicPartition, Long> keyMap = new HashMap<>();
-    recordKeyStream.forEach( key -> keyMap.compute(key.getTopicPartition(), (k,v) ->
-      (v == null) ? key.offset() : Math.max(v, key.offset())));
-    return keyMap.entrySet().stream().map(entry -> new KafkaRecordKey(entry.getKey(), entry.getValue()));
-  }
-
-  static Stream<KafkaRecordKey> convertSinkRecord(Stream<SinkRecord> sinkRecords) {
-    return sinkRecords.map(KafkaRecordKey::new);
-  }
-
   /**
    * Extracts the highest KafkaRecordKey for each topic/partition in the stream.
    *

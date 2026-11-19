@@ -528,7 +528,11 @@ public abstract class StorageWriteApiBase {
           streamNameForSchema += DEFAULT_STREAM_NAME_SUFFIX;
         }
         TableSchema tableSchema = getTableSchemaWithPseudoColumns(streamNameForSchema);
+        if (tableSchema != null) {
         builder = JsonStreamWriter.newBuilder(streamOrTableName, tableSchema, writeClient);
+      } else {
+        builder = JsonStreamWriter.newBuilder(streamOrTableName, writeClient);
+      }
       } else {
         builder = JsonStreamWriter.newBuilder(streamOrTableName, writeClient);
       }
