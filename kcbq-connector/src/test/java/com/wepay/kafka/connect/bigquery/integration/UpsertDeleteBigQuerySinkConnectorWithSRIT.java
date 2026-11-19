@@ -26,7 +26,8 @@ package com.wepay.kafka.connect.bigquery.integration;
 import static io.confluent.kafka.serializers.AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG;
 import static org.apache.kafka.connect.runtime.ConnectorConfig.KEY_CONVERTER_CLASS_CONFIG;
 import static org.apache.kafka.connect.runtime.ConnectorConfig.VALUE_CONVERTER_CLASS_CONFIG;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.storage.v1.TableName;
@@ -35,13 +36,13 @@ import com.wepay.kafka.connect.bigquery.integration.utils.SchemaRegistryTestUtil
 import com.wepay.kafka.connect.bigquery.retrieve.IdentitySchemaRetriever;
 import io.confluent.connect.avro.AvroConverter;
 import java.lang.reflect.Method;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaAndValue;
@@ -50,6 +51,7 @@ import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.runtime.ConnectorConfig;
 import org.apache.kafka.connect.runtime.SinkConnectorConfig;
 import org.apache.kafka.connect.storage.Converter;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -213,10 +215,11 @@ class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
     // send prepared records
     schemaRegistry.produceRecordsWithKey(keyConverter, valueConverter, records, topic);
 
-    // wait for tasks to write to BigQuery and commit offsets for their records
-    waitForCommittedRecords(connectorName(), topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
+    // Wait until table is created
+    Awaitility.waitAtMost(Duration.ofMinutes(4))
+        .pollInterval(Duration.ofSeconds(1))
+        .until(() -> bigQuery.getTable(tableName.getDataset(), tableName.getTable()) != null);
 
-    List<List<Object>> allRows = readAllRows(bigQuery, tableName, KAFKA_FIELD_NAME + ".k1");
     List<List<Object>> expectedRows =
         LongStream.range(0, NUM_RECORDS_PRODUCED / 2)
             .mapToObj(
@@ -226,8 +229,15 @@ class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
                         (i - 1) % 3 == 0,
                         (i * 2 + 1) / 0.69,
                         Collections.singletonList(i)))
-            .collect(Collectors.toList());
-    assertEquals(expectedRows, allRows);
+            .toList();
+
+    await()
+        .atMost(Duration.ofMinutes(5))
+        .pollInterval(Duration.ofSeconds(1))
+        .untilAsserted(
+            () ->
+                assertThat(readAllRows(bigQuery, tableName, KAFKA_FIELD_NAME + ".k1"))
+                    .containsExactlyInAnyOrderElementsOf(expectedRows));
   }
 
   @Test
@@ -293,12 +303,11 @@ class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
     // send prepared records
     schemaRegistry.produceRecordsWithKey(keyConverter, valueConverter, records, topic);
 
-    // wait for tasks to write to BigQuery and commit offsets for their records
-    waitForCommittedRecords(connectorName(), topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
+    // Wait until table is created
+    Awaitility.waitAtMost(Duration.ofMinutes(4))
+        .pollInterval(Duration.ofSeconds(1))
+        .until(() -> bigQuery.getTable(tableName.getDataset(), tableName.getTable()) != null);
 
-    // Since we have multiple rows per key, order by key and the f3 field (which should be
-    // monotonically increasing in insertion order)
-    List<List<Object>> allRows = readAllRows(bigQuery, tableName, KAFKA_FIELD_NAME + ".k1, f3");
     List<List<Object>> expectedRows =
         LongStream.range(0, NUM_RECORDS_PRODUCED)
             .filter(i -> i % 4 < 2)
@@ -309,8 +318,15 @@ class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
                         i % 3 == 0,
                         i / 0.69,
                         Collections.singletonList(i * 2 / 4)))
-            .collect(Collectors.toList());
-    assertEquals(expectedRows, allRows);
+            .toList();
+
+    await()
+        .atMost(Duration.ofMinutes(5))
+        .pollInterval(Duration.ofSeconds(1))
+        .untilAsserted(
+            () ->
+                assertThat(readAllRows(bigQuery, tableName, KAFKA_FIELD_NAME + ".k1, f3"))
+                    .containsExactlyInAnyOrderElementsOf(expectedRows));
   }
 
   @Test
@@ -376,12 +392,11 @@ class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
     // send prepared records
     schemaRegistry.produceRecordsWithKey(keyConverter, valueConverter, records, topic);
 
-    // wait for tasks to write to BigQuery and commit offsets for their records
-    waitForCommittedRecords(connectorName(), topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
+    // Wait until table is created
+    Awaitility.waitAtMost(Duration.ofMinutes(4))
+        .pollInterval(Duration.ofSeconds(1))
+        .until(() -> bigQuery.getTable(tableName.getDataset(), tableName.getTable()) != null);
 
-    // Since we have multiple rows per key, order by key and the f3 field (which should be
-    // monotonically increasing in insertion order)
-    List<List<Object>> allRows = readAllRows(bigQuery, tableName, KAFKA_FIELD_NAME + ".k1, f3");
     List<List<Object>> expectedRows =
         LongStream.range(0, NUM_RECORDS_PRODUCED)
             .filter(i -> i % 4 == 1)
@@ -392,8 +407,17 @@ class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
                         i % 3 == 0,
                         i / 0.69,
                         Collections.singletonList(i * 2 / 4)))
-            .collect(Collectors.toList());
-    assertEquals(expectedRows, allRows);
+            .toList();
+
+    // Since we have multiple rows per key, order by key and the f3 field (which should be
+    // monotonically increasing in insertion order)
+    await()
+        .atMost(Duration.ofMinutes(5))
+        .pollInterval(Duration.ofSeconds(1))
+        .untilAsserted(
+            () ->
+                assertThat(readAllRows(bigQuery, tableName, KAFKA_FIELD_NAME + ".k1, f3"))
+                    .containsExactlyInAnyOrderElementsOf(expectedRows));
   }
 
   private void initialiseConverters() {
