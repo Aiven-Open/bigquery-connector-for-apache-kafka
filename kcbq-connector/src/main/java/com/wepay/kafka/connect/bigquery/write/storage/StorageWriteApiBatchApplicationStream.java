@@ -33,19 +33,26 @@ import com.wepay.kafka.connect.bigquery.ErrantRecordHandler;
 import com.wepay.kafka.connect.bigquery.SchemaManager;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiConnectException;
+import com.wepay.kafka.connect.bigquery.strategy.CommitStrategy;
+import com.wepay.kafka.connect.bigquery.strategy.KafkaRecordKey;
+import com.wepay.kafka.connect.bigquery.strategy.StreamStateContainer;
+import com.wepay.kafka.connect.bigquery.threads.KcbqThreadPoolExecutor;
+import com.wepay.kafka.connect.bigquery.threads.NamedRunnable;
 import com.wepay.kafka.connect.bigquery.utils.PartitionedTableId;
 import com.wepay.kafka.connect.bigquery.utils.TableNameUtils;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.stream.Collectors;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.sink.SinkRecord;
@@ -69,15 +76,17 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiBase {
    * Map of {tableName , {StreamName, {@link ApplicationStream}}} Streams should be accessed in the
    * order of entry, so we need LinkedHashMap here
    */
-  protected ConcurrentMap<String, LinkedHashMap<String, ApplicationStream>> streams;
+  ConcurrentMap<String, LinkedHashMap<String, ApplicationStream>> streams;
 
   /** Quick lookup for current open stream by tableName */
-  protected ConcurrentMap<String, String> currentStreams;
+  ConcurrentMap<String, ApplicationStream> currentStreams;
 
   /** Lock on table names to prevent execution of critical section by multiple threads */
   protected ConcurrentMap<String, Object> tableLocks;
 
   protected ConcurrentMap<ApplicationStream, Object> streamLocks;
+
+  private final KcbqThreadPoolExecutor executor;
 
   public StorageWriteApiBatchApplicationStream(
       int retry,
@@ -87,7 +96,10 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiBase {
       ErrantRecordHandler errantRecordHandler,
       SchemaManager schemaManager,
       boolean attemptSchemaUpdate,
-      BigQuerySinkConfig config) {
+      BigQuerySinkConfig config,
+      KcbqThreadPoolExecutor executor,
+      CommitStrategy commitStrategy
+      ) {
     super(
         retry,
         retryWait,
@@ -96,37 +108,11 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiBase {
         errantRecordHandler,
         schemaManager,
         attemptSchemaUpdate,
-        config);
-    streams = new ConcurrentHashMap<>();
-    currentStreams = new ConcurrentHashMap<>();
-    tableLocks = new ConcurrentHashMap<>();
-    streamLocks = new ConcurrentHashMap<>();
-  }
-
-  /**
-   * @deprecated This constructor does not support configuration of additional write settings. Use
-   *     {@link #StorageWriteApiBatchApplicationStream(int retry, long retryWait,
-   *     BigQueryWriteSettings writeSettings, boolean autoCreateTables, ErrantRecordHandler
-   *     errantRecordHandler, SchemaManager schemaManager, boolean attemptSchemaUpdate,
-   *     BigQuerySinkConfig config)} instead.
-   */
-  @Deprecated
-  public StorageWriteApiBatchApplicationStream(
-      int retry,
-      long retryWait,
-      BigQueryWriteSettings writeSettings,
-      boolean autoCreateTables,
-      ErrantRecordHandler errantRecordHandler,
-      SchemaManager schemaManager,
-      boolean attemptSchemaUpdate) {
-    super(
-        retry,
-        retryWait,
-        writeSettings,
-        autoCreateTables,
-        errantRecordHandler,
-        schemaManager,
-        attemptSchemaUpdate);
+        config,
+            commitStrategy);
+    Objects.requireNonNull(executor, "Executor may not be null");
+    Objects.requireNonNull(commitStrategy, "CommitStrategy may not be null");
+    this.executor = executor;
     streams = new ConcurrentHashMap<>();
     currentStreams = new ConcurrentHashMap<>();
     tableLocks = new ConcurrentHashMap<>();
@@ -139,7 +125,7 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiBase {
     logger.debug("Shutting down all streams on all tables as due to task shutdown!!!");
     this.streams.values().stream()
         .flatMap(item -> item.values().stream())
-        .collect(Collectors.toList())
+        .toList()
         .forEach(ApplicationStream::closeStream);
     logger.debug("Shutting completed for all streams on all tables!");
   }
@@ -154,14 +140,14 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiBase {
   }
 
   /**
-   * Gets commitable offsets on all tables and all streams. Offsets returned should be sequential.
+   * Gets committable offsets on all tables and all streams. Offsets returned should be sequential.
    * As soon as we see a stream not committed we will drop iterating over next streams for that
    * table. Cleans up committed streams
    *
    * @return Returns Map of TopicPartition to OffsetMetadata. Will be empty if there is nothing new
    *     to commit.
    */
-  public Map<TopicPartition, OffsetAndMetadata> getCommitableOffsets() {
+  public Map<TopicPartition, OffsetAndMetadata> getCommittableOffsets() {
     Map<TopicPartition, OffsetAndMetadata> offsetsReadyForCommits = new ConcurrentHashMap<>();
     this.streams.forEach(
         (tableName, streamDetails) -> {
@@ -202,24 +188,6 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiBase {
     return offsetsReadyForCommits;
   }
 
-  /**
-   * This attempts to create stream if there are no existing stream for table or the stream is not
-   * empty (it has been assigned some records)
-   *
-   * @param tableName Name of the table in project/dataset/table format
-   */
-  public boolean maybeCreateStream(String tableName, List<ConvertedRecord> rows) {
-    String streamName = this.currentStreams.get(tableName);
-    boolean shouldCreateNewStream =
-        (streamName == null)
-            || (this.streams.get(tableName).get(streamName) != null
-                && this.streams.get(tableName).get(streamName).canTransitionToNonActive());
-    if (shouldCreateNewStream) {
-      logger.trace("Attempting to create new stream on table {}", tableName);
-      return this.createStream(tableName, streamName, rows);
-    }
-    return false;
-  }
 
   /**
    * Attempts to commit all eligible streams. A stream is eligible if it {@link
@@ -240,8 +208,31 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiBase {
     // iterate over elements that were added later on
     // If an element (i.e., application stream) is added later, we'll just try to commit it
     // later, possibly in the next invocation of this method
-    currentStreams.keySet().forEach(table -> maybeCreateStream(table, null));
+    currentStreams.keySet().forEach(tableName -> currentStreams.compute(tableName, (k, v) -> {
+      if (v == null || v.canTransitionToNonActive()) {
+        logger.trace("Attempting to create new stream on table {}", tableName);
+        Optional<ApplicationStream> optStream = this.createStream(tableName, null);
+        optStream.ifPresent(newStream -> { if (v != null) {
+          commitStreamIfEligible(tableName, newStream.getStreamName(), v);
+        }});
+        return optStream.orElse(null);
+      }
+      return v;
+    }));
   }
+
+//  public boolean maybeCreateStream(String tableName, List<ConvertedRecord> rows) {
+//    ApplicationStream applicationStream = this.currentStreams.get(tableName);
+//    boolean shouldCreateNewStream =
+//            (applicationStream == null)
+//                    || (this.streams.get(tableName).get(applicationStream) != null
+//                    && this.streams.get(tableName).get(applicationStream).canTransitionToNonActive());
+//    if (shouldCreateNewStream) {
+//      logger.trace("Attempting to create new stream on table {}", tableName);
+//      return this.createStream(tableName, applicationStream, rows);
+//    }
+//    return false;
+//  }
 
   /**
    * Assigns offsets to current stream on table
@@ -251,18 +242,38 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiBase {
    * @return Stream name using which offsets would be written
    */
   public String updateOffsetsOnStream(String tableName, List<ConvertedRecord> rows) {
-    String streamName;
-    Map<TopicPartition, OffsetAndMetadata> offsetInfo = getOffsetFromRecords(rows);
-    synchronized (lock(tableName)) {
-      streamName = this.getCurrentStreamForTable(tableName, rows);
-      this.streams.get(tableName).get(streamName).updateOffsetInformation(offsetInfo, rows.size());
-    }
-    logger.trace(
-        "Assigned offsets {} to stream {} for {} rows", offsetInfo, streamName, rows.size());
-    return streamName;
+
+    // collect max KafkaRecordKey for each topic/partition
+    Map<TopicPartition, KafkaRecordKey> offsetInfo = new HashMap<>();
+    rows.forEach(cr -> offsetInfo.compute(new TopicPartition(cr.original().originalTopic(), cr.original().originalKafkaPartition()),
+            (k, v) -> {
+      KafkaRecordKey newKey = new KafkaRecordKey(cr.original());
+      if (v == null) {
+        return newKey;
+      } else {
+        return v.compareTo(newKey) < 0 ? newKey : v;
+      }
+    }));
+
+    ApplicationStream applicationStream = currentStreams.computeIfAbsent(tableName, k -> createApplicationStream(tableName, null));
+  applicationStream.updateOffsetInformation(Collections.emptyMap(), rows.size());
+  //  commitStrategy.queueKeys(offsetInfo.values().stream(), applicationStream);
+    return applicationStream.getStreamName();
+//
+//
+//    applicationStream.updateOffsetInformation();
+//    synchronized (lock(tableName)) {
+//      streamName = this.getCurrentStreamForTable(tableName, rows);
+//      this.streams.get(tableName).get(streamName).updateOffsetInformation(offsetInfo, rows.size());
+//    }
+//    logger.trace(
+//        "Assigned offsets {} to stream {} for {} rows", offsetInfo, streamName, rows.size());
+//    return streamName;
   }
 
-  /** Takes care of creating a new application stream */
+  /** Takes care of creating a new application stream
+   * This is not what you want to create a new stream.
+   * {@link #createStream(String, List)}*/
   @VisibleForTesting
   ApplicationStream createApplicationStream(String tableName, List<ConvertedRecord> rows) {
     StorageWriteApiRetryHandler retryHandler =
@@ -295,7 +306,7 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiBase {
         } else if (isNonRetriable(e)) {
           failTask(retryHandler.getMostRecentException());
         }
-        logger.warn(baseErrorMessage + " Retry attempt {}", retryHandler.getAttempt());
+        logger.warn("{}  Retry attempt {}", baseErrorMessage, retryHandler.getAttempt());
       }
       retryHandler.maybeRetry("create application stream on table " + tableName);
     } while (true);
@@ -305,41 +316,56 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiBase {
    * Creates stream and updates current active stream with the newly created one
    *
    * @param tableName The name of the table
-   * @param oldStream Last active stream on the table when this method was invoked.
    * @return Returns false if the oldstream is not equal to active stream , creates stream otherwise
    *     and returns true
    */
-  private boolean createStream(String tableName, String oldStream, List<ConvertedRecord> rows) {
-    synchronized (lock(tableName)) {
-      // This check verifies if the current active stream is same as seen by the calling method. If
-      // different, that
-      // would mean a new stream got created by some other thread and this attempt can be dropped.
-      if (!Objects.equals(oldStream, this.currentStreams.get(tableName))) {
-        return false;
-      }
-      // Current state is same as calling state. Create new Stream
+  private Optional<ApplicationStream> createStream(String tableName, List<ConvertedRecord> rows) {
+    AtomicReference<ApplicationStream> newStream = new AtomicReference<>();
+    currentStreams.computeIfAbsent(tableName, k -> {
       ApplicationStream stream = createApplicationStream(tableName, rows);
-      if (stream == null) {
-        if (rows == null) {
-          return false;
-        } else {
-          // We should never reach here
-          throw new BigQueryStorageWriteApiConnectException(
-              "Application Stream creation could not be completed successfully.");
+      newStream.set(stream);
+
+      streams.compute(tableName, (k1, v1) -> {
+        if (v1 == null) {
+          v1 = new LinkedHashMap<>();
         }
-      }
-      String streamName = stream.getStreamName();
-
-      this.streams.computeIfAbsent(tableName, t -> new LinkedHashMap<>());
-      this.streams.get(tableName).put(streamName, stream);
-      this.currentStreams.put(tableName, streamName);
-    }
-    if (oldStream != null) {
-      commitStreamIfEligible(tableName, oldStream);
-    }
-
-    return true;
+        v1.put(stream.getStreamName(), stream);
+        return v1;
+      });
+      return stream;
+    });
+    return Optional.ofNullable(newStream.get());
   }
+//    synchronized (lock(tableName)) {
+//      // This check verifies if the current active stream is same as seen by the calling method. If
+//      // different, that
+//      // would mean a new stream got created by some other thread and this attempt can be dropped.
+//      if (!Objects.equals(oldStream, this.currentStreams.get(tableName))) {
+//        return false;
+//      }
+//      // Current state is same as calling state. Create new Stream
+//      ApplicationStream stream = createApplicationStream(tableName, rows);
+//      if (stream == null) {
+//        if (rows == null) {
+//          return false;
+//        } else {
+//          // We should never reach here
+//          throw new BigQueryStorageWriteApiConnectException(
+//              "Application Stream creation could not be completed successfully.");
+//        }
+//      }
+//      String streamName = stream.getStreamName();
+//
+//      this.streams.computeIfAbsent(tableName, t -> new LinkedHashMap<>());
+//      this.streams.get(tableName).put(streamName, stream);
+//      this.currentStreams.put(tableName, streamName);
+//    }
+//    if (oldStream != null) {
+//      commitStreamIfEligible(tableName, oldStream);
+//    }
+//
+//    return true;
+//  }
 
   /**
    * This takes care of actually making the data available for viewing in BigQuery
@@ -352,54 +378,34 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiBase {
   }
 
   /**
-   * Get or create stream for table
-   *
-   * @param tableName The table name
-   * @return Current active stream on table
-   */
-  private String getCurrentStreamForTable(String tableName, List<ConvertedRecord> rows) {
-    if (!currentStreams.containsKey(tableName)) {
-      this.createStream(tableName, null, rows);
-    }
-
-    return Objects.requireNonNull(this.currentStreams.get(tableName));
-  }
-
-  /**
    * Commits the stream if it is not active and has written all the data assigned to it.
    *
    * @param tableName The name of the table
    * @param streamName The name of the stream on table
    */
   private void commitStreamIfEligible(String tableName, String streamName) {
-    if (!Objects.equals(currentStreams.get(tableName), streamName)) {
-      logger.trace("Stream {} is not active, can be committed", streamName);
-      ApplicationStream stream = this.streams.get(tableName).get(streamName);
-      synchronized (lock(stream)) {
-        if (stream != null && stream.areAllExpectedCallsCompleted()) {
-          if (!stream.canBeCommitted()) {
-            logger.trace(
-                "Stream {} with state {} is not committable", streamName, stream.getCurrentState());
-            return;
-          }
-          // We are done with all expected calls for non-active streams, lets finalise and commit
-          // the stream.
-          logger.trace("Stream {} has written all assigned offsets.", streamName);
-          finaliseAndCommitStream(stream);
-          logger.trace("Stream {} is now committed.", streamName);
-          return;
-        }
-      }
-      logger.trace("Stream {} has not written all assigned offsets.", streamName);
-    }
-    logger.trace("Stream {} on table {} is not eligible for commit yet", streamName, tableName);
+    currentStreams.computeIfPresent(tableName, (k, v) ->
+      commitStreamIfEligible(tableName, streamName, v));
   }
 
-  private void updateSuccessAndTryCommit(
-      ApplicationStream applicationStream, TableName tableName, String streamName) {
-    applicationStream.increaseCompletedCalls();
-    commitStreamIfEligible(tableName.toString(), streamName);
+  private ApplicationStream commitStreamIfEligible(String tableName, String streamName, ApplicationStream commitStream) {
+    if (commitStream != null) {
+      if (!Objects.equals(commitStream.getStreamName(), streamName)) {
+        logger.trace("Stream {} is not active, can be committed", streamName);
+        ApplicationStream stream = this.streams.get(tableName).get(streamName);
+        if (stream != null && stream.areAllExpectedCallsCompleted()) {
+          executor.submit(new NamedRunnable(stream::attemptCommit, stream.getStreamName()));
+        } else {
+          logger.trace("Stream {} has not written all assigned offsets.", streamName);
+        }
+      }
+    } else {
+        logger.trace("Stream {} on table {} is not eligible for commit yet", streamName, tableName);
+    }
+    return commitStream;
   }
+
+
 
   private Object lock(String tableName) {
     return tableLocks.computeIfAbsent(tableName, t -> new Object());
@@ -450,7 +456,8 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiBase {
 
     @Override
     public void onSuccess() {
-      updateSuccessAndTryCommit(applicationStream, tableName, streamName);
+      applicationStream.increaseCompletedCalls();
+      commitStreamIfEligible(tableName.toString(), streamName);
     }
 
     @Override
@@ -461,6 +468,11 @@ public class StorageWriteApiBatchApplicationStream extends StorageWriteApiBase {
     @Override
     public String streamName() {
       return streamName;
+    }
+
+    @Override
+    public Optional<StreamStateContainer> getStreamStateContainer() {
+      return Optional.of(applicationStream);
     }
   }
 }

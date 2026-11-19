@@ -189,7 +189,7 @@ public class BigQuerySinkTask extends SinkTask {
     if (upsertDelete) {
       result = mergeBatches.latestOffsets();
     } else if (useStorageApiBatchMode) {
-      result = batchHandler.getCommitableOffsets();
+      result = commitStrategy.preCommit(offsets);// batchHandler.getCommitableOffsets();
     } else {
       result = commitStrategy.preCommit(offsets);
     }
@@ -591,7 +591,9 @@ public class BigQuerySinkTask extends SinkTask {
                 errantRecordHandler,
                 getSchemaManager(),
                 attemptSchemaUpdate,
-                config);
+                config,
+                    executor,
+                    commitStrategy);
         storageApiWriter = writer;
 
         logger.info("Starting task with Storage Write API Batch Mode");
@@ -617,7 +619,8 @@ public class BigQuerySinkTask extends SinkTask {
                 errantRecordHandler,
                 getSchemaManager(),
                 attemptSchemaUpdate,
-                config);
+                config,
+                    commitStrategy);
       }
     }
   }
