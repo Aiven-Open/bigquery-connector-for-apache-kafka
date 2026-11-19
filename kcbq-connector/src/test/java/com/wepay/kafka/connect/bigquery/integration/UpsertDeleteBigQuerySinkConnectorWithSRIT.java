@@ -28,7 +28,6 @@ import static org.apache.kafka.connect.runtime.ConnectorConfig.KEY_CONVERTER_CLA
 import static org.apache.kafka.connect.runtime.ConnectorConfig.VALUE_CONVERTER_CLASS_CONFIG;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.storage.v1.TableName;
@@ -44,7 +43,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaAndValue;
@@ -219,22 +217,27 @@ class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
 
     // Wait until table is created
     Awaitility.waitAtMost(Duration.ofMinutes(4))
-            .pollInterval(Duration.ofSeconds(1))
-            .until(() -> bigQuery.getTable(tableName.getDataset(), tableName.getTable()) != null);
+        .pollInterval(Duration.ofSeconds(1))
+        .until(() -> bigQuery.getTable(tableName.getDataset(), tableName.getTable()) != null);
 
     List<List<Object>> expectedRows =
-            LongStream.range(0, NUM_RECORDS_PRODUCED / 2)
-                    .mapToObj(
-                            i ->
-                                    Arrays.asList(
-                                            "another string",
-                                            (i - 1) % 3 == 0,
-                                            (i * 2 + 1) / 0.69,
-                                            Collections.singletonList(i)))
-                    .toList();
+        LongStream.range(0, NUM_RECORDS_PRODUCED / 2)
+            .mapToObj(
+                i ->
+                    Arrays.asList(
+                        "another string",
+                        (i - 1) % 3 == 0,
+                        (i * 2 + 1) / 0.69,
+                        Collections.singletonList(i)))
+            .toList();
 
-    await().atMost(Duration.ofMinutes(5)).pollInterval(Duration.ofSeconds(1)).untilAsserted(
-            () -> assertThat(readAllRows(bigQuery, tableName, KAFKA_FIELD_NAME + ".k1")).containsExactlyInAnyOrderElementsOf(expectedRows));
+    await()
+        .atMost(Duration.ofMinutes(5))
+        .pollInterval(Duration.ofSeconds(1))
+        .untilAsserted(
+            () ->
+                assertThat(readAllRows(bigQuery, tableName, KAFKA_FIELD_NAME + ".k1"))
+                    .containsExactlyInAnyOrderElementsOf(expectedRows));
   }
 
   @Test
@@ -302,24 +305,28 @@ class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
 
     // Wait until table is created
     Awaitility.waitAtMost(Duration.ofMinutes(4))
-            .pollInterval(Duration.ofSeconds(1))
-            .until(() -> bigQuery.getTable(tableName.getDataset(), tableName.getTable()) != null);
+        .pollInterval(Duration.ofSeconds(1))
+        .until(() -> bigQuery.getTable(tableName.getDataset(), tableName.getTable()) != null);
 
     List<List<Object>> expectedRows =
-            LongStream.range(0, NUM_RECORDS_PRODUCED)
-                    .filter(i -> i % 4 < 2)
-                    .mapToObj(
-                            i ->
-                                    Arrays.asList(
-                                            i % 4 == 0 ? "a string" : "another string",
-                                            i % 3 == 0,
-                                            i / 0.69,
-                                            Collections.singletonList(i * 2 / 4)))
-                    .toList();
+        LongStream.range(0, NUM_RECORDS_PRODUCED)
+            .filter(i -> i % 4 < 2)
+            .mapToObj(
+                i ->
+                    Arrays.asList(
+                        i % 4 == 0 ? "a string" : "another string",
+                        i % 3 == 0,
+                        i / 0.69,
+                        Collections.singletonList(i * 2 / 4)))
+            .toList();
 
-    await().atMost(Duration.ofMinutes(5)).pollInterval(Duration.ofSeconds(1)).untilAsserted(
-            () -> assertThat(readAllRows(bigQuery, tableName, KAFKA_FIELD_NAME + ".k1, f3")).containsExactlyInAnyOrderElementsOf(expectedRows));
-
+    await()
+        .atMost(Duration.ofMinutes(5))
+        .pollInterval(Duration.ofSeconds(1))
+        .untilAsserted(
+            () ->
+                assertThat(readAllRows(bigQuery, tableName, KAFKA_FIELD_NAME + ".k1, f3"))
+                    .containsExactlyInAnyOrderElementsOf(expectedRows));
   }
 
   @Test
@@ -387,8 +394,8 @@ class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
 
     // Wait until table is created
     Awaitility.waitAtMost(Duration.ofMinutes(4))
-            .pollInterval(Duration.ofSeconds(1))
-            .until(() -> bigQuery.getTable(tableName.getDataset(), tableName.getTable()) != null);
+        .pollInterval(Duration.ofSeconds(1))
+        .until(() -> bigQuery.getTable(tableName.getDataset(), tableName.getTable()) != null);
 
     List<List<Object>> expectedRows =
         LongStream.range(0, NUM_RECORDS_PRODUCED)
@@ -404,8 +411,13 @@ class UpsertDeleteBigQuerySinkConnectorWithSRIT extends BaseConnectorIT {
 
     // Since we have multiple rows per key, order by key and the f3 field (which should be
     // monotonically increasing in insertion order)
-    await().atMost(Duration.ofMinutes(5)).pollInterval(Duration.ofSeconds(1)).untilAsserted(
-            () -> assertThat(readAllRows(bigQuery, tableName, KAFKA_FIELD_NAME + ".k1, f3")).containsExactlyInAnyOrderElementsOf(expectedRows));
+    await()
+        .atMost(Duration.ofMinutes(5))
+        .pollInterval(Duration.ofSeconds(1))
+        .untilAsserted(
+            () ->
+                assertThat(readAllRows(bigQuery, tableName, KAFKA_FIELD_NAME + ".k1, f3"))
+                    .containsExactlyInAnyOrderElementsOf(expectedRows));
   }
 
   private void initialiseConverters() {
