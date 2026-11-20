@@ -929,7 +929,6 @@ public class BigQuerySinkTaskTest {
     logger.info("Interrupt called.");
     Exception e = DataPolling.pollUntilException(testTask, ConnectException.class);
     e.printStackTrace();
-    ;
   }
 
   @Test
