@@ -651,8 +651,7 @@ class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
   @Test
   @Tag("slow")
   void testAvroHighThroughput() throws InterruptedException {
-    assumeTrue(
-        !isBatchMode(), "Disabled because the number of items returned can exceed the expected");
+
     // pre-create the table
     createPerformanceTestingTable(tableName);
 
