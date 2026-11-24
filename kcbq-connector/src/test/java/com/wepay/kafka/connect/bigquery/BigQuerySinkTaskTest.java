@@ -391,7 +391,7 @@ public class BigQuerySinkTaskTest {
 
     Map<TopicPartition, OffsetAndMetadata> results =
         DataPolling.pollUntilResults(testTask, map -> map.containsKey(tp));
-    assertThat(results.get(tp).offset()).isEqualTo(sinkRecord.originalKafkaOffset());
+    assertThat(results.get(tp).offset()).isEqualTo(sinkRecord.originalKafkaOffset() + 1);
     verify(bigQuery, times(1)).insertAll(any(InsertAllRequest.class));
   }
 
