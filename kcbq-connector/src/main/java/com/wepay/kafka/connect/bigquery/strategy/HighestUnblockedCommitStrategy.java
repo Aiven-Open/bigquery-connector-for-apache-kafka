@@ -122,7 +122,7 @@ public class HighestUnblockedCommitStrategy implements CommitStrategy {
         if (highestCommittableKey != null) {
           result.put(
               highestCommittableKey.getTopicPartition(),
-              highestCommittableKey.getOffsetAndMetadata());
+                  new OffsetAndMetadata(highestCommittableKey.offset() + 1));
         }
         startKey = commitMap.higherKey(endKey);
       }
