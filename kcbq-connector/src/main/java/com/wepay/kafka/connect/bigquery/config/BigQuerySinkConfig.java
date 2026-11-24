@@ -1712,9 +1712,9 @@ public class BigQuerySinkConfig extends AbstractConfig {
   }
 
   /**
-   * Determine if Storage API should be used.
+   * Determine if the use Storage API flag is set.
    *
-   * @return {@code true} if Storage API should be used.
+   * @return {@code true} if the use Storage API flag is set.
    */
   public boolean useStorageApi() {
     return getBoolean(BigQuerySinkConfig.USE_STORAGE_WRITE_API_CONFIG);

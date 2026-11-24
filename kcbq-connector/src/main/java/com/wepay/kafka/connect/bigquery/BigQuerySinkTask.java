@@ -40,7 +40,6 @@ import com.wepay.kafka.connect.bigquery.convert.logicaltype.KafkaLogicalConverte
 import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiConnectException;
 import com.wepay.kafka.connect.bigquery.exception.ConversionConnectException;
 import com.wepay.kafka.connect.bigquery.strategy.CommitStrategy;
-import com.wepay.kafka.connect.bigquery.strategy.DefaultKafkaCommitStrategy;
 import com.wepay.kafka.connect.bigquery.strategy.HighestUnblockedCommitStrategy;
 import com.wepay.kafka.connect.bigquery.strategy.StreamStateContainer;
 import com.wepay.kafka.connect.bigquery.threads.KcbqScheduledThreadPoolExecutor;
@@ -145,11 +144,10 @@ public class BigQuerySinkTask extends SinkTask {
     testStorageWriteApi = null;
     testStorageApiBatchHandler = null;
     time = Time.SYSTEM;
-    commitStrategyFactory =
-        config ->
-            (!config.upsertDelete() && !config.useStorageApi())
-                ? new HighestUnblockedCommitStrategy()
-                : new DefaultKafkaCommitStrategy();
+    commitStrategyFactory = config -> new HighestUnblockedCommitStrategy();
+    //            (!config.upsertDelete() && !config.useStorageWriteApi())
+    //                ? new HighestUnblockedCommitStrategy()
+    //                : new DefaultKafkaCommitStrategy();
   }
 
   /**
