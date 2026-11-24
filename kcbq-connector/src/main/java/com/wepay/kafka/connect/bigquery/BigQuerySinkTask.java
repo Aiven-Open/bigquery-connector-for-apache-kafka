@@ -145,9 +145,6 @@ public class BigQuerySinkTask extends SinkTask {
     testStorageApiBatchHandler = null;
     time = Time.SYSTEM;
     commitStrategyFactory = config -> new HighestUnblockedCommitStrategy();
-    //            (!config.upsertDelete() && !config.useStorageWriteApi())
-    //                ? new HighestUnblockedCommitStrategy()
-    //                : new DefaultKafkaCommitStrategy();
   }
 
   /**
