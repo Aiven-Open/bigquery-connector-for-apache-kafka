@@ -636,6 +636,7 @@ public class BigQuerySinkConfig extends AbstractConfig {
                     QUEUE_SIZE_CONFIG,
                     txt);
               }
+              return;
             } catch (NumberFormatException e) {
               throw new ConfigException(String.format("'%s' must be %s", name, toString()));
             }
