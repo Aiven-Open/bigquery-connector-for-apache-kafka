@@ -205,6 +205,8 @@ class StorageWriteApiBaseTest {
     executeInitializeAndWriteRecordsTestData(streamWriter, config, schemaManager);
 
     verify(schemaManager, times(1)).updateSchema(any(TableId.class), any(List.class));
+    // JsonStreamWriter keeps the pre-update table schema until StreamWriter.refresh().
+    assertEquals(1, streamWriter.refreshCount);
 
     // verify the results
     ;
@@ -231,6 +233,8 @@ class StorageWriteApiBaseTest {
     executeInitializeAndWriteRecordsTestData(streamWriter, config, schemaManager);
 
     verify(schemaManager, times(1)).updateSchema(any(TableId.class), any(List.class));
+    // JsonStreamWriter keeps the pre-update table schema until StreamWriter.refresh().
+    assertEquals(1, streamWriter.refreshCount);
 
     // verify the results
     ;
