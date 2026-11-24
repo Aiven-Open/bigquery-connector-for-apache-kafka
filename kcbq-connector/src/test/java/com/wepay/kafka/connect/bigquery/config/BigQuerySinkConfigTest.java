@@ -419,6 +419,15 @@ public class BigQuerySinkConfigTest {
   }
 
   @Test
+  void testCdcChangeSequenceNumberFieldConfig() {
+    Map<String, String> configProperties = propertiesFactory.getProperties();
+    configProperties.put(BigQuerySinkConfig.CDC_CHANGE_SEQUENCE_NUMBER_FIELD_CONFIG, "version_id");
+
+    BigQuerySinkConfig config = new BigQuerySinkConfig(configProperties);
+    assertEquals(Optional.of("version_id"), config.getCdcChangeSequenceNumberField());
+  }
+
+  @Test
   void testValidTableMaxStaleness() {
     Map<String, String> configProperties = propertiesFactory.getProperties();
     configProperties.put(BigQuerySinkConfig.TABLE_MAX_STALENESS_CONFIG, "30");
