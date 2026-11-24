@@ -87,9 +87,10 @@ class HighestCommitStrategyTest {
     containers.get(0).state = StreamState.COMMITTED;
     containers.get(2).state = StreamState.COMMITTED;
     actual = underTest.preCommit(Collections.emptyMap());
+    // precommit returns highest offset + 1
     assertThat(actual)
         .hasSize(1)
-        .contains(new HighestUnblockedCommitStrategyTest.TestEntry("aTopic", 2, 13));
+        .contains(new HighestUnblockedCommitStrategyTest.TestEntry("aTopic", 2, 14));
     assertThat(underTest.commitMap).isEmpty();
 
     containers.get(1).state = StreamState.COMMITTED;
@@ -118,7 +119,7 @@ class HighestCommitStrategyTest {
     containers.get(1).state = StreamState.COMMITTED;
     containers.get(2).state = StreamState.APPEND;
     actual = underTest.preCommit(Collections.emptyMap());
-    assertThat(actual).hasSize(1).contains(new TestEntry("aTopic", 2, 12));
+    assertThat(actual).hasSize(1).contains(new TestEntry("aTopic", 2, 13));
   }
 
   private TestContainer register(String topic, int partition) {

@@ -87,12 +87,12 @@ class HighestUnblockedCommitStrategyTest {
     containers.get(0).state = StreamState.COMMITTED;
     containers.get(2).state = StreamState.COMMITTED;
     actual = underTest.preCommit(Collections.emptyMap());
-    assertThat(actual).hasSize(1).contains(new TestEntry("aTopic", 2, 10));
+    assertThat(actual).hasSize(1).contains(new TestEntry("aTopic", 2, 11));
     assertThat(underTest.commitMap).hasSize(2);
 
     containers.get(1).state = StreamState.COMMITTED;
     actual = underTest.preCommit(Collections.emptyMap());
-    assertThat(actual).hasSize(1).contains(new TestEntry("aTopic", 2, 13));
+    assertThat(actual).hasSize(1).contains(new TestEntry("aTopic", 2, 14));
   }
 
   @Test
@@ -115,7 +115,7 @@ class HighestUnblockedCommitStrategyTest {
     containers.get(1).state = StreamState.COMMITTED;
     containers.get(2).state = StreamState.APPEND;
     actual = underTest.preCommit(Collections.emptyMap());
-    assertThat(actual).hasSize(1).contains(new TestEntry("aTopic", 2, 12));
+    assertThat(actual).hasSize(1).contains(new TestEntry("aTopic", 2, 13));
   }
 
   private TestContainer register(String topic, int partition) {

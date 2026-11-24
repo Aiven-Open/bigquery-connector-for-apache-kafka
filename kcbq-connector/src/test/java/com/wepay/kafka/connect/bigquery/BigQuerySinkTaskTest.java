@@ -391,7 +391,7 @@ public class BigQuerySinkTaskTest {
 
     Map<TopicPartition, OffsetAndMetadata> results =
         DataPolling.pollUntilResults(testTask, map -> map.containsKey(tp));
-    assertThat(results.get(tp).offset()).isEqualTo(sinkRecord.originalKafkaOffset());
+    assertThat(results.get(tp).offset()).isEqualTo(sinkRecord.originalKafkaOffset() + 1);
     verify(bigQuery, times(1)).insertAll(any(InsertAllRequest.class));
   }
 
@@ -436,7 +436,7 @@ public class BigQuerySinkTaskTest {
 
     TopicPartition tp = new TopicPartition(topic, 0);
     ArgumentCaptor<BlobInfo> blobInfo = ArgumentCaptor.forClass(BlobInfo.class);
-    long offset = repeats - 1;
+    long offset = repeats;
     DataPolling.pollUntilResults(
         Duration.ofMinutes(5), testTask, m -> m.containsKey(tp) && m.get(tp).offset() == offset);
 

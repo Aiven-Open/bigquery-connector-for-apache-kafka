@@ -97,7 +97,7 @@ public class HighestCommitStrategy implements CommitStrategy {
       KafkaRecordKey endKey = commitMap.isEmpty() ? null : commitMap.lastKey();
       while (endKey != null) {
         if (CAN_COMMIT.test(commitMap.get(endKey))) {
-          result.put(endKey.getTopicPartition(), endKey.getOffsetAndMetadata());
+          result.put(endKey.getTopicPartition(), new OffsetAndMetadata(endKey.offset() + 1));
           createSubMap(endKey).clear();
         }
         endKey = commitMap.lowerKey(endKey);
