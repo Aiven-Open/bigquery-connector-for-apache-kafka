@@ -436,7 +436,7 @@ public class BigQuerySinkTaskTest {
 
     TopicPartition tp = new TopicPartition(topic, 0);
     ArgumentCaptor<BlobInfo> blobInfo = ArgumentCaptor.forClass(BlobInfo.class);
-    long offset = repeats - 1;
+    long offset = repeats;
     DataPolling.pollUntilResults(
         Duration.ofMinutes(5), testTask, m -> m.containsKey(tp) && m.get(tp).offset() == offset);
 
