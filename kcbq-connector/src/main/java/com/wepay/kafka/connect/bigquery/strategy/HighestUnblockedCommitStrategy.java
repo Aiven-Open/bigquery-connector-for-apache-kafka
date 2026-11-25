@@ -67,7 +67,18 @@ public class HighestUnblockedCommitStrategy implements CommitStrategy {
       final Stream<KafkaRecordKey> keys, final StreamStateContainer streamStateContainer) {
     keys.forEach(
         key -> {
-          commitMap.put(key, streamStateContainer);
+          commitMap.compute(
+              key,
+              (k, v) -> {
+                if (v != null) {
+                  logger.warn(
+                      "Duplicate key detected. {} was originally in {} and is now in {}",
+                      k,
+                      v,
+                      streamStateContainer);
+                }
+                return streamStateContainer;
+              });
         });
   }
 
@@ -125,6 +136,13 @@ public class HighestUnblockedCommitStrategy implements CommitStrategy {
               new OffsetAndMetadata(highestCommittableKey.offset() + 1));
         }
         startKey = commitMap.higherKey(endKey);
+      }
+    }
+    // do not return an empty map as that signals that we do not want connect managed offsets
+    if (result.isEmpty()) {
+      OffsetAndMetadata zero = new OffsetAndMetadata(0);
+      for (TopicPartition tp : currentOffsets.keySet()) {
+        result.put(tp, zero);
       }
     }
     return result;

@@ -70,7 +70,18 @@ public class HighestCommitStrategy implements CommitStrategy {
     CommitStrategy.extractHighKeys(keys)
         .forEach(
             key -> {
-              commitMap.put(key, streamStateContainer);
+              commitMap.compute(
+                  key,
+                  (k, v) -> {
+                    if (v != null) {
+                      logger.warn(
+                          "Duplicate key detected. {} was originally in {} and is now in {}",
+                          k,
+                          v,
+                          streamStateContainer);
+                    }
+                    return streamStateContainer;
+                  });
             });
   }
 
@@ -101,6 +112,13 @@ public class HighestCommitStrategy implements CommitStrategy {
           createSubMap(endKey).clear();
         }
         endKey = commitMap.lowerKey(endKey);
+      }
+    }
+    // do not return an empty map as that signals that we do not want connect managed offsets
+    if (result.isEmpty()) {
+      OffsetAndMetadata zero = new OffsetAndMetadata(0);
+      for (TopicPartition tp : currentOffsets.keySet()) {
+        result.put(tp, zero);
       }
     }
     return result;
