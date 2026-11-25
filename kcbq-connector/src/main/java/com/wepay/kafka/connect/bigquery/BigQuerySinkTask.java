@@ -135,6 +135,19 @@ public class BigQuerySinkTask extends SinkTask {
   private boolean allowSchemaUnionization;
   private CommitStrategy commitStrategy;
   private final Function<BigQuerySinkTaskConfig, CommitStrategy> commitStrategyFactory;
+  private final StreamStateContainer NO_COMMIT_NECESSARY =
+      new StreamStateContainer() {
+        // used for rows that are not written to the BQ, potentially rows that have no data.
+        @Override
+        public boolean stateIs(StreamState state) {
+          return StreamState.INACTIVE.equals(state);
+        }
+
+        @Override
+        public void abort() {
+          // does nothing
+        }
+      };
 
   /** Create a new BigquerySinkTask. */
   public BigQuerySinkTask() {
@@ -295,6 +308,9 @@ public class BigQuerySinkTask extends SinkTask {
             throw ex;
           }
         }
+      } else {
+        // if we don't write the record then record it is not requiring a commit.
+        commitStrategy.queue(List.of(record), NO_COMMIT_NECESSARY);
       }
     }
 
