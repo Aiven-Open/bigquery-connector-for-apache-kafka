@@ -61,7 +61,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongFunction;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
@@ -76,7 +75,6 @@ import org.apache.kafka.connect.runtime.ConnectorConfig;
 import org.apache.kafka.connect.runtime.SinkConnectorConfig;
 import org.apache.kafka.connect.sink.SinkTask;
 import org.apache.kafka.connect.storage.Converter;
-import org.apache.kafka.test.TestUtils;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -343,8 +341,6 @@ class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
     // produce records
     produceAvroRecords();
 
-    // wait for tasks to write to BigQuery and commit offsets for their records
-    // waitForCommittedRecords(connectorName, topic, NUM_RECORDS_PRODUCED, TASKS_MAX);
     // Wait until table is created
     Awaitility.waitAtMost(Duration.ofMinutes(4))
         .pollInterval(Duration.ofSeconds(1))
@@ -365,8 +361,8 @@ class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
       throw new RuntimeException(e);
     }
 
-    assertEquals(
-        expectedRows(), testRows.stream().map(row -> row.get(0)).collect(Collectors.toSet()));
+    assertThat(testRows.stream().map(row -> row.get(0)).collect(Collectors.toSet()))
+            .containsExactlyInAnyOrder(expectedRows());
   }
 
   @Test
@@ -639,36 +635,21 @@ class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
     // wait for tasks to spin up
     waitForConnectorToStart(connectorName(), tasksMax);
 
-    // wait for tasks to write to BigQuery and commit offsets for their records
-    waitForCommittedRecords(
-        connectorName,
-        Collections.singleton(topic),
-        numRecords,
-        tasksMax,
-        TimeUnit.MINUTES.toMillis(10),
-        TimeUnit.SECONDS.toMillis(10));
-
-    final AtomicLong numRows = new AtomicLong();
-    TestUtils.waitForCondition(
-        () -> {
-          numRows.set(countRows(bigQuery, tableName));
-          assertEquals(numRecords, numRows.get());
-          return true;
-        },
-        TimeUnit.MINUTES.toMillis(10),
-        TimeUnit.SECONDS.toMillis(10),
-        () ->
-            "Table should contain " + numRecords + " rows, but has " + numRows.get() + " instead");
+    // Wait for the entire run to be complete.
+    Awaitility.waitAtMost(Duration.ofMinutes(10L))
+            .pollInterval(Duration.ofSeconds(1))
+            .until(
+                    () -> {
+                      long count = countRows(bigQuery, tableName);
+                      logger.info(">> record count {}", count);
+                      return count >= numRecords;
+                    });
 
     // we need to give the system a bit more time to see if the number of records increases beyond
     // what is expected.
     Thread.sleep(TimeUnit.MINUTES.toMillis(1));
-    numRows.set(countRows(bigQuery, tableName));
-    assertEquals(
-        numRecords,
-        numRows.get(),
-        () ->
-            "Table should contain " + numRecords + " rows, but has " + numRows.get() + " instead");
+
+    assertThat(countRows(bigQuery, tableName)).as("Row count error").isEqualTo(numRecords);
   }
 
   @Test

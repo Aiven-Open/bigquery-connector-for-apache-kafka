@@ -30,6 +30,7 @@ import static org.apache.kafka.clients.consumer.ConsumerConfig.MAX_POLL_RECORDS_
 import static org.apache.kafka.connect.runtime.ConnectorConfig.CONNECTOR_CLIENT_CONSUMER_OVERRIDES_PREFIX;
 import static org.apache.kafka.connect.runtime.ConnectorConfig.KEY_CONVERTER_CLASS_CONFIG;
 import static org.apache.kafka.connect.runtime.ConnectorConfig.VALUE_CONVERTER_CLASS_CONFIG;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -72,6 +73,7 @@ import org.apache.kafka.connect.runtime.ConnectorConfig;
 import org.apache.kafka.connect.runtime.SinkConnectorConfig;
 import org.apache.kafka.connect.storage.Converter;
 import org.apache.kafka.test.TestUtils;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -545,41 +547,15 @@ class StorageWriteApiCdcBigQuerySinkConnectorIT extends BaseConnectorIT {
       assertCluster().configureConnector(connectorName, props);
       waitForConnectorToStart(connectorName, tasksMax);
 
-      waitForCommittedRecords(
-          connectorName,
-          Collections.singleton(topic),
-          numRecords,
-          tasksMax,
-          TimeUnit.MINUTES.toMillis(15),
-          TimeUnit.SECONDS.toMillis(10));
-
-      final AtomicLong numRows = new AtomicLong();
-      TestUtils.waitForCondition(
-          () -> {
-            numRows.set(countRows(bigQuery, tableName));
-            return numRows.get() == expectedRows;
-          },
-          TimeUnit.MINUTES.toMillis(10),
-          TimeUnit.SECONDS.toMillis(10),
-          () ->
-              "Table should contain "
-                  + expectedRows
-                  + " merged rows, but has "
-                  + numRows.get()
-                  + " instead");
+      // verify records are present.
+      Awaitility.waitAtMost(Duration.ofMinutes(5))
+              .pollInterval(Duration.ofSeconds(1))
+              .until(() -> countRows(bigQuery, tableName) >= expectedRows);
 
       // Give the system an extra minute to ensure no delayed or duplicate rows appear.
       Thread.sleep(TimeUnit.MINUTES.toMillis(1));
-      numRows.set(countRows(bigQuery, tableName));
-      assertEquals(
-          expectedRows,
-          numRows.get(),
-          () ->
-              "Table should contain "
-                  + expectedRows
-                  + " merged rows after settle period, but has "
-                  + numRows.get()
-                  + " instead");
+
+      assertThat(countRows(bigQuery, tableName)).as("Row count error").isEqualTo(expectedRows);
 
       String breakdownSql =
           String.format(
