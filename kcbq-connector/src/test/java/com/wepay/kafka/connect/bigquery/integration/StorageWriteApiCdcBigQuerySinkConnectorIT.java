@@ -61,7 +61,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaAndValue;
 import org.apache.kafka.connect.data.SchemaBuilder;
@@ -72,7 +71,6 @@ import org.apache.kafka.connect.json.JsonConverterConfig;
 import org.apache.kafka.connect.runtime.ConnectorConfig;
 import org.apache.kafka.connect.runtime.SinkConnectorConfig;
 import org.apache.kafka.connect.storage.Converter;
-import org.apache.kafka.test.TestUtils;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -549,8 +547,8 @@ class StorageWriteApiCdcBigQuerySinkConnectorIT extends BaseConnectorIT {
 
       // verify records are present.
       Awaitility.waitAtMost(Duration.ofMinutes(5))
-              .pollInterval(Duration.ofSeconds(1))
-              .until(() -> countRows(bigQuery, tableName) >= expectedRows);
+          .pollInterval(Duration.ofSeconds(1))
+          .until(() -> countRows(bigQuery, tableName) >= expectedRows);
 
       // Give the system an extra minute to ensure no delayed or duplicate rows appear.
       Thread.sleep(TimeUnit.MINUTES.toMillis(1));

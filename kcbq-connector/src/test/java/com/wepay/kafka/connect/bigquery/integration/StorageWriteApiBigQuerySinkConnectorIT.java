@@ -362,7 +362,7 @@ class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
     }
 
     assertThat(testRows.stream().map(row -> row.get(0)).collect(Collectors.toSet()))
-            .containsExactlyInAnyOrder(expectedRows());
+        .containsExactlyInAnyOrder(expectedRows());
   }
 
   @Test
@@ -637,13 +637,13 @@ class StorageWriteApiBigQuerySinkConnectorIT extends BaseConnectorIT {
 
     // Wait for the entire run to be complete.
     Awaitility.waitAtMost(Duration.ofMinutes(10L))
-            .pollInterval(Duration.ofSeconds(1))
-            .until(
-                    () -> {
-                      long count = countRows(bigQuery, tableName);
-                      logger.info(">> record count {}", count);
-                      return count >= numRecords;
-                    });
+        .pollInterval(Duration.ofSeconds(1))
+        .until(
+            () -> {
+              long count = countRows(bigQuery, tableName);
+              logger.info(">> record count {}", count);
+              return count >= numRecords;
+            });
 
     // we need to give the system a bit more time to see if the number of records increases beyond
     // what is expected.
