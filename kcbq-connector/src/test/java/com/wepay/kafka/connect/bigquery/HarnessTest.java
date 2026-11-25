@@ -353,6 +353,13 @@ public class HarnessTest {
     h.task.put(List.of(rec(0), rec(1), t2, t3));
     h.writeDone.await(5, TimeUnit.SECONDS);
     Thread.sleep(500);
+    Map<TopicPartition, OffsetAndMetadata> expected = Map.of(tp, new OffsetAndMetadata(4));
+    Awaitility.waitAtMost(Duration.ofSeconds(5))
+            .pollInterval(Duration.ofMillis(500))
+            .untilAsserted(
+                    () ->
+                            assertThat(h.task.preCommit(Map.of(tp, new OffsetAndMetadata(10))))
+                                    .containsExactlyEntriesOf(expected));
     out(
         "SCENARIO ["
             + name
