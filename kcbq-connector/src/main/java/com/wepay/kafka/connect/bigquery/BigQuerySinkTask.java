@@ -98,10 +98,24 @@ import org.slf4j.MDC;
 public class BigQuerySinkTask extends SinkTask {
   private static final Logger logger = LoggerFactory.getLogger(BigQuerySinkTask.class);
   private static final int EXECUTOR_SHUTDOWN_TIMEOUT_SEC = 30;
+  private static final  StreamStateContainer NO_COMMIT_NECESSARY =
+          new StreamStateContainer() {
+            // used for rows that are not written to the BQ, potentially rows that have no data.
+            @Override
+            public boolean stateIs(StreamState state) {
+              return StreamState.INACTIVE.equals(state);
+            }
+
+            @Override
+            public void abort() {
+              // does nothing
+            }
+          };
+  private static final ULID ULID_GENERATOR = new ULID();
+
   private Supplier<BigQuery> bigQuerySupplier;
   private Supplier<Storage> storageSupplier;
   private Supplier<SchemaManager> schemaManagerSupplier;
-  private static final ULID ULID_GENERATOR = new ULID();
   private final String uuid = ULID_GENERATOR.nextULID();
   private final StorageWriteApiBase testStorageWriteApi;
   private final StorageApiBatchModeHandler testStorageApiBatchHandler;
@@ -136,19 +150,6 @@ public class BigQuerySinkTask extends SinkTask {
   private boolean allowSchemaUnionization;
   private CommitStrategy commitStrategy;
   private final Function<BigQuerySinkTaskConfig, CommitStrategy> commitStrategyFactory;
-  private final StreamStateContainer NO_COMMIT_NECESSARY =
-      new StreamStateContainer() {
-        // used for rows that are not written to the BQ, potentially rows that have no data.
-        @Override
-        public boolean stateIs(StreamState state) {
-          return StreamState.INACTIVE.equals(state);
-        }
-
-        @Override
-        public void abort() {
-          // does nothing
-        }
-      };
 
   /** Create a new BigquerySinkTask. */
   public BigQuerySinkTask() {
