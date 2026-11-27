@@ -177,10 +177,8 @@ public class GcsBatchTableWriter implements Runnable, StreamStateContainer {
     public GcsBatchTableWriter build() {
       Objects.requireNonNull(errorRecorder, "errorRecorder may not be null");
       Objects.requireNonNull(commitStrategy, "commitStrategy may not be null");
-      GcsBatchTableWriter result = new GcsBatchTableWriter(
-          rows, writer, tableId, bucketName, blobName, errantRecordHandler, errorRecorder);
-      commitStrategy.queue(rows.keySet(), result);
-      return result;
+      return commitStrategy.queue(rows.keySet(), new GcsBatchTableWriter(
+          rows, writer, tableId, bucketName, blobName, errantRecordHandler, errorRecorder));
     }
   }
 }

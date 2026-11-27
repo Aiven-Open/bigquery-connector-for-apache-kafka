@@ -64,8 +64,8 @@ public interface CommitStrategy {
    * @param rows the collection rows to add to the queue of waiting rows.
    * @param streamStateContainer the container that will write the rows.
    */
-  default void queue(Collection<SinkRecord> rows, StreamStateContainer streamStateContainer) {
-    queueKeys(convertSinkRecord(rows.stream()), streamStateContainer);
+  default <T extends StreamStateContainer> T queue(Collection<SinkRecord> rows, T streamStateContainer) {
+    return queueKeys(convertSinkRecord(rows.stream()), streamStateContainer);
   }
 
   /**
@@ -75,8 +75,8 @@ public interface CommitStrategy {
    * @param rows the stream of rows to add to the queue of waiting rows.
    * @param streamStateContainer the container that will write the rows.
    */
-  default void queue(Stream<SinkRecord> rows, StreamStateContainer streamStateContainer) {
-    queueKeys(convertSinkRecord(rows), streamStateContainer);
+  default <T extends StreamStateContainer> T queue(Stream<SinkRecord> rows, T streamStateContainer) {
+    return queueKeys(convertSinkRecord(rows), streamStateContainer);
   }
 
   /**
@@ -86,7 +86,7 @@ public interface CommitStrategy {
    * @param rows the stream of rows to add to the queue of waiting rows.
    * @param streamStateContainer the container that will write the rows.
    */
-  void queueKeys(Stream<KafkaRecordKey> rows, StreamStateContainer streamStateContainer);
+  <T extends StreamStateContainer> T queueKeys(Stream<KafkaRecordKey> rows, T streamStateContainer);
 
   /**
    * Execute the equivalent of the {@link SinkTask#preCommit(Map)}.

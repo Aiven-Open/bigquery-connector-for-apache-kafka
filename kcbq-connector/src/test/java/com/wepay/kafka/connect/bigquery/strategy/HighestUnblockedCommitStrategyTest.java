@@ -68,12 +68,12 @@ class HighestUnblockedCommitStrategyTest {
   @Test
   void holesStopCommitTest() {
     List<TestContainer> containers = new ArrayList<>();
-    containers.add(new TestContainer());
-    underTest.queue(List.of(testRecord("aTopic", 2, 10)), containers.get(0));
-    containers.add(new TestContainer());
-    underTest.queue(List.of(testRecord("aTopic", 2, 12)), containers.get(1));
-    containers.add(new TestContainer());
-    underTest.queue(List.of(testRecord("aTopic", 2, 13)), containers.get(2));
+    containers.add(
+    underTest.queue(List.of(testRecord("aTopic", 2, 10)), new TestContainer()));
+    containers.add(
+    underTest.queue(List.of(testRecord("aTopic", 2, 12)), new TestContainer()));
+    containers.add(
+    underTest.queue(List.of(testRecord("aTopic", 2, 13)), new TestContainer()));
 
     Map<TopicPartition, OffsetAndMetadata> actual = underTest.preCommit(Collections.emptyMap());
     assertThat(actual).isEmpty();
@@ -98,12 +98,12 @@ class HighestUnblockedCommitStrategyTest {
   @Test
   void inactiveDoesNotBlockCommit() {
     List<TestContainer> containers = new ArrayList<>();
-    containers.add(new TestContainer());
-    underTest.queue(List.of(testRecord("aTopic", 2, 10)), containers.get(0));
-    containers.add(new TestContainer());
-    underTest.queue(List.of(testRecord("aTopic", 2, 12)), containers.get(1));
-    containers.add(new TestContainer());
-    underTest.queue(List.of(testRecord("aTopic", 2, 13)), containers.get(2));
+    containers.add(
+    underTest.queue(List.of(testRecord("aTopic", 2, 10)), new TestContainer()));
+    containers.add(
+    underTest.queue(List.of(testRecord("aTopic", 2, 12)), new TestContainer()));
+    containers.add(
+    underTest.queue(List.of(testRecord("aTopic", 2, 13)), new TestContainer()));
 
     Map<TopicPartition, OffsetAndMetadata> actual = underTest.preCommit(Collections.emptyMap());
     assertThat(actual).isEmpty();
@@ -119,14 +119,12 @@ class HighestUnblockedCommitStrategyTest {
   }
 
   private TestContainer register(String topic, int partition) {
-    TestContainer testContainer = new TestContainer();
-    underTest.queue(
+    return underTest.queue(
         List.of(
             testRecord(topic, partition, random.nextLong()),
             testRecord(topic, partition, random.nextLong()),
             testRecord(topic, partition, random.nextLong())),
-        testContainer);
-    return testContainer;
+            new TestContainer());
   }
 
   private int partitionCount() {

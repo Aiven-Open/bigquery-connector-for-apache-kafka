@@ -207,6 +207,7 @@ public class TableWriter implements Runnable, StreamStateContainer {
       }
 
       onFinish.accept(rows.values());
+      streamStateData.setStreamState(StreamState.COMMITTED);
     } catch (RuntimeException ex) {
       throw errorRecorder.logAndRecord(ex);
     }
@@ -289,13 +290,14 @@ public class TableWriter implements Runnable, StreamStateContainer {
     @Override
     public TableWriter build() {
       Objects.requireNonNull(errorRecorder, "errorRecorder may not be null");
-      return new TableWriter(
+      Objects.requireNonNull(commitStrategy, "commitStrategy may not be null");
+      return commitStrategy.queue(rows.keySet(), new TableWriter(
           writer,
           table,
           rows,
           onFinish != null ? onFinish : n -> {},
           recordConverter,
-          ulidSupplier, errorRecorder);
+          ulidSupplier, errorRecorder));
     }
   }
 }

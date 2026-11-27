@@ -65,8 +65,8 @@ public class HighestCommitStrategy implements CommitStrategy {
   }
 
   @Override
-  public void queueKeys(
-      final Stream<KafkaRecordKey> keys, final StreamStateContainer streamStateContainer) {
+  public <T extends StreamStateContainer> T  queueKeys(
+      final Stream<KafkaRecordKey> keys, final T streamStateContainer) {
     CommitStrategy.extractHighKeys(keys)
         .forEach(
             key -> {
@@ -83,6 +83,7 @@ public class HighestCommitStrategy implements CommitStrategy {
                     return streamStateContainer;
                   });
             });
+    return streamStateContainer;
   }
 
   /**
