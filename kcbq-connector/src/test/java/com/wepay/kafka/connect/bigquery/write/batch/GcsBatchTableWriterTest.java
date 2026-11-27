@@ -23,8 +23,8 @@
 
 package com.wepay.kafka.connect.bigquery.write.batch;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -38,6 +38,8 @@ import com.google.cloud.storage.Storage;
 import com.google.common.util.concurrent.Futures;
 import com.wepay.kafka.connect.bigquery.ErrantRecordHandler;
 import com.wepay.kafka.connect.bigquery.SchemaManager;
+import com.wepay.kafka.connect.bigquery.strategy.NoCommitStrategy;
+import com.wepay.kafka.connect.bigquery.threads.ErrorRecorder;
 import com.wepay.kafka.connect.bigquery.utils.MockTime;
 import com.wepay.kafka.connect.bigquery.utils.SinkRecordConverter;
 import com.wepay.kafka.connect.bigquery.utils.Time;
@@ -116,8 +118,16 @@ public class GcsBatchTableWriterTest {
       builder.addRow(sr, tableId);
     }
 
-    ConnectException exception = assertThrows(ConnectException.class, () -> builder.build().run());
-    assertEquals("Failed to write rows to GCS", exception.getMessage());
+    builder.setCommitStrategy(new NoCommitStrategy());
+    List<Throwable> errorList = new ArrayList<>();
+    builder.setErrorRecorder(ErrorRecorder.from(errorList));
+
+    builder.build().run();
+
+    assertThat(errorList).hasSize(1);
+    assertThat(errorList.get(0))
+        .isInstanceOf(ConnectException.class)
+        .hasMessage("Failed to write rows to GCS");
     assertEquals(10, records.size());
     for (int i = 0; i < 10; i++) {
       assertEquals(i, records.get(i).kafkaOffset());

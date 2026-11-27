@@ -205,7 +205,7 @@ public class TableWriter implements Runnable, StreamStateContainer {
       onFinish.accept(rows.values());
       streamStateData.setStreamState(StreamState.COMMITTED);
     } catch (RuntimeException ex) {
-      throw errorRecorder.logAndRecord(ex);
+      errorRecorder.logAndRecord(ex);
     }
   }
 

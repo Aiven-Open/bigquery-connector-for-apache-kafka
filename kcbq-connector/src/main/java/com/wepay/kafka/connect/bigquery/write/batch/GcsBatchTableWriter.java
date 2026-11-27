@@ -98,7 +98,7 @@ public class GcsBatchTableWriter implements Runnable, StreamStateContainer {
       streamStateData.setStreamState(StreamState.COMMITTED);
     } catch (RuntimeException | InterruptedException ex) {
       errantRecordHandler.reportErrantRecords(rows.keySet(), ex);
-      throw errorRecorder.logAndRecord(new ConnectException("Failed to write rows to GCS", ex));
+      errorRecorder.logAndRecord(new ConnectException("Failed to write rows to GCS", ex));
     }
   }
 

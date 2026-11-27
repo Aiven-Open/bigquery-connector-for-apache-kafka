@@ -125,7 +125,7 @@ public final class StorageWriteApiWriter implements Runnable, StreamStateContain
           table, records, streamName, recordConverter, ulidSupplier);
       this.streamStateData.setStreamState(StreamState.COMMITTED);
     } catch (RuntimeException ex) {
-      throw errorRecorder.logAndRecord(ex);
+      errorRecorder.logAndRecord(ex);
     }
   }
 

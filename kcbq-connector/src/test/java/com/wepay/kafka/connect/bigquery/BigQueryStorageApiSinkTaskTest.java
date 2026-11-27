@@ -103,7 +103,8 @@ public class BigQueryStorageApiSinkTaskTest {
 
     doNothing()
         .when(mockedStorageWriteApiDefaultStream)
-        .initializeAndWriteRecords(any(PartitionedTableId.class), anyList(), eq(DEFAULT));
+        .initializeAndWriteRecords(
+            any(PartitionedTableId.class), anyList(), eq(DEFAULT), any(), any());
     doNothing().when(mockedStorageWriteApiDefaultStream).shutdown();
 
     testTask.initialize(sinkTaskContext);
@@ -118,7 +119,8 @@ public class BigQueryStorageApiSinkTaskTest {
             () -> {
               System.out.println(testTask.getScheduledExecutor().status());
               verify(mockedStorageWriteApiDefaultStream, times(1))
-                  .initializeAndWriteRecords(any(PartitionedTableId.class), anyList(), eq(DEFAULT));
+                  .initializeAndWriteRecords(
+                      any(PartitionedTableId.class), anyList(), eq(DEFAULT), any(), any());
             });
   }
 
@@ -129,7 +131,8 @@ public class BigQueryStorageApiSinkTaskTest {
 
     doThrow(exception)
         .when(mockedStorageWriteApiDefaultStream)
-        .initializeAndWriteRecords(any(PartitionedTableId.class), anyList(), eq(DEFAULT));
+        .initializeAndWriteRecords(
+            any(PartitionedTableId.class), anyList(), eq(DEFAULT), any(), any());
 
     testTask.put(Collections.singletonList(spoofSinkRecord()));
     BigQueryConnectException e =
