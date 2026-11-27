@@ -48,12 +48,14 @@ public interface TableWriterBuilder {
 
   /**
    * Sets the commit strategy that the table writer will use.
+   *
    * @param commitStrategy the commit strategy to use.
    */
   void setCommitStrategy(CommitStrategy commitStrategy);
 
   /**
    * Sets the error Recorder.
+   *
    * @param errorRecorder The error recorder to record write errors to.
    */
   void setErrorRecorder(ErrorRecorder errorRecorder);

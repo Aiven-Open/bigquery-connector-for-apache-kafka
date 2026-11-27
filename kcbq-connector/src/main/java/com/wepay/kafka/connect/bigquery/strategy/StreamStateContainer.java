@@ -18,7 +18,6 @@
 package com.wepay.kafka.connect.bigquery.strategy;
 
 import com.wepay.kafka.connect.bigquery.write.storage.StreamState;
-
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -45,8 +44,9 @@ public interface StreamStateContainer {
     private final AtomicBoolean aborted = new AtomicBoolean(false);
 
     public StreamStateData(StreamState initialState) {
-       streamState = new AtomicReference<>(initialState);
+      streamState = new AtomicReference<>(initialState);
     }
+
     public AtomicBoolean getAborted() {
       return aborted;
     }

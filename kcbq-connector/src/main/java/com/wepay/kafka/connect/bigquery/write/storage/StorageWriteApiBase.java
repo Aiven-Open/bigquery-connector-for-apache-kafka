@@ -355,7 +355,6 @@ public abstract class StorageWriteApiBase {
                   + "please report it to the maintainers of the connector to investigate.");
         }
         logger.trace("Append call completed successfully on stream {}", writer.streamName());
-
       }
     } catch (BigQueryStorageWriteApiConnectException | BatchWriteException exception) {
       throw exception;

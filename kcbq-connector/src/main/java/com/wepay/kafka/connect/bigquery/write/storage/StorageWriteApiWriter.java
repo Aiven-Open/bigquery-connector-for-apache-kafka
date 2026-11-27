@@ -56,36 +56,37 @@ public final class StorageWriteApiWriter implements Runnable, StreamStateContain
   private final StreamStateData streamStateData;
   private final ErrorRecorder errorRecorder;
 
-//  /**
-//   * @param tableName The table to write the records to
-//   * @param streamWriter The stream writer to use - Default, Batch etc
-//   * @param records The records to write
-//   * @param streamName The stream to use while writing data
-//   * @deprecated Use {@link #StorageWriteApiWriter(PartitionedTableId, StorageWriteApiBase, List,
-//   *     String)} instead.
-//   */
-//  @Deprecated
-//  public StorageWriteApiWriter(
-//      TableName tableName,
-//      StorageWriteApiBase streamWriter,
-//      List<ConvertedRecord> records,
-//      String streamName) {
-//    this(TableNameUtils.partitionedTableId(tableName), streamWriter, records, streamName);
-//  }
+  //  /**
+  //   * @param tableName The table to write the records to
+  //   * @param streamWriter The stream writer to use - Default, Batch etc
+  //   * @param records The records to write
+  //   * @param streamName The stream to use while writing data
+  //   * @deprecated Use {@link #StorageWriteApiWriter(PartitionedTableId, StorageWriteApiBase,
+  // List,
+  //   *     String)} instead.
+  //   */
+  //  @Deprecated
+  //  public StorageWriteApiWriter(
+  //      TableName tableName,
+  //      StorageWriteApiBase streamWriter,
+  //      List<ConvertedRecord> records,
+  //      String streamName) {
+  //    this(TableNameUtils.partitionedTableId(tableName), streamWriter, records, streamName);
+  //  }
 
-//  /**
-//   * @param table The table to write the records to
-//   * @param streamWriter The stream writer to use - Default, Batch etc
-//   * @param records The records to write
-//   * @param streamName The stream to use while writing data
-//   */
-//  public StorageWriteApiWriter(
-//      PartitionedTableId table,
-//      StorageWriteApiBase streamWriter,
-//      List<ConvertedRecord> records,
-//      String streamName) {
-//    this(table, streamWriter, records, streamName, null, null);
-//  }
+  //  /**
+  //   * @param table The table to write the records to
+  //   * @param streamWriter The stream writer to use - Default, Batch etc
+  //   * @param records The records to write
+  //   * @param streamName The stream to use while writing data
+  //   */
+  //  public StorageWriteApiWriter(
+  //      PartitionedTableId table,
+  //      StorageWriteApiBase streamWriter,
+  //      List<ConvertedRecord> records,
+  //      String streamName) {
+  //    this(table, streamWriter, records, streamName, null, null);
+  //  }
 
   StorageWriteApiWriter(
       PartitionedTableId table,
@@ -120,7 +121,8 @@ public final class StorageWriteApiWriter implements Runnable, StreamStateContain
     try {
       this.streamStateData.setStreamState(StreamState.APPEND);
       logger.debug("Putting {} records into {} stream", records.size(), streamName);
-      streamWriter.initializeAndWriteRecords(table, records, streamName, recordConverter, ulidSupplier);
+      streamWriter.initializeAndWriteRecords(
+          table, records, streamName, recordConverter, ulidSupplier);
       this.streamStateData.setStreamState(StreamState.COMMITTED);
     } catch (RuntimeException ex) {
       throw errorRecorder.logAndRecord(ex);
@@ -152,22 +154,23 @@ public final class StorageWriteApiWriter implements Runnable, StreamStateContain
     private CommitStrategy commitStrategy;
     private ErrorRecorder errorRecorder;
 
-//    /**
-//     * @deprecated Use {@link #Builder(StorageWriteApiBase, PartitionedTableId, SinkRecordConverter,
-//     *     StorageApiBatchModeHandler)} instead.
-//     */
-//    @Deprecated
-//    public Builder(
-//        StorageWriteApiBase streamWriter,
-//        TableName tableName,
-//        SinkRecordConverter recordConverter,
-//        StorageApiBatchModeHandler batchModeHandler) {
-//      this(
-//          streamWriter,
-//          TableNameUtils.partitionedTableId(tableName),
-//          recordConverter,
-//          batchModeHandler);
-//    }
+    //    /**
+    //     * @deprecated Use {@link #Builder(StorageWriteApiBase, PartitionedTableId,
+    // SinkRecordConverter,
+    //     *     StorageApiBatchModeHandler)} instead.
+    //     */
+    //    @Deprecated
+    //    public Builder(
+    //        StorageWriteApiBase streamWriter,
+    //        TableName tableName,
+    //        SinkRecordConverter recordConverter,
+    //        StorageApiBatchModeHandler batchModeHandler) {
+    //      this(
+    //          streamWriter,
+    //          TableNameUtils.partitionedTableId(tableName),
+    //          recordConverter,
+    //          batchModeHandler);
+    //    }
 
     public Builder(
         StorageWriteApiBase streamWriter,
@@ -176,8 +179,10 @@ public final class StorageWriteApiWriter implements Runnable, StreamStateContain
         StorageApiBatchModeHandler batchModeHandler) {
       this.streamWriter = Objects.requireNonNull(streamWriter, "streamWriter may not be null");
       this.table = Objects.requireNonNull(table, "table may not be null");
-      this.recordConverter = Objects.requireNonNull(recordConverter, "recordConverter may not be null");
-      this.batchModeHandler = Objects.requireNonNull(batchModeHandler, "batchModeHandler may not be null");
+      this.recordConverter =
+          Objects.requireNonNull(recordConverter, "recordConverter may not be null");
+      this.batchModeHandler =
+          Objects.requireNonNull(batchModeHandler, "batchModeHandler may not be null");
     }
 
     /**
@@ -206,7 +211,7 @@ public final class StorageWriteApiWriter implements Runnable, StreamStateContain
 
     @Override
     public void setCommitStrategy(CommitStrategy commitStrategy) {
-      this.commitStrategy=commitStrategy;
+      this.commitStrategy = commitStrategy;
     }
 
     @Override
@@ -237,10 +242,18 @@ public final class StorageWriteApiWriter implements Runnable, StreamStateContain
         TableName tableName = TableNameUtils.tableName(table.getBaseTableId());
         streamName = batchModeHandler.updateOffsetsOnStream(tableName.toString(), records);
       }
-      StorageWriteApiWriter writer = new StorageWriteApiWriter(
-          table, streamWriter, records, streamName, recordConverter, ulidSupplier, errorRecorder);
+      StorageWriteApiWriter writer =
+          new StorageWriteApiWriter(
+              table,
+              streamWriter,
+              records,
+              streamName,
+              recordConverter,
+              ulidSupplier,
+              errorRecorder);
       if (DEFAULT.equals(streamName)) {
-        Objects.requireNonNull(commitStrategy, "commitStrategy may not be null").queue(records.stream().map(ConvertedRecord::original), writer);
+        Objects.requireNonNull(commitStrategy, "commitStrategy may not be null")
+            .queue(records.stream().map(ConvertedRecord::original), writer);
       }
       return writer;
     }

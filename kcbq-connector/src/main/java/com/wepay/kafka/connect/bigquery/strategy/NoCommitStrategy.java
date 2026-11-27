@@ -32,7 +32,8 @@ public class NoCommitStrategy implements CommitStrategy {
   public NoCommitStrategy() {}
 
   @Override
-  public <T extends StreamStateContainer> T  queueKeys(Stream<KafkaRecordKey> keys, T streamStateContainer) {
+  public <T extends StreamStateContainer> T queueKeys(
+      Stream<KafkaRecordKey> keys, T streamStateContainer) {
     return streamStateContainer;
   }
 

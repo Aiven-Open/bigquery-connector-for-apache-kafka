@@ -59,8 +59,6 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
-import java.util.function.Supplier;
-
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.record.TimestampType;
@@ -230,8 +228,8 @@ public class HarnessTest {
   // ---------------------------------------------------------------- task-level harness
   private static class Harness {
     final CountDownLatch writeStarted = new CountDownLatch(1);
-//    final CountDownLatch releaseWrite = new CountDownLatch(1);
-//    final CountDownLatch writeDone = new CountDownLatch(1);
+    //    final CountDownLatch releaseWrite = new CountDownLatch(1);
+    //    final CountDownLatch writeDone = new CountDownLatch(1);
     final StorageWriteApiDefaultStream stream =
         mock(StorageWriteApiDefaultStream.class, CALLS_REAL_METHODS);
     final BigQuery bigQuery = mock(BigQuery.class);
@@ -242,15 +240,20 @@ public class HarnessTest {
               inv -> {
                 StorageWriteApiBase base = (StorageWriteApiBase) inv.getMock();
 
-               writeStarted.countDown();
-//                if (blockWrites) {
-//                  releaseWrite.await();
-//                }
-//                writeDone.countDown();
+                writeStarted.countDown();
+                //                if (blockWrites) {
+                //                  releaseWrite.await();
+                //                }
+                //                writeDone.countDown();
                 return null;
               })
           .when(stream)
-          .initializeAndWriteRecords(any(PartitionedTableId.class), anyList(), eq(DEFAULT), any(SinkRecordConverter.class), any());
+          .initializeAndWriteRecords(
+              any(PartitionedTableId.class),
+              anyList(),
+              eq(DEFAULT),
+              any(SinkRecordConverter.class),
+              any());
       doNothing().when(stream).shutdown();
       Table table = mock(Table.class);
       when(bigQuery.getTable(any(TableId.class))).thenReturn(table);
@@ -260,10 +263,10 @@ public class HarnessTest {
           .thenAnswer(
               inv -> {
                 writeStarted.countDown();
-//                if (blockWrites) {
-//                  releaseWrite.await();
-//                }
-//                writeDone.countDown();
+                //                if (blockWrites) {
+                //                  releaseWrite.await();
+                //                }
+                //                writeDone.countDown();
                 return resp;
               });
       task =
@@ -298,41 +301,41 @@ public class HarnessTest {
       h.task.put(List.of(rec(0), rec(1), rec(2)));
       boolean started = h.writeStarted.await(5, TimeUnit.SECONDS);
       out("SCENARIO [" + name + "] put(offsets 0..2) returned; backend write started=" + started);
-//      h.writeDone.await(5, TimeUnit.SECONDS);
+      //      h.writeDone.await(5, TimeUnit.SECONDS);
 
       Awaitility.waitAtMost(Duration.ofMinutes(5))
           .pollInterval(Duration.ofMillis(500))
           .untilAsserted(
               () -> {
-                      System.out.println(h.task.getExecutor().taskNames());
+                System.out.println(h.task.getExecutor().taskNames());
                 System.out.println(h.task.getScheduledExecutor().taskNames());
-                  assertThat(h.task.preCommit(Map.of(tp, new OffsetAndMetadata(10))))
-                      .containsExactlyEntriesOf(connectOffsets);
+                assertThat(h.task.preCommit(Map.of(tp, new OffsetAndMetadata(10))))
+                    .containsExactlyEntriesOf(connectOffsets);
               });
-     // try {
-        h.task.put(Collections.emptyList());
-        out("SCENARIO [" + name + "] follow-up put(empty) OK");
-//      } catch (Throwable t) {
-//        out("SCENARIO [" + name + "] follow-up put(empty) threw " + t);
-//        Throwable c = t.getCause();
-//        while (c != null) {
-//          out("SCENARIO [" + name + "]    caused by " + c);
-//          c = c.getCause();
-//        }
-//      }
-//      try {
-        h.task.stop();
-//      } catch (Throwable t) {
-//        out("SCENARIO [" + name + "] stop threw " + t);
-//      }
+      // try {
+      h.task.put(Collections.emptyList());
+      out("SCENARIO [" + name + "] follow-up put(empty) OK");
+      //      } catch (Throwable t) {
+      //        out("SCENARIO [" + name + "] follow-up put(empty) threw " + t);
+      //        Throwable c = t.getCause();
+      //        while (c != null) {
+      //          out("SCENARIO [" + name + "]    caused by " + c);
+      //          c = c.getCause();
+      //        }
+      //      }
+      //      try {
+      h.task.stop();
+      //      } catch (Throwable t) {
+      //        out("SCENARIO [" + name + "] stop threw " + t);
+      //      }
     } catch (Throwable t) {
       fail("SCENARIO [" + name + "] FAILED TO RUN: " + t, t);
-//      out("SCENARIO [" + name + "] FAILED TO RUN: " + t);
-//      Throwable c = t.getCause();
-//      while (c != null) {
-//        out("SCENARIO [" + name + "]    caused by " + c);
-//        c = c.getCause();
-//      }
+      //      out("SCENARIO [" + name + "] FAILED TO RUN: " + t);
+      //      Throwable c = t.getCause();
+      //      while (c != null) {
+      //        out("SCENARIO [" + name + "]    caused by " + c);
+      //        c = c.getCause();
+      //      }
     }
   }
 
@@ -362,8 +365,8 @@ public class HarnessTest {
     SinkRecord t3 =
         new SinkRecord(TOPIC, 0, null, null, null, null, 3, 0L, TimestampType.CREATE_TIME);
     h.task.put(List.of(rec(0), rec(1), t2, t3));
-//    h.writeDone.await(5, TimeUnit.SECONDS);
-//    Thread.sleep(500);
+    //    h.writeDone.await(5, TimeUnit.SECONDS);
+    //    Thread.sleep(500);
     Map<TopicPartition, OffsetAndMetadata> expected = Map.of(tp, new OffsetAndMetadata(4));
     Awaitility.waitAtMost(Duration.ofSeconds(5))
         .pollInterval(Duration.ofMillis(500))

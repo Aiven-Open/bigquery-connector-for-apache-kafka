@@ -151,7 +151,8 @@ public class BigQueryStorageApiBatchSinkTaskTest {
     testTask.start(properties);
     Awaitility.waitAtMost(Duration.ofSeconds(5))
         .untilAsserted(
-            () -> assertThat(testTask.getScheduledExecutor().taskNames()).allMatch(test).hasSize(2));
+            () ->
+                assertThat(testTask.getScheduledExecutor().taskNames()).allMatch(test).hasSize(2));
   }
 
   @Test

@@ -32,12 +32,11 @@ import com.wepay.kafka.connect.bigquery.strategy.StreamStateContainer;
 import com.wepay.kafka.connect.bigquery.threads.ErrorRecorder;
 import com.wepay.kafka.connect.bigquery.utils.SinkRecordConverter;
 import com.wepay.kafka.connect.bigquery.write.row.GcsToBqWriter;
+import com.wepay.kafka.connect.bigquery.write.storage.StreamState;
 import java.util.Comparator;
 import java.util.Objects;
 import java.util.SortedMap;
 import java.util.TreeMap;
-
-import com.wepay.kafka.connect.bigquery.write.storage.StreamState;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.slf4j.Logger;
@@ -60,7 +59,6 @@ public class GcsBatchTableWriter implements Runnable, StreamStateContainer {
   private final ErrantRecordHandler errantRecordHandler;
   private final ErrorRecorder errorRecorder;
   private final StreamStateData streamStateData;
-
 
   /**
    * @param rows The list of rows that should be written through GCS
@@ -165,7 +163,7 @@ public class GcsBatchTableWriter implements Runnable, StreamStateContainer {
 
     @Override
     public void setCommitStrategy(CommitStrategy commitStrategy) {
-      this.commitStrategy=commitStrategy;
+      this.commitStrategy = commitStrategy;
     }
 
     @Override
@@ -177,8 +175,10 @@ public class GcsBatchTableWriter implements Runnable, StreamStateContainer {
     public GcsBatchTableWriter build() {
       Objects.requireNonNull(errorRecorder, "errorRecorder may not be null");
       Objects.requireNonNull(commitStrategy, "commitStrategy may not be null");
-      return commitStrategy.queue(rows.keySet(), new GcsBatchTableWriter(
-          rows, writer, tableId, bucketName, blobName, errantRecordHandler, errorRecorder));
+      return commitStrategy.queue(
+          rows.keySet(),
+          new GcsBatchTableWriter(
+              rows, writer, tableId, bucketName, blobName, errantRecordHandler, errorRecorder));
     }
   }
 }

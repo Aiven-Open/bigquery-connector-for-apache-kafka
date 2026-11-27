@@ -211,7 +211,7 @@ public class BigQuerySinkTask extends SinkTask {
       }
     }
     if (result == null) {
-        result = commitStrategy.preCommit(offsets);
+      result = commitStrategy.preCommit(offsets);
     }
     checkQueueSize();
     if (logger.isDebugEnabled()) {

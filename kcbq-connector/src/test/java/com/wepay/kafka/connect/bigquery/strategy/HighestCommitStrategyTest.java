@@ -68,12 +68,9 @@ class HighestCommitStrategyTest {
   @Test
   void holesDoNotStopCommitTest() {
     List<TestContainer> containers = new ArrayList<>();
-    containers.add(
-    underTest.queue(List.of(testRecord("aTopic", 2, 10)), new TestContainer()));
-    containers.add(
-    underTest.queue(List.of(testRecord("aTopic", 2, 12)), new TestContainer()));
-    containers.add(
-    underTest.queue(List.of(testRecord("aTopic", 2, 13)), new TestContainer()));
+    containers.add(underTest.queue(List.of(testRecord("aTopic", 2, 10)), new TestContainer()));
+    containers.add(underTest.queue(List.of(testRecord("aTopic", 2, 12)), new TestContainer()));
+    containers.add(underTest.queue(List.of(testRecord("aTopic", 2, 13)), new TestContainer()));
 
     Map<TopicPartition, OffsetAndMetadata> actual = underTest.preCommit(Collections.emptyMap());
     assertThat(actual).isEmpty();
@@ -102,12 +99,9 @@ class HighestCommitStrategyTest {
   @Test
   void inactiveDoesNotBlockCommit() {
     List<TestContainer> containers = new ArrayList<>();
-    containers.add(
-    underTest.queue(List.of(testRecord("aTopic", 2, 10)), new TestContainer()));
-    containers.add(
-            underTest.queue(List.of(testRecord("aTopic", 2, 12)), new TestContainer()));
-    containers.add(
-            underTest.queue(List.of(testRecord("aTopic", 2, 13)), new TestContainer()));
+    containers.add(underTest.queue(List.of(testRecord("aTopic", 2, 10)), new TestContainer()));
+    containers.add(underTest.queue(List.of(testRecord("aTopic", 2, 12)), new TestContainer()));
+    containers.add(underTest.queue(List.of(testRecord("aTopic", 2, 13)), new TestContainer()));
 
     Map<TopicPartition, OffsetAndMetadata> actual = underTest.preCommit(Collections.emptyMap());
     assertThat(actual).isEmpty();
@@ -128,7 +122,7 @@ class HighestCommitStrategyTest {
             testRecord(topic, partition, random.nextLong()),
             testRecord(topic, partition, random.nextLong()),
             testRecord(topic, partition, random.nextLong())),
-            new TestContainer());
+        new TestContainer());
   }
 
   private int partitionCount() {

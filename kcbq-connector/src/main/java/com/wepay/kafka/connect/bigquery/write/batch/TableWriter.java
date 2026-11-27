@@ -26,7 +26,6 @@ package com.wepay.kafka.connect.bigquery.write.batch;
 import com.google.cloud.bigquery.BigQueryException;
 import com.google.cloud.bigquery.InsertAllRequest.RowToInsert;
 import com.google.cloud.bigquery.TableId;
-import com.wepay.kafka.connect.bigquery.BigQuerySinkTask;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryErrorResponses;
 import com.wepay.kafka.connect.bigquery.exception.ExpectedInterruptException;
@@ -35,8 +34,8 @@ import com.wepay.kafka.connect.bigquery.strategy.StreamStateContainer;
 import com.wepay.kafka.connect.bigquery.threads.ErrorRecorder;
 import com.wepay.kafka.connect.bigquery.utils.PartitionedTableId;
 import com.wepay.kafka.connect.bigquery.utils.SinkRecordConverter;
-import com.wepay.kafka.connect.bigquery.write.NeedsStreamState;
 import com.wepay.kafka.connect.bigquery.write.row.BigQueryWriter;
+import com.wepay.kafka.connect.bigquery.write.storage.StreamState;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -45,13 +44,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.SortedMap;
 import java.util.TreeMap;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
-
-import com.wepay.kafka.connect.bigquery.write.storage.StreamState;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -165,7 +160,8 @@ public class TableWriter implements Runnable, StreamStateContainer {
       try {
         while (currentIndex < rows.size()) {
           List<Map.Entry<SinkRecord, RowToInsert>> currentBatchList =
-                  rowsList.subList(currentIndex, Math.min(currentIndex + currentBatchSize, rows.size()));
+              rowsList.subList(
+                  currentIndex, Math.min(currentIndex + currentBatchSize, rows.size()));
           try {
             SortedMap<SinkRecord, RowToInsert> currentBatch = new TreeMap<>(rows.comparator());
             for (Map.Entry<SinkRecord, RowToInsert> record : currentBatchList) {
@@ -176,19 +172,19 @@ public class TableWriter implements Runnable, StreamStateContainer {
             successCount++;
           } catch (BigQueryException err) {
             logger.warn(
-                    "Could not write batch of size {} to BigQuery. "
-                            + "Error code: {}, underlying error (if present): {}",
-                    currentBatchList.size(),
-                    err.getCode(),
-                    err.getError(),
-                    err);
+                "Could not write batch of size {} to BigQuery. "
+                    + "Error code: {}, underlying error (if present): {}",
+                currentBatchList.size(),
+                err.getCode(),
+                err.getError(),
+                err);
             if (isBatchSizeError(err)) {
               failureCount++;
               currentBatchSize = getNewBatchSize(currentBatchSize, err);
             } else {
               // Throw exception on write errors such as 403.
               throw new BigQueryConnectException(
-                      "Failed to write to table. " + err.getMessage(), err);
+                  "Failed to write to table. " + err.getMessage(), err);
             }
           }
         }
@@ -279,7 +275,7 @@ public class TableWriter implements Runnable, StreamStateContainer {
 
     @Override
     public void setCommitStrategy(CommitStrategy commitStrategy) {
-      this.commitStrategy=commitStrategy;
+      this.commitStrategy = commitStrategy;
     }
 
     @Override
@@ -291,13 +287,16 @@ public class TableWriter implements Runnable, StreamStateContainer {
     public TableWriter build() {
       Objects.requireNonNull(errorRecorder, "errorRecorder may not be null");
       Objects.requireNonNull(commitStrategy, "commitStrategy may not be null");
-      return commitStrategy.queue(rows.keySet(), new TableWriter(
-          writer,
-          table,
-          rows,
-          onFinish != null ? onFinish : n -> {},
-          recordConverter,
-          ulidSupplier, errorRecorder));
+      return commitStrategy.queue(
+          rows.keySet(),
+          new TableWriter(
+              writer,
+              table,
+              rows,
+              onFinish != null ? onFinish : n -> {},
+              recordConverter,
+              ulidSupplier,
+              errorRecorder));
     }
   }
 }

@@ -205,8 +205,7 @@ public class StorageWriteApiDefaultStream extends StorageWriteApiBase {
     }
 
     @Override
-    public void onSuccess() {
-    }
+    public void onSuccess() {}
 
     @Override
     public void refresh() {

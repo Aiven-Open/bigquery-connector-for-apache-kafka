@@ -64,7 +64,8 @@ public interface CommitStrategy {
    * @param rows the collection rows to add to the queue of waiting rows.
    * @param streamStateContainer the container that will write the rows.
    */
-  default <T extends StreamStateContainer> T queue(Collection<SinkRecord> rows, T streamStateContainer) {
+  default <T extends StreamStateContainer> T queue(
+      Collection<SinkRecord> rows, T streamStateContainer) {
     return queueKeys(convertSinkRecord(rows.stream()), streamStateContainer);
   }
 
@@ -75,7 +76,8 @@ public interface CommitStrategy {
    * @param rows the stream of rows to add to the queue of waiting rows.
    * @param streamStateContainer the container that will write the rows.
    */
-  default <T extends StreamStateContainer> T queue(Stream<SinkRecord> rows, T streamStateContainer) {
+  default <T extends StreamStateContainer> T queue(
+      Stream<SinkRecord> rows, T streamStateContainer) {
     return queueKeys(convertSinkRecord(rows), streamStateContainer);
   }
 
