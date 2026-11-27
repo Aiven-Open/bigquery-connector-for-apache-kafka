@@ -19,6 +19,9 @@ package com.wepay.kafka.connect.bigquery.strategy;
 
 import com.wepay.kafka.connect.bigquery.write.storage.StreamState;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+
 /**
  * A container for the stream state. This container will be associated with one or more rows. Once
  * the container state reaches {@link StreamState#COMMITTED} or {@link StreamState#INACTIVE} Kafka
@@ -36,4 +39,34 @@ public interface StreamStateContainer {
 
   /** Abort the stream writing and do not commit. */
   void abort();
+
+  class StreamStateData implements StreamStateContainer {
+    private final AtomicReference<StreamState> streamState;
+    private final AtomicBoolean aborted = new AtomicBoolean(false);
+
+    public StreamStateData(StreamState initialState) {
+       streamState = new AtomicReference<>(initialState);
+    }
+    public AtomicBoolean getAborted() {
+      return aborted;
+    }
+
+    @Override
+    public boolean stateIs(StreamState state) {
+      return streamState.get().equals(state);
+    }
+
+    @Override
+    public void abort() {
+      aborted.set(true);
+    }
+
+    public boolean isAborted() {
+      return aborted.get();
+    }
+
+    public void setStreamState(StreamState streamState) {
+      this.streamState.set(streamState);
+    }
+  }
 }

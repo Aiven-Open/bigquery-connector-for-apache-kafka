@@ -116,7 +116,7 @@ public class BigQueryStorageApiSinkTaskTest {
     Awaitility.waitAtMost(Duration.ofSeconds(5))
         .untilAsserted(
             () -> {
-              System.out.println(testTask.scheduledExecutor.status());
+              System.out.println(testTask.getScheduledExecutor().status());
               verify(mockedStorageWriteApiDefaultStream, times(1))
                   .initializeAndWriteRecords(any(PartitionedTableId.class), anyList(), eq(DEFAULT));
             });

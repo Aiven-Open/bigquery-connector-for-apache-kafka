@@ -167,7 +167,7 @@ public abstract class StorageWriteApiBase {
     this.autoCreateTables = autoCreateTables;
     this.writeSettings = writeSettings;
     this.errantRecordHandler = errantRecordHandler;
-    this.schemaManager = schemaManager;
+    this.schemaManager = Objects.requireNonNull(schemaManager, "schemaManager cannot be null");
     this.attemptSchemaUpdate = attemptSchemaUpdate;
     this.ignoreUnknownFields = false;
     this.isCdcEnabled = false;
@@ -300,7 +300,6 @@ public abstract class StorageWriteApiBase {
 
       batches.advanceToNextBatch();
     }
-
     writer.onSuccess();
   }
 
@@ -356,6 +355,7 @@ public abstract class StorageWriteApiBase {
                   + "please report it to the maintainers of the connector to investigate.");
         }
         logger.trace("Append call completed successfully on stream {}", writer.streamName());
+
       }
     } catch (BigQueryStorageWriteApiConnectException | BatchWriteException exception) {
       throw exception;

@@ -114,13 +114,6 @@ public class HighestCommitStrategy implements CommitStrategy {
         endKey = commitMap.lowerKey(endKey);
       }
     }
-    // do not return an empty map as that signals that we do not want connect managed offsets
-    if (result.isEmpty()) {
-      OffsetAndMetadata zero = new OffsetAndMetadata(0);
-      for (TopicPartition tp : currentOffsets.keySet()) {
-        result.put(tp, zero);
-      }
-    }
     return result;
   }
 

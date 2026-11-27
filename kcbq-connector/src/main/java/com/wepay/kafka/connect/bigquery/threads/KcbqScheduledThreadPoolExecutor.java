@@ -74,13 +74,14 @@ public class KcbqScheduledThreadPoolExecutor extends ScheduledThreadPoolExecutor
   }
 
   @Override
-  public void logAndRecord(Throwable throwable) {
+  public Throwable logAndRecord(Throwable throwable) {
     if (!(throwable instanceof ExpectedInterruptException)) {
       logger.warn(
           "A scheduled thread has failed with an unrecoverable error. " + throwable.getMessage(),
           throwable);
       logger.debug("Error preserved: {}", encounteredError.compareAndSet(null, throwable));
     }
+    return throwable;
   }
 
   @Override
