@@ -77,7 +77,7 @@ import org.junit.jupiter.params.provider.MethodSource;
  * Observation-only reproduction harness. Nothing here asserts an expected outcome; each test prints
  * what the production code actually does so the result can be read from the surefire output.
  */
-public class HarnessTest {
+public class ConfigAndStrategyTest {
   private static final String TOPIC = "test_topic";
 
   private static void out(String s) {
@@ -228,23 +228,17 @@ public class HarnessTest {
   // ---------------------------------------------------------------- task-level harness
   private static class Harness {
     final CountDownLatch writeStarted = new CountDownLatch(1);
-    //    final CountDownLatch releaseWrite = new CountDownLatch(1);
-    //    final CountDownLatch writeDone = new CountDownLatch(1);
     final StorageWriteApiDefaultStream stream =
         mock(StorageWriteApiDefaultStream.class, CALLS_REAL_METHODS);
     final BigQuery bigQuery = mock(BigQuery.class);
     BigQuerySinkTask task;
 
-    Harness(boolean blockWrites) throws Exception {
+    Harness() throws Exception {
       doAnswer(
               inv -> {
                 StorageWriteApiBase base = (StorageWriteApiBase) inv.getMock();
 
                 writeStarted.countDown();
-                //                if (blockWrites) {
-                //                  releaseWrite.await();
-                //                }
-                //                writeDone.countDown();
                 return null;
               })
           .when(stream)
@@ -263,10 +257,6 @@ public class HarnessTest {
           .thenAnswer(
               inv -> {
                 writeStarted.countDown();
-                //                if (blockWrites) {
-                //                  releaseWrite.await();
-                //                }
-                //                writeDone.countDown();
                 return resp;
               });
       task =
@@ -288,10 +278,10 @@ public class HarnessTest {
     return f.get(task).getClass().getSimpleName();
   }
 
-  private static void runScenario(String name, Map<String, String> props, boolean blockWrites) {
+  private static void runScenario(String name, Map<String, String> props) {
     TopicPartition tp = new TopicPartition(TOPIC, 0);
     try {
-      Harness h = new Harness(blockWrites);
+      Harness h = new Harness();
       h.task.start(props);
       h.task.open(Collections.singleton(tp));
       out("SCENARIO [" + name + "] started; commitStrategy=" + commitStrategyOf(h.task));
@@ -315,27 +305,9 @@ public class HarnessTest {
       // try {
       h.task.put(Collections.emptyList());
       out("SCENARIO [" + name + "] follow-up put(empty) OK");
-      //      } catch (Throwable t) {
-      //        out("SCENARIO [" + name + "] follow-up put(empty) threw " + t);
-      //        Throwable c = t.getCause();
-      //        while (c != null) {
-      //          out("SCENARIO [" + name + "]    caused by " + c);
-      //          c = c.getCause();
-      //        }
-      //      }
-      //      try {
       h.task.stop();
-      //      } catch (Throwable t) {
-      //        out("SCENARIO [" + name + "] stop threw " + t);
-      //      }
     } catch (Throwable t) {
       fail("SCENARIO [" + name + "] FAILED TO RUN: " + t, t);
-      //      out("SCENARIO [" + name + "] FAILED TO RUN: " + t);
-      //      Throwable c = t.getCause();
-      //      while (c != null) {
-      //        out("SCENARIO [" + name + "]    caused by " + c);
-      //        c = c.getCause();
-      //      }
     }
   }
 
@@ -343,13 +315,13 @@ public class HarnessTest {
   void StorageWriteApiDefaultStreamTest() {
     Map<String, String> p = baseProps();
     p.put("useStorageWriteApi", "true");
-    runScenario("R2 useStorageWriteApi=true default stream", p, true);
+    runScenario("R2 useStorageWriteApi=true default stream", p);
   }
 
   @Test
   void InsertAllDefaultPathTest() {
     Map<String, String> p = baseProps();
-    runScenario("R4 insertAll default path", p, true);
+    runScenario("R4 insertAll default path", p);
   }
 
   /** insertAll path where the newest records of the partition are tombstones (skipped). */
@@ -357,7 +329,7 @@ public class HarnessTest {
   void InsertAllTrailingTombstonesTest() throws Exception {
     String name = "R4b insertAll, offsets 0-1 data + offsets 2-3 tombstones";
     TopicPartition tp = new TopicPartition(TOPIC, 0);
-    Harness h = new Harness(false);
+    Harness h = new Harness();
     h.task.start(baseProps());
     h.task.open(Collections.singleton(tp));
     SinkRecord t2 =
@@ -365,8 +337,6 @@ public class HarnessTest {
     SinkRecord t3 =
         new SinkRecord(TOPIC, 0, null, null, null, null, 3, 0L, TimestampType.CREATE_TIME);
     h.task.put(List.of(rec(0), rec(1), t2, t3));
-    //    h.writeDone.await(5, TimeUnit.SECONDS);
-    //    Thread.sleep(500);
     Map<TopicPartition, OffsetAndMetadata> expected = Map.of(tp, new OffsetAndMetadata(4));
     Awaitility.waitAtMost(Duration.ofSeconds(5))
         .pollInterval(Duration.ofMillis(500))
@@ -396,14 +366,14 @@ public class HarnessTest {
   void CdcAloneTest() {
     Map<String, String> p = baseProps();
     p.put("isCdcEnabled", "true");
-    runScenario("R3a isCdcEnabled=true alone", p, false);
+    runScenario("R3a isCdcEnabled=true alone", p);
   }
 
   @Test
   void CdcPresetAloneTest() {
     Map<String, String> p = baseProps();
     p.put("configPreset", "debezium_cdc");
-    runScenario("R3a configPreset=debezium_cdc alone", p, false);
+    runScenario("R3a configPreset=debezium_cdc alone", p);
   }
 
   @Test
@@ -411,7 +381,7 @@ public class HarnessTest {
     Map<String, String> p = baseProps();
     p.put("isCdcEnabled", "true");
     p.put("useStorageWriteApi", "true");
-    runScenario("R3c isCdcEnabled=true + useStorageWriteApi=true", p, true);
+    runScenario("R3c isCdcEnabled=true + useStorageWriteApi=true", p);
   }
 
   @Test
@@ -419,6 +389,6 @@ public class HarnessTest {
     Map<String, String> p = baseProps();
     p.put("isCdcEnabled", "true");
     p.put("upsertEnabled", "true");
-    runScenario("R3b isCdcEnabled=true + upsertEnabled=true", p, false);
+    runScenario("R3b isCdcEnabled=true + upsertEnabled=true", p);
   }
 }
