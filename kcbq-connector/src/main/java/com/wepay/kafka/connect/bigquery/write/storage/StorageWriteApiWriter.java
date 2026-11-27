@@ -56,38 +56,6 @@ public final class StorageWriteApiWriter implements Runnable, StreamStateContain
   private final StreamStateData streamStateData;
   private final ErrorRecorder errorRecorder;
 
-  //  /**
-  //   * @param tableName The table to write the records to
-  //   * @param streamWriter The stream writer to use - Default, Batch etc
-  //   * @param records The records to write
-  //   * @param streamName The stream to use while writing data
-  //   * @deprecated Use {@link #StorageWriteApiWriter(PartitionedTableId, StorageWriteApiBase,
-  // List,
-  //   *     String)} instead.
-  //   */
-  //  @Deprecated
-  //  public StorageWriteApiWriter(
-  //      TableName tableName,
-  //      StorageWriteApiBase streamWriter,
-  //      List<ConvertedRecord> records,
-  //      String streamName) {
-  //    this(TableNameUtils.partitionedTableId(tableName), streamWriter, records, streamName);
-  //  }
-
-  //  /**
-  //   * @param table The table to write the records to
-  //   * @param streamWriter The stream writer to use - Default, Batch etc
-  //   * @param records The records to write
-  //   * @param streamName The stream to use while writing data
-  //   */
-  //  public StorageWriteApiWriter(
-  //      PartitionedTableId table,
-  //      StorageWriteApiBase streamWriter,
-  //      List<ConvertedRecord> records,
-  //      String streamName) {
-  //    this(table, streamWriter, records, streamName, null, null);
-  //  }
-
   StorageWriteApiWriter(
       PartitionedTableId table,
       StorageWriteApiBase streamWriter,
@@ -153,24 +121,6 @@ public final class StorageWriteApiWriter implements Runnable, StreamStateContain
     private Supplier<String> ulidSupplier = null;
     private CommitStrategy commitStrategy;
     private ErrorRecorder errorRecorder;
-
-    //    /**
-    //     * @deprecated Use {@link #Builder(StorageWriteApiBase, PartitionedTableId,
-    // SinkRecordConverter,
-    //     *     StorageApiBatchModeHandler)} instead.
-    //     */
-    //    @Deprecated
-    //    public Builder(
-    //        StorageWriteApiBase streamWriter,
-    //        TableName tableName,
-    //        SinkRecordConverter recordConverter,
-    //        StorageApiBatchModeHandler batchModeHandler) {
-    //      this(
-    //          streamWriter,
-    //          TableNameUtils.partitionedTableId(tableName),
-    //          recordConverter,
-    //          batchModeHandler);
-    //    }
 
     public Builder(
         StorageWriteApiBase streamWriter,
