@@ -94,7 +94,7 @@ public class KcbqThreadPoolExecutor extends ThreadPoolExecutor implements KcbqEx
   }
 
   @Override
-  public void logAndRecord(Throwable throwable) {
+  public <T extends Throwable> T logAndRecord(T throwable) {
     if (!(throwable instanceof ExpectedInterruptException)) {
       // Log at debug level since this will be shown to the user at error level by the Connect
       // framework if it causes
@@ -102,6 +102,7 @@ public class KcbqThreadPoolExecutor extends ThreadPoolExecutor implements KcbqEx
       logger.debug("A write thread has failed with an unrecoverable error.", throwable);
       logger.debug("Error preserved: {}", encounteredError.compareAndSet(null, throwable));
     }
+    return throwable;
   }
 
   @Override

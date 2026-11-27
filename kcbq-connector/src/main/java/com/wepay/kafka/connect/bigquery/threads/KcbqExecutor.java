@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Copyright 2022 Aiven Oy and
+ * Copyright 2026 Aiven Oy and
  * bigquery-connector-for-apache-kafka project contributors
  *
  * This software contains code derived from the Confluent BigQuery
@@ -28,14 +28,7 @@ import java.util.List;
 import java.util.Optional;
 
 /** Common methods for all Executors */
-public interface KcbqExecutor {
-
-  /**
-   * log the throwable and set the encounteredError.
-   *
-   * @param throwable the throwable to log and record.
-   */
-  void logAndRecord(Throwable throwable);
+public interface KcbqExecutor extends ErrorRecorder {
 
   /**
    * Immediately throw an exception if any unrecoverable errors were encountered by any of the write

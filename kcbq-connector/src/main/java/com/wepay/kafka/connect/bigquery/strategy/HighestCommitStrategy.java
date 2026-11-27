@@ -65,13 +65,25 @@ public class HighestCommitStrategy implements CommitStrategy {
   }
 
   @Override
-  public void queueKeys(
-      final Stream<KafkaRecordKey> keys, final StreamStateContainer streamStateContainer) {
+  public <T extends StreamStateContainer> T queueKeys(
+      final Stream<KafkaRecordKey> keys, final T streamStateContainer) {
     CommitStrategy.extractHighKeys(keys)
         .forEach(
             key -> {
-              commitMap.put(key, streamStateContainer);
+              commitMap.compute(
+                  key,
+                  (k, v) -> {
+                    if (v != null) {
+                      logger.warn(
+                          "Duplicate key detected. {} was originally in {} and is now in {}",
+                          k,
+                          v,
+                          streamStateContainer);
+                    }
+                    return streamStateContainer;
+                  });
             });
+    return streamStateContainer;
   }
 
   /**

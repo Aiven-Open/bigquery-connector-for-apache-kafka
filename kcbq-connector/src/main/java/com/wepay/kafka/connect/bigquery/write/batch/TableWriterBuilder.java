@@ -24,6 +24,8 @@
 package com.wepay.kafka.connect.bigquery.write.batch;
 
 import com.google.cloud.bigquery.TableId;
+import com.wepay.kafka.connect.bigquery.strategy.CommitStrategy;
+import com.wepay.kafka.connect.bigquery.threads.ErrorRecorder;
 import org.apache.kafka.connect.sink.SinkRecord;
 
 /** Interface for building a {@link TableWriter} or TableWriterGCS. */
@@ -38,9 +40,23 @@ public interface TableWriterBuilder {
   void addRow(SinkRecord sinkRecord, TableId table);
 
   /**
-   * Create a {@link TableWriter} from this builder.
+   * Creates a {@link TableWriter} from this builder.
    *
    * @return a TableWriter containing the given writer, table, topic, and all added rows.
    */
   Runnable build();
+
+  /**
+   * Sets the commit strategy that the table writer will use.
+   *
+   * @param commitStrategy the commit strategy to use.
+   */
+  void setCommitStrategy(CommitStrategy commitStrategy);
+
+  /**
+   * Sets the error Recorder.
+   *
+   * @param errorRecorder The error recorder to record write errors to.
+   */
+  void setErrorRecorder(ErrorRecorder errorRecorder);
 }

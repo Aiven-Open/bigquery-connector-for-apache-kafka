@@ -39,7 +39,10 @@ public class DefaultKafkaCommitStrategy implements CommitStrategy {
   public DefaultKafkaCommitStrategy() {}
 
   @Override
-  public void queueKeys(Stream<KafkaRecordKey> keys, StreamStateContainer streamStateContainer) {}
+  public <T extends StreamStateContainer> T queueKeys(
+      Stream<KafkaRecordKey> keys, T streamStateContainer) {
+    return streamStateContainer;
+  }
 
   @Override
   public Map<TopicPartition, OffsetAndMetadata> preCommit(

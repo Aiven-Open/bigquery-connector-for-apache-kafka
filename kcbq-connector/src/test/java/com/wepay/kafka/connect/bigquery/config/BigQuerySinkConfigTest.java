@@ -50,6 +50,7 @@ import org.apache.kafka.common.config.ConfigValue;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
 
 public class BigQuerySinkConfigTest {
@@ -534,5 +535,20 @@ public class BigQuerySinkConfigTest {
     configProperties.remove(BigQuerySinkConfig.KAFKA_KEY_FIELD_NAME_CONFIG);
     config = new BigQuerySinkConfig(configProperties);
     assertEquals(Optional.empty(), config.getKafkaKeyFieldName());
+  }
+
+  // ---------------------------------------------------------------- Regression 1
+  @ParameterizedTest
+  @CsvSource({"1,5,false", "-1,-1,false", "100,100,false", "100000,100000,false", "abc,-2,true"})
+  void QueueSizeValidatorTest(String size, int expected, boolean exception) {
+    Map<String, String> p = propertiesFactory.getProperties();
+    p.put("queueSize", size);
+    try {
+      BigQuerySinkConfig c = new BigQuerySinkConfig(p);
+      assertThat(exception).isFalse();
+      assertThat(c.getQueueSize()).isEqualTo(expected);
+    } catch (ConfigException t) {
+      assertThat(exception).isTrue();
+    }
   }
 }

@@ -167,7 +167,7 @@ public abstract class StorageWriteApiBase {
     this.autoCreateTables = autoCreateTables;
     this.writeSettings = writeSettings;
     this.errantRecordHandler = errantRecordHandler;
-    this.schemaManager = schemaManager;
+    this.schemaManager = Objects.requireNonNull(schemaManager, "schemaManager cannot be null");
     this.attemptSchemaUpdate = attemptSchemaUpdate;
     this.ignoreUnknownFields = false;
     this.isCdcEnabled = false;
@@ -194,34 +194,6 @@ public abstract class StorageWriteApiBase {
   public void shutdown() {
     preShutdown();
     this.writeClient.close();
-  }
-
-  /**
-   * Handles required initialization steps and goes to append records to table
-   *
-   * @param tableName The table to write data to
-   * @param rows List of pre- and post-conversion records. Converted JSONObjects would be sent to
-   *     api. Pre-conversion sink records are required for DLQ routing
-   * @param streamName The stream to use to write table to table.
-   * @deprecated Use {@link #initializeAndWriteRecords(PartitionedTableId, List, String)} instead.
-   */
-  @Deprecated
-  public final void initializeAndWriteRecords(
-      TableName tableName, List<ConvertedRecord> rows, String streamName) {
-    initializeAndWriteRecords(TableNameUtils.partitionedTableId(tableName), rows, streamName);
-  }
-
-  /**
-   * Handles required initialization steps and goes to append records to table
-   *
-   * @param table The table to write data to
-   * @param rows List of pre- and post-conversion records. Converted JSONObjects would be sent to
-   *     api. Pre-conversion sink records are required for DLQ routing
-   * @param streamName The stream to use to write table to table.
-   */
-  public final void initializeAndWriteRecords(
-      PartitionedTableId table, List<ConvertedRecord> rows, String streamName) {
-    initializeAndWriteRecords(table, rows, streamName, null, null);
   }
 
   /**
@@ -300,7 +272,6 @@ public abstract class StorageWriteApiBase {
 
       batches.advanceToNextBatch();
     }
-
     writer.onSuccess();
   }
 

@@ -207,7 +207,6 @@ class StorageWriteApiBaseTest {
     verify(schemaManager, times(1)).updateSchema(any(TableId.class), any(List.class));
 
     // verify the results
-    ;
     List<JSONArray> result = streamWriter.appendCalls;
     Set<String> ulid = new LinkedHashSet<>();
     // 1 failure (schema change), 1 success = 2 attempts
@@ -233,7 +232,6 @@ class StorageWriteApiBaseTest {
     verify(schemaManager, times(1)).updateSchema(any(TableId.class), any(List.class));
 
     // verify the results
-    ;
     List<JSONArray> result = streamWriter.appendCalls;
     Set<String> ulid = new LinkedHashSet<>();
     // 1 failure (schema change), 1 success = 2 attempts

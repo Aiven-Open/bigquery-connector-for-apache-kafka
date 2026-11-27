@@ -40,9 +40,9 @@ import com.wepay.kafka.connect.bigquery.convert.logicaltype.KafkaLogicalConverte
 import com.wepay.kafka.connect.bigquery.exception.BigQueryStorageWriteApiConnectException;
 import com.wepay.kafka.connect.bigquery.exception.ConversionConnectException;
 import com.wepay.kafka.connect.bigquery.strategy.CommitStrategy;
-import com.wepay.kafka.connect.bigquery.strategy.DefaultKafkaCommitStrategy;
 import com.wepay.kafka.connect.bigquery.strategy.HighestUnblockedCommitStrategy;
 import com.wepay.kafka.connect.bigquery.strategy.StreamStateContainer;
+import com.wepay.kafka.connect.bigquery.threads.KcbqExecutor;
 import com.wepay.kafka.connect.bigquery.threads.KcbqScheduledThreadPoolExecutor;
 import com.wepay.kafka.connect.bigquery.threads.KcbqThreadPoolExecutor;
 import com.wepay.kafka.connect.bigquery.threads.NamedRunnable;
@@ -98,15 +98,29 @@ import org.slf4j.MDC;
 public class BigQuerySinkTask extends SinkTask {
   private static final Logger logger = LoggerFactory.getLogger(BigQuerySinkTask.class);
   private static final int EXECUTOR_SHUTDOWN_TIMEOUT_SEC = 30;
+  private static final StreamStateContainer NO_COMMIT_NECESSARY =
+      new StreamStateContainer() {
+        // used for rows that are not written to the BQ, potentially rows that have no data.
+        @Override
+        public boolean stateIs(StreamState state) {
+          return StreamState.INACTIVE.equals(state);
+        }
+
+        @Override
+        public void abort() {
+          // does nothing
+        }
+      };
+  private static final ULID ULID_GENERATOR = new ULID();
+
   private Supplier<BigQuery> bigQuerySupplier;
   private Supplier<Storage> storageSupplier;
   private Supplier<SchemaManager> schemaManagerSupplier;
-  private static final ULID ULID_GENERATOR = new ULID();
   private final String uuid = ULID_GENERATOR.nextULID();
   private final StorageWriteApiBase testStorageWriteApi;
   private final StorageApiBatchModeHandler testStorageApiBatchHandler;
   private final Time time;
-  @VisibleForTesting KcbqScheduledThreadPoolExecutor scheduledExecutor;
+  private KcbqScheduledThreadPoolExecutor scheduledExecutor;
   private final AtomicReference<BigQuery> bigQuery = new AtomicReference<>();
   private final AtomicReference<SchemaManager> schemaManager = new AtomicReference<>();
   private BigQueryWriter bigQueryWriter;
@@ -119,7 +133,7 @@ public class BigQuerySinkTask extends SinkTask {
   private MergeQueries mergeQueries;
   private volatile boolean stopped = true;
   private TopicPartitionManager topicPartitionManager;
-  @VisibleForTesting KcbqThreadPoolExecutor executor;
+  private KcbqThreadPoolExecutor executor;
   private int remainingRetries;
   private boolean enableRetries;
   private boolean trackPutAttempts;
@@ -145,11 +159,7 @@ public class BigQuerySinkTask extends SinkTask {
     testStorageWriteApi = null;
     testStorageApiBatchHandler = null;
     time = Time.SYSTEM;
-    commitStrategyFactory =
-        config ->
-            (!config.upsertDelete() && !config.useStorageApi())
-                ? new HighestUnblockedCommitStrategy()
-                : new DefaultKafkaCommitStrategy();
+    commitStrategyFactory = config -> new HighestUnblockedCommitStrategy();
   }
 
   /**
@@ -179,6 +189,14 @@ public class BigQuerySinkTask extends SinkTask {
     this.commitStrategyFactory = commitStrategyFactory;
   }
 
+  public KcbqScheduledThreadPoolExecutor getScheduledExecutor() {
+    return scheduledExecutor;
+  }
+
+  public KcbqExecutor getExecutor() {
+    return executor;
+  }
+
   @Override
   public Map<TopicPartition, OffsetAndMetadata> preCommit(
       Map<TopicPartition, OffsetAndMetadata> offsets) {
@@ -186,11 +204,14 @@ public class BigQuerySinkTask extends SinkTask {
     maybeThrowErrors();
 
     Map<TopicPartition, OffsetAndMetadata> result = null;
-    if (upsertDelete) {
-      result = mergeBatches.latestOffsets();
-    } else if (useStorageApiBatchMode) {
-      result = batchHandler.getCommitableOffsets();
-    } else {
+    if (!config.isCdcEnabled()) {
+      if (upsertDelete) {
+        result = mergeBatches.latestOffsets();
+      } else if (useStorageApiBatchMode) {
+        result = batchHandler.getCommitableOffsets();
+      }
+    }
+    if (result == null) {
       result = commitStrategy.preCommit(offsets);
     }
     checkQueueSize();
@@ -300,11 +321,16 @@ public class BigQuerySinkTask extends SinkTask {
             throw ex;
           }
         }
+      } else {
+        // if we don't write the record then record it is not requiring a commit.
+        commitStrategy.queue(List.of(record), NO_COMMIT_NECESSARY);
       }
     }
 
     // add tableWriters to the executor work queue
     for (TableWriterBuilder builder : tableWriterBuilders.values()) {
+      builder.setCommitStrategy(commitStrategy);
+      builder.setErrorRecorder(executor);
       Runnable runnable = builder.build();
       if (runnable instanceof NeedsStreamState needsStreamState
           && !upsertDelete
@@ -540,7 +566,8 @@ public class BigQuerySinkTask extends SinkTask {
           new MergeQueries(
               config, mergeBatches, executor, getBigQuery(), getSchemaManager(), context);
       maybeStartMergeFlushTask();
-    } else if (useStorageApi) {
+    }
+    if (useStorageApi) {
       initializeStorageApiMode();
     }
 
@@ -788,7 +815,7 @@ public class BigQuerySinkTask extends SinkTask {
     public WrappedRunnable(NeedsStreamState tableWriter, CommitStrategy strategy) {
       this.tableWriter = tableWriter;
       // the state is FINALISED since we are getting ready to write to the backend
-      streamState = StreamState.FINALISED;
+      this.streamState = StreamState.FINALISED;
       // record the topic/partition offsets for the container.
       strategy.queue(tableWriter.records(), this);
     }

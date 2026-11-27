@@ -142,7 +142,7 @@ public class StorageWriteApiDefaultStreamTest {
   public void testDefaultStreamNoExceptions() throws Exception {
     when(mockedResponse.get()).thenReturn(successResponse);
 
-    defaultStream.initializeAndWriteRecords(mockedPartitionedTableId, testRows, null);
+    defaultStream.initializeAndWriteRecords(mockedPartitionedTableId, testRows, null, null, null);
   }
 
   @ParameterizedTest(name = "{index} – {0}")
@@ -181,7 +181,7 @@ public class StorageWriteApiDefaultStreamTest {
   public void testHasSchemaUpdates() throws Exception {
     when(mockedResponse.get()).thenReturn(schemaError).thenReturn(successResponse);
 
-    defaultStream.initializeAndWriteRecords(mockedPartitionedTableId, testRows, null);
+    defaultStream.initializeAndWriteRecords(mockedPartitionedTableId, testRows, null, null, null);
 
     verify(mockedSchemaManager, times(1)).updateSchema(any(), any());
   }
@@ -193,7 +193,9 @@ public class StorageWriteApiDefaultStreamTest {
 
     assertThrows(
         BigQueryStorageWriteApiConnectException.class,
-        () -> defaultStream.initializeAndWriteRecords(mockedPartitionedTableId, testRows, null));
+        () ->
+            defaultStream.initializeAndWriteRecords(
+                mockedPartitionedTableId, testRows, null, null, null));
     verify(mockedSchemaManager, times(1))
         .checkAndApplyTableOptions(mockedPartitionedTableId.getBaseTableId());
     verifyNoMoreInteractions(mockedSchemaManager);
@@ -235,7 +237,7 @@ public class StorageWriteApiDefaultStreamTest {
   public void testDefaultStreamTableMissingException() throws Exception {
     when(mockedResponse.get()).thenThrow(tableMissingException).thenReturn(successResponse);
     when(defaultStream.getAutoCreateTables()).thenReturn(true);
-    defaultStream.initializeAndWriteRecords(mockedPartitionedTableId, testRows, null);
+    defaultStream.initializeAndWriteRecords(mockedPartitionedTableId, testRows, null, null, null);
     verify(mockedSchemaManager, times(1)).createTable(any(), any());
   }
 
@@ -244,7 +246,7 @@ public class StorageWriteApiDefaultStreamTest {
     errorMapping.put(0, "JSONObject does not have the required field f1");
     when(mockedResponse.get()).thenThrow(appendSerializationException).thenReturn(successResponse);
 
-    defaultStream.initializeAndWriteRecords(mockedPartitionedTableId, testRows, null);
+    defaultStream.initializeAndWriteRecords(mockedPartitionedTableId, testRows, null, null, null);
     verify(mockedSchemaManager, times(1)).updateSchema(any(), any());
   }
 
@@ -257,7 +259,9 @@ public class StorageWriteApiDefaultStreamTest {
 
     assertThrows(
         BigQueryStorageWriteApiConnectException.class,
-        () -> defaultStream.initializeAndWriteRecords(mockedPartitionedTableId, testRows, null));
+        () ->
+            defaultStream.initializeAndWriteRecords(
+                mockedPartitionedTableId, testRows, null, null, null));
   }
 
   @Test
@@ -273,7 +277,8 @@ public class StorageWriteApiDefaultStreamTest {
         assertThrows(
             BigQueryStorageWriteApiConnectException.class,
             () ->
-                defaultStream.initializeAndWriteRecords(mockedPartitionedTableId, testRows, null));
+                defaultStream.initializeAndWriteRecords(
+                    mockedPartitionedTableId, testRows, null, null, null));
 
     assertAll(
         () ->
@@ -291,7 +296,7 @@ public class StorageWriteApiDefaultStreamTest {
   private void verifyDLQ(List<ConvertedRecord> rows) {
     ArgumentCaptor<Map<SinkRecord, Throwable>> captorRecord = ArgumentCaptor.forClass(Map.class);
 
-    defaultStream.initializeAndWriteRecords(mockedPartitionedTableId, rows, null);
+    defaultStream.initializeAndWriteRecords(mockedPartitionedTableId, rows, null, null, null);
 
     verify(mockedErrantRecordHandler, times(1)).reportErrantRecords(captorRecord.capture());
     assertTrue(captorRecord.getValue().containsKey(mockedSinkRecord));

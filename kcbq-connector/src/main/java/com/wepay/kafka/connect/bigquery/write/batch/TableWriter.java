@@ -29,10 +29,13 @@ import com.google.cloud.bigquery.TableId;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryErrorResponses;
 import com.wepay.kafka.connect.bigquery.exception.ExpectedInterruptException;
+import com.wepay.kafka.connect.bigquery.strategy.CommitStrategy;
+import com.wepay.kafka.connect.bigquery.strategy.StreamStateContainer;
+import com.wepay.kafka.connect.bigquery.threads.ErrorRecorder;
 import com.wepay.kafka.connect.bigquery.utils.PartitionedTableId;
 import com.wepay.kafka.connect.bigquery.utils.SinkRecordConverter;
-import com.wepay.kafka.connect.bigquery.write.NeedsStreamState;
 import com.wepay.kafka.connect.bigquery.write.row.BigQueryWriter;
+import com.wepay.kafka.connect.bigquery.write.storage.StreamState;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -49,7 +52,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** Simple Table Writer that attempts to write all the rows it is given at once. */
-public class TableWriter implements Runnable, NeedsStreamState {
+public class TableWriter implements Runnable, StreamStateContainer {
 
   private static final Logger logger = LoggerFactory.getLogger(TableWriter.class);
 
@@ -59,6 +62,8 @@ public class TableWriter implements Runnable, NeedsStreamState {
   private final Consumer<Collection<RowToInsert>> onFinish;
   private final SinkRecordConverter recordConverter;
   private final Supplier<String> ulidSupplier;
+  private final ErrorRecorder errorRecorder;
+  private final StreamStateData streamStateData;
 
   /**
    * @param writer the {@link BigQueryWriter} to use.
@@ -77,13 +82,16 @@ public class TableWriter implements Runnable, NeedsStreamState {
       SortedMap<SinkRecord, RowToInsert> rows,
       Consumer<Collection<RowToInsert>> onFinish,
       SinkRecordConverter recordConverter,
-      Supplier<String> ulidSupplier) {
+      Supplier<String> ulidSupplier,
+      ErrorRecorder errorRecorder) {
     this.writer = writer;
     this.table = table;
     this.rows = rows;
     this.onFinish = onFinish;
     this.recordConverter = recordConverter;
     this.ulidSupplier = ulidSupplier;
+    this.errorRecorder = errorRecorder;
+    this.streamStateData = new StreamStateData(StreamState.APPEND);
   }
 
   private static int getNewBatchSize(int currentBatchSize, Throwable err) {
@@ -143,62 +151,84 @@ public class TableWriter implements Runnable, NeedsStreamState {
     int successCount = 0;
     int failureCount = 0;
 
-    List<Map.Entry<SinkRecord, RowToInsert>> rowsList = new ArrayList<>(rows.entrySet());
+    if (streamStateData.isAborted()) {
+      streamStateData.setStreamState(StreamState.FINALISED);
+      return;
+    }
     try {
-      while (currentIndex < rows.size()) {
-        List<Map.Entry<SinkRecord, RowToInsert>> currentBatchList =
-            rowsList.subList(currentIndex, Math.min(currentIndex + currentBatchSize, rows.size()));
-        try {
-          SortedMap<SinkRecord, RowToInsert> currentBatch = new TreeMap<>(rows.comparator());
-          for (Map.Entry<SinkRecord, RowToInsert> record : currentBatchList) {
-            currentBatch.put(record.getKey(), record.getValue());
-          }
-          writer.writeRows(table, currentBatch, recordConverter, ulidSupplier);
-          currentIndex += currentBatchSize;
-          successCount++;
-        } catch (BigQueryException err) {
-          logger.warn(
-              "Could not write batch of size {} to BigQuery. "
-                  + "Error code: {}, underlying error (if present): {}",
-              currentBatchList.size(),
-              err.getCode(),
-              err.getError(),
-              err);
-          if (isBatchSizeError(err)) {
-            failureCount++;
-            currentBatchSize = getNewBatchSize(currentBatchSize, err);
-          } else {
-            // Throw exception on write errors such as 403.
-            throw new BigQueryConnectException(
-                "Failed to write to table. " + err.getMessage(), err);
+      List<Map.Entry<SinkRecord, RowToInsert>> rowsList = new ArrayList<>(rows.entrySet());
+      try {
+        while (currentIndex < rows.size()) {
+          List<Map.Entry<SinkRecord, RowToInsert>> currentBatchList =
+              rowsList.subList(
+                  currentIndex, Math.min(currentIndex + currentBatchSize, rows.size()));
+          try {
+            SortedMap<SinkRecord, RowToInsert> currentBatch = new TreeMap<>(rows.comparator());
+            for (Map.Entry<SinkRecord, RowToInsert> record : currentBatchList) {
+              currentBatch.put(record.getKey(), record.getValue());
+            }
+            writer.writeRows(table, currentBatch, recordConverter, ulidSupplier);
+            currentIndex += currentBatchSize;
+            successCount++;
+          } catch (BigQueryException err) {
+            logger.warn(
+                "Could not write batch of size {} to BigQuery. "
+                    + "Error code: {}, underlying error (if present): {}",
+                currentBatchList.size(),
+                err.getCode(),
+                err.getError(),
+                err);
+            if (isBatchSizeError(err)) {
+              failureCount++;
+              currentBatchSize = getNewBatchSize(currentBatchSize, err);
+            } else {
+              // Throw exception on write errors such as 403.
+              throw new BigQueryConnectException(
+                  "Failed to write to table. " + err.getMessage(), err);
+            }
           }
         }
+      } catch (InterruptedException err) {
+        throw new ExpectedInterruptException("Thread interrupted while writing to BigQuery.");
       }
-    } catch (InterruptedException err) {
-      throw new ExpectedInterruptException("Thread interrupted while writing to BigQuery.");
-    }
 
-    // Common case is 1 successful call and 0 failed calls:
-    // Write to info if uncommon case,
-    // Write to debug if common case
-    String logMessage = "Wrote {} rows over {} successful calls and {} failed calls.";
-    if (successCount + failureCount > 1) {
-      logger.info(logMessage, rows.size(), successCount, failureCount);
-    } else {
-      logger.debug(logMessage, rows.size(), successCount, failureCount);
-    }
+      // Common case is 1 successful call and 0 failed calls:
+      // Write to info if uncommon case,
+      // Write to debug if common case
+      String logMessage = "Wrote {} rows over {} successful calls and {} failed calls.";
+      if (successCount + failureCount > 1) {
+        logger.info(logMessage, rows.size(), successCount, failureCount);
+      } else {
+        logger.debug(logMessage, rows.size(), successCount, failureCount);
+      }
 
-    onFinish.accept(rows.values());
+      onFinish.accept(rows.values());
+      streamStateData.setStreamState(StreamState.COMMITTED);
+    } catch (RuntimeException ex) {
+      errorRecorder.logAndRecord(ex);
+    }
+  }
+
+  @Override
+  public boolean stateIs(StreamState state) {
+    return streamStateData.stateIs(state);
+  }
+
+  @Override
+  public void abort() {
+    streamStateData.abort();
   }
 
   public static class Builder implements TableWriterBuilder {
     private final BigQueryWriter writer;
     private final PartitionedTableId table;
 
-    private SortedMap<SinkRecord, RowToInsert> rows;
+    private final SortedMap<SinkRecord, RowToInsert> rows;
     private SinkRecordConverter recordConverter;
     private Consumer<Collection<RowToInsert>> onFinish;
     private Supplier<String> ulidSupplier = null;
+    private CommitStrategy commitStrategy;
+    private ErrorRecorder errorRecorder;
 
     /**
      * @param writer the BigQueryWriter to use
@@ -244,14 +274,29 @@ public class TableWriter implements Runnable, NeedsStreamState {
     }
 
     @Override
+    public void setCommitStrategy(CommitStrategy commitStrategy) {
+      this.commitStrategy = commitStrategy;
+    }
+
+    @Override
+    public void setErrorRecorder(ErrorRecorder errorRecorder) {
+      this.errorRecorder = errorRecorder;
+    }
+
+    @Override
     public TableWriter build() {
-      return new TableWriter(
-          writer,
-          table,
-          rows,
-          onFinish != null ? onFinish : n -> {},
-          recordConverter,
-          ulidSupplier);
+      Objects.requireNonNull(errorRecorder, "errorRecorder may not be null");
+      Objects.requireNonNull(commitStrategy, "commitStrategy may not be null");
+      return commitStrategy.queue(
+          rows.keySet(),
+          new TableWriter(
+              writer,
+              table,
+              rows,
+              onFinish != null ? onFinish : n -> {},
+              recordConverter,
+              ulidSupplier,
+              errorRecorder));
     }
   }
 }

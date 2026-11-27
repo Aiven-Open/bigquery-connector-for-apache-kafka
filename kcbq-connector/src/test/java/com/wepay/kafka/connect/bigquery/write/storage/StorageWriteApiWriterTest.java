@@ -46,11 +46,14 @@ import com.wepay.kafka.connect.bigquery.config.BigQuerySinkConfig;
 import com.wepay.kafka.connect.bigquery.config.BigQuerySinkTaskConfig;
 import com.wepay.kafka.connect.bigquery.convert.BigQueryRecordConverter;
 import com.wepay.kafka.connect.bigquery.convert.RecordConverter;
+import com.wepay.kafka.connect.bigquery.strategy.NoCommitStrategy;
+import com.wepay.kafka.connect.bigquery.threads.ErrorRecorder;
 import com.wepay.kafka.connect.bigquery.utils.MockTime;
 import com.wepay.kafka.connect.bigquery.utils.PartitionedTableId;
 import com.wepay.kafka.connect.bigquery.utils.SinkRecordConverter;
 import com.wepay.kafka.connect.bigquery.utils.TableNameUtils;
 import com.wepay.kafka.connect.bigquery.write.batch.TableWriterBuilder;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -126,10 +129,14 @@ public class StorageWriteApiWriterTest {
     expectedKeys.add("bytes_check");
 
     builder.addRow(createRecord("abc", 100), null);
+
+    builder.setCommitStrategy(new NoCommitStrategy());
+    builder.setErrorRecorder(ErrorRecorder.from(new ArrayList<>()));
     builder.build().run();
 
     verify(mockStreamWriter, times(1))
-        .initializeAndWriteRecords(any(PartitionedTableId.class), records.capture(), anyString());
+        .initializeAndWriteRecords(
+            any(PartitionedTableId.class), records.capture(), anyString(), any(), any());
     assertEquals(1, records.getValue().size());
 
     JSONObject actual = records.getValue().get(0).converted();
@@ -180,13 +187,16 @@ public class StorageWriteApiWriterTest {
             mockStreamWriter, partitionedTableId, sinkRecordConverter, batchModeHandler);
 
     builder.addRow(createRecord("abc", 100), null);
+
+    builder.setCommitStrategy(new NoCommitStrategy());
+    builder.setErrorRecorder(ErrorRecorder.from(new ArrayList<>()));
     builder.build().run();
 
     // Capture stream name initializeAndWriteRecords was called with
     ArgumentCaptor<String> streamNameCaptor = ArgumentCaptor.forClass(String.class);
     verify(mockStreamWriter, times(1))
         .initializeAndWriteRecords(
-            any(PartitionedTableId.class), any(), streamNameCaptor.capture());
+            any(PartitionedTableId.class), any(), streamNameCaptor.capture(), any(), any());
 
     assertEquals(expectedStreamName, streamNameCaptor.getValue());
     String tableNameUsedInUpdate = tableNameCaptor.getValue();
@@ -238,6 +248,8 @@ public class StorageWriteApiWriterTest {
         new StorageWriteApiWriter.Builder(stream, table, sinkRecordConverter, batchModeHandler);
     builder.withUlidSupplier(ulidSupplier);
     builder.addRow(createRecord("abc", 100), null);
+    builder.setCommitStrategy(new NoCommitStrategy());
+    builder.setErrorRecorder(ErrorRecorder.from(new ArrayList<>()));
     builder.build().run();
 
     ArgumentCaptor<JSONArray> captor = ArgumentCaptor.forClass(JSONArray.class);
@@ -290,6 +302,8 @@ public class StorageWriteApiWriterTest {
     StorageWriteApiWriter.Builder builder =
         new StorageWriteApiWriter.Builder(stream, table, sinkRecordConverter, batchModeHandler);
     builder.addRow(createRecord("abc", 100), null);
+    builder.setCommitStrategy(new NoCommitStrategy());
+    builder.setErrorRecorder(ErrorRecorder.from(new ArrayList<>()));
     builder.build().run();
 
     ArgumentCaptor<JSONArray> captor = ArgumentCaptor.forClass(JSONArray.class);
@@ -336,6 +350,8 @@ public class StorageWriteApiWriterTest {
         new StorageWriteApiWriter.Builder(stream, table, sinkRecordConverter, batchModeHandler);
     builder.withUlidSupplier(ulidSupplier);
     builder.addRow(createRecord("abc", 100), null);
+    builder.setCommitStrategy(new NoCommitStrategy());
+    builder.setErrorRecorder(ErrorRecorder.from(new ArrayList<>()));
     builder.build().run();
 
     ArgumentCaptor<JSONArray> captor = ArgumentCaptor.forClass(JSONArray.class);

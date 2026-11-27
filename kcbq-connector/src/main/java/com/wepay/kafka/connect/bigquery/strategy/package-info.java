@@ -31,8 +31,8 @@
  *
  * <p>StreamStateContainer is the class that tracks the status of a group of KafkaRecordKeys. In
  * general, Once the container reached the COMMITTED state the CommitStrategy will report the
- * highest offsets as commitable to Kafka. The container also implements an abort() method that will
- * stop the container from writing the data to the storage, this is used when Kafka unassignes a
+ * highest offsets as committable to Kafka. The container also implements an abort() method that
+ * will stop the container from writing the data to the storage, this is used when Kafka unassigns a
  * partition.
  *
  * <p>Suggestions:

@@ -1023,7 +1023,7 @@ public class BigQuerySinkTaskTest {
           throw new RuntimeException("Batch Handler Exception");
         };
 
-    testTask.scheduledExecutor.schedule(batchHandler, 0, TimeUnit.SECONDS);
+    testTask.getScheduledExecutor().schedule(batchHandler, 0, TimeUnit.SECONDS);
 
     Exception exception =
         DataPolling.pollUntilException(
@@ -1067,11 +1067,11 @@ public class BigQuerySinkTaskTest {
     testTask.initialize(sinkTaskContext);
     testTask.start(properties);
 
-    List<String> taskNames = testTask.scheduledExecutor.taskNames();
+    List<String> taskNames = testTask.getScheduledExecutor().taskNames();
     Awaitility.waitAtMost(Duration.ofSeconds(5))
         .untilAsserted(
             () ->
-                assertThat(testTask.scheduledExecutor.taskNames())
+                assertThat(testTask.getScheduledExecutor().taskNames())
                     .allMatch(s -> s.contains("Clean commits"))
                     .hasSize(1));
   }
